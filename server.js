@@ -3,11 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Carregar variáveis de ambiente do arquivo .env manualmente
 const envPath = path.join(__dirname, '.env');
-const envVars = {};
+const envVars = { ...process.env };
 if (fs.existsSync(envPath)) {
     const envContent = fs.readFileSync(envPath, 'utf-8');
     envContent.split('\n').forEach(line => {
@@ -15,7 +15,9 @@ if (fs.existsSync(envPath)) {
         if (parts.length >= 2 && !line.trim().startsWith('#')) {
             const key = parts[0].trim();
             const value = parts.slice(1).join('=').trim();
-            envVars[key] = value;
+            if (envVars[key] === undefined) {
+                envVars[key] = value;
+            }
         }
     });
     console.log('Variáveis de ambiente carregadas do .env');
@@ -54,6 +56,15 @@ const server = http.createServer(async (request, response) => {
     console.log(`${request.method} ${pathname}`);
 
     // --- API ENDPOINTS ---
+
+    if (pathname === '/api/config' && request.method === 'GET') {
+        const payload = {
+            app_url: envVars['APP_URL'] || ''
+        };
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(payload));
+        return;
+    }
 
     // 1. Proxy para OpenAI
     if (pathname === '/api/openai/chat/completions' && request.method === 'POST') {
