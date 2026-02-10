@@ -57,6 +57,19 @@ const server = http.createServer(async (request, response) => {
 
     // --- API ENDPOINTS ---
 
+    if (pathname === '/config' && request.method === 'GET') {
+        const supabaseUrl = process.env.SUPABASE_URL || '';
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+        const payload = {
+            supabaseUrl,
+            supabaseAnonKey,
+            missing: !supabaseUrl || !supabaseAnonKey
+        };
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(payload));
+        return;
+    }
+
     if (pathname === '/api/config' && request.method === 'GET') {
         const payload = {
             app_url: envVars['APP_URL'] || ''

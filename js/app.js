@@ -1,9 +1,37 @@
-// Configuração inicial do Supabase
-const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicWtubWVqc21uaXpqZG5vcG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMjkyOTMsImV4cCI6MjA3ODgwNTI5M30.w-v_CW3X5DF9x_nnFe3Lhvw_JyrXxfXKv7tPIZAjGaU';
-
 // Inicialização do cliente Supabase
-function initSupabase() {
+window.supabaseConfig = null;
+let supabaseConfigPromise = null;
+
+async function loadSupabaseConfig() {
+    if (window.supabaseConfig) return window.supabaseConfig;
+    if (supabaseConfigPromise) return supabaseConfigPromise;
+
+    supabaseConfigPromise = fetch('/config')
+        .then(async (response) => {
+            if (!response.ok) {
+                throw new Error(`Falha ao carregar /config: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then((data) => {
+            const supabaseUrl = data?.supabaseUrl;
+            const supabaseAnonKey = data?.supabaseAnonKey;
+            if (data?.missing || !supabaseUrl || !supabaseAnonKey) {
+                console.error('Configuração Supabase ausente ou incompleta em /config', data);
+                return null;
+            }
+            window.supabaseConfig = { supabaseUrl, supabaseAnonKey };
+            return window.supabaseConfig;
+        })
+        .catch((err) => {
+            console.error('Erro ao carregar /config do Supabase:', err);
+            return null;
+        });
+
+    return supabaseConfigPromise;
+}
+
+async function initSupabase() {
     if (window.supabaseClient) return true; // Já inicializado
 
     try {
@@ -11,7 +39,11 @@ function initSupabase() {
             console.warn('Biblioteca Supabase ainda não carregada no app.js, aguardando...');
             return false;
         } else {
-            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            if (!window.supabaseConfig) {
+                const config = await loadSupabaseConfig();
+                if (!config) return false;
+            }
+            window.supabaseClient = window.supabase.createClient(window.supabaseConfig.supabaseUrl, window.supabaseConfig.supabaseAnonKey);
             console.log('Supabase inicializado com sucesso no app.js');
             window.SUPERADMIN_EMAILS = ['stephaniemoreira.designer@gmail.com', 'marketing.vaniamello@gmail.com'];
             return true;
@@ -27,18 +59,20 @@ initSupabase();
 
 // Se falhar, tenta novamente no DOMContentLoaded e window.onload
 document.addEventListener('DOMContentLoaded', () => {
-    if (!initSupabase()) {
-        // Retry loop
-        const checkSupabase = setInterval(() => {
-            if (initSupabase()) {
-                clearInterval(checkSupabase);
-                // Dispara evento personalizado para avisar outros scripts
-                window.dispatchEvent(new CustomEvent('supabaseReady'));
-            }
-        }, 100);
-        // Desiste após 10 segundos
-        setTimeout(() => clearInterval(checkSupabase), 10000);
-    }
+    loadSupabaseConfig();
+    initSupabase().then((ready) => {
+        if (!ready) {
+            const checkSupabase = setInterval(async () => {
+                if (await initSupabase()) {
+                    clearInterval(checkSupabase);
+                    window.dispatchEvent(new CustomEvent('supabaseReady'));
+                }
+            }, 100);
+            setTimeout(() => clearInterval(checkSupabase), 10000);
+        } else {
+            window.dispatchEvent(new CustomEvent('supabaseReady'));
+        }
+    });
 });
 
 
