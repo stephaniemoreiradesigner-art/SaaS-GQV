@@ -70,6 +70,12 @@ const server = http.createServer(async (request, response) => {
         return;
     }
 
+    if (pathname === '/health' && request.method === 'GET') {
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: 'ok' }));
+        return;
+    }
+
     if (pathname === '/api/config' && request.method === 'GET') {
         const payload = {
             app_url: envVars['APP_URL'] || ''
