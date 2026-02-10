@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarefas - Gestão Que Vende</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="js/theme.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <style>
+        /* FullCalendar Customization Overrides */
+        .fc {
+            font-family: 'Inter', sans-serif;
+        }
+        .fc .fc-toolbar {
+            flex-wrap: nowrap !important; /* Prevent wrapping of toolbar items */
+            gap: 1rem;
+        }
+        .fc .fc-toolbar-title {
+            font-size: 1.25rem !important;
+            font-weight: 600 !important;
+            color: var(--color-primary);
+            white-space: nowrap;
+        }
+        .fc .fc-button-primary {
+            background-color: var(--color-primary) !important;
+            border-color: var(--color-primary) !important;
+            text-transform: capitalize;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+        }
+        .fc .fc-button-primary:hover {
+            opacity: 0.9;
+        }
+        .fc .fc-button-primary:not(:disabled).fc-button-active {
+            background-color: var(--color-secondary) !important;
+            border-color: var(--color-secondary) !important;
+        }
+        
+        /* Custom Scrollbar for Task List */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+        }
+
+        /* Modal Transitions */
+        .modal {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans">
+    
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="w-12 h-12 border-4 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin mb-4"></div>
+        <h3 class="text-lg font-semibold text-[var(--color-primary)]">Carregando Tarefas...</h3>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex z-20">
+            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+                <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+            </div>
+            
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+                <a href="dashboard.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-home w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Home</span>
+                </a>
+                <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-users w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Clientes</span>
+                </a>
+                <a href="tarefas.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors">
+                    <i class="fas fa-tasks w-6 text-center"></i>
+                    <span class="font-medium ml-2">Tarefas</span>
+                </a>
+                <a href="social_media.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,social_media">
+                    <i class="fas fa-hashtag w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Social Media</span>
+                </a>
+                <a href="trafego_pago.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,trafego_pago">
+                    <i class="fas fa-bullhorn w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Tráfego Pago</span>
+                </a>
+                <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-comments w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Chat</span>
+                </a>
+                <a href="financeiro.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-dollar-sign w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Financeiro</span>
+                </a>
+                <a href="automacoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-robot w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Automações</span>
+                </a>
+                <a href="colaboradores.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-user-friends w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Colaboradores</span>
+                </a>
+                <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-cog w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Configurações</span>
+                </a>
+            </nav>
+
+        <div class="p-4 border-t border-gray-100">
+            <div class="flex items-center gap-3 mb-3">
+                <img id="user-avatar-sidebar" src="assets/avatar_placeholder.png" alt="User" class="h-9 w-9 rounded-full object-cover border border-gray-200">
+                <div class="flex-1 min-w-0">
+                    <p id="user-name-sidebar" class="text-sm font-medium text-gray-700 truncate">Carregando...</p>
+                    <p class="text-xs text-gray-500">Online</p>
+                </div>
+            </div>
+            <button id="btn-logout-sidebar" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </button>
+        </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden relative bg-gray-50">
+            <!-- Mobile Header -->
+            <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-10">
+                <img src="assets/logo.png" id="logo-mobile" class="h-8 w-auto object-contain" alt="Logo">
+                <button class="text-gray-500 hover:text-[var(--color-primary)]" onclick="document.querySelector('aside').classList.toggle('hidden'); document.querySelector('aside').classList.toggle('fixed'); document.querySelector('aside').classList.toggle('inset-0'); document.querySelector('aside').classList.toggle('z-50');">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-8">
+                <div class="max-w-7xl mx-auto h-full flex flex-col">
+                    <!-- Header da Página -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-tasks text-[var(--color-primary)]"></i> Minhas Tarefas
+                            </h2>
+                            <p class="text-gray-500 mt-1">Gerencie suas tarefas e reuniões.</p>
+                        </div>
+                        <button onclick="openNewTaskModal()" class="bg-[var(--color-primary)] hover:opacity-90 text-white px-5 py-2.5 rounded-lg shadow-md transition-all flex items-center gap-2 font-medium">
+                            <i class="fas fa-plus"></i> Nova Tarefa
+                        </button>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="mb-6 flex items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <label class="text-sm font-medium text-gray-600"><i class="fas fa-filter mr-2"></i>Filtrar por Status:</label>
+                        <select id="filter-status" class="form-select border-gray-300 rounded-lg text-sm focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)]" onchange="loadTasks()">
+                            <option value="all">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="em_andamento">Em Andamento</option>
+                            <option value="concluido">Concluído</option>
+                            <option value="solicitacao_prazo">Solicitação de Prazo</option>
+                            <option value="ajuste_solicitado">Ajuste Solicitado</option>
+                            <option value="aguardando_agendamento">Aguardando Agendamento</option>
+                        </select>
+                    </div>
+
+                    <!-- Board de Tarefas (Split View) -->
+                    <div id="tasks-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+                        <!-- Lista de Tarefas -->
+                        <div id="task-list-column" class="custom-scrollbar overflow-y-auto pr-2 space-y-4 h-[calc(100vh-280px)]">
+                            <div class="flex flex-col items-center justify-center h-full text-gray-400">
+                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                <p>Carregando lista...</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Calendário -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 h-[500px] lg:h-[calc(100vh-280px)] overflow-hidden flex flex-col">
+                            <div id="calendar" class="flex-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Nova Seção de Criação de Tarefa (Inicialmente oculta) -->
+                    <div id="create-task-section" class="hidden bg-white rounded-xl shadow-lg border border-gray-100 p-6 md:p-8 animate-fade-in-up">
+                        <div class="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+                            <h3 class="text-xl font-bold text-[var(--color-primary)]">Nova Tarefa</h3>
+                            <button class="text-gray-500 hover:text-gray-700 flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors" onclick="showTasksList()">
+                                <i class="fas fa-arrow-left"></i> Voltar
+                            </button>
+                        </div>
+                        
+                        <form id="form-nova-tarefa" onsubmit="submitNewTask(event)" class="max-w-4xl mx-auto">
+                            
+                            <!-- Informações Fixas (Criador) -->
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6 flex items-center gap-4">
+                                <img id="creator-avatar" src="assets/avatar-placeholder.png" alt="Criador" class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm">
+                                <div>
+                                    <strong id="creator-name" class="block text-[var(--color-primary)] font-semibold">Carregando...</strong>
+                                    <span id="creation-date" class="text-sm text-gray-500">Carregando data...</span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-semibold text-gray-700">Cliente *</label>
+                                    <select id="task-cliente" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" required>
+                                        <option value="">Carregando clientes...</option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-semibold text-gray-700">Atribuir Para *</label>
+                                    <div class="flex flex-wrap gap-2 mb-2 min-h-[30px]" id="selected-assignees-tags">
+                                        <!-- Tags aparecerão aqui -->
+                                    </div>
+                                    <select id="task-assignees-select" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" onchange="addAssigneeFromSelect(this)">
+                                        <option value="">Selecione um colaborador...</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500">Selecione para adicionar à lista.</p>
+                                </div>
+                            </div>
+
+                            <div class="mb-6 space-y-2">
+                                <label class="block text-sm font-semibold text-gray-700">Nome da Tarefa *</label>
+                                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                    <input type="text" id="task-title" class="flex-1 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" placeholder="Título da tarefa" required>
+                                    <div class="flex items-center gap-4 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="task-type" value="tarefa" checked onchange="toggleTaskType()" class="text-[var(--color-primary)] focus:ring-[var(--color-primary)]">
+                                            <span class="text-gray-700 font-medium">Tarefa</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="task-type" value="reuniao" onchange="toggleTaskType()" class="text-[var(--color-primary)] focus:ring-[var(--color-primary)]">
+                                            <span class="text-gray-700 font-medium">Reunião</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-semibold text-gray-700">Tipo de Prazo *</label>
+                                    <select id="task-prazo-tipo" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" required>
+                                        <option value="ate_dia">Até o dia</option>
+                                        <option value="para_dia">Para o dia</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="block text-sm font-semibold text-gray-700">Data do Prazo *</label>
+                                    <input type="date" id="task-prazo-data" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" required>
+                                </div>
+                            </div>
+
+                            <div id="meeting-time-group" class="hidden mb-6 space-y-2">
+                                <label class="block text-sm font-semibold text-gray-700">Horário da Reunião *</label>
+                                <input type="time" id="task-meeting-time" class="w-full md:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow">
+                            </div>
+
+                            <div class="mb-8 space-y-2">
+                                <label class="block text-sm font-semibold text-gray-700">Descrição / Histórico *</label>
+                                <textarea id="task-description" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)] transition-shadow" rows="5" placeholder="Descreva o que precisa ser feito..." required></textarea>
+                            </div>
+
+                            <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                <button type="button" class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors" onclick="showTasksList()">Cancelar</button>
+                                <button type="submit" class="px-5 py-2.5 rounded-lg bg-[var(--color-primary)] text-white font-medium shadow-md hover:opacity-90 transition-opacity">Criar Tarefa</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Detalhes Tarefa -->
+    <div id="viewTaskModal" class="hidden fixed inset-0 z-[1000] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" onclick="closeViewTaskModal()"></div>
+        <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+            <div class="relative bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-2xl sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-xl font-semibold text-[var(--color-primary)]" id="modal-title">Detalhes da Tarefa</h3>
+                        <button onclick="closeViewTaskModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <div id="view-task-content" class="mt-2">
+                        <!-- Conteúdo carregado dinamicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/components/sidebar.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/tarefas.js"></script>
+</body>
+</html>

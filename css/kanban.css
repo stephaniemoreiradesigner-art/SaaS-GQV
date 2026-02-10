@@ -1,0 +1,78 @@
+/* Estilos para o Kanban (Fluxo) */
+.kanban-column {
+    transition: all 0.3s ease;
+}
+
+.kanban-card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid transparent;
+}
+
+.kanban-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Bordas coloridas baseadas no tipo de post */
+.kanban-card.type-static { border-left-color: #17a2b8; }
+.kanban-card.type-reels { border-left-color: #e83e8c; }
+.kanban-card.type-carrossel { border-left-color: #6610f2; }
+.kanban-card.type-stories { border-left-color: #fd7e14; }
+
+.kanban-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.kanban-date-badge {
+    background: #eee;
+    color: #555;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+.kanban-card-title {
+    font-weight: bold;
+    font-size: 0.95rem;
+    margin-bottom: 5px;
+    color: #333;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.kanban-card-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: #777;
+    margin-top: 8px;
+    align-items: center;
+}
+
+.kanban-card-platforms i {
+    margin-right: 3px;
+}
+
+.kanban-empty-placeholder {
+    color: #999;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+    font-size: 0.9rem;
+    border: 1px dashed #ccc;
+    border-radius: 6px;
+    margin-top: 10px;
+}

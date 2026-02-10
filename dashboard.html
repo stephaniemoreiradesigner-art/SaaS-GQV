@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Gestão Que Vende</title>
+    <script src="js/theme.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
+            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+                <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+            </div>
+            
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+                <a href="dashboard.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors">
+                    <i class="fas fa-home w-6 text-center"></i>
+                    <span class="font-medium ml-2">Home</span>
+                </a>
+                <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-users w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Clientes</span>
+                </a>
+                <a href="tarefas.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-tasks w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Tarefas</span>
+                </a>
+                <a href="social_media.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,social_media">
+                    <i class="fas fa-hashtag w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Social Media</span>
+                </a>
+                <a href="trafego_pago.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,trafego_pago">
+                    <i class="fas fa-bullhorn w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Tráfego Pago</span>
+                </a>
+                <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-comments w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Chat</span>
+                </a>
+                <a href="financeiro.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-dollar-sign w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Financeiro</span>
+                </a>
+                <a href="automacoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-robot w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Automações</span>
+                </a>
+                <a href="colaboradores.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-user-friends w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Colaboradores</span>
+                </a>
+                <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-cog w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Configurações</span>
+                </a>
+            </nav>
+
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center gap-3 mb-4">
+                    <img id="user-avatar-sidebar" class="w-10 h-10 rounded-full object-cover border border-gray-200" src="" alt="User">
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name-sidebar" class="text-sm font-semibold text-gray-800 truncate">Carregando...</p>
+                    </div>
+                    <button id="btn-logout-sidebar" class="text-gray-400 hover:text-red-500 transition-colors" title="Sair">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden relative">
+            <!-- Mobile Header -->
+            <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+                <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
+                <button class="text-gray-500 hover:text-primary" onclick="document.querySelector('aside').classList.toggle('hidden')">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 md:p-8">
+                <div class="flex items-center gap-3 mb-8">
+                    <div class="w-1 h-8 bg-primary rounded-full"></div>
+                    <h2 class="text-2xl font-bold text-gray-800">Home</h2>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <!-- Lembretes -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-list-ul text-primary"></i> Lembretes
+                        </h3>
+                        
+                        <!-- Agenda do Dia (Sistema) -->
+                        <div id="system-reminders-container" class="mb-6 hidden">
+                            <h5 class="text-sm font-semibold text-primary uppercase tracking-wider mb-3 border-b border-gray-100 pb-2">
+                                <i class="far fa-calendar-alt mr-1"></i> Agenda de Hoje
+                            </h5>
+                            <ul class="space-y-2" id="system-reminders-list">
+                                <!-- Injetado via JS -->
+                            </ul>
+                        </div>
+
+                        <div class="flex gap-2 mb-4">
+                            <input type="text" id="new-todo" placeholder="Novo lembrete manual..." class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                            <button onclick="addTodo()" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <ul class="space-y-2 max-h-72 overflow-y-auto pr-2 custom-scrollbar" id="todo-list">
+                            <li class="text-center text-gray-400 py-4">Carregando...</li>
+                        </ul>
+                    </div>
+
+                    <!-- Minhas Reuniões -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" id="card-meetings">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-video text-primary"></i> Minhas Reuniões
+                            </h3>
+                            <button class="px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all" onclick="window.location.href='tarefas.html?action=new&type=reuniao'">
+                                <i class="fas fa-plus mr-1"></i> Agendar
+                            </button>
+                        </div>
+                        <div class="space-y-3" id="my-meetings-list">
+                            <p class="text-center text-gray-400 py-4">Carregando reuniões...</p>
+                        </div>
+                    </div>
+
+                    <!-- Aniversariantes do Mês -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-birthday-cake text-pink-500"></i> Aniversariantes do Mês
+                        </h3>
+                        <div class="space-y-3" id="birthdays-month-list">
+                            <p class="text-center text-gray-400 py-4">Carregando aniversariantes...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="js/components/sidebar.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

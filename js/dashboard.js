@@ -1,0 +1,568 @@
+document.addEventListener('DOMContentLoaded', async () => {
+    // Verifica se estamos na página de dashboard
+    if (!window.location.pathname.includes('dashboard.html')) return;
+
+    let socialChartInstance = null;
+    let currentUserRole = 'usuario';
+    let currentUserEmail = '';
+    let currentUserId = '';
+    let currentUserData = null;
+
+    // Aguarda e inicializa dados do usuário
+    async function initDashboard() {
+        try {
+            // Aguarda Supabase
+            if (!window.supabaseClient) {
+                await new Promise(r => setTimeout(r, 500));
+            }
+            if (!window.supabaseClient) return;
+
+            const { data: { session } } = await window.supabaseClient.auth.getSession();
+            if (session) {
+                currentUserEmail = session.user.email;
+                currentUserId = session.user.id;
+                
+                // Buscar dados detalhados do colaborador para permissões
+                const { data: colab } = await window.supabaseClient
+                    .from('colaboradores')
+                    .select('*')
+                    .eq('email', currentUserEmail)
+                    .maybeSingle();
+
+                if (colab) {
+                    currentUserData = colab;
+                    currentUserRole = colab.perfil_acesso || 'usuario';
+                    // Salvar globalmente para helpers se precisar
+                    window.currentUserData = colab;
+                } else {
+                    // Fallback se não achar na tabela colaboradores (ex: admin inicial)
+                    // Verifica profile ou superadmin array
+                    const isSuper = (window.SUPERADMIN_EMAILS || []).includes(currentUserEmail);
+                    if (isSuper) currentUserRole = 'super_admin';
+                }
+
+                // Carrega métricas
+                await loadDashboardMetrics();
+                
+                // Libera a tela
+                if (window.showContent) window.showContent();
+            }
+        } catch (e) {
+            console.error('Erro init dashboard:', e);
+        }
+    }
+
+    // Funções Globais para Lembretes Manuais
+    window.addTodo = async function() {
+        const input = document.getElementById('new-todo');
+        const titulo = input.value.trim();
+        if (!titulo) return;
+
+        try {
+            const { data: { user } } = await window.supabaseClient.auth.getUser();
+            if (!user) {
+                alert('Você precisa estar logado.');
+                return;
+            }
+
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .insert([{ 
+                    titulo: titulo,
+                    user_id: user.id 
+                }]);
+
+            if (error) throw error;
+            input.value = '';
+            loadLembretes(); // Recarrega a lista
+        } catch (e) {
+            console.error('Erro ao adicionar lembrete:', e);
+            alert('Erro ao adicionar lembrete. Verifique se você rodou o script de banco de dados.');
+        }
+    };
+
+    window.deleteTodo = async function(id) {
+        if(!confirm('Excluir este lembrete?')) return;
+        try {
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+            loadLembretes();
+        } catch (e) {
+            console.error('Erro ao excluir:', e);
+        }
+    };
+
+    window.toggleTodo = async function(id, checked) {
+        try {
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .update({ concluido: checked })
+                .eq('id', id);
+
+            if (error) throw error;
+            loadLembretes();
+        } catch (e) {
+            console.error('Erro ao atualizar:', e);
+        }
+    };
+
+    // Helper interno para carregar lembretes manuais
+    async function loadLembretes() {
+        const list = document.getElementById('todo-list');
+        if (!list) return;
+
+        try {
+            const { data: todos, error } = await window.supabaseClient
+                .from('lembretes')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            list.innerHTML = '';
+            if (!todos || todos.length === 0) {
+                list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Nenhum lembrete manual</li>';
+                return;
+            }
+
+            todos.forEach(todo => {
+                const li = document.createElement('li');
+                // Estilo condicional para concluído
+                const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
+                
+                li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
+                li.innerHTML = `
+                    <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
+                           ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
+                    <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
+                    <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
+                            onclick="deleteTodo('${todo.id}')" title="Excluir">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                `;
+                list.appendChild(li);
+            });
+        } catch (e) {
+            console.error('Erro ao carregar lembretes:', e);
+            list.innerHTML = '<li class="text-red-500 text-center py-2 text-sm">Erro ao carregar</li>';
+        }
+    }
+
+    // --- NOVA FUNÇÃO: Agenda do Dia (Sistema) ---
+    async function loadSystemAgenda() {
+        const list = document.getElementById('system-reminders-list');
+        const container = document.getElementById('system-reminders-container');
+        if (!list || !container) return;
+
+        // Configurar datas
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const startOfDay = new Date(today);
+        const endOfDay = new Date(today);
+        endOfDay.setHours(23, 59, 59, 999);
+        const todayDateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        container.style.display = 'block';
+        list.innerHTML = '<li class="text-center text-gray-400 py-4 text-sm">Carregando agenda...</li>';
+
+        const items = [];
+
+        try {
+            // 1. Buscar Tarefas e Reuniões de Hoje
+            // Traz tarefas que vencem hoje
+            let query = window.supabaseClient
+                .from('tarefas')
+                .select(`
+                    id, titulo, tipo, prazo_data, horario_reuniao, status, time_id, criado_por,
+                    tarefa_atribuicoes ( usuario_email )
+                `)
+                .eq('prazo_data', todayDateStr)
+                .neq('status', 'concluido')
+                .neq('status', 'concluida'); // Não mostrar concluídas (ambos gêneros)
+
+            const { data: tarefas, error: errTarefas } = await query;
+
+            if (errTarefas) {
+                console.warn('Erro ao buscar tarefas (pode ser permissão ou tabela inexistente):', errTarefas);
+            } else if (tarefas) {
+                const currentEmailLower = (currentUserEmail || '').toLowerCase();
+
+                tarefas.forEach(t => {
+                    // Filtro de Permissão
+                    let isVisible = false;
+
+                    const criadoPorMim = currentUserId && t.criado_por && String(t.criado_por) === String(currentUserId);
+
+                    if (t.status === 'solicitacao_prazo') {
+                        isVisible = criadoPorMim;
+                    } else if (['admin', 'super_admin'].includes(currentUserRole)) {
+                        isVisible = true;
+                    } else {
+                        const atribuido = t.tarefa_atribuicoes?.some(a => (a.usuario_email || '').toLowerCase() === currentEmailLower);
+
+                        let timeMatch = false;
+                        if (t.time_id && currentUserData && currentUserData.times_acesso) {
+                            let userTimes = currentUserData.times_acesso;
+                            if (typeof userTimes === 'string') {
+                                try { userTimes = JSON.parse(userTimes); } catch(e) { userTimes = []; }
+                            }
+                            
+                            if (Array.isArray(userTimes)) {
+                                if (userTimes.map(id => String(id)).includes(String(t.time_id))) {
+                                    timeMatch = true;
+                                }
+                            }
+                        }
+
+                        if (atribuido || timeMatch || criadoPorMim) isVisible = true;
+                    }
+
+                    if (isVisible) {
+                        items.push({
+                            type: t.tipo,
+                            title: t.titulo,
+                            desc: t.tipo === 'reuniao' ? `Reunião às ${t.horario_reuniao || '??:??'}` : 'Entrega hoje',
+                            link: `tarefas.html?id=${t.id}`, // Vai abrir detalhes
+                            icon: t.tipo === 'reuniao' ? 'fa-users' : 'fa-tasks',
+                            colorClass: t.tipo === 'reuniao' ? 'bg-cyan-100 text-cyan-600' : 'bg-blue-100 text-blue-600'
+                        });
+                    }
+                });
+            }
+
+            // 2. Buscar Financeiro (Mensalidades e Faturas)
+            // Apenas para Admin, SuperAdmin e Financeiro
+            if (['admin', 'super_admin', 'financeiro'].includes(currentUserRole)) {
+                const { data: fins, error: errFin } = await window.supabaseClient
+                    .from('financeiro')
+                    .select('id, descricao, valor, tipo, status')
+                    .eq('data_transacao', todayDateStr)
+                    .eq('status', 'a_vencer'); // Apenas pendentes
+
+                if (!errFin && fins) {
+                    fins.forEach(f => {
+                        const isReceita = f.tipo === 'entrada';
+                        items.push({
+                            type: 'financeiro',
+                            title: f.descricao,
+                            desc: `${isReceita ? 'Receber' : 'Pagar'}: ${parseFloat(f.valor).toLocaleString('pt-br',{style:'currency', currency:'BRL'})}`,
+                            link: 'financeiro.html',
+                            icon: isReceita ? 'fa-hand-holding-usd' : 'fa-file-invoice-dollar',
+                            colorClass: isReceita ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                        });
+                    });
+                }
+            }
+
+            // 3. Buscar Aniversariantes do Dia
+            const { data: colaboradores, error: errColab } = await window.supabaseClient
+                .from('colaboradores')
+                .select('nome, data_nascimento, times_acesso')
+                .not('data_nascimento', 'is', null);
+
+            if (!errColab && colaboradores) {
+                const hojeDia = today.getDate();
+                const hojeMes = today.getMonth(); // 0-11
+
+                colaboradores.forEach(c => {
+                    // Parse data nascimento (YYYY-MM-DD)
+                    const parts = c.data_nascimento.split('-');
+                    if (parts.length === 3) {
+                        const nascDia = parseInt(parts[2]);
+                        const nascMes = parseInt(parts[1]) - 1; // JS months are 0-based
+
+                        if (nascDia === hojeDia && nascMes === hojeMes) {
+                            // É aniversariante!
+                            
+                            // Filtro de Permissão (Time)
+                            let isVisible = false;
+                            if (['admin', 'super_admin'].includes(currentUserRole)) {
+                                isVisible = true;
+                            } else {
+                                // Verifica interseção de times
+                                let userTimes = currentUserData?.times_acesso || [];
+                                let colabTimes = c.times_acesso || [];
+                                
+                                // Normalizar arrays (podem vir como string JSON do banco)
+                                if (typeof userTimes === 'string') { try { userTimes = JSON.parse(userTimes); } catch(e) { userTimes = []; } }
+                                if (typeof colabTimes === 'string') { try { colabTimes = JSON.parse(colabTimes); } catch(e) { colabTimes = []; } }
+                                
+                                if (!Array.isArray(userTimes)) userTimes = [];
+                                if (!Array.isArray(colabTimes)) colabTimes = [];
+
+                                // Normalizar para strings para comparação segura
+                                const userTimesStr = userTimes.map(String);
+                                const colabTimesStr = colabTimes.map(String);
+
+                                const intersection = userTimesStr.filter(t => colabTimesStr.includes(t));
+                                if (intersection.length > 0) isVisible = true;
+                            }
+
+                            if (isVisible) {
+                                items.push({
+                                    type: 'aniversario',
+                                    title: `🎉 Parabéns, ${c.nome}!`,
+                                    desc: 'Aniversariante do dia',
+                                    link: null, // Não clicável
+                                    icon: 'fa-birthday-cake',
+                                    colorClass: 'bg-pink-100 text-pink-600' // Pink festivo
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+
+        } catch (error) {
+            console.error('Erro ao carregar agenda:', error);
+        }
+
+        // Renderizar
+        list.innerHTML = '';
+        if (items.length === 0) {
+            list.innerHTML = '<li class="text-center text-gray-400 py-4 text-sm italic">Nada agendado para hoje.</li>';
+            return;
+        }
+
+        items.forEach(item => {
+            const li = document.createElement('li');
+            li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${item.link ? 'cursor-pointer' : 'cursor-default'}`;
+            
+            if (item.link) {
+                li.onclick = () => window.location.href = item.link;
+            }
+
+            li.innerHTML = `
+                <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${item.colorClass}">
+                    <i class="fas ${item.icon} text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <span class="block text-sm font-semibold text-gray-800 truncate">${item.title}</span>
+                    <span class="block text-xs text-gray-500 truncate">${item.desc}</span>
+                </div>
+                ${item.link ? '<i class="fas fa-chevron-right text-gray-300 text-xs"></i>' : ''}
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function parseDateOnly(dateStr) {
+        if (!dateStr || typeof dateStr !== 'string') return null;
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return null;
+        const year = Number(parts[0]);
+        const monthIndex = Number(parts[1]) - 1;
+        const day = Number(parts[2]);
+        const d = new Date(year, monthIndex, day);
+        if (Number.isNaN(d.getTime())) return null;
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }
+
+    function getCurrentWeekRange() {
+        const now = new Date();
+        const start = new Date(now);
+        start.setHours(0,0,0,0);
+        const day = start.getDay(); // 0 (Sun) - 6 (Sat)
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+        start.setDate(diff); // Monday
+
+        const end = new Date(start);
+        end.setDate(start.getDate() + 7); // Next Monday
+        return { start, end };
+    }
+
+    async function loadFinanceiroSummary() {
+        if (!['admin', 'super_admin', 'financeiro'].includes(currentUserRole)) {
+            updateMetric('fin-contas-pagar', 'R$ 0,00');
+            updateMetric('fin-mensalidades-vencer', 'R$ 0,00');
+            updateMetric('fin-saldo', 'R$ 0,00');
+            return;
+        }
+
+        try {
+            const { data: transacoes, error } = await window.supabaseClient
+                .from('financeiro')
+                .select('valor, tipo, status, data_transacao');
+
+            if (error) throw error;
+
+            const { start, end } = getCurrentWeekRange();
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            let contasPagar = 0;
+            let mensalidadesVencer = 0;
+            let saldo = 0;
+
+            (transacoes || []).forEach((t) => {
+                const valor = Number(t.valor) || 0;
+
+                if (t.status === 'recebido') {
+                    if (t.tipo === 'entrada') saldo += valor;
+                    if (t.tipo === 'saida') saldo -= valor;
+                }
+
+                if (t.status !== 'a_vencer') return;
+
+                const vencimento = parseDateOnly(t.data_transacao);
+                if (!vencimento) return;
+
+                const isOverdue = vencimento < today;
+                const isInWeek = vencimento >= start && vencimento < end;
+                const showPending = isInWeek || isOverdue;
+
+                if (!showPending) return;
+
+                if (t.tipo === 'saida') contasPagar += valor;
+                if (t.tipo === 'entrada') mensalidadesVencer += valor;
+            });
+
+            const elPagar = document.getElementById('fin-contas-pagar');
+            const elVencer = document.getElementById('fin-mensalidades-vencer');
+            const elSaldo = document.getElementById('fin-saldo');
+
+            if (elPagar) elPagar.innerText = contasPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            if (elVencer) elVencer.innerText = mensalidadesVencer.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            if (elSaldo) {
+                elSaldo.innerText = saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                // Usando classes Tailwind para cor
+                elSaldo.className = `text-2xl font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            }
+        } catch (e) {
+            console.error('Erro ao carregar financeiro:', e);
+        }
+    }
+
+    async function loadCampanhasEmAndamento() {
+        try {
+            const { count, error } = await window.supabaseClient
+                .from('projetos') 
+                .select('*', { count: 'exact', head: true })
+                .eq('status', 'em_andamento');
+
+            if (error) throw error;
+            updateMetric('metric-campanhas', count || 0, 'Campanhas em andamento');
+        } catch (e) {
+            // Silencioso pois 'projetos' pode ter sumido
+            updateMetric('metric-campanhas', 0, 'Campanhas em andamento');
+        }
+    }
+
+    async function loadAniversariantesMes() {
+        const list = document.getElementById('birthdays-month-list');
+        if (!list) return;
+
+        try {
+            const { data: colaboradores, error } = await window.supabaseClient
+                .from('colaboradores')
+                .select('nome, data_nascimento, perfil_acesso, cargo')
+                .not('data_nascimento', 'is', null);
+
+            if (error) throw error;
+
+            if (!colaboradores || colaboradores.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 py-4 italic text-sm">Nenhum aniversariante este mês.</p>';
+                return;
+            }
+
+            const today = new Date();
+            const currentMonth = today.getMonth(); // 0-11
+            const currentDay = today.getDate();
+
+            // Filtrar aniversariantes do mês
+            const birthdays = colaboradores.filter(c => {
+                const parts = c.data_nascimento.split('-'); // YYYY-MM-DD
+                if (parts.length !== 3) return false;
+                const month = parseInt(parts[1]) - 1;
+                return month === currentMonth;
+            }).map(c => {
+                const parts = c.data_nascimento.split('-');
+                const day = parseInt(parts[2]);
+                const month = parseInt(parts[1]);
+                
+                // Formatar Cargo (Perfil)
+                let cargoDisplay = c.cargo;
+                if (!cargoDisplay) {
+                    let p = c.perfil_acesso || 'Colaborador';
+                    cargoDisplay = p.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                }
+                
+                // Primeiro Nome
+                const firstName = c.nome.split(' ')[0];
+
+                return {
+                    ...c,
+                    firstName: firstName,
+                    day: day,
+                    month: month,
+                    cargoDisplay: cargoDisplay,
+                    isToday: day === currentDay
+                };
+            });
+
+            // Ordenar por dia
+            birthdays.sort((a, b) => a.day - b.day);
+
+            list.innerHTML = '';
+            if (birthdays.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 py-4 italic text-sm">Nenhum aniversariante este mês.</p>';
+                return;
+            }
+
+            birthdays.forEach(b => {
+                const item = document.createElement('div');
+                // Destaque se for hoje
+                const bgClass = b.isToday ? 'bg-pink-50 border-pink-200' : 'bg-gray-50 border-gray-100';
+                const textClass = b.isToday ? 'text-pink-700' : 'text-gray-700';
+                
+                item.className = `flex items-center justify-between p-3 rounded-lg border ${bgClass} transition-colors`;
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-pink-500 shadow-sm border border-pink-100">
+                            <i class="fas fa-birthday-cake text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-semibold ${textClass}">${b.firstName}</h4>
+                            <p class="text-xs text-gray-500">${b.cargoDisplay}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-sm font-bold ${b.isToday ? 'text-pink-600' : 'text-gray-600'}">
+                            ${b.day.toString().padStart(2, '0')}/${b.month.toString().padStart(2, '0')}
+                        </span>
+                        ${b.isToday ? '<span class="block text-[10px] font-bold text-pink-500 uppercase tracking-wide">Hoje!</span>' : ''}
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+        } catch (e) {
+            console.error('Erro ao carregar aniversariantes:', e);
+            list.innerHTML = '<p class="text-center text-red-400 py-4 text-sm">Erro ao carregar.</p>';
+        }
+    }
+
+    async function loadDashboardMetrics() {
+        await Promise.all([
+            loadCampanhasEmAndamento(),
+            loadFinanceiroSummary(),
+            loadSystemAgenda(),
+            loadLembretes(),
+            loadAniversariantesMes()
+        ]);
+    }
+
+    function updateMetric(id, value, title) {
+        const el = document.getElementById(id);
+        if (el) el.innerText = value;
+    }
+
+    // Inicializa
+    initDashboard();
+});

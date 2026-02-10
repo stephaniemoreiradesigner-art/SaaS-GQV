@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financeiro - Gestão Que Vende</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Configuração do Tailwind movida para js/theme.js -->
+    <script src="js/theme.js"></script>
+    <script src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+        }
+        .modal-content-transition {
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans">
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="w-12 h-12 border-4 border-gray-200 border-t-[var(--color-primary)] rounded-full animate-spin mb-4"></div>
+        <h3 class="text-lg font-semibold text-[var(--color-primary)]">Carregando Financeiro...</h3>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
+            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+                <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+            </div>
+            
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+                <a href="dashboard.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-home w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Home</span>
+                </a>
+                <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-users w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Clientes</span>
+                </a>
+                <a href="tarefas.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-tasks w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Tarefas</span>
+                </a>
+                <a href="social_media.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group" data-roles="super_admin,social_media">
+                    <i class="fas fa-hashtag w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Social Media</span>
+                </a>
+                <a href="trafego_pago.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group" data-roles="super_admin,trafego_pago">
+                    <i class="fas fa-bullhorn w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Tráfego Pago</span>
+                </a>
+                <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-comments w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Chat</span>
+                </a>
+                <a href="financeiro.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors group restricted" data-roles="super_admin,financeiro">
+                    <i class="fas fa-dollar-sign w-6 text-center"></i>
+                    <span class="font-medium ml-2">Financeiro</span>
+                </a>
+                <a href="automacoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-robot w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Automações</span>
+                </a>
+                <a href="colaboradores.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-user-friends w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Colaboradores</span>
+                </a>
+                <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-secondary hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-cog w-6 text-center group-hover:text-secondary transition-colors"></i>
+                    <span class="font-medium ml-2">Configurações</span>
+                </a>
+            </nav>
+
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center gap-3">
+                    <img id="user-avatar-sidebar" src="" alt="User" class="w-10 h-10 rounded-full object-cover bg-gray-100">
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name-sidebar" class="text-sm font-medium text-gray-900 truncate">Carregando...</p>
+                    </div>
+                    <button id="btn-logout-sidebar" class="text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden relative bg-gray-50 w-full">
+            <!-- Mobile Header -->
+            <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-10 shrink-0">
+                <img src="assets/logo.png" id="logo-mobile" class="h-8 w-auto object-contain" alt="Logo">
+                <button class="text-gray-500 hover:text-[var(--color-primary)]" onclick="document.querySelector('aside').classList.toggle('hidden'); document.querySelector('aside').classList.toggle('fixed'); document.querySelector('aside').classList.toggle('inset-0'); document.querySelector('aside').classList.toggle('z-50');">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-8">
+                <div class="max-w-7xl mx-auto">
+                    <!-- Header Section -->
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                        <div>
+                            <h2 class="text-2xl font-bold text-[var(--color-primary)] flex items-center gap-2">
+                                <i class="fas fa-chart-line"></i> Financeiro
+                            </h2>
+                            <p class="text-gray-500 mt-1">Gerencie suas entradas e saídas</p>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                            <div class="bg-white p-1 rounded-lg border border-gray-200 flex shadow-sm">
+                                <button class="px-4 py-2 rounded-md text-sm font-medium transition-colors bg-[var(--color-primary)] text-white shadow-sm" onclick="switchFinanceTab('lancamentos')" id="btn-tab-lancamentos">
+                                    Lançamentos
+                                </button>
+                                <button class="px-4 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-[var(--color-primary)] transition-colors" onclick="switchFinanceTab('fluxo')" id="btn-tab-fluxo">
+                                    Fluxo de Caixa
+                                </button>
+                            </div>
+                            
+                            <button class="btn-primary flex items-center justify-center gap-2 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm" id="btn-new-transaction">
+                                <i class="fas fa-plus"></i> <span class="hidden sm:inline">Novo Lançamento</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tab Lançamentos -->
+                    <div id="tab-lancamentos" class="finance-tab-content space-y-6">
+                        <!-- KPI Cards -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                            <!-- À Vencer -->
+                            <div class="bg-yellow-50 text-yellow-800 p-4 rounded-xl border border-yellow-100 shadow-sm flex flex-col justify-between h-24">
+                                <small class="font-medium opacity-80">À Vencer (Entradas)</small>
+                                <h2 id="total-a-vencer" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+
+                            <!-- Vencido -->
+                            <div class="bg-red-50 text-red-800 p-4 rounded-xl border border-red-100 shadow-sm flex flex-col justify-between h-24">
+                                <small class="font-medium opacity-80">Vencido (Entradas)</small>
+                                <h2 id="total-vencido" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+
+                            <!-- Recebidos -->
+                            <div class="bg-green-50 text-green-800 p-4 rounded-xl border border-green-100 shadow-sm flex flex-col justify-between h-24">
+                                <small class="font-medium opacity-80">Recebidos</small>
+                                <h2 id="total-recebidos" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+
+                            <!-- Despesas à Vencer -->
+                            <div class="bg-orange-50 text-orange-800 p-4 rounded-xl border border-orange-200 shadow-sm flex flex-col justify-between h-24">
+                                <small class="font-medium opacity-80">Despesas à Vencer</small>
+                                <h2 id="total-despesas-a-vencer" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+
+                            <!-- Despesas Pagas -->
+                            <div class="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col justify-between h-24">
+                                <small class="font-medium opacity-80">Despesas Pagas</small>
+                                <h2 id="total-despesas-pagas" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+
+                            <!-- Saldo Total -->
+                            <div class="bg-[var(--color-primary)] text-white p-4 rounded-xl shadow-md flex flex-col justify-between h-24 relative overflow-hidden">
+                                <div class="absolute right-0 top-0 opacity-10 transform translate-x-2 -translate-y-2">
+                                    <i class="fas fa-wallet fa-3x"></i>
+                                </div>
+                                <small class="font-medium opacity-90">Saldo Líquido</small>
+                                <h2 id="total-balance" class="text-xl font-bold">R$ 0,00</h2>
+                            </div>
+                        </div>
+
+                        <!-- Tabela de Transações -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div class="p-5 border-b border-gray-100 flex justify-between items-center bg-white">
+                                <h3 class="font-semibold text-gray-800 text-lg">Últimas Transações</h3>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse" id="transactions-table">
+                                    <thead class="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                                        <tr>
+                                            <th class="p-4 rounded-tl-lg">Data</th>
+                                            <th class="p-4">Descrição</th>
+                                            <th class="p-4">Categoria</th>
+                                            <th class="p-4 text-center">Status</th>
+                                            <th class="p-4 text-center">Tipo</th>
+                                            <th class="p-4 text-right">Valor</th>
+                                            <th class="p-4 text-right rounded-tr-lg">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 text-sm">
+                                        <!-- Preenchido via JS -->
+                                        <tr>
+                                            <td colspan="7" class="text-center p-10 text-gray-400">
+                                                <i class="fas fa-spinner fa-spin mr-2"></i> Carregando transações...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Fluxo -->
+                    <div id="tab-fluxo" class="finance-tab-content hidden space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Recebimentos -->
+                            <div class="bg-green-50 p-6 rounded-xl border border-green-100">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <small class="text-green-800 font-semibold uppercase text-xs">Recebimentos (Mês Atual)</small>
+                                        <h2 id="perc-recebidos" class="text-3xl font-bold text-green-700 mt-1">0%</h2>
+                                    </div>
+                                    <div class="p-3 bg-green-100 rounded-full text-green-600">
+                                        <i class="fas fa-hand-holding-usd text-xl"></i>
+                                    </div>
+                                </div>
+                                <div class="w-full bg-green-200 rounded-full h-2">
+                                    <div id="bar-recebidos" class="bg-green-600 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            <!-- Pagamentos -->
+                            <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div>
+                                        <small class="text-blue-800 font-semibold uppercase text-xs">Pagamentos (Mês Atual)</small>
+                                        <h2 id="perc-pagos" class="text-3xl font-bold text-blue-700 mt-1">0%</h2>
+                                    </div>
+                                    <div class="p-3 bg-blue-100 rounded-full text-blue-600">
+                                        <i class="fas fa-file-invoice-dollar text-xl"></i>
+                                    </div>
+                                </div>
+                                <div class="w-full bg-blue-200 rounded-full h-2">
+                                    <div id="bar-pagos" class="bg-blue-600 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <h3 class="font-semibold text-gray-800 mb-6">Total por Categorias</h3>
+                                <div class="relative h-80">
+                                    <canvas id="chart-categorias"></canvas>
+                                </div>
+                            </div>
+                            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <h3 class="font-semibold text-gray-800 mb-6">Entradas vs Saídas</h3>
+                                <div class="relative h-80">
+                                    <canvas id="chart-rosca"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Nova Transação -->
+    <div id="transaction-modal" class="hidden fixed inset-0 z-[1000] overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" id="modal-backdrop"></div>
+        <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+            <div class="relative bg-white rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:max-w-lg sm:w-full modal-content-transition">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="flex justify-between items-center mb-5">
+                        <h3 class="text-xl font-bold text-[var(--color-primary)]" id="form-title">Novo Lançamento</h3>
+                        <button id="btn-close-modal" class="text-gray-400 hover:text-gray-600 transition-colors">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    
+                    <form id="form-financeiro" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                            <input type="text" id="desc" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border" placeholder="Ex: Pagamento Cliente X" required>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+                                <input type="number" id="valor" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border" step="0.01" placeholder="0.00" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                                <input type="date" id="data" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border" required>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                                <select id="tipo" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border bg-white">
+                                    <option value="entrada">Entrada (+)</option>
+                                    <option value="saida">Saída (-)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                <select id="status" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border bg-white">
+                                    <option value="recebido">Recebido / Pago</option>
+                                    <option value="a_vencer">Á Vencer</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                            <select id="categoria" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border bg-white">
+                                <option value="Serviços">Serviços</option>
+                                <option value="Consultoria">Consultoria</option>
+                                <option value="Ferramentas">Ferramentas/Software</option>
+                                <option value="Impostos">Impostos</option>
+                                <option value="Pessoal">Pessoal</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Boleto / Fatura (PDF ou Imagem)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="file" id="arquivo_boleto" accept=".pdf,image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+                                <input type="hidden" id="arquivo_url">
+                            </div>
+                            <div id="boleto-preview" class="mt-2 text-sm hidden">
+                                <a href="#" target="_blank" id="btn-view-boleto" class="text-[var(--color-primary)] hover:underline flex items-center gap-1 font-medium">
+                                    <i class="fas fa-external-link-alt"></i> Ver boleto anexado
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                            <button type="button" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors" id="btn-cancel">Cancelar</button>
+                            <button type="submit" class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm" id="btn-save">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/financeiro.js?v=1.0.2"></script>
+</body>
+</html>

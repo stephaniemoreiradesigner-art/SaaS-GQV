@@ -1,0 +1,1377 @@
+// social_media.js - Lógica do Calendário Editorial com FullCalendar e Tailwind CSS
+
+// Variáveis Globais
+var calendar = null;
+var currentClienteId = null;
+var currentCalendarId = null; 
+var currentMonth = null; 
+var clientDataMap = {}; 
+var tempSelectedDate = null;
+var tempSelectedFormat = null;
+
+// Funções Globais para o Modal de Configuração (HTML -> JS)
+window.openConfigModal = function() {
+    const modal = document.getElementById('modal-ia');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        // Pequeno delay para permitir que o display:flex seja aplicado antes da opacidade
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            const content = document.getElementById('modal-ia-content');
+            if (content) content.classList.remove('scale-95');
+        }, 10);
+    }
+}
+
+window.closeConfigModal = function() {
+    const modal = document.getElementById('modal-ia');
+    if (modal) {
+        modal.classList.add('opacity-0');
+        const content = document.getElementById('modal-ia-content');
+        if (content) content.classList.add('scale-95');
+        
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 300);
+    }
+}
+
+// Funções para manipulação de arquivos (Upload)
+window.updateFileName = function(input) {
+    const id = input.id.replace('ia-', '');
+    // Tenta encontrar o label pelo ID composto, se não, tenta um fallback genérico ou loga erro
+    let label = document.getElementById('file-name-' + id);
+    let btnDelete = document.getElementById('btn-delete-' + id);
+    
+    // Fallback para IDs que podem não ter o prefixo 'ia-' no HTML (caso haja inconsistência)
+    if (!label && input.id === 'ia-referencias') label = document.getElementById('file-name-referencias');
+    if (!btnDelete && input.id === 'ia-referencias') btnDelete = document.getElementById('btn-delete-referencias');
+
+    if (input.files && input.files[0]) {
+        if(label) {
+            label.textContent = input.files[0].name;
+            label.classList.add('text-primary');
+        }
+        if(btnDelete) btnDelete.classList.remove('hidden');
+    } else {
+        if(label) {
+            label.textContent = 'Escolher arquivo';
+            label.classList.remove('text-primary');
+        }
+        if(btnDelete) btnDelete.classList.add('hidden');
+    }
+}
+
+window.clearFileInput = function(id) {
+    const input = document.getElementById(id);
+    if (input) {
+        input.value = '';
+        window.updateFileName(input);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    initCalendar();
+    await loadClientes();
+
+    const selectCliente = document.getElementById('select-cliente');
+    if (selectCliente) {
+        selectCliente.addEventListener('change', (e) => {
+            currentClienteId = e.target.value;
+            checkSelection();
+        });
+    }
+
+    const inputMes = document.getElementById('input-mes');
+    if (inputMes) {
+        if (!inputMes.value) {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            inputMes.value = `${yyyy}-${mm}`;
+        }
+        currentMonth = inputMes.value;
+        inputMes.addEventListener('change', (e) => {
+            currentMonth = e.target.value;
+            if (calendar) calendar.gotoDate(currentMonth + '-01');
+            checkSelection();
+        });
+    }
+
+    const btnHeaderGenerate = document.getElementById('btn-header-generate');
+    if (btnHeaderGenerate) btnHeaderGenerate.addEventListener('click', handleGenerateClick);
+    
+    const btnModalGenerate = document.getElementById('btn-modal-generate');
+    if (btnModalGenerate) btnModalGenerate.addEventListener('click', generateCalendar);
+    
+    const btnDelete = document.getElementById('btn-delete-calendar');
+    if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
+
+    const btnCancelModal = document.getElementById('btn-modal-cancel');
+    if (btnCancelModal) {
+        btnCancelModal.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeConfigModal();
+        });
+    }
+
+    const modalIa = document.getElementById('modal-ia');
+    if (modalIa) {
+        modalIa.addEventListener('click', (e) => {
+            if (e.target === modalIa) closeConfigModal();
+        });
+    }
+
+    const modalPost = document.getElementById('modal-post');
+    if (modalPost) {
+        modalPost.addEventListener('click', (e) => {
+            if (e.target === modalPost) closePostModal();
+        });
+    }
+});
+
+// Expor initCalendar globalmente
+window.initCalendar = initCalendar;
+
+function initCalendar() {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) return;
+
+    // Se já existir, destrói para recriar (evita duplicação)
+    if (window.calendar) {
+        window.calendar.destroy();
+    }
+
+    window.calendar = calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'pt-br',
+        buttonText: {
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            day: 'Dia',
+            list: 'Lista'
+        },
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek'
+        },
+        height: '100%',
+        editable: true,
+        droppable: true,
+        dayMaxEvents: 2,
+        events: [],
+        
+        dayCellContent: function(arg) {
+            // Retorna ao padrão simples, apenas com o número da data
+            return { html: `<a class="fc-daygrid-day-number" style="text-decoration: none; color: #374151; font-weight: 700; cursor: pointer; padding: 4px;">${arg.dayNumberText}</a>` };
+        },
+        
+        dateClick: function(info) {
+             // Clique na célula vazia abre o modal para aquela data
+             window.openFormatModal(info.dateStr);
+        },
+        
+        eventContent: function(arg) {
+            const props = arg.event.extendedProps;
+            const formato = props.formato || 'post';
+            let iconClass = 'fa-file-alt';
+            let bgColorClass = 'bg-blue-50';
+            let borderColorClass = 'border-blue-500';
+            let textColorClass = 'text-blue-700';
+            
+            if (formato && formato.toLowerCase().includes('reels')) {
+                iconClass = 'fa-video';
+                bgColorClass = 'bg-pink-50';
+                borderColorClass = 'border-pink-500';
+                textColorClass = 'text-pink-700';
+            } else if (formato && formato.toLowerCase().includes('carrossel')) {
+                iconClass = 'fa-images';
+                bgColorClass = 'bg-purple-50';
+                borderColorClass = 'border-purple-500';
+                textColorClass = 'text-purple-700';
+            } else if (formato && formato.toLowerCase().includes('story')) {
+                iconClass = 'fa-clock';
+                bgColorClass = 'bg-yellow-50';
+                borderColorClass = 'border-yellow-500';
+                textColorClass = 'text-yellow-700';
+            } else if (formato && formato.toLowerCase().includes('estatico')) {
+                iconClass = 'fa-image';
+                bgColorClass = 'bg-blue-50';
+                borderColorClass = 'border-blue-500';
+                textColorClass = 'text-blue-700';
+            }
+
+            let statusIcon = '';
+            let statusClass = '';
+            
+            if (props.status === 'aprovado') {
+                statusIcon = '<i class="fas fa-check-circle text-green-500 ml-1" title="Aprovado"></i>';
+                borderColorClass = 'border-green-500';
+                bgColorClass = 'bg-green-50';
+                textColorClass = 'text-green-700';
+            } else if (props.status === 'ajuste_solicitado') {
+                statusIcon = '<i class="fas fa-exclamation-circle text-red-500 ml-1" title="Ajuste Solicitado"></i>';
+                borderColorClass = 'border-red-500';
+                bgColorClass = 'bg-red-50';
+                textColorClass = 'text-red-700';
+            } else if (props.status === 'ajuste_em_andamento') {
+                statusIcon = '<i class="fas fa-pencil-alt text-orange-500 ml-1" title="Ajustes em Andamento"></i>';
+                borderColorClass = 'border-orange-500';
+                bgColorClass = 'bg-orange-50';
+                textColorClass = 'text-orange-700';
+            } else if (props.status === 'pendente' || props.status === 'pendente_aprovação') {
+                statusIcon = '<i class="fas fa-clock text-yellow-500 ml-1" title="Pendente Aprovação"></i>';
+                borderColorClass = 'border-yellow-500';
+                bgColorClass = 'bg-yellow-50';
+                textColorClass = 'text-yellow-700';
+            }
+
+            let html = `
+                <div class="event-card text-xs ${borderColorClass} ${bgColorClass} shadow-sm rounded-r overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+                    <div class="font-bold truncate flex items-center gap-1.5 ${textColorClass}">
+                        <i class="fas ${iconClass}"></i>
+                        <span class="truncate">${arg.event.title}</span>
+                        ${statusIcon}
+                    </div>
+                </div>
+            `;
+            return { html: html };
+        },
+        
+        eventDrop: async function(info) {
+            try {
+                const newDate = info.event.start.toISOString().split('T')[0];
+                const { error } = await window.supabaseClient
+                    .from('social_posts')
+                    .update({ data_agendada: newDate })
+                    .eq('id', info.event.id);
+                if (error) throw error;
+            } catch (err) {
+                console.error('Erro ao mover:', err);
+                alert('Erro ao atualizar data: ' + err.message);
+                info.revert();
+            }
+        },
+        
+        eventClick: function(info) {
+            openPostModal(info.event);
+        }
+    });
+
+    calendar.render();
+}
+
+function openPostModal(event) {
+    const props = event.extendedProps;
+    const modal = document.getElementById('modal-post');
+    const content = document.getElementById('modal-post-content');
+    
+    document.getElementById('post-tema').value = event.title || '';
+    
+    const dateStr = event.startStr.split('T')[0];
+    document.getElementById('post-data').value = dateStr;
+    
+    const timeStr = props.hora_agendada || '10:00';
+    const timeInput = document.getElementById('post-hora');
+    if(timeInput) timeInput.value = timeStr.substring(0, 5);
+
+    document.getElementById('post-formato').value = (props.formato || 'estatico').toLowerCase();
+    
+    const client = clientDataMap[currentClienteId];
+    const clientPlatforms = client ? (client.plataformas_social || []) : [];
+    
+    const platInput = document.getElementById('post-plataformas');
+    if(platInput) {
+        platInput.value = clientPlatforms.join(', ') || 'Nenhuma cadastrada';
+    }
+
+    const visualInput = document.getElementById('post-visual');
+    if(visualInput) visualInput.value = props.descricao_visual || '';
+
+    const roteiroInput = document.getElementById('post-roteiro');
+    if(roteiroInput) roteiroInput.value = props.conteudo_roteiro || '';
+
+    document.getElementById('post-estrategia').value = props.estrategia || '';
+    
+    const container = document.getElementById('legendas-container');
+    if (container) {
+        container.innerHTML = '';
+        
+        // Determinar plataformas visíveis
+        const activePlatforms = clientPlatforms.filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok', 'youtube'].includes(p.toLowerCase()));
+        
+        // Se não houver plataformas, mostra mensagem ou esconde
+        if (activePlatforms.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-400 italic">Nenhuma plataforma configurada para este cliente.</p>';
+        }
+
+        const hasMeta = activePlatforms.some(p => ['instagram', 'facebook'].includes(p.toLowerCase()));
+        const hasLinkedin = activePlatforms.some(p => p.toLowerCase() === 'linkedin');
+        const hasTiktok = activePlatforms.some(p => p.toLowerCase() === 'tiktok');
+        const hasYoutube = activePlatforms.some(p => p.toLowerCase() === 'youtube');
+
+        const createField = (id, label, value, icon) => {
+            const div = document.createElement('div');
+            div.className = 'space-y-2';
+            div.innerHTML = `
+                <label class="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <i class="fab fa-${icon}"></i> ${label}
+                </label>
+                <textarea id="${id}" rows="3" 
+                    class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-sm"
+                    placeholder="Escreva a legenda para ${label.split(' ')[1]}...">${value || ''}</textarea>
+            `;
+            container.appendChild(div);
+        };
+
+        // 1. Legenda Principal (Instagram/Facebook)
+        if (hasMeta || (!hasLinkedin && !hasTiktok && !hasYoutube)) { // Fallback para Meta se nada específico
+            const val = props.legenda || '';
+            const label = hasMeta ? 'Legenda Instagram/Facebook' : 'Legenda Principal';
+            createField('post-legenda', label, val, 'instagram');
+        }
+
+        // 2. Legenda LinkedIn
+        if (hasLinkedin) {
+            createField('post-legenda-linkedin', 'Legenda LinkedIn', props.legenda_linkedin, 'linkedin');
+        }
+
+        // 3. Legenda TikTok
+        if (hasTiktok) {
+            createField('post-legenda-tiktok', 'Legenda TikTok', props.legenda_tiktok, 'tiktok');
+        }
+
+        // 4. Legenda YouTube
+        if (hasYoutube) {
+            createField('post-legenda-youtube', 'Legenda YouTube', props.legenda_youtube, 'youtube');
+        }
+
+        // Configurar Upload de Mídia (Feed/Story)
+        setupMediaUpload(activePlatforms, (props.formato || 'estatico').toLowerCase());
+    }
+
+    // Carregar feedback se houver
+    const feedbackArea = document.getElementById('feedback-area');
+    const feedbackText = document.getElementById('post-feedback-text');
+    
+    // Configurar Badge de Status
+    const statusBadge = document.getElementById('post-status-badge');
+    if (statusBadge) {
+        if (props.status === 'aprovado') {
+            statusBadge.textContent = 'Aprovado';
+            statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200';
+        } else if (props.status === 'ajuste_solicitado') {
+            statusBadge.textContent = 'Ajuste Solicitado';
+            statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200';
+        } else if (props.status === 'pendente_aprovação') {
+            statusBadge.textContent = 'Pendente Aprovação';
+            statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200';
+        } else {
+            statusBadge.textContent = 'Rascunho';
+            statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800';
+        }
+    }
+
+    // Resetar estado de readonly e feedback
+    const formInputs = modal.querySelectorAll('input, textarea, select');
+    const isApproved = props.status === 'aprovado';
+    
+    formInputs.forEach(input => {
+        if (input.tagName === 'SELECT' || input.type === 'file' || input.type === 'date' || input.type === 'time') {
+            input.disabled = isApproved;
+        } else {
+            input.readOnly = isApproved;
+        }
+
+        if (isApproved) {
+            input.classList.add('bg-gray-50');
+            input.classList.remove('bg-white');
+            if (input.tagName === 'SELECT' || input.type === 'file') input.classList.add('cursor-not-allowed');
+        } else {
+            input.disabled = false;
+            input.readOnly = false;
+            input.classList.remove('bg-gray-50', 'cursor-not-allowed');
+            input.classList.add('bg-white'); // Restaurar bg-white se necessário (alguns inputs usam bg-gray-50 por padrão no html, cuidado)
+            // No HTML original: bg-gray-50 border border-gray-200 ... focus:bg-white
+            // Então remover bg-gray-50 pode quebrar o estilo padrão.
+            // Vamos apenas remover a classe de 'readonly' visual se não estiver aprovado.
+            // Melhor abordagem: Resetar classes para o padrão esperado.
+            
+            // O HTML original usa bg-gray-50 por padrão.
+            input.classList.add('bg-gray-50'); 
+            input.classList.remove('bg-gray-100'); // Remover a classe antiga de disabled se existir
+        }
+    });
+
+    // Tratamento de botões se aprovado
+    const btnSave = document.querySelector('#modal-post button[onclick="savePost()"]');
+    if (btnSave) {
+        btnSave.disabled = isApproved;
+        btnSave.style.display = isApproved ? 'none' : 'block';
+        btnSave.onclick = () => savePost(event.id);
+    }
+
+    if (feedbackArea && feedbackText) {
+        // Suporte para feedback antigo (texto) ou novo (JSON)
+        let feedbackContent = '';
+        
+        if (props.feedback_cliente) {
+            if (typeof props.feedback_cliente === 'object') {
+                const tipos = props.feedback_cliente.tipo ? props.feedback_cliente.tipo.join(', ') : 'Geral';
+                feedbackContent = `<strong>Solicitação (${tipos}):</strong> ${props.feedback_cliente.comentario}`;
+            } else {
+                feedbackContent = props.feedback_cliente;
+            }
+        } else if (props.feedback_ajuste) {
+            feedbackContent = props.feedback_ajuste;
+        }
+
+        if (feedbackContent) {
+            feedbackText.innerHTML = feedbackContent;
+            feedbackArea.classList.remove('hidden');
+            feedbackArea.className = 'mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg text-orange-800 text-sm mb-4';
+            
+            // Adicionar cabeçalho de alerta
+            // Limpa filhos anteriores para evitar duplicação ou erro de referência
+            const existingHeader = feedbackArea.querySelector('.feedback-header');
+            if (existingHeader) existingHeader.remove();
+
+            const header = document.createElement('div');
+            header.className = 'feedback-header font-bold mb-1 flex items-center gap-2';
+            header.innerHTML = '<i class="fas fa-exclamation-circle"></i> Ajuste Solicitado pelo Cliente';
+            
+            // Verifica se feedbackText ainda é filho de feedbackArea antes de inserir
+            if (feedbackText.parentNode === feedbackArea) {
+                feedbackArea.insertBefore(header, feedbackText);
+            } else {
+                // Fallback caso a estrutura tenha mudado
+                feedbackArea.prepend(header);
+            }
+        } else {
+            feedbackArea.classList.add('hidden');
+            feedbackText.innerHTML = '';
+        }
+    }
+    
+    // Aviso se aprovado
+    if (isApproved) {
+        let approvedBanner = document.getElementById('approved-banner');
+        if (!approvedBanner) {
+            approvedBanner = document.createElement('div');
+            approvedBanner.id = 'approved-banner';
+            approvedBanner.className = 'mb-4 p-3 bg-green-100 border border-green-200 text-green-700 rounded-lg flex items-center gap-2 font-medium';
+            approvedBanner.innerHTML = '<i class="fas fa-check-circle"></i> Post Aprovado pelo Cliente (Somente Leitura)';
+            content.insertBefore(approvedBanner, content.firstChild);
+        }
+    } else {
+        const banner = document.getElementById('approved-banner');
+        if (banner) banner.remove();
+    }
+    
+    // Configurar botão de excluir
+    const btnDelete = document.querySelector('#modal-post button[onclick="deletePost()"]');
+    if (btnDelete) {
+        if (event.id) {
+            btnDelete.parentElement.style.display = 'flex'; // Mostrar container do footer completo
+            btnDelete.style.display = 'block';
+            document.getElementById('modal-post').dataset.eventId = event.id;
+        } else {
+            btnDelete.style.display = 'none';
+            document.getElementById('modal-post').dataset.eventId = '';
+        }
+    }
+
+    // Mostrar modal
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        content.classList.remove('scale-95');
+    }, 10);
+}
+
+function getPlatformIcon(platform) {
+    const map = {
+        'instagram': 'instagram text-pink-600',
+        'facebook': 'facebook text-blue-600',
+        'linkedin': 'linkedin text-blue-700',
+        'tiktok': 'tiktok text-black',
+        'youtube': 'youtube text-red-600'
+    };
+    return map[platform] || 'share-alt';
+}
+
+function setupMediaUpload(platforms, formato) {
+    const section = document.getElementById('media-upload-section');
+    const feedInput = document.getElementById('file-feed');
+    const storyInput = document.getElementById('file-story');
+    const feedLimitInfo = document.getElementById('feed-limit-info');
+    const previewFeed = document.getElementById('preview-feed');
+    const previewStory = document.getElementById('preview-story');
+    
+    // Verificar se Instagram ou Facebook estão presentes
+    const hasMeta = platforms.some(p => ['instagram', 'facebook'].includes(p.toLowerCase()));
+    
+    if (!hasMeta) {
+        section.classList.add('hidden');
+        return;
+    }
+    
+    section.classList.remove('hidden');
+    
+    // Reset inputs
+    if(feedInput) feedInput.value = '';
+    if(storyInput) storyInput.value = '';
+    if(previewFeed) previewFeed.innerHTML = '';
+    if(previewStory) previewStory.innerHTML = '';
+
+    // Configurar restrições baseadas no formato
+    if (feedInput) {
+        // Remover event listeners anteriores para evitar duplicação (idealmente usar named functions, mas aqui faremos reset simples)
+        const newFeedInput = feedInput.cloneNode(true);
+        feedInput.parentNode.replaceChild(newFeedInput, feedInput);
+        
+        if (formato === 'carrossel') {
+            newFeedInput.setAttribute('multiple', 'multiple');
+            newFeedInput.setAttribute('accept', 'image/*');
+            feedLimitInfo.textContent = '(Até 10 imagens)';
+            
+            newFeedInput.addEventListener('change', (e) => handleFileSelect(e, 'feed', 10, 'image'));
+        } else if (formato === 'estatico') {
+            newFeedInput.removeAttribute('multiple');
+            newFeedInput.setAttribute('accept', 'image/*');
+            feedLimitInfo.textContent = '(Apenas 1 imagem)';
+            
+            newFeedInput.addEventListener('change', (e) => handleFileSelect(e, 'feed', 1, 'image'));
+        } else if (formato === 'reels') {
+            newFeedInput.removeAttribute('multiple');
+            newFeedInput.setAttribute('accept', 'video/*');
+            feedLimitInfo.textContent = '(Apenas 1 vídeo)';
+            
+            newFeedInput.addEventListener('change', (e) => handleFileSelect(e, 'feed', 1, 'video'));
+        }
+    }
+
+    // Configurar Story (Sempre permitido para Meta)
+    if (storyInput) {
+        const newStoryInput = storyInput.cloneNode(true);
+        storyInput.parentNode.replaceChild(newStoryInput, storyInput);
+        newStoryInput.addEventListener('change', (e) => handleFileSelect(e, 'story', 1, 'all')); // 'all' permite verificar duração se for vídeo
+    }
+}
+
+function handleFileSelect(event, type, maxFiles, acceptType) {
+    const files = Array.from(event.target.files);
+    const container = document.getElementById(`preview-${type}`);
+    container.innerHTML = '';
+
+    if (files.length > maxFiles) {
+        alert(`O limite é de ${maxFiles} arquivo(s) para este formato.`);
+        event.target.value = '';
+        return;
+    }
+
+    files.forEach(file => {
+        // Validação de tipo
+        if (acceptType === 'image' && !file.type.startsWith('image/')) {
+            alert('Apenas imagens são permitidas para este formato.');
+            return;
+        }
+        if (acceptType === 'video' && !file.type.startsWith('video/')) {
+            alert('Apenas vídeos são permitidas para este formato.');
+            return;
+        }
+
+        // Validação específica de Story (Duração)
+        if (type === 'story' && file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = function() {
+                window.URL.revokeObjectURL(video.src);
+                if (video.duration > 30) { // Margem de erro 29s -> 30s
+                    alert('O vídeo do Story deve ter no máximo 29 segundos.');
+                    // Remover preview ou limpar input
+                }
+            }
+            video.src = URL.createObjectURL(file);
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const div = document.createElement('div');
+            div.className = 'relative group aspect-square rounded-lg overflow-hidden border border-gray-200';
+            
+            if (file.type.startsWith('image/')) {
+                div.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+            } else {
+                div.innerHTML = `<video src="${e.target.result}" class="w-full h-full object-cover"></video><div class="absolute inset-0 flex items-center justify-center bg-black/30"><i class="fas fa-play text-white"></i></div>`;
+            }
+            
+            // Botão remover (visual apenas por enquanto)
+            const btnRemove = document.createElement('button');
+            btnRemove.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity';
+            btnRemove.innerHTML = '<i class="fas fa-times"></i>';
+            btnRemove.onclick = (ev) => {
+                ev.preventDefault();
+                div.remove();
+                // TODO: Remover do input file (complexo sem DataTransfer) ou gerenciar array separado
+            };
+            
+            div.appendChild(btnRemove);
+            container.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function closePostModal() {
+    const modal = document.getElementById('modal-post');
+    const content = document.getElementById('modal-post-content');
+    modal.classList.add('opacity-0');
+    content.classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }, 300);
+}
+
+async function savePost() {
+    const modal = document.getElementById('modal-post');
+    const eventId = modal.dataset.eventId;
+    
+    const btn = document.querySelector('#modal-post button[onclick="savePost()"]');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+
+    try {
+        const postData = {
+            tema: document.getElementById('post-tema').value,
+            data_agendada: document.getElementById('post-data').value,
+            hora_agendada: document.getElementById('post-hora')?.value || '10:00',
+            formato: document.getElementById('post-formato').value,
+            descricao_visual: document.getElementById('post-visual')?.value,
+            conteudo_roteiro: document.getElementById('post-roteiro')?.value,
+            estrategia: document.getElementById('post-estrategia').value,
+            legenda: document.getElementById('post-legenda')?.value,
+            legenda_linkedin: document.getElementById('post-legenda-linkedin')?.value,
+            legenda_tiktok: document.getElementById('post-legenda-tiktok')?.value,
+            updated_at: new Date()
+        };
+
+        const currentStatus = modal.dataset.currentStatus;
+
+        if (eventId) {
+            // Se estava em ajuste, volta para pendente ao salvar. 
+            // REGRA: Ao salvar, sempre volta para 'pendente' (amarelo) e atualiza a tarefa.
+            if (currentStatus !== 'rascunho') {
+                postData.status = 'pendente';
+            }
+            // Se for rascunho, o usuário pode estar apenas salvando o rascunho. 
+            // Mas o usuário disse "ao clicar em salvar... muda para pendente".
+            // Vou assumir que salvar edição = pronto para revisão/envio = pendente.
+            postData.status = 'pendente';
+
+            const { error } = await window.supabaseClient
+                .from('social_posts')
+                .update(postData)
+                .eq('id', eventId);
+            if (error) throw error;
+
+            // ATUALIZAR TAREFA VINCULADA
+            // "a tarefa na 'tarefas' ela muda para 'enviar para aprovação do cliente'"
+            const { error: taskError } = await window.supabaseClient
+                .from('tarefas')
+                .update({ status: 'enviar para aprovação do cliente' })
+                .eq('post_id', eventId);
+                
+            if (taskError) console.error('Erro ao atualizar tarefa vinculada:', taskError);
+
+        } else {
+            postData.cliente_id = currentClienteId;
+            postData.created_at = new Date();
+            // Ao criar novo, também já nasce como pendente ou rascunho? 
+            // Geralmente rascunho, mas se o usuário quer o fluxo...
+            // Vou manter 'rascunho' na criação para não poluir com pendências incompletas, 
+            // a menos que o usuário edite depois.
+            postData.status = 'rascunho'; 
+            const { error } = await window.supabaseClient
+                .from('social_posts')
+                .insert([postData]);
+            if (error) throw error;
+        }
+
+        closePostModal();
+        await loadCalendarData();
+
+    } catch (err) {
+        console.error('Erro ao salvar post:', err);
+        alert('Erro ao salvar: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function deletePost() {
+    const modal = document.getElementById('modal-post');
+    const eventId = modal.dataset.eventId;
+    if (!eventId) return;
+
+    if (!confirm('Tem certeza que deseja excluir este post?')) return;
+
+    try {
+        const { error } = await window.supabaseClient
+            .from('social_posts')
+            .delete()
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        closePostModal();
+        const event = calendar.getEventById(eventId);
+        if (event) event.remove();
+
+    } catch (err) {
+        console.error('Erro ao excluir:', err);
+        alert('Erro ao excluir: ' + err.message);
+    }
+}
+
+async function refineWithAI(targetId = 'post-legenda') {
+    const legendaInput = document.getElementById(targetId);
+    const temaInput = document.getElementById('post-tema');
+    const roteiroInput = document.getElementById('post-roteiro');
+    const visualInput = document.getElementById('post-visual');
+    const btnRefine = document.querySelector(`button[onclick="refineWithAI('${targetId}')"]`);
+    
+    if (!legendaInput || !btnRefine) return;
+    
+    const originalText = btnRefine.innerHTML;
+    btnRefine.disabled = true;
+    btnRefine.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando...';
+    
+    try {
+        // VIBECODE SECURITY: Chave API movida para o backend (.env)
+        // Não buscamos mais a chave no frontend para evitar exposição.
+        // O backend (/api/openai/...) injetará a chave com segurança.
+        
+        // Mantemos apenas a verificação se o backend está respondendo (feito no fetch)
+
+        const currentLegenda = legendaInput.value;
+        const context = `
+        Tema: ${temaInput?.value || 'Geral'}
+        Roteiro/Conteúdo: ${roteiroInput?.value || 'Não informado'}
+        Visual: ${visualInput?.value || 'Não informado'}
+        Legenda Atual: ${currentLegenda || '(Vazia)'}
+        `;
+
+        let platformSpecificRules = '';
+        if (targetId === 'post-legenda-linkedin') {
+            platformSpecificRules = `
+            ADAPTAÇÃO PARA LINKEDIN:
+            - Tom: Profissional, corporativo e focado em negócios/carreira.
+            - Estrutura: Parágrafos curtos para leitura fácil, mas conteúdo denso em valor.
+            - Hashtags: Use apenas 3-5 hashtags estratégicas e profissionais.
+            - Evite: Gírias excessivas ou linguagem muito informal. Foco em autoridade e networking.
+            `;
+        } else if (targetId === 'post-legenda-tiktok') {
+            platformSpecificRules = `
+            ADAPTAÇÃO PARA TIKTOK:
+            - Tom: Dinâmico, viral e direto ao ponto.
+            - Estrutura: Texto curto e impactante. O foco é fazer a pessoa assistir o vídeo até o final.
+            - Hashtags: Use hashtags de tendências (trends) e virais.
+            - Call to Action: Focado em interação rápida (comentar, compartilhar).
+            `;
+        } else {
+            // Padrão (Instagram/Facebook)
+            platformSpecificRules = `
+            ADAPTAÇÃO PARA INSTAGRAM/FACEBOOK:
+            - Tom: Envolvente, próximo e visual.
+            - Estrutura: Storytelling cativante.
+            - Hashtags: 15-20 hashtags estratégicas no final.
+            `;
+        }
+
+        const prompt = `
+        1. NÃO seja raso ou genérico.
+        2. Use a estrutura AIDA (Atenção, Interesse, Desejo, Ação) de forma magistral.
+        3. HOOK (Gancho): A primeira frase deve ser chocante, curiosa ou contra-intuitiva.
+        4. LINGUAGEM: Use a linguagem da persona.
+        5. EMOJIS: Use emojis para dar ritmo.
+        
+        ${platformSpecificRules}
+
+        ${context}
+        
+        Retorne APENAS o texto da nova legenda.
+        `;
+
+        // PROXY VIBECODE: Chamada segura via backend local
+        // Removemos a necessidade de apiKey no frontend
+        const response = await fetch('/api/openai/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+                // Authorization é injetado pelo servidor
+            },
+            body: JSON.stringify({
+                model: "gpt-4-turbo",
+                messages: [
+                    { role: "system", content: "Você é um Copywriter de Elite especialista em redes sociais. Escreve textos longos, persuasivos e formatados." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.8
+            })
+        });
+
+        if (!response.ok) throw new Error('Erro na OpenAI');
+        
+        const data = await response.json();
+        const newCaption = data.choices[0].message.content;
+        
+        legendaInput.value = newCaption;
+        legendaInput.classList.add('ring-2', 'ring-green-500');
+        setTimeout(() => legendaInput.classList.remove('ring-2', 'ring-green-500'), 2000);
+
+    } catch (err) {
+        console.error('Erro ao refinar:', err);
+        alert('Erro ao melhorar legenda: ' + err.message);
+    } finally {
+        btnRefine.disabled = false;
+        btnRefine.innerHTML = originalText;
+    }
+}
+
+async function loadClientes() {
+    const select = document.getElementById('select-cliente');
+    if (!select) return;
+
+    // Retry logic se o Supabase não estiver pronto
+    if (!window.supabaseClient) { 
+        console.warn('Supabase ainda não inicializado, tentando novamente em 500ms...');
+        setTimeout(loadClientes, 500); 
+        return; 
+    }
+
+    try {
+        console.log('Iniciando carregamento de clientes...');
+        
+        // Adiciona indicador visual de carregamento
+        if(select.options.length > 0 && select.options[0]) select.options[0].text = 'Carregando...';
+
+        // Tentar carregar sem filtro primeiro para debug
+        const { data, error } = await window.supabaseClient
+            .from('clientes')
+            .select('id, nome_empresa, plataformas_social')
+            .order('nome_empresa');
+
+        if (error) {
+            console.error('Erro Supabase Detalhado:', JSON.stringify(error, null, 2));
+            throw error;
+        }
+
+        const uniqueData = Array.isArray(data)
+            ? Array.from(new Map(data.map(cliente => [String(cliente.id), cliente])).values())
+            : [];
+
+        console.log('Clientes encontrados:', uniqueData.length);
+
+        select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+        
+        if (uniqueData.length === 0) {
+            const opt = document.createElement('option');
+            opt.disabled = true;
+            opt.textContent = 'Nenhum cliente encontrado';
+            select.appendChild(opt);
+        } else {
+            uniqueData.forEach(c => {
+                clientDataMap[c.id] = c;
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.nome_empresa;
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error('Erro crítico ao carregar clientes:', err);
+        select.innerHTML = '<option value="">Erro ao carregar</option>';
+        // Tentar recuperar do erro recarregando a página se for crítico após um delay
+        // setTimeout(() => location.reload(), 5000); 
+    }
+}
+
+function checkSelection() {
+    const btnConfig = document.getElementById('btn-config-ia');
+    const btnApprove = document.getElementById('btn-approve');
+    const btnDelete = document.getElementById('btn-delete-calendar');
+
+    if (currentClienteId && currentMonth) {
+        if (btnConfig) btnConfig.disabled = false;
+        loadCalendarData();
+    } else {
+        if (btnConfig) btnConfig.disabled = true;
+        
+        // Resetar botões se não houver seleção
+        [btnApprove, btnDelete].forEach(btn => {
+            if (btn) {
+                btn.disabled = true;
+                btn.className = 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+            }
+        });
+
+        if (calendar) calendar.removeAllEvents();
+    }
+}
+
+async function loadCalendarData() {
+    if (!currentClienteId || !currentMonth) return;
+    
+    // Calcular corretamente o último dia do mês
+    const [year, month] = currentMonth.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate(); // dia 0 do próximo mês = último dia deste
+    
+    const startDate = `${currentMonth}-01`;
+    const endDate = `${currentMonth}-${String(lastDay).padStart(2, '0')}`;
+    
+    console.log(`Carregando posts de ${startDate} a ${endDate} para cliente ${currentClienteId}`);
+
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('social_posts')
+            .select('*')
+            .eq('cliente_id', parseInt(currentClienteId) || currentClienteId)
+            .gte('data_agendada', startDate)
+            .lte('data_agendada', endDate);
+            
+        if (error) throw error;
+
+        console.log(`Posts carregados: ${data.length}`);
+
+        // Atualiza estado dos botões (Habilitar apenas se houver posts)
+        const btnDelete = document.getElementById('btn-delete-calendar');
+        const btnApprove = document.getElementById('btn-approve');
+        const hasPosts = data.length > 0;
+
+        if (btnDelete) {
+            btnDelete.disabled = !hasPosts;
+            if (hasPosts) {
+                // Habilitado (Vermelho/Alerta)
+                btnDelete.className = 'flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 rounded-lg cursor-pointer hover:bg-red-50 font-medium text-sm shadow-sm transition-all';
+            } else {
+                // Desabilitado
+                btnDelete.className = 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+            }
+        }
+
+        if (btnApprove) {
+            btnApprove.disabled = !hasPosts;
+            if (hasPosts) {
+                // Habilitado (Verde)
+                btnApprove.className = 'flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white border border-green-600 rounded-lg cursor-pointer hover:bg-green-600 font-medium text-sm shadow-md transition-all';
+            } else {
+                // Desabilitado
+                btnApprove.className = 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+            }
+        }
+
+        calendar.removeAllEvents();
+        data.forEach(post => {
+            calendar.addEvent({
+                id: post.id,
+                title: post.tema,
+                start: post.data_agendada,
+                extendedProps: post
+            });
+        });
+    } catch (err) {
+        console.error('Erro ao carregar posts:', err);
+    }
+}
+
+function handleGenerateClick() {
+    openConfigModal();
+}
+
+async function deleteCalendar() {
+    if (!currentClienteId || !currentMonth) return;
+    if (!confirm('Tem certeza que deseja excluir TODO o calendário deste mês?')) return;
+    
+    try {
+        const [year, month] = currentMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const startDate = `${currentMonth}-01`;
+        const endDate = `${currentMonth}-${String(lastDay).padStart(2, '0')}`;
+
+        const { error } = await window.supabaseClient
+            .from('social_posts')
+            .delete()
+            .eq('cliente_id', currentClienteId)
+            .gte('data_agendada', startDate)
+            .lte('data_agendada', endDate);
+            
+        if (error) throw error;
+        calendar.removeAllEvents();
+        alert('Calendário excluído com sucesso!');
+        checkSelection();
+    } catch (e) {
+        alert('Erro ao excluir: ' + e.message);
+    }
+}
+
+async function generateCalendar() {
+    if (!currentClienteId) {
+        alert('Por favor, selecione um cliente primeiro.');
+        return;
+    }
+
+    const client = clientDataMap[currentClienteId];
+    if (!client) {
+        console.error('Dados do cliente não encontrados no mapa.');
+        alert('Erro ao identificar cliente. Tente recarregar a página.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-modal-generate');
+    if (!btn) return;
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+
+    try {
+        // VIBECODE: Removido fetch de API Key do Frontend. O Proxy backend cuidará disso.
+        // const { data: configData } = await window.supabaseClient...
+
+        const platforms = client.plataformas_social || [];
+        let legendInstruction = `"legenda_sugestao": "Legenda DENSA e PERSUASIVA (Mínimo 3 parágrafos) para Instagram/Facebook. Use Storytelling, AIDA e termine com CTA forte. Inclua hashtags."`;
+        
+        if (platforms.some(p => p.toLowerCase().includes('linkedin'))) {
+            legendInstruction += `, "legenda_linkedin": "Legenda adaptada para LinkedIn. Tom mais profissional/corporativo, focada em networking, carreira ou negócios. Sem hashtags exageradas."`;
+        }
+        
+        if (platforms.some(p => p.toLowerCase().includes('tiktok'))) {
+            legendInstruction += `, "legenda_tiktok": "Legenda curta e dinâmica para TikTok. Focada em retenção e trends. Use hashtags virais."`;
+        }
+
+        const prompt = `
+            Crie 12 posts para redes sociais para o cliente: ${client.nome_empresa}.
+            Nicho: ${client.nicho_atuacao || 'Geral'}.
+            Mês: ${currentMonth}.
+            
+            Retorne um ARRAY JSON com a seguinte estrutura:
+            [
+                {
+                    "data_agendada": "YYYY-MM-DD",
+                    "tema": "Título do post",
+                    "formato": "estatico|reels|carrossel",
+                    "conteudo_roteiro": "Roteiro detalhado ou texto do carrossel...",
+                    "descricao_visual": "Descrição da imagem/vídeo...",
+                    "estrategia": "Objetivo (Engajamento, Venda, Autoridade)...",
+                    ${legendInstruction}
+                }
+            ]
+            
+            Distribua as datas ao longo do mês.
+            Seja criativo e persuasivo.
+        `;
+
+        // VIBECODE: Usando Proxy Backend
+        const response = await fetch('/api/openai/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: "gpt-4-turbo",
+                messages: [{role: "system", content: "Você é um estrategista de social media expert. Retorne sempre JSON válido (array de objetos)."}, {role: "user", content: prompt}],
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Erro na comunicação com a OpenAI (Proxy)');
+        }
+
+        const data = await response.json();
+        let content = data.choices[0].message.content;
+        
+        let posts;
+        try {
+            posts = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
+        } catch (e) {
+            console.error('Erro JSON:', content);
+            throw new Error('Erro ao processar resposta da IA. Formato inválido.');
+        }
+
+        if (!Array.isArray(posts)) throw new Error('A IA não retornou uma lista de posts válida.');
+
+        // Função auxiliar para validar e corrigir datas (evita 29/fev em ano não bissexto)
+        const fixDate = (dateStr) => {
+            if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            // Se o mês mudou, a data era inválida (ex: 29/02 -> 01/03)
+            if (date.getMonth() !== m - 1) {
+                const lastDay = new Date(y, m, 0).getDate();
+                return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            }
+            return dateStr;
+        };
+
+        // Preparar posts para inserção em lote (Batch Insert)
+        const postsToInsert = posts.map(post => ({
+            cliente_id: parseInt(currentClienteId) || currentClienteId,
+            data_agendada: fixDate(post.data_agendada),
+            hora_agendada: '10:00',
+            formato: post.formato || 'post',
+            tema: post.tema || 'Sem título',
+            conteudo_roteiro: post.conteudo_roteiro || '',
+            descricao_visual: post.descricao_visual || '',
+            estrategia: post.estrategia || '',
+            legenda: post.legenda || post.legenda_sugestao || '',
+            legenda_linkedin: post.legenda_linkedin || null,
+            legenda_tiktok: post.legenda_tiktok || null,
+            status: 'rascunho'
+        }));
+
+        console.log('Inserindo posts em lote:', postsToInsert);
+
+        // Warmup do cache antes do insert
+        try {
+            await window.supabaseClient.from('social_posts').select('id').limit(1);
+        } catch (ignore) {}
+
+        const { error } = await window.supabaseClient
+            .from('social_posts')
+            .insert(postsToInsert)
+            .select();
+
+        if (error) {
+            console.error('Erro Supabase Insert:', error);
+            if (error.message && (error.message.includes('schema cache') || error.message.includes('Could not find'))) {
+                 console.warn('Erro de Schema Cache. Limpando e tentando reload...');
+                 Object.keys(localStorage).forEach(key => {
+                    if (key.includes('supabase.auth.token')) return;
+                    if (key.includes('supabase')) localStorage.removeItem(key);
+                 });
+                 throw new Error('Erro de sincronização. Por favor, tente novamente (cache limpo).');
+            }
+            throw error;
+        }
+
+        closeConfigModal();
+        await loadCalendarData();
+        
+        // Notificação de Sucesso
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-5 right-5 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[80] animate-bounce-in flex items-center gap-3';
+        successDiv.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><div><h4 class="font-bold">Sucesso!</h4><p class="text-sm">Calendário gerado com sucesso.</p></div>';
+        document.body.appendChild(successDiv);
+        setTimeout(() => successDiv.remove(), 4000);
+
+    } catch (err) {
+        console.error('Erro Geral:', err);
+        alert('Erro ao gerar calendário: ' + err.message);
+    } finally {
+        if(btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+// New functions
+window.openFormatModal = function(dateStr) {
+    if (!currentClienteId) { alert('Selecione um cliente!'); return; }
+    tempSelectedDate = dateStr;
+    const modal = document.getElementById('modal-select-format');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
+    }
+}
+
+window.selectFormat = function(format) {
+    tempSelectedFormat = format;
+    closeModalAnim('modal-select-format');
+    setTimeout(() => {
+        const modal = document.getElementById('modal-select-mode');
+        if (modal) {
+             modal.classList.remove('hidden');
+             modal.classList.add('flex');
+             setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
+        }
+    }, 300);
+}
+
+window.handleManualCreation = function() {
+    closeModalAnim('modal-select-mode');
+    setTimeout(() => {
+        const fakeEvent = {
+            id: '',
+            title: '',
+            startStr: tempSelectedDate,
+            extendedProps: { formato: tempSelectedFormat, status: 'rascunho' }
+        };
+        openPostModal(fakeEvent);
+    }, 300);
+}
+
+window.handleAICreation = function() {
+    closeModalAnim('modal-select-mode');
+    generateSinglePostAI(tempSelectedDate, tempSelectedFormat);
+}
+
+async function generateSinglePostAI(date, format) {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'ai-loading-overlay';
+    loadingDiv.className = 'fixed inset-0 bg-gray-900/80 z-[70] flex flex-col items-center justify-center text-white backdrop-blur-sm';
+    loadingDiv.innerHTML = `
+        <div class="relative w-24 h-24 mb-6">
+             <div class="absolute top-0 left-0 w-full h-full border-4 border-gray-600 rounded-full"></div>
+             <div class="absolute top-0 left-0 w-full h-full border-4 border-t-purple-500 rounded-full animate-spin"></div>
+             <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl">
+                 <i class="fas fa-magic text-purple-400"></i>
+             </div>
+        </div>
+        <h3 class="text-xl font-bold mb-2">Criando seu post com IA...</h3>
+        <p class="text-sm opacity-70">Analisando tendências e criando conteúdo incrível para ${format}</p>
+    `;
+    document.body.appendChild(loadingDiv);
+
+    try {
+        // VIBECODE: Removido fetch de API Key do Frontend.
+        // const { data: configData } = await window.supabaseClient...
+        
+        // if (!configData || !configData.value) throw new Error('Chave OpenAI não configurada.');
+        // const apiKey = configData.value;
+
+        const client = clientDataMap[currentClienteId];
+        if (!client) throw new Error('Cliente não encontrado');
+
+        const prompt = `
+        Crie UM post para redes sociais para o cliente: ${client.nome_empresa}.
+        Data: ${date}
+        Formato: ${format}
+        Nicho: ${client.nicho_atuacao || 'Geral'}
+        
+        Gere um objeto JSON com a seguinte estrutura:
+        {
+            "tema": "Título curto e chamativo",
+            "conteudo_roteiro": "Texto do post, roteiro do vídeo ou slides do carrossel. Detalhado.",
+            "descricao_visual": "Descrição da imagem ou cena do vídeo.",
+            "estrategia": "Qual o objetivo deste post (Engajamento, Venda, Autoridade).",
+            "legenda_sugestao": "Legenda principal (Instagram/Facebook). ESTILO BÚSSOLA CRIATIVOS: Densa, Persuasiva, Storytelling, AIDA.",
+            "legenda_linkedin": "Legenda adaptada para LinkedIn (opcional, preencha se fizer sentido para o nicho).",
+            "legenda_tiktok": "Legenda adaptada para TikTok (opcional, preencha se for vídeo)."
+        }
+        
+        DIRETRIZES DE COPYWRITING (MODELO BÚSSOLA CRIATIVOS):
+        1. HOOK (Gancho): Comece com uma frase impactante, curiosa ou contra-intuitiva.
+        2. CORPO: Desenvolva o conteúdo com profundidade. Use parágrafos curtos para facilitar a leitura.
+        3. EMOJIS: Use emojis para pontuar e dar ritmo (sem exageros).
+        4. CTA: Termine sempre com uma Chamada para Ação clara.
+        5. TOM: Especialista, porém próximo e autêntico.
+        
+        Responda APENAS o JSON.
+        `;
+
+        // VIBECODE: Usando Proxy Backend
+        const response = await fetch('/api/openai/proxy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: "gpt-4-turbo",
+                messages: [
+                    { role: "system", content: "Você é um Copywriter de Elite (Estilo Bússola Criativos). Retorne sempre JSON válido." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.7
+            })
+        });
+
+        if (!response.ok) {
+             const errData = await response.json();
+             throw new Error(errData.error || 'Erro na OpenAI (Proxy)');
+        }
+        
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        
+        let jsonContent;
+        try {
+            jsonContent = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
+        } catch (e) {
+            console.error('Erro ao parsear JSON da IA', content);
+            throw new Error('A IA não retornou um formato válido. Tente novamente.');
+        }
+
+        let finalClienteId = currentClienteId;
+        // Validação robusta de ID
+        if (currentClienteId && !isNaN(currentClienteId) && !currentClienteId.toString().includes('-')) {
+            finalClienteId = parseInt(currentClienteId);
+        }
+
+        const newPost = {
+            cliente_id: finalClienteId,
+            data_agendada: date,
+            hora_agendada: '10:00',
+            formato: format || 'post',
+            tema: jsonContent.tema || 'Sem título',
+            conteudo_roteiro: jsonContent.conteudo_roteiro || '',
+            descricao_visual: jsonContent.descricao_visual || '',
+            estrategia: jsonContent.estrategia || '',
+            legenda: jsonContent.legenda_sugestao || '',
+            legenda_linkedin: jsonContent.legenda_linkedin || null,
+            legenda_tiktok: jsonContent.legenda_tiktok || null,
+            status: 'rascunho'
+        };
+
+        console.log('Enviando post para Supabase:', newPost);
+        
+        // Tenta "acordar" o schema cache com um select simples antes do insert
+        try {
+            await window.supabaseClient.from('social_posts').select('id').limit(1);
+        } catch (ignore) { console.warn('Cache warmup falhou, prosseguindo...'); }
+
+        const { error: insertError } = await window.supabaseClient
+            .from('social_posts')
+            .insert([newPost])
+            .select();
+
+        if (insertError) {
+             console.error('Erro detalhado Supabase:', insertError);
+             if (insertError.message && (insertError.message.includes('schema cache') || insertError.message.includes('Could not find'))) {
+                  console.warn('Erro de Schema Cache confirmado. Tentando reload forçado...');
+                  // Limpa localStorage de cache do supabase se existir (hack)
+                  Object.keys(localStorage).forEach(key => {
+                      if (key.includes('supabase.auth.token')) return; // Mantém auth
+                      if (key.includes('supabase')) localStorage.removeItem(key);
+                  });
+                  throw new Error('Erro de sincronização com o banco de dados. O sistema tentou corrigir automaticamente. Por favor, tente clicar em "Criar com IA" novamente.');
+             }
+             throw insertError;
+        }
+
+        await loadCalendarData();
+        
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-5 right-5 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[80] animate-bounce-in flex items-center gap-3';
+        successDiv.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><div><h4 class="font-bold">Sucesso!</h4><p class="text-sm">Post criado com IA.</p></div>';
+        document.body.appendChild(successDiv);
+        setTimeout(() => successDiv.remove(), 3000);
+
+    } catch (err) {
+        console.error('Erro ao gerar post:', err);
+        alert('Erro ao gerar post com IA: ' + err.message);
+    } finally {
+        loadingDiv.remove();
+    }
+}

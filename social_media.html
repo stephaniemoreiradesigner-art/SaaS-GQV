@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Media - Gestão Que Vende</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/social_media_dashboard.js?v=2.6"></script>
+    <script src="js/social_media.js"></script>
+    <script src="js/social_media_approval.js"></script>
+    <script src="js/trafego_pago_logs.js"></script>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/theme.js"></script>
+
+    <!-- FullCalendar -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/locales/pt-br.global.min.js'></script>
+    
+    <!-- PDF.js para Leitura de Arquivos -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+        /* FullCalendar Overrides for Tailwind Look */
+        .fc { font-family: 'Inter', sans-serif; }
+        .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600 !important; color: #1f2937; }
+        .fc-button-primary { background-color: white !important; color: #4b5563 !important; border: 1px solid #e5e7eb !important; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important; font-weight: 500 !important; padding: 0.5rem 1rem !important; }
+        .fc-button-primary:hover { background-color: #f9fafb !important; border-color: #d1d5db !important; }
+        .fc-button-active { background-color: #f3f4f6 !important; color: #111827 !important; }
+        .fc-daygrid-day-top { flex-direction: row; padding: 4px 8px; }
+        .fc-daygrid-day-number { font-size: 0.875rem; color: #6b7280; font-weight: 500; }
+        .fc-col-header-cell-cushion { padding: 12px 0 !important; color: #374151; font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #e5e7eb; }
+        
+        /* Event Card Styling */
+        /* FullCalendar Customization */
+        .fc {
+            font-family: 'Inter', sans-serif;
+        }
+        .fc-toolbar-title {
+            font-size: 1.25rem !important;
+            font-weight: 700 !important;
+            color: #1f2937 !important; /* gray-800 */
+            text-transform: capitalize;
+        }
+        .fc-button-primary {
+            background-color: white !important;
+            border-color: #e5e7eb !important; /* gray-200 */
+            color: #4b5563 !important; /* gray-600 */
+            font-weight: 500 !important;
+            text-transform: capitalize !important;
+            padding: 0.5rem 1rem !important;
+            border-radius: 0.5rem !important;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+            transition: all 0.2s !important;
+        }
+        .fc-button-primary:hover {
+            background-color: #f9fafb !important; /* gray-50 */
+            border-color: #d1d5db !important; /* gray-300 */
+            color: #111827 !important; /* gray-900 */
+            transform: translateY(-1px);
+        }
+        .fc-button-primary:focus {
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important; /* primary/10 */
+        }
+        .fc-button-active {
+            background-color: #f3f4f6 !important; /* gray-100 */
+            color: #7c3aed !important; /* primary-600 */
+            border-color: #7c3aed !important;
+        }
+        
+        /* Headers */
+        .fc-col-header-cell {
+            padding: 12px 0 !important;
+            background-color: #f9fafb !important; /* gray-50 */
+            border-bottom: 1px solid #e5e7eb !important;
+        }
+        .fc-col-header-cell-cushion {
+            color: #6b7280 !important; /* gray-500 */
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            font-size: 0.75rem !important;
+            letter-spacing: 0.05em;
+            text-decoration: none !important;
+        }
+        
+        /* Grid & Cells */
+        .fc-scrollgrid {
+            border: none !important;
+        }
+        .fc-daygrid-day {
+            transition: background-color 0.2s;
+        }
+        .fc-daygrid-day:hover {
+            background-color: #fafafa;
+        }
+        .fc-daygrid-day-frame {
+            padding: 4px;
+        }
+        .fc-daygrid-day-number {
+            font-size: 0.875rem !important;
+            font-weight: 500 !important;
+            color: #6b7280 !important;
+            padding: 8px !important;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            margin: 4px;
+        }
+        .fc-day-today .fc-daygrid-day-number {
+            background-color: #7c3aed !important; /* primary */
+            color: white !important;
+        }
+        .fc-day-today {
+            background-color: rgba(124, 58, 237, 0.02) !important;
+        }
+        .fc-day-other .fc-daygrid-day-number {
+            color: #d1d5db !important; /* gray-300 */
+        }
+
+        /* Events */
+        .fc-event { background: transparent !important; border: none !important; margin-bottom: 4px !important; box-shadow: none !important; }
+        .event-card {
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: white;
+            border-left: 3px solid;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02), 0 1px 0 rgba(0,0,0,0.02);
+            border: 1px solid rgba(0,0,0,0.05); /* subtle border */
+            border-left-width: 4px; /* maintain left accent */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .event-card:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 16px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+            z-index: 10;
+        }
+        
+        /* Add button - Always Visible & Styled */
+        .add-post-btn {
+            opacity: 1 !important;
+            transform: scale(1) !important;
+            background-color: #f3e8ff; /* purple-100 */
+            color: #7c3aed; /* purple-600 */
+            border-radius: 9999px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            cursor: pointer;
+        }
+        .add-post-btn:hover {
+            background-color: #7c3aed !important; /* purple-600 */
+            color: white !important;
+            transform: scale(1.1) !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Ensure Day Top uses full width for justify-between */
+        .fc-daygrid-day-top {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: space-between !important; /* Garante extremos */
+            align-items: flex-start !important; /* Alinha ao topo */
+            width: 100% !important;
+            padding: 0 !important;
+            height: auto !important;
+        }
+        
+        /* Remove default number styling to avoid conflicts */
+        .fc-daygrid-day-number {
+            margin: 0 !important;
+            padding: 4px 8px 0 0 !important; /* Espaçamento fino */
+            width: auto !important;
+            background: none !important;
+            float: none !important; /* Remove float padrão */
+        }
+
+        /* Wrapper customizado para o conteúdo do dia */
+        .fc-day-content-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+        }
+        .sidebar-link.active { background-color: rgba(128, 0, 128, 0.1); color: #800080; border-right: 3px solid #800080; }
+        
+        /* Modal Animation */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 0.2s, transform 0.2s; }
+        .modal-exit { opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex overflow-hidden">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 bg-white flex flex-col justify-center items-center z-[9999]">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-primary"></div>
+        <p class="mt-4 text-gray-500 font-medium">Carregando Social Media...</p>
+    </div>
+
+    <!-- Mobile Header -->
+    <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
+        <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
+        <button class="text-gray-500 hover:text-primary" onclick="document.querySelector('aside').classList.toggle('hidden')">
+            <i class="fas fa-bars text-xl"></i>
+        </button>
+    </div>
+
+    <!-- Sidebar (Adaptada para Tailwind) -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
+        <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+            <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+            <a href="dashboard.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                <i class="fas fa-home w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Home</span>
+            </a>
+            <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                <i class="fas fa-users w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Clientes</span>
+            </a>
+            <a href="tarefas.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                <i class="fas fa-tasks w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Tarefas</span>
+            </a>
+            <a href="social_media.html" class="restricted flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors" data-roles="super_admin,social_media">
+                <i class="fas fa-hashtag w-6 text-center"></i>
+                <span class="font-medium ml-2">Social Media</span>
+            </a>
+            <a href="trafego_pago.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,trafego_pago">
+                <i class="fas fa-bullhorn w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Tráfego Pago</span>
+            </a>
+            <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                <i class="fas fa-comments w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Chat</span>
+            </a>
+            <a href="financeiro.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,financeiro">
+                <i class="fas fa-dollar-sign w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Financeiro</span>
+            </a>
+            <a href="automacoes.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,admin">
+                <i class="fas fa-robot w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Automações</span>
+            </a>
+            <a href="colaboradores.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,admin">
+                <i class="fas fa-user-friends w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Colaboradores</span>
+            </a>
+            <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                <i class="fas fa-cog w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                <span class="font-medium ml-2">Configurações</span>
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-gray-100">
+            <div class="flex items-center gap-3 mb-4">
+                <img id="user-avatar-sidebar" class="w-10 h-10 rounded-full object-cover border border-gray-200" src="" alt="User">
+                <div class="flex-1 min-w-0">
+                    <p id="user-name-sidebar" class="text-sm font-semibold text-gray-800 truncate">Carregando...</p>
+                </div>
+                <button id="btn-logout-sidebar" class="text-gray-400 hover:text-red-500 transition-colors" title="Sair">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-gray-50 relative">
+        
+        <!-- Dashboard Home (Menu Principal) -->
+        <div id="social-media-home" class="p-4 md:p-8 overflow-y-auto h-full">
+            <header class="mb-8">
+                <h1 class="text-2xl font-bold text-gray-900">Social Media Dashboard</h1>
+                <p class="text-gray-500 mt-1">Gerencie seu conteúdo, aprovações e métricas em um só lugar.</p>
+            </header>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Botão: Criar Calendário -->
+                <div onclick="openSocialMediaTab('calendar')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                    <div class="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mb-4 group-hover:bg-purple-100 transition-colors">
+                        <i class="fas fa-calendar-alt text-3xl text-purple-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 text-lg">Criar Calendário</h3>
+                    <p class="text-sm text-gray-500 mt-2">Gere conteúdo com IA</p>
+                </div>
+
+                <!-- Botão: Aprovação de Post -->
+                <div onclick="sendForApproval()" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                    <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+                        <i class="fas fa-check-double text-3xl text-blue-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 text-lg">Aprovação de Post</h3>
+                    <p class="text-sm text-gray-500 mt-2">Gerencie status e feedbacks</p>
+                </div>
+
+                <!-- Botão: Insights -->
+                <div onclick="openSocialMediaTab('insights')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                    <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4 group-hover:bg-green-100 transition-colors">
+                        <i class="fas fa-chart-line text-3xl text-green-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 text-lg">Insights</h3>
+                    <p class="text-sm text-gray-500 mt-2">Métricas orgânicas e relatórios</p>
+                </div>
+
+                <!-- Botão: Diário de Bordo -->
+                <div onclick="openSocialMediaTab('logs')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                    <div class="w-16 h-16 rounded-full bg-orange-50 flex items-center justify-center mb-4 group-hover:bg-orange-100 transition-colors">
+                        <i class="fas fa-book-open text-3xl text-orange-600"></i>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 text-lg">Diário de Bordo</h3>
+                    <p class="text-sm text-gray-500 mt-2">Registro de atividades e logs</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar View (Criar Calendário & Aprovação) -->
+        <div id="calendar-view" class="hidden flex-col h-full">
+            <!-- Header / Toolbar -->
+            <header class="bg-white border-b border-gray-200 px-8 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm z-10">
+                <div class="flex items-center gap-4">
+                    <button onclick="showSocialMediaHome()" class="text-gray-500 hover:text-primary transition-colors" title="Voltar ao Menu">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </button>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                            <span class="bg-primary text-white p-2 rounded-lg text-sm"><i class="fas fa-magic"></i></span>
+                            Calendário Editorial
+                        </h1>
+                        <p class="text-sm text-gray-500 mt-1">Gerencie conteúdos e estratégias com inteligência artificial.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                    <!-- Cliente Selector -->
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-briefcase text-gray-400"></i>
+                        </div>
+                        <select id="select-cliente" class="pl-10 pr-8 py-2 bg-white border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-primary focus:border-primary block w-48 transition-all hover:border-gray-300">
+                            <option value="">Selecione o Cliente...</option>
+                        </select>
+                    </div>
+
+                    <!-- Mês Selector -->
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="far fa-calendar-alt text-gray-400"></i>
+                        </div>
+                        <input type="month" id="input-mes" class="pl-10 pr-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm rounded-lg focus:ring-primary focus:border-primary block w-40 transition-all hover:border-gray-300">
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="btn-header-generate" class="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary to-purple-600 text-white rounded-lg shadow-md hover:shadow-lg hover:from-primary-hover hover:to-purple-800 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-bolt"></i>
+                        Gerar Calendário
+                    </button>
+                    
+                    <button id="btn-delete-calendar" disabled class="flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all">
+                        <i class="fas fa-trash-alt"></i>
+                        Excluir Calendário
+                    </button>
+
+                    <button id="btn-approve" onclick="sendForApproval()" disabled class="flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all">
+                        <i class="fas fa-paper-plane"></i>
+                        Enviar para Aprovação
+                    </button>
+                </div>
+            </header>
+
+            <!-- Calendar Area -->
+            <div class="flex-1 overflow-y-auto p-6">
+                
+                <!-- Error Banner -->
+                <div id="error-banner" class="hidden mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm flex items-center justify-between transition-all duration-300">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-500 text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-sm font-bold text-red-800">Falha na Geração do Calendário</h3>
+                            <p id="error-message-text" class="text-sm text-red-700 mt-1">Ocorreu um erro ao processar os dados.</p>
+                        </div>
+                    </div>
+                    <button onclick="dismissError()" class="text-red-400 hover:text-red-600 transition-colors p-2 hover:bg-red-100 rounded-full">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 h-full flex flex-col">
+                    <div id="calendar" class="flex-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Insights View -->
+        <div id="insights-view" class="hidden flex-col h-full p-4 md:p-8 overflow-y-auto">
+            <header class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4">
+                    <button onclick="showSocialMediaHome()" class="text-gray-500 hover:text-primary transition-colors" title="Voltar ao Menu">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </button>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Insights Orgânicos</h1>
+                        <p class="text-gray-500 mt-1">Acompanhe o desempenho das suas redes sociais.</p>
+                    </div>
+                </div>
+                <button onclick="generatePDFReport()" class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 hover:text-primary transition-colors shadow-sm font-medium">
+                    <i class="fas fa-file-pdf text-red-500"></i> Gerar Relatório
+                </button>
+            </header>
+
+            <!-- Filters -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                        <select id="insights-cliente" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
+                            <option value="">Selecione o Cliente...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Plataforma</label>
+                        <select id="insights-platform" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
+                            <option value="instagram" selected>Instagram</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="all">Todas (Relatório Unificado)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Período</label>
+                        <select id="insights-periodo" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary" onchange="toggleCustomDate()">
+                            <option value="last_7_days">Últimos 7 dias</option>
+                            <option value="last_30_days" selected>Últimos 30 dias</option>
+                            <option value="last_90_days">Últimos 90 dias</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                    </div>
+                    <button onclick="loadInsights()" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium h-[42px]">
+                        Buscar Métricas
+                    </button>
+                </div>
+                
+                <!-- Custom Date Inputs (Hidden by default) -->
+                <div id="custom-date-container" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 border-t border-gray-100 pt-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
+                        <input type="date" id="insights-date-start" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
+                        <input type="date" id="insights-date-end" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
+                    </div>
+                </div>
+            </div>
+
+                <!-- Metrics Grid -->
+            <div id="insights-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Cards Injected via JS -->
+            </div>
+        </div>
+
+        <!-- Diário de Bordo View -->
+        <div id="logs-view" class="hidden flex-col h-full p-4 md:p-8 overflow-y-auto">
+            <header class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4">
+                    <button onclick="showSocialMediaHome()" class="text-gray-500 hover:text-primary transition-colors" title="Voltar ao Menu">
+                        <i class="fas fa-arrow-left text-xl"></i>
+                    </button>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Diário de Bordo</h1>
+                        <p class="text-gray-500 mt-1">Histórico de atividades e solicitações.</p>
+                    </div>
+                </div>
+                <button onclick="openTrafficLogModal()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium flex items-center gap-2">
+                    <i class="fas fa-plus"></i> Novo Registro
+                </button>
+            </header>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-4 mb-6">
+                <select id="filter-cliente" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm min-w-[200px]" onchange="loadTrafficLogs()">
+                    <option value="">Todos os Clientes</option>
+                </select>
+                
+                <select id="filter-status-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadTrafficLogs()">
+                    <option value="">Todos Status</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="acompanhando">Acompanhando</option>
+                    <option value="feito">Feito</option>
+                </select>
+
+                <select id="filter-prioridade-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadTrafficLogs()">
+                    <option value="">Todas Prioridades</option>
+                    <option value="baixa">Baixa</option>
+                    <option value="media">Média</option>
+                    <option value="alta">Alta</option>
+                </select>
+            </div>
+
+            <!-- Logs List (Table View) -->
+            <div id="traffic-logs-list-container" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wide">
+                                <th class="px-6 py-4">Data</th>
+                                <th class="px-6 py-4">Cliente</th>
+                                <th class="px-6 py-4">Ação</th>
+                                <th class="px-6 py-4">Descrição</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4">Solicitante</th>
+                                <th class="px-6 py-4 text-right">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="divide-y divide-gray-100">
+                            <!-- Loaded via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Botão Flutuante (Apenas Calendário) -->
+    <button id="btn-floating-add" onclick="window.openFormatModal()" class="fixed bottom-8 right-8 bg-gradient-to-r from-primary to-purple-600 text-white w-14 h-14 rounded-full shadow-xl hover:shadow-2xl hover:scale-110 transition-all flex items-center justify-center z-40 group" title="Novo Post">
+        <i class="fas fa-plus text-2xl group-hover:rotate-90 transition-transform duration-300"></i>
+    </button>
+
+    <!-- Modal Prompt Documentos -->
+    <div id="modal-prompt-docs" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 p-6 text-center">
+            <div class="mb-4">
+                <div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-file-upload text-blue-500 text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">Documentos de Referência</h3>
+                <p class="text-gray-600 text-sm">O cliente ainda não possui documentos de referência (Persona, Identidade Visual) cadastrados.</p>
+                <p class="text-gray-600 text-sm mt-2 font-medium">Deseja carregar os documentos agora?</p>
+            </div>
+            
+            <div class="flex gap-3 justify-center mt-6">
+                <button onclick="handlePromptDocs(false)" class="px-5 py-2.5 bg-gray-100 text-gray-600 font-medium rounded-lg hover:bg-gray-200 transition-colors">
+                    Não
+                </button>
+                <button onclick="handlePromptDocs(true)" class="px-5 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-primary-hover shadow-md hover:shadow-lg transition-all">
+                    Sim, carregar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuração IA -->
+    <div id="modal-ia" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300" id="modal-ia-content">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-file-import text-primary"></i> Carregar Arquivos
+                </h3>
+                <button onclick="closeConfigModal()" class="text-gray-400 hover:text-gray-600 transition-colors"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <!-- Área de Upload e Contexto (Simplificada) -->
+            <div class="p-6 space-y-5">
+                
+                <!-- 1. Documento de Referência -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">1. Documento de Referência (PDF/Doc)</label>
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <input type="file" id="ia-referencias" class="hidden" accept=".pdf,.doc,.docx,.txt" onchange="updateFileName(this)">
+                            <label for="ia-referencias" class="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary hover:bg-gray-50 transition-colors group">
+                                <div class="flex items-center gap-2 text-gray-500 group-hover:text-primary">
+                                    <i class="fas fa-cloud-upload-alt text-lg"></i>
+                                    <span class="text-sm font-medium truncate" id="file-name-referencias">Escolher arquivo</span>
+                                </div>
+                            </label>
+                        </div>
+                        <button type="button" id="btn-delete-referencias" onclick="clearFileInput('ia-referencias')" class="hidden p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remover arquivo">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 ml-1">Ex: Briefing, Persona, Estratégia.</p>
+                </div>
+
+                <!-- 2. Identidade Visual -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">2. Identidade Visual (Opcional)</label>
+                    <div class="flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <input type="file" id="ia-identidade-visual" class="hidden" accept=".pdf,.png,.jpg,.jpeg" onchange="updateFileName(this)">
+                            <label for="ia-identidade-visual" class="flex items-center justify-center w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-colors group">
+                                <div class="flex items-center gap-2 text-gray-500 group-hover:text-purple-600">
+                                    <i class="fas fa-palette text-lg"></i>
+                                    <span class="text-sm font-medium truncate" id="file-name-identidade-visual">Escolher arquivo</span>
+                                </div>
+                            </label>
+                        </div>
+                        <button type="button" id="btn-delete-identidade-visual" onclick="clearFileInput('ia-identidade-visual')" class="hidden p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Remover arquivo">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 ml-1">Manual da marca ou exemplos visuais.</p>
+                </div>
+
+                <!-- 3. Link Calendário Antigo -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">3. Link do Calendário Antigo (Contexto)</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-link text-gray-400"></i>
+                        </div>
+                        <input type="url" id="ia-link-contexto" class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary text-sm shadow-sm" placeholder="https://docs.google.com/spreadsheets/...">
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1 ml-1">Para a IA entender o tom e evitar repetições.</p>
+                </div>
+
+                <!-- Inputs Escondidos/Removidos visualmente mas mantidos no DOM se necessário ou removidos se não usados -->
+                <!-- Persona/Briefing foi unificado em Referências -->
+                <!-- Contexto Texto foi removido conforme pedido -->
+                <!-- Quantidade fixada em 12 (backend) -->
+
+            </div>
+
+            <div class="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end gap-3 border-t border-gray-100">
+                <button id="btn-modal-cancel" onclick="closeConfigModal()" class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors">Cancelar</button>
+                <button id="btn-modal-generate" class="px-6 py-2 bg-gradient-to-r from-primary to-purple-600 text-white font-bold rounded-lg shadow-md hover:shadow-lg hover:from-primary-hover hover:to-purple-800 transition-all transform hover:-translate-y-0.5">
+                    <i class="fas fa-bolt mr-2"></i> Gerar Calendário
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Seleção de Formato -->
+    <div id="modal-select-format" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-[60] opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 p-6 flex flex-col items-center">
+            <h3 class="text-xl font-bold text-gray-800 mb-6">Escolha o formato do seu post</h3>
+            <div class="grid grid-cols-1 gap-4 w-full">
+                <button onclick="selectFormat('estatico')" class="flex items-center justify-center gap-3 p-4 border-2 border-gray-100 rounded-xl hover:border-primary hover:bg-blue-50 transition-all group">
+                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 group-hover:text-primary">Estático</span>
+                </button>
+                <button onclick="selectFormat('reels')" class="flex items-center justify-center gap-3 p-4 border-2 border-gray-100 rounded-xl hover:border-pink-500 hover:bg-pink-50 transition-all group">
+                    <div class="w-10 h-10 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-video"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 group-hover:text-pink-600">Reels</span>
+                </button>
+                <button onclick="selectFormat('carrossel')" class="flex items-center justify-center gap-3 p-4 border-2 border-gray-100 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all group">
+                    <div class="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <i class="fas fa-images"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 group-hover:text-purple-600">Carrossel</span>
+                </button>
+            </div>
+            <button onclick="closeModalAnim('modal-select-format')" class="mt-6 text-gray-400 hover:text-gray-600 text-sm">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Modal Seleção de Modo -->
+    <div id="modal-select-mode" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-[60] opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 p-6 flex flex-col items-center">
+            <h3 class="text-xl font-bold text-gray-800 mb-6">Como deseja criar?</h3>
+            <div class="grid grid-cols-2 gap-4 w-full">
+                <button onclick="handleManualCreation()" class="flex flex-col items-center justify-center gap-3 p-6 border-2 border-gray-100 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all group">
+                    <div class="w-12 h-12 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                        <i class="fas fa-pen"></i>
+                    </div>
+                    <span class="font-bold text-gray-700">Criar Manual</span>
+                </button>
+                <button onclick="handleAICreation()" class="flex flex-col items-center justify-center gap-3 p-6 border-2 border-gray-100 rounded-xl hover:border-primary hover:bg-blue-50 transition-all group relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-gradient-to-bl from-primary to-transparent text-white text-[10px] px-2 py-1 font-bold">IA</div>
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-purple-600 text-white flex items-center justify-center text-xl group-hover:scale-110 transition-transform shadow-lg">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 group-hover:text-primary">Criar com IA</span>
+                </button>
+            </div>
+            <button onclick="closeModalAnim('modal-select-mode')" class="mt-6 text-gray-400 hover:text-gray-600 text-sm">Voltar</button>
+        </div>
+    </div>
+
+    <!-- Modal Edição Post -->
+    <div id="modal-post" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform scale-95 transition-transform duration-300 max-h-[90vh] flex flex-col" id="modal-post-content">
+            
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl sticky top-0 z-10">
+                <div class="flex items-center gap-3">
+                    <div id="post-icon-header" class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+                        <i class="fas fa-image"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-800">Editar Conteúdo</h3>
+                        <span id="post-status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Rascunho
+                        </span>
+                    </div>
+                </div>
+                <button onclick="closePostModal()" class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <!-- Body (Scrollable) -->
+            <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                
+                <!-- Feedback Alert -->
+                <div id="feedback-area" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-yellow-800">Solicitação de Ajuste</h3>
+                            <div class="mt-2 text-sm text-yellow-700" id="post-feedback-text">
+                                <!-- Texto do feedback -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Fields -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Tema do Post</label>
+                        <input type="text" id="post-tema" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary font-medium text-gray-900 transition-all">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Data e Hora</label>
+                        <div class="flex gap-2">
+                            <input type="date" id="post-data" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-gray-700 transition-all">
+                            <input type="time" id="post-hora" class="w-24 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-gray-700 transition-all">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Formato</label>
+                        <div class="relative">
+                            <select id="post-formato" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-gray-700 appearance-none transition-all">
+                                <option value="estatico">Imagem Estática</option>
+                                <option value="reels">Reels / Vídeo</option>
+                                <option value="carrossel">Carrossel</option>
+                                <option value="stories">Stories</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                                <i class="fas fa-chevron-down text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Plataformas (Do Cliente)</label>
+                        <input type="text" id="post-plataformas" readonly class="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed transition-all" placeholder="Carregando...">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Sugestão Visual / Criativo</label>
+                    <textarea id="post-visual" rows="3" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm text-gray-600 transition-all" placeholder="Descreva a imagem ou vídeo..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Conteúdo Detalhado (Roteiro/Slides)</label>
+                    <textarea id="post-roteiro" rows="4" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm text-gray-600 transition-all" placeholder="Roteiro do vídeo ou texto dos slides..."></textarea>
+                </div>
+                
+                <div class="hidden">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Estratégia (Framework RETINA)</label>
+                    <textarea id="post-estrategia" rows="2" class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm text-gray-600 transition-all" placeholder="Resumo estratégico..."></textarea>
+                </div>
+
+                <!-- Área Dinâmica de Legendas -->
+                <div id="legendas-container" class="col-span-2 space-y-4">
+                    <!-- Legendas serão injetadas via JS dependendo das plataformas do cliente -->
+                </div>
+
+                <!-- Seção de Upload de Mídia -->
+                <div id="media-upload-section" class="hidden space-y-6 pt-6 border-t border-gray-100">
+                    <h4 class="text-sm font-bold text-gray-700 uppercase tracking-wide">Mídia do Post</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Upload Feed -->
+                        <div id="upload-feed-container" class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Feed <span class="text-xs text-gray-400 font-normal ml-1" id="feed-limit-info"></span></label>
+                            <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer relative group" id="dropzone-feed">
+                                <input type="file" id="file-feed" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,video/*" multiple>
+                                <div class="space-y-2 pointer-events-none">
+                                    <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-500 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-cloud-upload-alt text-lg"></i>
+                                    </div>
+                                    <p class="text-sm text-gray-500">Clique ou arraste para upload</p>
+                                </div>
+                            </div>
+                            <div id="preview-feed" class="grid grid-cols-4 gap-2 mt-2"></div>
+                        </div>
+
+                        <!-- Upload Story -->
+                        <div id="upload-story-container" class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Story <span class="text-xs text-gray-400 font-normal ml-1">(Até 29s)</span></label>
+                            <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer relative group" id="dropzone-story">
+                                <input type="file" id="file-story" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*,video/*">
+                                <div class="space-y-2 pointer-events-none">
+                                    <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-500 mx-auto flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <i class="fas fa-photo-video text-lg"></i>
+                                    </div>
+                                    <p class="text-sm text-gray-500">Clique ou arraste para upload</p>
+                                </div>
+                            </div>
+                            <div id="preview-story" class="grid grid-cols-1 gap-2 mt-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-between items-center bg-gray-50 rounded-b-2xl sticky bottom-0 z-10">
+                <button onclick="deletePost()" class="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-red-50 transition-colors">
+                    <i class="far fa-trash-alt mr-1"></i> Excluir
+                </button>
+                <div class="flex gap-3">
+                    <button onclick="closePostModal()" class="px-5 py-2.5 text-gray-600 font-medium hover:bg-white border border-transparent hover:border-gray-200 rounded-lg transition-all">Cancelar</button>
+                    <button onclick="savePost()" class="px-6 py-2.5 bg-primary text-white font-bold rounded-lg shadow-md hover:shadow-lg hover:bg-primary-hover transition-all transform hover:-translate-y-0.5">
+                        <i class="fas fa-save mr-2"></i> Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/components/sidebar.js"></script>
+    <script src="js/social_media.js"></script>
+    <script src="js/social_media_approval.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <script>
+        // Animação simples para abrir modais
+        function openModalAnim(id) {
+            const el = document.getElementById(id);
+            const content = el.firstElementChild;
+            el.classList.remove('hidden');
+            el.classList.add('flex'); // Garante display flex para centralizar
+            // Timeout para permitir display:flex aplicar antes da opacidade
+            setTimeout(() => {
+                el.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModalAnim(id) {
+            const el = document.getElementById(id);
+            const content = el.firstElementChild;
+            el.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                el.classList.remove('flex'); // Remove flex ao fechar
+                el.classList.add('hidden');
+            }, 300);
+        }
+
+        // Sobrescrever funções do social_media.js para usar animação
+        const originalOpenConfig = window.openConfigModal;
+        window.openConfigModal = function() { openModalAnim('modal-ia'); }
+        window.closeConfigModal = function() { closeModalAnim('modal-ia'); }
+        
+        // As funções de post modal serão tratadas no social_media.js
+    </script>
+
+    <!-- Modal Seleção de Data para Aprovação -->
+    <div id="modal-approval-date" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 p-6 flex flex-col">
+            <h3 class="text-xl font-bold text-gray-800 mb-2">Enviar para Aprovação</h3>
+            <p class="text-sm text-gray-500 mb-6">Selecione o período que deseja enviar para o cliente aprovar.</p>
+            
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                    <select id="approval-client-select" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Selecione um cliente...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
+                    <input type="date" id="approval-date-start" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
+                    <input type="date" id="approval-date-end" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button onclick="closeModalAnim('modal-approval-date')" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Cancelar</button>
+                <button onclick="handleApprovalDateSelection()" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium shadow-md transition-all">Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Prévia de Aprovação -->
+    <div id="modal-approval-preview" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl transform scale-95 transition-transform duration-300 max-h-[90vh] flex flex-col">
+            
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl sticky top-0 z-10">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800">Prévia do Envio</h3>
+                    <p class="text-xs text-gray-500">Confira os posts que serão enviados ao cliente.</p>
+                </div>
+                <button onclick="closeModalAnim('modal-approval-preview')" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- Content -->
+            <div id="approval-preview-list" class="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
+                <!-- Posts serão inseridos aqui via JS -->
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-gray-100 bg-white rounded-b-2xl flex justify-between items-center">
+                <span id="approval-count-badge" class="text-sm font-medium text-gray-500">0 posts selecionados</span>
+                <div class="flex gap-3">
+                    <button onclick="closeModalAnim('modal-approval-preview')" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Voltar</button>
+                    <button onclick="confirmSendApproval()" class="flex items-center gap-2 px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow-md transition-all">
+                        <i class="fas fa-paper-plane"></i> Enviar ao Cliente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Report Template -->
+    <div id="report-template" class="hidden">
+        <div class="p-8 bg-white max-w-4xl mx-auto" id="pdf-content">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-8 border-b border-gray-200 pb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900 mb-1">Relatório de Performance</h1>
+                    <p class="text-gray-500 text-sm" id="report-date-generated">Gerado em: 01/01/2024</p>
+                </div>
+                <div class="text-right">
+                    <h2 class="text-xl font-bold text-[var(--color-primary)]" id="report-client-name">Nome do Cliente</h2>
+                    <p class="text-gray-600 text-sm" id="report-period">Período: Últimos 30 dias</p>
+                </div>
+            </div>
+
+            <!-- Dynamic Content Body -->
+            <div id="report-content-body">
+                <!-- Sections will be injected here via JS -->
+            </div>
+
+            <!-- Footer -->
+            <div class="mt-12 pt-6 border-t border-gray-200 text-center">
+                <p class="text-xs text-gray-400">Relatório gerado automaticamente pela plataforma Gestão Que Vende.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Diário de Bordo -->
+    <div id="traffic-log-modal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg transform transition-all p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-pen-fancy text-primary"></i> Novo Registro
+                </h3>
+                <button onclick="closeTrafficLogModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form onsubmit="submitTrafficLog(event)" class="space-y-4">
+                <input type="hidden" id="log-id">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                    <select id="log-cliente" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Ação</label>
+                    <select id="log-tipo" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="Revisão de calendário">Revisão de calendário</option>
+                        <option value="Confecção de criativos">Confecção de criativos</option>
+                        <option value="ajustes de post">Ajustes de post</option>
+                        <option value="Artes Extras">Artes Extras</option>
+                        <option value="Criação de Identidade">Criação de Identidade</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="log-status" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="pendente">Pendente</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
+                        <select id="log-prioridade" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="baixa">Baixa</option>
+                            <option value="media" selected>Média</option>
+                            <option value="alta">Alta</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Solicitante</label>
+                        <input type="text" id="log-solicitante" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Nome do solicitante">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prazo de Entrega</label>
+                        <input type="date" id="log-prazo" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Link Criativo (Opcional)</label>
+                    <input type="text" id="log-link" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Link do Canva, Drive, etc...">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                    <textarea id="log-descricao" rows="3" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Detalhes da solicitação..."></textarea>
+                </div>
+                
+                 <div class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Data Criação</label>
+                    <input type="text" id="log-created-at" class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed" readonly placeholder="Automático">
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="closeTrafficLogModal()" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Cancelar</button>
+                    <button type="submit" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium shadow-md transition-all">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/notifications.js"></script>
+</body>
+</html>
