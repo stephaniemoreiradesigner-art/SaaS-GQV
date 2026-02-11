@@ -283,9 +283,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (perms.email || perms.colabId) {
                     const email = perms.email || '';
                     const colabId = perms.colabId || '';
-                    query = query.or(
-                        `gestor_trafego_email.eq.${email},social_media_email.eq.${email},responsavel_trafego_colaborador_id.eq.${colabId},responsavel_social_colaborador_id.eq.${colabId}`
-                    );
+                    const orParts = [];
+                    if (email) {
+                        orParts.push(`gestor_trafego_email.eq.${email}`);
+                        orParts.push(`social_media_email.eq.${email}`);
+                    }
+                    if (colabId) {
+                        orParts.push(`responsavel_trafego_colaborador_id.eq.${colabId}`);
+                        orParts.push(`responsavel_social_colaborador_id.eq.${colabId}`);
+                    }
+                    if (!orParts.length) {
+                        renderClientes([]);
+                        return;
+                    }
+                    query = query.or(orParts.join(','));
                 } else {
                     renderClientes([]);
                     return;
