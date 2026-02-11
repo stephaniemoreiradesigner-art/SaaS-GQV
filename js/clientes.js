@@ -129,36 +129,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         const socialSelect = document.getElementById('social_media_email');
         if (!gestorSelect || !socialSelect || !window.supabaseClient) return;
 
-        const buildOption = (value, label) => {
+        const buildOption = (value, label, email) => {
             const opt = document.createElement('option');
             opt.value = value;
             opt.textContent = label;
+            if (email) opt.dataset.email = email;
             return opt;
         };
 
+        const fetchColaboradores = async (departamento) => {
+            const { data: { session } } = await window.supabaseClient.auth.getSession();
+            const headers = {};
+            if (session && session.access_token) {
+                headers.Authorization = `Bearer ${session.access_token}`;
+            }
+            const response = await fetch(`/colaboradores?departamento=${encodeURIComponent(departamento)}`, { headers });
+            if (!response.ok) {
+                throw new Error('Erro ao carregar colaboradores');
+            }
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+        };
+
         try {
-            const { data: colaboradores, error } = await window.supabaseClient
-                .from('colaboradores')
-                .select('nome, email, perfil_acesso, ativo')
-                .eq('ativo', true)
-                .order('nome', { ascending: true });
-
-            if (error) throw error;
-
             gestorSelect.innerHTML = '';
             socialSelect.innerHTML = '';
 
             gestorSelect.appendChild(buildOption('', 'Selecione um gestor...'));
             socialSelect.appendChild(buildOption('', 'Selecione um social media...'));
 
-            const gestores = (colaboradores || []).filter(c => String(c.perfil_acesso || '').toLowerCase() === 'gestor_trafego');
-            const socials = (colaboradores || []).filter(c => String(c.perfil_acesso || '').toLowerCase() === 'social_media');
+            const gestores = await fetchColaboradores('Tráfego Pago');
+            const socials = await fetchColaboradores('Social Media');
 
             if (gestores.length === 0) {
                 gestorSelect.appendChild(buildOption('', 'Nenhum gestor disponível'));
             } else {
                 gestores.forEach(c => {
-                    gestorSelect.appendChild(buildOption(c.email, c.nome || c.email));
+                    gestorSelect.appendChild(buildOption(c.id, c.nome || c.email, c.email));
                 });
             }
 
@@ -166,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 socialSelect.appendChild(buildOption('', 'Nenhum social media disponível'));
             } else {
                 socials.forEach(c => {
-                    socialSelect.appendChild(buildOption(c.email, c.nome || c.email));
+                    socialSelect.appendChild(buildOption(c.id, c.nome || c.email, c.email));
                 });
             }
 
@@ -369,6 +376,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 diaVencimentoPrincipal = mensalidades[0].dia_vencimento;
             }
 
+            const gestorSelect = document.getElementById('gestor_trafego_email');
+            const socialSelect = document.getElementById('social_media_email');
+            const gestorOption = gestorSelect && gestorSelect.selectedOptions ? gestorSelect.selectedOptions[0] : null;
+            const socialOption = socialSelect && socialSelect.selectedOptions ? socialSelect.selectedOptions[0] : null;
+            const gestorColaboradorId = gestorSelect && gestorSelect.value ? gestorSelect.value : null;
+            const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
+            const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
+            const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
+
             const clienteData = {
                 nome_empresa: document.getElementById('nome_empresa').value,
                 nome_fantasia: document.getElementById('nome_fantasia').value,
@@ -408,8 +424,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 google_ad_account_id: document.getElementById('google_ads_id').value,
                 linkedin_ad_account_id: document.getElementById('linkedin_id').value,
                 tiktok_ad_account_id: document.getElementById('tiktok_id').value,
-                gestor_trafego_email: document.getElementById('gestor_trafego_email').value || null,
-                social_media_email: document.getElementById('social_media_email').value || null,
+                responsavel_trafego_colaborador_id: gestorColaboradorId,
+                responsavel_social_colaborador_id: socialColaboradorId,
+                gestor_trafego_email: gestorEmail,
+                social_media_email: socialEmail,
                 status: document.getElementById('status_cliente').value
             };
 
@@ -579,8 +597,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('google_ads_id').value = cliente.google_ad_account_id || cliente.google_ads_id || '';
             document.getElementById('linkedin_id').value = cliente.linkedin_ad_account_id || cliente.linkedin_id || '';
             document.getElementById('tiktok_id').value = cliente.tiktok_ad_account_id || cliente.tiktok_id || '';
-            document.getElementById('gestor_trafego_email').value = cliente.gestor_trafego_email || '';
-            document.getElementById('social_media_email').value = cliente.social_media_email || '';
+            await loadInternalOwnersForSelects();
+            const gestorSelect = document.getElementById('gestor_trafego_email');
+            const socialSelect = document.getElementById('social_media_email');
+            const applyResponsavelSelect = (select, colaboradorId, emailFallback) => {
+                if (!select) return;
+                const idValue = colaboradorId ? String(colaboradorId) : '';
+                if (idValue && Array.from(select.options).some(opt => opt.value === idValue)) {
+                    select.value = idValue;
+                    return;
+                }
+                if (emailFallback) {
+                    const match = Array.from(select.options).find(opt => (opt.dataset && opt.dataset.email ? opt.dataset.email : '').toLowerCase() === String(emailFallback).toLowerCase());
+                    if (match) {
+                        select.value = match.value;
+                        return;
+                    }
+                }
+                select.value = '';
+            };
+            applyResponsavelSelect(gestorSelect, cliente.responsavel_trafego_colaborador_id, cliente.gestor_trafego_email);
+            applyResponsavelSelect(socialSelect, cliente.responsavel_social_colaborador_id, cliente.social_media_email);
             document.getElementById('status_cliente').value = cliente.status || 'Ativo';
 
             // Checkboxes
