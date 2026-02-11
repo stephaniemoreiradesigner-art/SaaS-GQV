@@ -103,9 +103,9 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,nome,email,departamento,ativo');
+            params.set('select', 'id,nome,email,departamento,ativo,perfil_acesso');
             params.set('ativo', 'eq.true');
-            params.set('departamento', `eq.${departamento}`);
+            params.set('or', `(departamento.eq.${departamento},perfil_acesso.in.(admin,super_admin))`);
 
             const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/colaboradores?${params.toString()}`;
 
