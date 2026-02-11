@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const createQuery = () => window.supabaseClient
                 .from('clientes')
-                .select('*, times(nome)')
+                .select('*, times!clientes_time_id_fkey(nome)')
                 .order('created_at', { ascending: false });
 
             let clientes = [];
