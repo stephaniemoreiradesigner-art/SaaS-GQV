@@ -1267,7 +1267,7 @@ window.verificarGeracaoSalariosAutomaticos = async function(options = {}) {
 
         const { data: colaboradores, error: errColabs } = await window.supabaseClient
             .from('colaboradores')
-            .select('id, nome, salario, ativo')
+            .select('id, nome, salario, ativo, dia_vencimento_pagamento')
             .eq('ativo', true);
 
         if (errColabs) throw errColabs;
@@ -1280,9 +1280,8 @@ window.verificarGeracaoSalariosAutomaticos = async function(options = {}) {
 
         const hoje = new Date();
         const ano = hoje.getFullYear();
-        const mes = hoje.getMonth() + 1;
-        const competencia = `${ano}-${String(mes).padStart(2, '0')}`;
-        const dataBase = new Date(ano, mes - 1, 1).toISOString().split('T')[0];
+        const mesIndex = hoje.getMonth();
+        const competencia = `${ano}-${String(mesIndex + 1).padStart(2, '0')}`;
 
         const ids = ativos.map(c => c.id);
         const { data: existentes, error: errExist } = await window.supabaseClient
@@ -1301,10 +1300,16 @@ window.verificarGeracaoSalariosAutomaticos = async function(options = {}) {
         ativos.forEach(c => {
             const salario = Number(c.salario);
             const descricao = `Salário - ${c.nome}`;
+            const diaVencimento = Number(c.dia_vencimento_pagamento);
+            const lastDay = new Date(ano, mesIndex + 1, 0).getDate();
+            const diaFinal = Number.isFinite(diaVencimento) && diaVencimento > 0
+                ? Math.min(diaVencimento, lastDay)
+                : 1;
+            const dataBase = `${ano}-${String(mesIndex + 1).padStart(2, '0')}-${String(diaFinal).padStart(2, '0')}`;
             const existente = existentesMap.get(c.id);
             if (existente) {
                 if (Number(existente.valor) !== salario) {
-                    updates.push({ id: existente.id, valor: salario, descricao });
+                    updates.push({ id: existente.id, valor: salario, descricao, data_transacao: dataBase });
                 }
             } else {
                 inserts.push({
@@ -1325,7 +1330,7 @@ window.verificarGeracaoSalariosAutomaticos = async function(options = {}) {
             await Promise.all(updates.map(u => (
                 window.supabaseClient
                     .from('financeiro')
-                    .update({ valor: u.valor, descricao: u.descricao })
+                    .update({ valor: u.valor, descricao: u.descricao, data_transacao: u.data_transacao })
                     .eq('id', u.id)
             )));
         }

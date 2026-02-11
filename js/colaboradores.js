@@ -28,14 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const departamentoWrapper = document.getElementById('departamento-wrapper');
     const salarioEl = document.getElementById('salario');
     const ativoEl = document.getElementById('ativo');
-
-    const departamentoPermissoes = {
-        social_media: ['social_media'],
-        gestor_trafego: ['trafego_pago'],
-        gestor_automacao: ['automacoes'],
-        departamento_comercial: ['clientes'],
-        analista_financeiro: ['financeiro']
-    };
+    const diaVencimentoPagamentoEl = document.getElementById('dia_vencimento_pagamento');
 
     // --- Nova Lógica de Permissões ---
     function updatePermissionsUI() {
@@ -58,12 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         modCheckboxes.forEach(cb => {
             if (isFullAccess) {
                 cb.checked = true;
-                cb.disabled = true; // Marca e trava
-            } else {
-                const dept = departamentoEl ? departamentoEl.value : '';
-                const allowed = departamentoPermissoes[dept] || [];
-                cb.checked = allowed.includes(cb.value);
                 cb.disabled = true;
+            } else {
+                cb.disabled = false;
             }
         });
 
@@ -75,6 +65,96 @@ document.addEventListener('DOMContentLoaded', async () => {
                 cb.disabled = false;
             }
         });
+    }
+
+    function applyModulePermissions(permissoes = []) {
+        const modCheckboxes = document.querySelectorAll('.modulo-check');
+        const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'usuario';
+        const isFullAccess = perfil === 'super_admin' || perfil === 'admin';
+
+        modCheckboxes.forEach(cb => {
+            if (isFullAccess) {
+                cb.checked = true;
+                cb.disabled = true;
+            } else {
+                cb.checked = permissoes.includes(cb.value);
+                cb.disabled = false;
+            }
+        });
+    }
+
+    function getNextMonthChargeDate(diaVencimento) {
+        const dia = parseInt(diaVencimento, 10);
+        if (!Number.isFinite(dia) || dia <= 0) return null;
+
+        const hoje = new Date();
+        const base = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+        const ano = base.getFullYear();
+        const mesIndex = base.getMonth();
+        const lastDay = new Date(ano, mesIndex + 1, 0).getDate();
+        const diaFinal = Math.min(dia, lastDay);
+
+        const mes = String(mesIndex + 1).padStart(2, '0');
+        const diaFormatado = String(diaFinal).padStart(2, '0');
+
+        return {
+            competencia: `${ano}-${mes}`,
+            dataISO: `${ano}-${mes}-${diaFormatado}`
+        };
+    }
+
+    async function gerarCobrancaSalarioProximoMes({ colaboradorId, nome, salario, diaVencimento, ativo }) {
+        if (!window.supabaseClient) return;
+        if (!colaboradorId) return;
+        if (ativo === false) return;
+
+        const salarioNum = Number(salario);
+        if (!Number.isFinite(salarioNum) || salarioNum <= 0) return;
+
+        const dataInfo = getNextMonthChargeDate(diaVencimento);
+        if (!dataInfo) return;
+
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return;
+
+        const descricao = `Salário - ${nome || 'Colaborador'}`;
+
+        const { data: existente, error: errExist } = await window.supabaseClient
+            .from('financeiro')
+            .select('id')
+            .eq('competencia', dataInfo.competencia)
+            .eq('colaborador_id', colaboradorId)
+            .eq('tipo', 'saida')
+            .maybeSingle();
+
+        if (errExist) throw errExist;
+
+        if (existente && existente.id) {
+            await window.supabaseClient
+                .from('financeiro')
+                .update({
+                    descricao,
+                    valor: salarioNum,
+                    categoria: 'Pessoal',
+                    status: 'a_vencer',
+                    data_transacao: dataInfo.dataISO
+                })
+                .eq('id', existente.id);
+        } else {
+            await window.supabaseClient
+                .from('financeiro')
+                .insert({
+                    descricao,
+                    valor: salarioNum,
+                    tipo: 'saida',
+                    categoria: 'Pessoal',
+                    status: 'a_vencer',
+                    data_transacao: dataInfo.dataISO,
+                    colaborador_id: colaboradorId,
+                    competencia: dataInfo.competencia,
+                    user_id: user.id
+                });
+        }
     }
 
     if (nivelHierarquicoEl) {
@@ -407,6 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     nivel_hierarquico: nivelHierarquicoEl ? nivelHierarquicoEl.value : null,
                     departamento: departamentoEl ? departamentoEl.value || null : null,
                     salario: salarioEl && salarioEl.value ? parseFloat(String(salarioEl.value).replace(',', '.')) : null,
+                    dia_vencimento_pagamento: diaVencimentoPagamentoEl && diaVencimentoPagamentoEl.value ? parseInt(diaVencimentoPagamentoEl.value, 10) : null,
                     ativo: ativoEl ? ativoEl.value === 'true' : true,
                     // Coletar Permissões de Módulos
                     permissoes: Array.from(document.querySelectorAll('.modulo-check:checked')).map(cb => cb.value),
@@ -459,6 +540,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     alert('Colaborador atualizado com sucesso!');
+                    await gerarCobrancaSalarioProximoMes({
+                        colaboradorId: window.currentColabId,
+                        nome: payload.nome,
+                        salario: payload.salario,
+                        diaVencimento: payload.dia_vencimento_pagamento,
+                        ativo: payload.ativo
+                    });
                     window.currentColabId = null;
                     btn.innerText = 'Salvar Colaborador';
                 } else {
@@ -493,6 +581,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (fotoUrl || contratoUrl) {
                             await window.supabaseClient.from('colaboradores').update({ foto_url: fotoUrl, contrato_url: contratoUrl }).eq('id', created.id);
                         }
+                        await gerarCobrancaSalarioProximoMes({
+                            colaboradorId: created.id,
+                            nome: payload.nome,
+                            salario: payload.salario,
+                            diaVencimento: payload.dia_vencimento_pagamento,
+                            ativo: payload.ativo
+                        });
                     }
                     alert('Colaborador cadastrado com sucesso!');
                 }
@@ -546,10 +641,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (departamentoEl) departamentoEl.value = data.departamento || '';
             if (salarioEl) salarioEl.value = data.salario ?? '';
+            if (diaVencimentoPagamentoEl) diaVencimentoPagamentoEl.value = data.dia_vencimento_pagamento ? String(data.dia_vencimento_pagamento).padStart(2, '0') : '';
             if (ativoEl) ativoEl.value = data.ativo === false ? 'false' : 'true';
             document.getElementById('perfil_acesso').value = data.perfil_acesso || 'usuario';
             
             updatePermissionsUI();
+            applyModulePermissions(data.permissoes || []);
 
             // Preencher permissões de times
             const timesAcesso = data.times_acesso || [];
