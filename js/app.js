@@ -440,6 +440,278 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Chamar aplicação do White Label assim que possível
     window.applyWhiteLabelSettings();
 
+    function ensureProfileModal() {
+        let modal = document.getElementById('profile-modal');
+        if (modal) return modal;
+
+        modal = document.createElement('div');
+        modal.id = 'profile-modal';
+        modal.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4';
+        modal.innerHTML = `
+            <div class="bg-white w-full max-w-2xl rounded-xl shadow-lg overflow-hidden">
+                <div class="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                    <h3 class="text-xl font-bold text-gray-800">Meu Perfil</h3>
+                    <button type="button" id="profile-close-btn" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <form id="profile-form" class="space-y-6 p-6">
+                    <div>
+                        <h4 class="text-lg font-semibold text-[var(--color-primary)] mb-4 flex items-center gap-2">
+                            <i class="fas fa-id-card"></i> Dados Pessoais
+                        </h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Nome Completo *</label>
+                                <input type="text" id="profile-nome" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                                <input type="date" id="profile-data-nascimento" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Documento</label>
+                                <select id="profile-tipo-documento" disabled class="w-full rounded-md border-gray-200 bg-gray-100 text-gray-500 py-2 px-3 border">
+                                    <option value="CPF">CPF</option>
+                                    <option value="CNPJ">CNPJ</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">CPF/CNPJ</label>
+                                <input type="text" id="profile-documento" disabled class="w-full rounded-md border-gray-200 bg-gray-100 text-gray-500 py-2 px-3 border">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Telefone/WhatsApp</label>
+                                <input type="text" id="profile-telefone" class="phone-mask w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border" placeholder="(00) 90000-0000">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Endereço Completo</label>
+                                <input type="text" id="profile-endereco" class="w-full rounded-md border-gray-300 shadow-sm focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)] focus:ring-opacity-50 py-2 px-3 border">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                                <input type="email" id="profile-email" disabled class="w-full rounded-md border-gray-200 bg-gray-100 text-gray-500 py-2 px-3 border">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Foto do Colaborador</label>
+                                <div class="flex items-center gap-4">
+                                    <img id="profile-foto-preview" src="" alt="Foto" class="h-16 w-16 rounded-full object-cover border border-gray-200 bg-gray-100">
+                                    <input type="file" id="profile-foto" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[var(--color-primary)] file:text-white hover:file:opacity-90">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                        <button type="button" id="profile-cancel-btn" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+                        <button type="submit" id="profile-save-btn" class="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:opacity-90 transition-opacity shadow-sm">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        const closeBtn = modal.querySelector('#profile-close-btn');
+        const cancelBtn = modal.querySelector('#profile-cancel-btn');
+        if (closeBtn) closeBtn.addEventListener('click', () => closeProfileModal());
+        if (cancelBtn) cancelBtn.addEventListener('click', () => closeProfileModal());
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeProfileModal();
+        });
+
+        const fotoInput = modal.querySelector('#profile-foto');
+        const fotoPreview = modal.querySelector('#profile-foto-preview');
+        if (fotoInput && fotoPreview) {
+            fotoInput.addEventListener('change', () => {
+                const file = fotoInput.files && fotoInput.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => { fotoPreview.src = ev.target.result; };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        const form = modal.querySelector('#profile-form');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await saveProfileChanges();
+            });
+        }
+
+        return modal;
+    }
+
+    function openProfileModal() {
+        const modal = ensureProfileModal();
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        loadProfileData();
+    }
+
+    function closeProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    async function uploadProfileFile(colabId, file) {
+        if (!file) return null;
+        const bucket = 'colaboradores';
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const path = `fotos/${colabId}-${Date.now()}-${safeName}`;
+        const { error } = await window.supabaseClient.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
+        if (error) throw error;
+        const { data } = window.supabaseClient.storage.from(bucket).getPublicUrl(path);
+        return data.publicUrl;
+    }
+
+    async function getCurrentColab() {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return { user: null, colab: null };
+
+        let colab = null;
+        const { data: byUserId, error: errUserId } = await window.supabaseClient
+            .from('colaboradores')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (errUserId) throw errUserId;
+        if (byUserId) {
+            colab = byUserId;
+        } else {
+            const { data: byEmail, error: errEmail } = await window.supabaseClient
+                .from('colaboradores')
+                .select('*')
+                .eq('email', user.email)
+                .maybeSingle();
+            if (errEmail) throw errEmail;
+            colab = byEmail || null;
+        }
+
+        return { user, colab };
+    }
+
+    async function loadProfileData() {
+        try {
+            const { user, colab } = await getCurrentColab();
+            if (!user || !colab) {
+                alert('Não foi possível carregar seu perfil.');
+                closeProfileModal();
+                return;
+            }
+
+            window.currentProfileColab = colab;
+
+            const nomeEl = document.getElementById('profile-nome');
+            const dataNascEl = document.getElementById('profile-data-nascimento');
+            const tipoDocEl = document.getElementById('profile-tipo-documento');
+            const docEl = document.getElementById('profile-documento');
+            const telEl = document.getElementById('profile-telefone');
+            const endEl = document.getElementById('profile-endereco');
+            const emailEl = document.getElementById('profile-email');
+            const fotoPreview = document.getElementById('profile-foto-preview');
+
+            if (nomeEl) nomeEl.value = colab.nome || '';
+            if (dataNascEl) dataNascEl.value = colab.data_nascimento || '';
+            if (tipoDocEl) tipoDocEl.value = colab.tipo_documento || 'CPF';
+            if (docEl) docEl.value = colab.documento || '';
+            if (telEl) telEl.value = colab.telefone || '';
+            if (endEl) endEl.value = colab.endereco || '';
+            if (emailEl) emailEl.value = colab.email || user.email;
+            if (fotoPreview) fotoPreview.src = colab.foto_url || '';
+        } catch (error) {
+            console.error('Erro ao carregar perfil:', error);
+            alert('Erro ao carregar seu perfil.');
+            closeProfileModal();
+        }
+    }
+
+    async function saveProfileChanges() {
+        const saveBtn = document.getElementById('profile-save-btn');
+        const originalText = saveBtn ? saveBtn.innerText : '';
+        try {
+            if (saveBtn) {
+                saveBtn.innerText = 'Salvando...';
+                saveBtn.disabled = true;
+            }
+
+            const { user, colab } = await getCurrentColab();
+            if (!user || !colab) {
+                alert('Não foi possível salvar seu perfil.');
+                return;
+            }
+
+            const nomeEl = document.getElementById('profile-nome');
+            const dataNascEl = document.getElementById('profile-data-nascimento');
+            const telEl = document.getElementById('profile-telefone');
+            const endEl = document.getElementById('profile-endereco');
+            const fotoInput = document.getElementById('profile-foto');
+
+            const payload = {
+                nome: nomeEl ? nomeEl.value : colab.nome,
+                data_nascimento: dataNascEl ? (dataNascEl.value || null) : colab.data_nascimento,
+                telefone: telEl ? telEl.value : colab.telefone,
+                endereco: endEl ? endEl.value : colab.endereco
+            };
+
+            if (fotoInput && fotoInput.files && fotoInput.files[0]) {
+                try {
+                    payload.foto_url = await uploadProfileFile(colab.id, fotoInput.files[0]);
+                } catch (e) {
+                    console.error('Upload foto falhou:', e);
+                    alert('Erro ao fazer upload da foto.');
+                }
+            }
+
+            const { error } = await window.supabaseClient
+                .from('colaboradores')
+                .update(payload)
+                .eq('id', colab.id);
+
+            if (error) throw error;
+
+            const avatarEl = document.getElementById('user-avatar-sidebar');
+            const nameEl = document.getElementById('user-name-sidebar');
+            if (avatarEl && payload.foto_url) avatarEl.src = payload.foto_url;
+            if (nameEl && payload.nome) nameEl.innerText = payload.nome.split(' ')[0];
+
+            closeProfileModal();
+            window.showToast && window.showToast('Perfil atualizado com sucesso', 'success');
+        } catch (error) {
+            console.error('Erro ao salvar perfil:', error);
+            alert('Erro ao salvar seu perfil.');
+        } finally {
+            if (saveBtn) {
+                saveBtn.innerText = originalText;
+                saveBtn.disabled = false;
+            }
+        }
+    }
+
+    function bindProfileClick() {
+        const avatarEl = document.getElementById('user-avatar-sidebar');
+        const nameEl = document.getElementById('user-name-sidebar');
+        const logoutBtn = document.getElementById('btn-logout-sidebar');
+        const container = avatarEl ? avatarEl.parentElement : null;
+
+        const attach = (el) => {
+            if (!el || el.dataset.profileBound === '1') return;
+            el.dataset.profileBound = '1';
+            el.classList.add('cursor-pointer');
+            el.addEventListener('click', (e) => {
+                if (logoutBtn && (e.target === logoutBtn || logoutBtn.contains(e.target))) return;
+                openProfileModal();
+            });
+        };
+
+        attach(avatarEl);
+        attach(nameEl);
+        attach(container);
+    }
+
     window.updateSidebarProfile = function(user, colabData) {
         const avatarEl = document.getElementById('user-avatar-sidebar');
         const nameEl = document.getElementById('user-name-sidebar');
@@ -469,6 +741,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.location.href = 'index.html';
             });
         }
+
+        bindProfileClick();
     }
 
     async function loadUserProfile(session) {
