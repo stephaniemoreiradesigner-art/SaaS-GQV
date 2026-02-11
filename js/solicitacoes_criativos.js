@@ -244,8 +244,8 @@ window.loadCreativeRequests = async function() {
 
         if (userId && userEmail) {
             const safeEmail = userEmail.replace(/"/g, '').trim();
-            const encodedEmail = encodeURIComponent(`"${safeEmail}"`);
-            query = query.or(`criado_por.eq.${userId},tarefa_atribuicoes.usuario_email.eq.${encodedEmail}`);
+            const quotedEmail = `"${safeEmail}"`;
+            query = query.or(`criado_por.eq.${userId},tarefa_atribuicoes.usuario_email.eq.${quotedEmail}`);
         }
             
         // Aplicar Filtros
