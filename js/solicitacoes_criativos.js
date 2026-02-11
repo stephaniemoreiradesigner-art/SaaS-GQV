@@ -230,46 +230,77 @@ window.loadCreativeRequests = async function() {
         const userId = user.id;
         const userEmail = user.email || '';
 
-        let query = window.supabaseClient
-            .from('tarefas')
-            .select(`
+        const baseSelect = `
                 *,
                 clientes (nome_fantasia),
                 tarefa_atribuicoes (
                     usuario_email
                 )
-            `)
-            .eq('tipo', 'solicitacao_criativo')
-            .order('created_at', { ascending: false });
+            `;
+
+        const applyFilters = (q) => {
+            if (clienteId) {
+                q = q.eq('cliente_id', clienteId);
+            }
+            if (statusVal) {
+                if (statusVal === 'pendente') {
+                    q = q.eq('status', 'pendente');
+                } else if (statusVal === 'em_andamento') {
+                    q = q.eq('status', 'em_andamento');
+                } else if (statusVal === 'solicitacao_prazo') {
+                    q = q.eq('status', 'solicitacao_prazo');
+                } else if (statusVal === 'concluido') {
+                    q = q.in('status', ['concluido', 'concluida']);
+                }
+            }
+            return q;
+        };
+
+        let requests = [];
 
         if (userId && userEmail) {
             const safeEmail = userEmail.replace(/"/g, '').trim();
-            const quotedEmail = `"${safeEmail}"`;
-            query = query.or(`criado_por.eq.${userId},tarefa_atribuicoes.usuario_email.eq.${quotedEmail}`);
-        }
-            
-        // Aplicar Filtros
-        if (clienteId) {
-            query = query.eq('cliente_id', clienteId);
-        }
-        
-        if (statusVal) {
-            if (statusVal === 'pendente') {
-                // Pendente pode ser status 'pendente'
-                query = query.eq('status', 'pendente');
-            } else if (statusVal === 'em_andamento') {
-                query = query.eq('status', 'em_andamento');
-            } else if (statusVal === 'solicitacao_prazo') {
-                query = query.eq('status', 'solicitacao_prazo');
-            } else if (statusVal === 'concluido') {
-                // Pode ser concluido ou concluida (normalizar)
-                query = query.in('status', ['concluido', 'concluida']);
-            }
-        }
 
-        const { data: requests, error } = await query;
-            
-        if (error) throw error;
+            const createdQuery = applyFilters(
+                window.supabaseClient
+                    .from('tarefas')
+                    .select(baseSelect)
+                    .eq('tipo', 'solicitacao_criativo')
+                    .eq('criado_por', userId)
+                    .order('created_at', { ascending: false })
+            );
+
+            const assignedQuery = applyFilters(
+                window.supabaseClient
+                    .from('tarefas')
+                    .select(baseSelect)
+                    .eq('tipo', 'solicitacao_criativo')
+                    .eq('tarefa_atribuicoes.usuario_email', safeEmail)
+                    .order('created_at', { ascending: false })
+            );
+
+            const [{ data: created, error: createdError }, { data: assigned, error: assignedError }] = await Promise.all([createdQuery, assignedQuery]);
+
+            if (createdError) throw createdError;
+            if (assignedError) throw assignedError;
+
+            const merged = new Map();
+            (created || []).forEach(req => merged.set(String(req.id), req));
+            (assigned || []).forEach(req => merged.set(String(req.id), req));
+            requests = Array.from(merged.values());
+        } else {
+            const query = applyFilters(
+                window.supabaseClient
+                    .from('tarefas')
+                    .select(baseSelect)
+                    .eq('tipo', 'solicitacao_criativo')
+                    .order('created_at', { ascending: false })
+            );
+
+            const { data, error } = await query;
+            if (error) throw error;
+            requests = data || [];
+        }
 
         const filteredRequests = (requests || []).filter(req => {
             const createdBy = req.criado_por === userId;
