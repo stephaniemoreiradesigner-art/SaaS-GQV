@@ -325,8 +325,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderClientes(uniqueClientes);
 
         } catch (error) {
-            console.error('Erro ao carregar clientes:', error);
-            clientesTableBody.innerHTML = ''; // Deixa em branco em caso de erro
+            const message = error?.message || error?.error_description || JSON.stringify(error);
+            console.error('Erro ao carregar clientes:', message, error);
+            clientesTableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-8">
+                        <div class="flex flex-col items-center justify-center text-red-500">
+                            <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                            <p>Erro ao carregar clientes.</p>
+                            <p class="text-sm text-gray-400 mt-1">${message}</p>
+                            <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm">
+                                Tentar Novamente
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
         } finally {
             // Libera a tela
             if (window.showContent) window.showContent();

@@ -100,7 +100,15 @@ DROP POLICY IF EXISTS "Clientes Select Auth" ON public.clientes;
 DROP POLICY IF EXISTS "Clientes Manage Admin" ON public.clientes;
 
 CREATE POLICY "Clientes Select Auth" ON public.clientes
-FOR SELECT TO authenticated USING (public.is_admin() OR id = public.current_tenant_id());
+FOR SELECT TO authenticated
+USING (
+    public.is_admin()
+    OR public.is_tenant_match(id)
+    OR responsavel_trafego_colaborador_id = public.current_colaborador_id()
+    OR responsavel_social_colaborador_id = public.current_colaborador_id()
+    OR lower(gestor_trafego_email) = lower(auth.email())
+    OR lower(social_media_email) = lower(auth.email())
+);
 
 CREATE POLICY "Clientes Manage Admin" ON public.clientes
 FOR ALL TO authenticated
