@@ -217,30 +217,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!user) return null;
 
         const isSuper = (window.SUPERADMIN_EMAILS || []).includes(user.email);
-        if (isSuper) return { role: 'super_admin', times: [] };
+        if (isSuper) return { role: 'super_admin', times: [], email: user.email, colabId: null };
 
-        const { data: colab } = await window.supabaseClient
+        let colab = null;
+        const { data: colabByUserId } = await window.supabaseClient
             .from('colaboradores')
-            .select('perfil_acesso, times_acesso')
-            .eq('email', user.email)
-            .single();
+            .select('id, perfil_acesso, times_acesso, email')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (colabByUserId) {
+            colab = colabByUserId;
+        } else {
+            const { data: colabByEmail } = await window.supabaseClient
+                .from('colaboradores')
+                .select('id, perfil_acesso, times_acesso, email')
+                .eq('email', user.email)
+                .maybeSingle();
+            if (colabByEmail) colab = colabByEmail;
+        }
         
         if (!colab) {
-            // Se não achou em colaboradores, verifica profiles (fallback)
             const { data: profile } = await window.supabaseClient
                 .from('profiles')
                 .select('role')
                 .eq('id', user.id)
                 .single();
             
-            if (profile && profile.role === 'super_admin') return { role: 'super_admin', times: [] };
+            if (profile && profile.role === 'super_admin') return { role: 'super_admin', times: [], email: user.email, colabId: null };
             
-            return { role: 'unknown', times: [] };
+            return { role: 'unknown', times: [], email: user.email, colabId: null };
         }
         
         return { 
             role: colab.perfil_acesso, 
-            times: colab.times_acesso || [] 
+            times: colab.times_acesso || [],
+            email: colab.email || user.email,
+            colabId: colab.id
         };
     }
 
@@ -264,12 +276,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .select('*, times(nome)') // Join simples
                 .order('created_at', { ascending: false });
 
-            // Aplica filtro por time se não for admin
+            // Aplica filtro por time ou por responsável se não for admin
             if (perms && perms.role !== 'super_admin' && perms.role !== 'admin') {
                 if (perms.times && perms.times.length > 0) {
                     query = query.in('time_id', perms.times);
+                } else if (perms.email || perms.colabId) {
+                    const email = perms.email || '';
+                    const colabId = perms.colabId || '';
+                    query = query.or(
+                        `gestor_trafego_email.eq.${email},social_media_email.eq.${email},responsavel_trafego_colaborador_id.eq.${colabId},responsavel_social_colaborador_id.eq.${colabId}`
+                    );
                 } else {
-                    // Sem permissão de time, não vê nada
                     renderClientes([]);
                     return;
                 }
