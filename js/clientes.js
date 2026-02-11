@@ -271,41 +271,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const perms = await getMyPermissions();
             
-            let query = window.supabaseClient
+            const createQuery = () => window.supabaseClient
                 .from('clientes')
-                .select('*, times(nome)') // Join simples
+                .select('*, times(nome)')
                 .order('created_at', { ascending: false });
+
+            let clientes = [];
 
             // Aplica filtro por time ou por responsável se não for admin
             if (perms && perms.role !== 'super_admin' && perms.role !== 'admin') {
                 if (perms.times && perms.times.length > 0) {
-                    query = query.in('time_id', perms.times);
+                    const { data, error } = await createQuery().in('time_id', perms.times);
+                    if (error) throw error;
+                    clientes = data || [];
                 } else if (perms.email || perms.colabId) {
                     const email = perms.email || '';
                     const colabId = perms.colabId || '';
-                    const orParts = [];
+                    const queries = [];
+
                     if (email) {
-                        orParts.push(`gestor_trafego_email.eq.${email}`);
-                        orParts.push(`social_media_email.eq.${email}`);
+                        queries.push(createQuery().eq('gestor_trafego_email', email));
+                        queries.push(createQuery().eq('social_media_email', email));
                     }
                     if (colabId) {
-                        orParts.push(`responsavel_trafego_colaborador_id.eq.${colabId}`);
-                        orParts.push(`responsavel_social_colaborador_id.eq.${colabId}`);
+                        queries.push(createQuery().eq('responsavel_trafego_colaborador_id', colabId));
+                        queries.push(createQuery().eq('responsavel_social_colaborador_id', colabId));
                     }
-                    if (!orParts.length) {
+
+                    if (!queries.length) {
                         renderClientes([]);
                         return;
                     }
-                    query = query.or(orParts.join(','));
+
+                    const results = await Promise.all(queries);
+                    const errors = results.map(r => r.error).filter(Boolean);
+                    if (errors.length) throw errors[0];
+
+                    clientes = results.flatMap(r => r.data || []);
                 } else {
                     renderClientes([]);
                     return;
                 }
+            } else {
+                const { data, error } = await createQuery();
+                if (error) throw error;
+                clientes = data || [];
             }
-
-            const { data: clientes, error } = await query;
-
-            if (error) throw error;
 
             const uniqueClientes = Array.isArray(clientes)
                 ? Array.from(new Map(clientes.map(cliente => [String(cliente.id), cliente])).values())
