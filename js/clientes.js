@@ -137,18 +137,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             return opt;
         };
 
-        const fetchColaboradores = async (departamento) => {
-            const { data: { session } } = await window.supabaseClient.auth.getSession();
-            const headers = {};
-            if (session && session.access_token) {
-                headers.Authorization = `Bearer ${session.access_token}`;
+        const normalize = (value) => String(value || '').toLowerCase().trim();
+        const hasPermission = (colab, perm) => Array.isArray(colab?.permissoes) && colab.permissoes.includes(perm);
+        const matchesDepartamento = (colab, target) => {
+            const dept = normalize(colab?.departamento);
+            if (!dept) return false;
+            if (target === 'Tráfego Pago') {
+                return ['gestor_trafego', 'trafego_pago', 'tráfego pago', 'trafego pago'].includes(dept);
             }
-            const response = await fetch(`/colaboradores?departamento=${encodeURIComponent(departamento)}`, { headers });
-            if (!response.ok) {
-                throw new Error('Erro ao carregar colaboradores');
+            if (target === 'Social Media') {
+                return ['social_media', 'social media'].includes(dept);
             }
-            const data = await response.json();
-            return Array.isArray(data) ? data : [];
+            return false;
+        };
+
+        const fetchColaboradores = async (area) => {
+            const { data, error } = await window.supabaseClient
+                .from('colaboradores')
+                .select('id, nome, email, perfil_acesso, permissoes, departamento, ativo')
+                .eq('ativo', true)
+                .order('nome', { ascending: true });
+
+            if (error) {
+                throw error;
+            }
+
+            const list = Array.isArray(data) ? data : [];
+            if (area === 'Tráfego Pago') {
+                return list.filter(c => hasPermission(c, 'trafego_pago') || matchesDepartamento(c, 'Tráfego Pago'));
+            }
+            if (area === 'Social Media') {
+                return list.filter(c => hasPermission(c, 'social_media') || matchesDepartamento(c, 'Social Media'));
+            }
+            return list;
         };
 
         try {
