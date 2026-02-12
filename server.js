@@ -288,23 +288,24 @@ const server = http.createServer(async (request, response) => {
     }
 
     const metaStartMatch = pathname.match(/^\/api\/clients\/(\d+)\/connections\/meta\/start$/);
-    if (metaStartMatch && request.method === 'POST') {
+    if (metaStartMatch && (request.method === 'GET' || request.method === 'POST')) {
         try {
             const clientId = metaStartMatch[1];
-            const bodyRaw = await readRequestBody(request);
-            const body = bodyRaw ? JSON.parse(bodyRaw) : {};
-            const platform = String(body.platform || '').toLowerCase();
+            const platform = String((parsedUrl.query || {}).platform || '').toLowerCase();
             if (!['instagram', 'facebook'].includes(platform)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'plataforma_invalida' }));
+                response.end(JSON.stringify({ error: 'plataforma_invalida', message: 'platform deve ser instagram ou facebook' }));
                 return;
             }
 
             const appId = envVars['FACEBOOK_APP_ID'] || '';
             const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
-            if (!appId || !appSecret) {
+            const missing = [];
+            if (!appId) missing.push('FACEBOOK_APP_ID');
+            if (!appSecret) missing.push('FACEBOOK_APP_SECRET');
+            if (missing.length > 0) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
+                response.end(JSON.stringify({ error: 'meta_nao_configurado', missing }));
                 return;
             }
 
