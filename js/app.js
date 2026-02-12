@@ -975,6 +975,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.addEventListener('input', maskPhoneInput);
     });
 
+    const chatLinks = document.querySelectorAll('a[href="chat.html"], a[href$="/chat.html"]');
+    chatLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            alert('Módulo em desenvolvimento');
+            window.location.href = 'home.html';
+        });
+    });
+
     // Lógica de Login (Formulário)
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {

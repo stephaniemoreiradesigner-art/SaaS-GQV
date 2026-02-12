@@ -2,6 +2,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Verificar se estamos na página de chat
     if (!window.location.pathname.includes('chat.html')) return;
 
+    const shouldBlockChat = !window.location.search.includes('chat_dev=1');
+    if (shouldBlockChat) {
+        const modal = document.getElementById('chat-dev-modal');
+        const overlay = document.getElementById('chat-dev-overlay');
+        const closeBtn = document.getElementById('chat-dev-close');
+        const okBtn = document.getElementById('chat-dev-ok');
+        if (modal) modal.classList.remove('hidden');
+
+        const handleClose = () => {
+            if (modal) modal.classList.add('hidden');
+            window.location.href = 'home.html';
+        };
+
+        if (overlay) overlay.addEventListener('click', handleClose);
+        if (closeBtn) closeBtn.addEventListener('click', handleClose);
+        if (okBtn) okBtn.addEventListener('click', handleClose);
+        return;
+    }
+
     const channelListPublic = document.getElementById('channel-list-public');
     const channelListDm = document.getElementById('channel-list-dm');
     const messagesContainer = document.getElementById('messages-container');

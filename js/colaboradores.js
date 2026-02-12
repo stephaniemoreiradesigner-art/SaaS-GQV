@@ -310,10 +310,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const session = await ensureAuthAndRole();
             if (!session) return; // Só para se redirecionou
 
-            const { data: colaboradores, error } = await window.supabaseClient
+            const tenantId = Number(session.user?.user_metadata?.tenant_id ?? session.user?.app_metadata?.tenant_id);
+            let query = window.supabaseClient
                 .from('colaboradores')
                 .select('*')
                 .order('created_at', { ascending: false });
+            if (Number.isFinite(tenantId)) {
+                query = query.or(`tenant_id.is.null,tenant_id.eq.${tenantId}`);
+            }
+            const { data: colaboradores, error } = await query;
 
             if (error) throw error;
             renderColaboradores(colaboradores || []);
@@ -472,6 +477,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 btn.innerText = 'Salvando...';
                 btn.disabled = true;
+                const { data: { user } } = await window.supabaseClient.auth.getUser();
+                const tenantId = Number(user?.user_metadata?.tenant_id ?? user?.app_metadata?.tenant_id);
                 const tipo = document.getElementById('tipo_documento').value;
                 const docRaw = onlyDigits(document.getElementById('documento').value);
                 const payload = {
@@ -494,6 +501,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Coletar Times (Squads)
                     times_acesso: Array.from(document.querySelectorAll('.time-check:checked')).map(cb => cb.value)
                 };
+
+                if (Number.isFinite(tenantId)) {
+                    payload.tenant_id = tenantId;
+                }
 
                 if (window.currentColabId) {
                     if (contratoInput && contratoInput.files && contratoInput.files[0] && contratoInput.files[0].type !== 'application/pdf') {
