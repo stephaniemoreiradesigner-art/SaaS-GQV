@@ -1274,10 +1274,19 @@ window.verificarGeracaoSalariosAutomaticos = async function(options = {}) {
         const { data: { user } } = await window.supabaseClient.auth.getUser();
         if (!user) return;
 
-        const { data: colaboradores, error: errColabs } = await window.supabaseClient
+        let colaboradores = null;
+        let errColabs = null;
+        ({ data: colaboradores, error: errColabs } = await window.supabaseClient
             .from('colaboradores')
             .select('id, nome, salario, ativo, dia_vencimento_pagamento')
-            .eq('ativo', true);
+            .eq('ativo', true));
+
+        if (errColabs && String(errColabs.message || errColabs).toLowerCase().includes('dia_vencimento_pagamento')) {
+            ({ data: colaboradores, error: errColabs } = await window.supabaseClient
+                .from('colaboradores')
+                .select('id, nome, salario, ativo')
+                .eq('ativo', true));
+        }
 
         if (errColabs) throw errColabs;
 
