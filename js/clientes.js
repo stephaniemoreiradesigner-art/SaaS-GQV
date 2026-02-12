@@ -137,19 +137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return opt;
         };
 
-        const normalize = (value) => String(value || '').toLowerCase().trim();
         const hasPermission = (colab, perm) => Array.isArray(colab?.permissoes) && colab.permissoes.includes(perm);
-        const matchesDepartamento = (colab, target) => {
-            const dept = normalize(colab?.departamento);
-            if (!dept) return false;
-            if (target === 'Tráfego Pago') {
-                return ['gestor_trafego', 'trafego_pago', 'tráfego pago', 'trafego pago'].includes(dept);
-            }
-            if (target === 'Social Media') {
-                return ['social_media', 'social media'].includes(dept);
-            }
-            return false;
-        };
 
         const fetchColaboradores = async (area) => {
             const { data, error } = await window.supabaseClient
@@ -164,10 +152,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const list = Array.isArray(data) ? data : [];
             if (area === 'Tráfego Pago') {
-                return list.filter(c => hasPermission(c, 'trafego_pago') || matchesDepartamento(c, 'Tráfego Pago'));
+                return list.filter(c => hasPermission(c, 'trafego_pago'));
             }
             if (area === 'Social Media') {
-                return list.filter(c => hasPermission(c, 'social_media') || matchesDepartamento(c, 'Social Media'));
+                return list.filter(c => hasPermission(c, 'social_media'));
             }
             return list;
         };
