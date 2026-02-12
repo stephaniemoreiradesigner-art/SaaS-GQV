@@ -369,10 +369,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map(s => `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mr-1">${s}</span>`)
                 .join('');
 
-            const instaBadge = cliente.instagram_id 
-                ? '<i class="fab fa-instagram text-pink-600 ml-1.5" title="Instagram Conectado"></i>' 
-                : '<i class="fab fa-instagram text-gray-300 ml-1.5 opacity-50" title="Sem ID do Instagram"></i>';
-
             // Nome do Time
             const nomeTime = cliente.times ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 ml-1">${cliente.times.nome}</span>` : '';
 
@@ -384,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             row.innerHTML = `
                 <td class="px-6 py-4">
                     <div class="flex items-center flex-wrap">
-                        <strong class="text-gray-900 font-medium">${nomeExibicao}</strong> ${instaBadge} ${nomeTime}
+                        <strong class="text-gray-900 font-medium">${nomeExibicao}</strong> ${nomeTime}
                     </div>
                     <div class="text-xs text-gray-500 mt-1">${cliente.telefone || ''}</div>
                 </td>
@@ -470,21 +466,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link_drive: document.getElementById('link_drive').value,
                 link_persona: document.getElementById('link_persona').value,
                 
-                // Links de Referência IA
-                instagram_url: document.getElementById('instagram_url').value,
-                facebook_url: document.getElementById('facebook_url').value,
-                linkedin_url: document.getElementById('linkedin_url').value,
-                website_url: document.getElementById('website_url').value,
-
                 servicos: getCheckedValues('servicos'),
-                plataformas_social: getCheckedValues('plataformas_social'),
-                plataformas_trafego: getCheckedValues('plataformas_trafego'),
-                instagram_id: document.getElementById('instagram_id').value,
-                facebook_page_id: document.getElementById('facebook_page_id').value,
-                meta_ad_account_id: document.getElementById('meta_ad_account_id').value,
-                google_ad_account_id: document.getElementById('google_ads_id').value,
-                linkedin_ad_account_id: document.getElementById('linkedin_id').value,
-                tiktok_ad_account_id: document.getElementById('tiktok_id').value,
                 responsavel_trafego_colaborador_id: gestorColaboradorId,
                 responsavel_social_colaborador_id: socialColaboradorId,
                 gestor_trafego_email: gestorEmail,
@@ -647,17 +629,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('link_drive').value = cliente.link_drive || '';
             document.getElementById('link_persona').value = cliente.link_persona || '';
             
-            document.getElementById('instagram_url').value = cliente.instagram_url || '';
-            document.getElementById('facebook_url').value = cliente.facebook_url || '';
-            document.getElementById('linkedin_url').value = cliente.linkedin_url || '';
-            document.getElementById('website_url').value = cliente.website_url || '';
-
-            document.getElementById('instagram_id').value = cliente.instagram_id || '';
-            document.getElementById('facebook_page_id').value = cliente.facebook_page_id || '';
-            document.getElementById('meta_ad_account_id').value = cliente.meta_ad_account_id || '';
-            document.getElementById('google_ads_id').value = cliente.google_ad_account_id || cliente.google_ads_id || '';
-            document.getElementById('linkedin_id').value = cliente.linkedin_ad_account_id || cliente.linkedin_id || '';
-            document.getElementById('tiktok_id').value = cliente.tiktok_ad_account_id || cliente.tiktok_id || '';
             await loadInternalOwnersForSelects();
             const gestorSelect = document.getElementById('gestor_trafego_email');
             const socialSelect = document.getElementById('social_media_email');
@@ -690,11 +661,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             setCheckedValues('servicos', cliente.servicos || []);
-            setCheckedValues('plataformas_social', cliente.plataformas_social || []);
-            setCheckedValues('plataformas_trafego', cliente.plataformas_trafego || []);
 
             // Mensalidades
             carregarMensalidadesNoFormulario(cliente);
+
+            await loadConnectionsForClient(cliente.id);
 
         } catch (e) {
             console.error('Erro ao editar cliente:', e);
@@ -843,6 +814,167 @@ document.addEventListener('DOMContentLoaded', async () => {
         reader.readAsText(file);
     };
 
-    // Inicializa
+    const getAuthHeaders = async () => {
+        const { data } = await window.supabaseClient.auth.getSession();
+        const token = data?.session?.access_token;
+        if (!token) return { 'Content-Type': 'application/json' };
+        return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    };
+
+    const getConnectionElements = (platform) => {
+        return {
+            status: document.getElementById(`${platform}-status`),
+            account: document.getElementById(`${platform}-account`),
+            action: document.getElementById(`${platform}-action`)
+        };
+    };
+
+    const setConnectionState = (platform, connection) => {
+        const els = getConnectionElements(platform);
+        if (!els.status || !els.action) return;
+
+        if (connection && connection.status === 'connected') {
+            els.status.textContent = 'Status: Conectado';
+            if (els.account) {
+                const name = connection.external_name || connection.external_id || '';
+                if (name) {
+                    els.account.textContent = name;
+                    els.account.classList.remove('hidden');
+                } else {
+                    els.account.textContent = '';
+                    els.account.classList.add('hidden');
+                }
+            }
+            els.action.textContent = 'Desconectar';
+            els.action.dataset.action = 'disconnect';
+            els.action.className = 'w-full px-3 py-2 bg-red-500 text-white rounded-md text-sm';
+        } else {
+            els.status.textContent = 'Status: Não conectado';
+            if (els.account) {
+                els.account.textContent = '';
+                els.account.classList.add('hidden');
+            }
+            els.action.textContent = 'Conectar';
+            els.action.dataset.action = 'connect';
+            els.action.className = 'w-full px-3 py-2 bg-primary text-white rounded-md text-sm';
+        }
+    };
+
+    let currentClientIdForConnections = null;
+
+    const loadConnectionsForClient = async (clientId) => {
+        currentClientIdForConnections = clientId;
+        setConnectionState('instagram', null);
+        setConnectionState('facebook', null);
+
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/clients/${clientId}/connections`, { headers });
+            if (!res.ok) {
+                throw new Error(`Erro ao buscar conexões (${res.status})`);
+            }
+            const connections = await res.json();
+            const list = Array.isArray(connections) ? connections : [];
+            list.forEach(item => {
+                if (item.platform === 'instagram' || item.platform === 'facebook') {
+                    setConnectionState(item.platform, item);
+                }
+            });
+        } catch (err) {
+            console.error('Erro ao carregar conexões:', err);
+        }
+    };
+
+    const startMetaConnection = async (platform) => {
+        if (!currentClientIdForConnections) return;
+
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/meta/start`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ platform })
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData?.error || 'Erro ao iniciar conexão');
+        }
+
+        const data = await res.json();
+        if (!data.url) {
+            throw new Error('URL de conexão não recebida');
+        }
+
+        window.location.href = data.url;
+    };
+
+    const disconnectPlatform = async (platform) => {
+        if (!currentClientIdForConnections) return;
+
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/${platform}/disconnect`, {
+            method: 'POST',
+            headers
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData?.error || 'Erro ao desconectar');
+        }
+    };
+
+    const setupConnectionActions = () => {
+        const instagramBtn = document.getElementById('instagram-action');
+        const facebookBtn = document.getElementById('facebook-action');
+
+        if (instagramBtn) {
+            instagramBtn.addEventListener('click', async () => {
+                try {
+                    if (!currentClientIdForConnections) {
+                        alert('Selecione um cliente para conectar.');
+                        return;
+                    }
+                    if (instagramBtn.dataset.action === 'disconnect') {
+                        await disconnectPlatform('instagram');
+                        await loadConnectionsForClient(currentClientIdForConnections);
+                    } else {
+                        await startMetaConnection('instagram');
+                    }
+                } catch (err) {
+                    alert(err.message || 'Erro na conexão do Instagram');
+                }
+            });
+        }
+
+        if (facebookBtn) {
+            facebookBtn.addEventListener('click', async () => {
+                try {
+                    if (!currentClientIdForConnections) {
+                        alert('Selecione um cliente para conectar.');
+                        return;
+                    }
+                    if (facebookBtn.dataset.action === 'disconnect') {
+                        await disconnectPlatform('facebook');
+                        await loadConnectionsForClient(currentClientIdForConnections);
+                    } else {
+                        await startMetaConnection('facebook');
+                    }
+                } catch (err) {
+                    alert(err.message || 'Erro na conexão do Facebook');
+                }
+            });
+        }
+    };
+
+    const handleOAuthReturn = async () => {
+        const params = new URLSearchParams(window.location.search);
+        const clienteId = params.get('cliente');
+        if (clienteId) {
+            await editCliente(clienteId);
+        }
+    };
+
+    setupConnectionActions();
     loadClientes();
+    handleOAuthReturn();
 });
