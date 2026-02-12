@@ -106,6 +106,100 @@ window.updateReportDates = function() {
     endInput.value = end.toISOString().split('T')[0];
 };
 
+const trafficConnectionsCache = {};
+
+function getTrafficPlatformLabel(platformKey) {
+    if (platformKey === 'meta_ads') return 'Meta Ads';
+    if (platformKey === 'google_ads') return 'Google Ads';
+    if (platformKey === 'linkedin_ads') return 'LinkedIn Ads';
+    if (platformKey === 'tiktok_ads') return 'TikTok Ads';
+    if (platformKey === 'meta') return 'Meta Ads';
+    if (platformKey === 'google') return 'Google Ads';
+    if (platformKey === 'linkedin') return 'LinkedIn Ads';
+    if (platformKey === 'tiktok') return 'TikTok Ads';
+    return 'Plataforma';
+}
+
+function getTrafficPlatformConnections(platformKey) {
+    if (platformKey === 'meta_ads' || platformKey === 'meta') return ['facebook', 'instagram'];
+    if (platformKey === 'google_ads' || platformKey === 'google') return ['google'];
+    if (platformKey === 'linkedin_ads' || platformKey === 'linkedin') return ['linkedin'];
+    if (platformKey === 'tiktok_ads' || platformKey === 'tiktok') return ['tiktok'];
+    return [];
+}
+
+async function updateTrafficPlatformAvailability(clientId) {
+    if (!clientId) return;
+    const connections = trafficConnectionsCache[clientId] || await window.getConnectedPlatforms(clientId);
+    trafficConnectionsCache[clientId] = connections;
+    const connectedSet = new Set((connections.connected || []).map(item => item.platform));
+
+    const reportCheckboxes = document.querySelectorAll('input[name="report_platform"]');
+    reportCheckboxes.forEach(input => {
+        const label = input.closest('label');
+        const textEl = label ? label.querySelector('span') : null;
+        const baseLabel = getTrafficPlatformLabel(input.value);
+        const required = getTrafficPlatformConnections(input.value);
+        const isConnected = required.some(p => connectedSet.has(p));
+
+        input.disabled = !isConnected;
+        if (!isConnected) input.checked = false;
+
+        if (textEl) textEl.textContent = isConnected ? baseLabel : `${baseLabel} (Conectar)`;
+        if (label) {
+            label.classList.toggle('opacity-50', !isConnected);
+            label.classList.toggle('cursor-not-allowed', !isConnected);
+        }
+    });
+
+    const platformRadios = document.querySelectorAll('input[name="platform"]');
+    platformRadios.forEach(input => {
+        const label = input.closest('label');
+        const baseLabel = getTrafficPlatformLabel(input.value);
+        const required = getTrafficPlatformConnections(input.value);
+        const isConnected = required.some(p => connectedSet.has(p));
+
+        input.disabled = !isConnected;
+        if (!isConnected) input.checked = false;
+
+        if (label) {
+            const textEl = label.querySelector('span');
+            if (textEl) textEl.textContent = isConnected ? baseLabel : `${baseLabel} (Conectar)`;
+            label.classList.toggle('opacity-50', !isConnected);
+            label.classList.toggle('cursor-not-allowed', !isConnected);
+        }
+    });
+
+    if (window.updatePlatformSelection) window.updatePlatformSelection();
+}
+
+function showTrafficConnectionCTA(clientId, platformLabel) {
+    const emptyState = document.getElementById('report-empty');
+    const emptyMsg = document.getElementById('report-empty-message');
+    const preview = document.getElementById('report-preview');
+    if (emptyMsg) emptyMsg.innerHTML = window.renderPlatformNotConnectedCTA(clientId, platformLabel);
+    if (emptyState) emptyState.classList.remove('hidden');
+    if (preview) preview.classList.add('hidden');
+}
+
+function showCampaignConnectionCTA(clientId, platformLabel) {
+    const form = document.getElementById('form-campanha-stepper');
+    if (!form || !form.parentElement) return;
+    let container = document.getElementById('campaign-connection-cta');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'campaign-connection-cta';
+        container.className = 'mb-6';
+        form.parentElement.insertBefore(container, form);
+    }
+    container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, platformLabel);
+}
+
+function clearCampaignConnectionCTA() {
+    const container = document.getElementById('campaign-connection-cta');
+    if (container) container.innerHTML = '';
+}
+
 // --- UI Helpers para Multi-select ---
 window.togglePlatformDropdown = function() {
     const dropdown = document.getElementById('platform-multiselect-dropdown');
@@ -158,6 +252,19 @@ window.generateTrafficReport = async function() {
     }
     if (selectedPlatforms.length === 0) {
         alert('Por favor, selecione pelo menos uma plataforma.');
+        return;
+    }
+
+    const connections = trafficConnectionsCache[clientId] || await window.getConnectedPlatforms(clientId);
+    trafficConnectionsCache[clientId] = connections;
+    const connectedSet = new Set((connections.connected || []).map(item => item.platform));
+    const notConnected = selectedPlatforms.find(platformKey => {
+        const required = getTrafficPlatformConnections(platformKey);
+        return !required.some(p => connectedSet.has(p));
+    });
+
+    if (notConnected) {
+        showTrafficConnectionCTA(clientId, getTrafficPlatformLabel(notConnected));
         return;
     }
     if (!startDateVal || !endDateVal) {
@@ -845,6 +952,19 @@ window.handleCreateCampaignStepper = async function(event) {
     try {
         const formData = new FormData(event.target);
         const data = Object.fromEntries(formData.entries());
+
+        const connections = trafficConnectionsCache[clientId] || await window.getConnectedPlatforms(clientId);
+        trafficConnectionsCache[clientId] = connections;
+        const connectedSet = new Set((connections.connected || []).map(item => item.platform));
+        const requiredPlatforms = getTrafficPlatformConnections(data.platform);
+        const isConnected = requiredPlatforms.some(p => connectedSet.has(p));
+
+        if (!isConnected) {
+            showCampaignConnectionCTA(clientId, getTrafficPlatformLabel(data.platform));
+            return;
+        }
+
+        clearCampaignConnectionCTA();
         
         const payload = {
             cliente_id: clientId,
@@ -968,6 +1088,11 @@ window.loadTrafficClients = async function() {
                 }
             }
         });
+
+        const mainSelect = document.getElementById('filter-cliente');
+        if (mainSelect?.value) updateTrafficPlatformAvailability(mainSelect.value);
+        const reportSelect = document.getElementById('report-client-select');
+        if (reportSelect?.value) updateTrafficPlatformAvailability(reportSelect.value);
 
     } catch (err) {
         console.error('Erro ao carregar clientes:', err);
@@ -1245,4 +1370,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if(window.updateReportDates) window.updateReportDates();
     const periodSelect = document.getElementById('report-period-select');
     if(periodSelect) periodSelect.addEventListener('change', window.updateReportDates);
+
+    const filterSelect = document.getElementById('filter-cliente');
+    if (filterSelect) {
+        filterSelect.addEventListener('change', (event) => {
+            updateTrafficPlatformAvailability(event.target.value);
+            clearCampaignConnectionCTA();
+        });
+    }
+
+    const reportSelect = document.getElementById('report-client-select');
+    if (reportSelect) {
+        reportSelect.addEventListener('change', (event) => {
+            updateTrafficPlatformAvailability(event.target.value);
+        });
+    }
 });

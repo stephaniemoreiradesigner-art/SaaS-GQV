@@ -113,6 +113,64 @@ async function loadInsightsClients() {
     }
 }
 
+const insightsConnectionsCache = {};
+
+async function updateInsightsPlatforms(clientId) {
+    const platformSelect = document.getElementById('insights-platform');
+    const results = document.getElementById('insights-results');
+    const btn = document.querySelector('button[onclick="loadInsights()"]');
+
+    if (!platformSelect) return;
+
+    if (!clientId) {
+        platformSelect.innerHTML = `
+            <option value="instagram" selected>Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="all">Todas (Relatório Unificado)</option>
+        `;
+        platformSelect.disabled = false;
+        if (btn) btn.disabled = false;
+        return;
+    }
+
+    const connections = await window.getConnectedPlatforms(clientId);
+    insightsConnectionsCache[clientId] = connections;
+    const connected = connections.connected.filter(item => ['instagram', 'facebook'].includes(item.platform));
+
+    if (connected.length === 0) {
+        platformSelect.innerHTML = '<option value="">Nenhuma plataforma conectada</option>';
+        platformSelect.disabled = true;
+        if (btn) btn.disabled = true;
+        if (results) results.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook');
+        return;
+    }
+
+    const options = [];
+    connected.forEach(item => {
+        const label = item.platform === 'instagram' ? 'Instagram' : 'Facebook';
+        options.push(`<option value="${item.platform}">${label}</option>`);
+    });
+
+    if (connected.length > 1) {
+        options.push('<option value="all">Todas (Relatório Unificado)</option>');
+    }
+
+    platformSelect.innerHTML = options.join('');
+    platformSelect.disabled = false;
+    if (btn) btn.disabled = false;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const select = document.getElementById('insights-cliente');
+    if (!select) return;
+    select.addEventListener('change', (event) => {
+        updateInsightsPlatforms(event.target.value);
+    });
+    if (select.value) {
+        updateInsightsPlatforms(select.value);
+    }
+});
+
 async function loadLogsClients() {
      const select = document.getElementById('filter-cliente');
     if (!select || select.options.length > 1) return; // Already loaded
@@ -597,6 +655,22 @@ window.loadInsights = async function() {
         return;
     }
 
+    const connections = insightsConnectionsCache[clienteId] || await window.getConnectedPlatforms(clienteId);
+    insightsConnectionsCache[clienteId] = connections;
+    const connectedSet = new Set((connections.connected || []).map(item => item.platform));
+    const connectedMeta = ['instagram', 'facebook'].filter(p => connectedSet.has(p));
+
+    if (platform === 'all' && connectedMeta.length === 0) {
+        container.innerHTML = window.renderPlatformNotConnectedCTA(clienteId, 'Instagram/Facebook');
+        return;
+    }
+
+    if (platform !== 'all' && !connectedSet.has(platform)) {
+        const label = platform === 'instagram' ? 'Instagram' : 'Facebook';
+        container.innerHTML = window.renderPlatformNotConnectedCTA(clienteId, label);
+        return;
+    }
+
     // Calcular Datas
     let startDate = new Date();
     let endDate = new Date();
@@ -686,15 +760,16 @@ window.loadInsights = async function() {
         const until = Math.floor(endDate.getTime() / 1000);
 
         // Prepare Data Object
+        const platformsToFetch = (platform === 'all') ? ['instagram', 'facebook'].filter(p => connectedSet.has(p)) : [platform];
+        const isUnified = platform === 'all' && platformsToFetch.length > 1;
+
         window.currentReportData = {
             clientName: clientData?.nome_fantasia || 'Cliente',
             period: periodLabel,
             generatedAt: new Date().toLocaleDateString('pt-BR'),
             platforms: {},
-            isUnified: platform === 'all'
+            isUnified: isUnified
         };
-
-        const platformsToFetch = (platform === 'all') ? ['instagram', 'facebook'] : [platform];
         let primaryData = null; // Data to show in dashboard (first one)
 
         for (const p of platformsToFetch) {
@@ -710,7 +785,7 @@ window.loadInsights = async function() {
         }
 
         // Se for unificado, tenta criar um objeto combinado
-        if (platform === 'all') {
+        if (platform === 'all' && platformsToFetch.length > 1) {
             const ig = window.currentReportData.platforms['instagram'];
             const fb = window.currentReportData.platforms['facebook'];
 
@@ -742,7 +817,7 @@ window.loadInsights = async function() {
 
         // Render Dashboard (using primaryData)
         const { followers, newFollowers, reach, engagement, growth, topPosts, apiConnected, apiErrorMessage, socialId, postsCount } = primaryData;
-        const displayPlatform = (platform === 'all') ? 'Visão Geral Unificada (Instagram + Facebook)' : (platform === 'instagram' ? 'Instagram' : 'Facebook');
+        const displayPlatform = (platform === 'all' && platformsToFetch.length > 1) ? 'Visão Geral Unificada (Instagram + Facebook)' : (platformsToFetch[0] === 'instagram' ? 'Instagram' : 'Facebook');
 
         // Generate Top Posts HTML for Dashboard
         let postsHtml = '';

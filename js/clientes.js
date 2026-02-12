@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const handleOAuthReturn = async () => {
         const params = new URLSearchParams(window.location.search);
-        const clienteId = params.get('cliente');
+        const clienteId = params.get('cliente_id') || params.get('cliente');
         if (clienteId) {
             await editCliente(clienteId);
         }

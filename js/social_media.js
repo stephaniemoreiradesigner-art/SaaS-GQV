@@ -8,6 +8,55 @@ var currentMonth = null;
 var clientDataMap = {}; 
 var tempSelectedDate = null;
 var tempSelectedFormat = null;
+var calendarConnectionsCache = {};
+
+function ensureCalendarCTAContainer() {
+    let container = document.getElementById('calendar-connection-cta');
+    if (container) return container;
+    const calendarEl = document.getElementById('calendar');
+    const whiteBox = calendarEl ? calendarEl.parentElement : null;
+    const parent = whiteBox ? whiteBox.parentElement : null;
+    if (!parent) return null;
+    container = document.createElement('div');
+    container.id = 'calendar-connection-cta';
+    container.className = 'mb-6 hidden';
+    parent.insertBefore(container, whiteBox);
+    return container;
+}
+
+async function updateCalendarConnections(clientId) {
+    if (!clientId) {
+        const container = ensureCalendarCTAContainer();
+        if (container) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+        }
+        return;
+    }
+
+    const connections = await window.getConnectedPlatforms(clientId);
+    calendarConnectionsCache[clientId] = connections;
+    const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+
+    const btnHeaderGenerate = document.getElementById('btn-header-generate');
+    const btnModalGenerate = document.getElementById('btn-modal-generate');
+    const container = ensureCalendarCTAContainer();
+
+    if (connectedPlatforms.length === 0) {
+        if (btnHeaderGenerate) btnHeaderGenerate.disabled = true;
+        if (btnModalGenerate) btnModalGenerate.disabled = true;
+        if (container) {
+            container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
+            container.classList.remove('hidden');
+        }
+        return;
+    }
+
+    if (container) {
+        container.innerHTML = '';
+        container.classList.add('hidden');
+    }
+}
 
 // Funções Globais para o Modal de Configuração (HTML -> JS)
 window.openConfigModal = function() {
@@ -81,6 +130,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectCliente.addEventListener('change', (e) => {
             currentClienteId = e.target.value;
             checkSelection();
+            updateCalendarConnections(currentClienteId);
         });
     }
 
@@ -281,12 +331,12 @@ function openPostModal(event) {
 
     document.getElementById('post-formato').value = (props.formato || 'estatico').toLowerCase();
     
-    const client = clientDataMap[currentClienteId];
-    const clientPlatforms = client ? (client.plataformas_social || []) : [];
+    const connectionData = calendarConnectionsCache[currentClienteId];
+    const clientPlatforms = connectionData ? (connectionData.connected || []).map(item => item.platform) : [];
     
     const platInput = document.getElementById('post-plataformas');
     if(platInput) {
-        platInput.value = clientPlatforms.join(', ') || 'Nenhuma cadastrada';
+        platInput.value = clientPlatforms.join(', ') || 'Nenhuma conectada';
     }
 
     const visualInput = document.getElementById('post-visual');
@@ -302,17 +352,17 @@ function openPostModal(event) {
         container.innerHTML = '';
         
         // Determinar plataformas visíveis
-        const activePlatforms = clientPlatforms.filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok', 'youtube'].includes(p.toLowerCase()));
+        const activePlatforms = clientPlatforms.filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p.toLowerCase()));
         
         // Se não houver plataformas, mostra mensagem ou esconde
         if (activePlatforms.length === 0) {
-            container.innerHTML = '<p class="text-sm text-gray-400 italic">Nenhuma plataforma configurada para este cliente.</p>';
+            container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
+            return;
         }
 
         const hasMeta = activePlatforms.some(p => ['instagram', 'facebook'].includes(p.toLowerCase()));
         const hasLinkedin = activePlatforms.some(p => p.toLowerCase() === 'linkedin');
         const hasTiktok = activePlatforms.some(p => p.toLowerCase() === 'tiktok');
-        const hasYoutube = activePlatforms.some(p => p.toLowerCase() === 'youtube');
 
         const createField = (id, label, value, icon) => {
             const div = document.createElement('div');
@@ -329,7 +379,7 @@ function openPostModal(event) {
         };
 
         // 1. Legenda Principal (Instagram/Facebook)
-        if (hasMeta || (!hasLinkedin && !hasTiktok && !hasYoutube)) { // Fallback para Meta se nada específico
+        if (hasMeta || (!hasLinkedin && !hasTiktok)) {
             const val = props.legenda || '';
             const label = hasMeta ? 'Legenda Instagram/Facebook' : 'Legenda Principal';
             createField('post-legenda', label, val, 'instagram');
@@ -346,9 +396,6 @@ function openPostModal(event) {
         }
 
         // 4. Legenda YouTube
-        if (hasYoutube) {
-            createField('post-legenda-youtube', 'Legenda YouTube', props.legenda_youtube, 'youtube');
-        }
 
         // Configurar Upload de Mídia (Feed/Story)
         setupMediaUpload(activePlatforms, (props.formato || 'estatico').toLowerCase());
@@ -913,6 +960,7 @@ function checkSelection() {
     if (currentClienteId && currentMonth) {
         if (btnConfig) btnConfig.disabled = false;
         loadCalendarData();
+        updateCalendarConnections(currentClienteId);
     } else {
         if (btnConfig) btnConfig.disabled = true;
         
@@ -993,7 +1041,25 @@ async function loadCalendarData() {
     }
 }
 
-function handleGenerateClick() {
+async function handleGenerateClick() {
+    if (!currentClienteId) {
+        alert('Por favor, selecione um cliente primeiro.');
+        return;
+    }
+
+    const connections = calendarConnectionsCache[currentClienteId] || await window.getConnectedPlatforms(currentClienteId);
+    calendarConnectionsCache[currentClienteId] = connections;
+    const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+
+    if (connectedPlatforms.length === 0) {
+        const container = ensureCalendarCTAContainer();
+        if (container) {
+            container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
+            container.classList.remove('hidden');
+        }
+        return;
+    }
+
     openConfigModal();
 }
 
@@ -1036,6 +1102,18 @@ async function generateCalendar() {
         return;
     }
 
+    const connections = calendarConnectionsCache[currentClienteId] || await window.getConnectedPlatforms(currentClienteId);
+    calendarConnectionsCache[currentClienteId] = connections;
+    const platforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+    if (platforms.length === 0) {
+        const container = ensureCalendarCTAContainer();
+        if (container) {
+            container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
+            container.classList.remove('hidden');
+        }
+        return;
+    }
+
     const btn = document.getElementById('btn-modal-generate');
     if (!btn) return;
     
@@ -1047,7 +1125,6 @@ async function generateCalendar() {
         // VIBECODE: Removido fetch de API Key do Frontend. O Proxy backend cuidará disso.
         // const { data: configData } = await window.supabaseClient...
 
-        const platforms = client.plataformas_social || [];
         let legendInstruction = `"legenda_sugestao": "Legenda DENSA e PERSUASIVA (Mínimo 3 parágrafos) para Instagram/Facebook. Use Storytelling, AIDA e termine com CTA forte. Inclua hashtags."`;
         
         if (platforms.some(p => p.toLowerCase().includes('linkedin'))) {

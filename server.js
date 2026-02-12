@@ -256,9 +256,29 @@ const server = http.createServer(async (request, response) => {
             }
 
             const supabaseResponse = await fetch(targetUrl, { method: 'GET', headers });
-            const data = await supabaseResponse.text();
-            response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
-            response.end(data);
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_buscar_conexoes' }));
+                return;
+            }
+
+            const platforms = ['instagram', 'facebook', 'google', 'linkedin', 'tiktok'];
+            const baseMap = platforms.reduce((acc, platform) => {
+                acc[platform] = { platform, status: 'disconnected' };
+                return acc;
+            }, {});
+
+            const list = Array.isArray(json) ? json : [];
+            list.forEach(item => {
+                if (item?.platform && baseMap[item.platform]) {
+                    baseMap[item.platform] = { ...baseMap[item.platform], ...item };
+                }
+            });
+
+            const result = platforms.map(platform => baseMap[platform]);
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(result));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
@@ -449,7 +469,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const redirectUrl = `${appUrl.replace(/\/$/, '')}/clientes.html?cliente=${clientId}&conectado=${platform}`;
+            const redirectUrl = `${appUrl.replace(/\/$/, '')}/clientes.html?cliente_id=${clientId}#conexoes`;
             response.writeHead(302, { Location: redirectUrl });
             response.end();
             return;

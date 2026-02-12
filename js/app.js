@@ -100,6 +100,77 @@ window.showContent = function() {
     }
 };
 
+window.getConnectedPlatforms = async function(clientId) {
+    const platforms = ['instagram', 'facebook', 'google', 'linkedin', 'tiktok'];
+    const fallbackList = platforms.map(platform => ({ platform, status: 'disconnected' }));
+    const fallbackMap = fallbackList.reduce((acc, item) => {
+        acc[item.platform] = item;
+        return acc;
+    }, {});
+
+    if (!clientId) {
+        return { all: fallbackList, connected: [], map: fallbackMap };
+    }
+
+    try {
+        const headers = {};
+        if (window.supabaseClient?.auth?.getSession) {
+            const { data } = await window.supabaseClient.auth.getSession();
+            const token = data?.session?.access_token;
+            if (token) headers.Authorization = `Bearer ${token}`;
+        }
+
+        const res = await fetch(`/api/clients/${clientId}/connections`, { headers });
+        if (!res.ok) {
+            return { all: fallbackList, connected: [], map: fallbackMap };
+        }
+
+        const list = await res.json();
+        const normalized = Array.isArray(list) ? list : [];
+        const map = { ...fallbackMap };
+        normalized.forEach(item => {
+            if (item?.platform && map[item.platform]) {
+                map[item.platform] = { ...map[item.platform], ...item };
+            }
+        });
+
+        const all = platforms.map(platform => map[platform]);
+        const connected = all.filter(item => item.status === 'connected');
+        return { all, connected, map };
+    } catch (err) {
+        return { all: fallbackList, connected: [], map: fallbackMap };
+    }
+};
+
+window.renderPlatformNotConnectedCTA = function(clientId, platform) {
+    const labels = {
+        instagram: 'Instagram',
+        facebook: 'Facebook',
+        google: 'Google',
+        linkedin: 'LinkedIn',
+        tiktok: 'TikTok',
+        meta_ads: 'Meta Ads',
+        google_ads: 'Google Ads',
+        linkedin_ads: 'LinkedIn Ads',
+        tiktok_ads: 'TikTok Ads',
+        meta: 'Meta Ads'
+    };
+    const label = labels[platform] || platform;
+    const url = `clientes.html?cliente_id=${encodeURIComponent(clientId)}#conexoes`;
+    return `
+        <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+            <div class="bg-blue-50 p-6 rounded-full mb-4">
+                <i class="fas fa-link text-3xl text-[var(--color-primary)]"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 mb-2">Conexão necessária</h3>
+            <p class="text-gray-500 max-w-md mx-auto mb-4">Conecte ${label} no cadastro do cliente para usar este recurso.</p>
+            <a href="${url}" class="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium">
+                Ir para Conexões
+            </a>
+        </div>
+    `;
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Sistema GQV Iniciado - v2.0 (Resiliente)');
     
