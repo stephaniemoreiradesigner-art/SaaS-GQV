@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const crypto = require('crypto');
 
 const PORT = process.env.PORT || 3000;
 
@@ -59,6 +60,50 @@ const buildAppUrl = (request) => {
     if (!host) return '';
     const proto = request.headers['x-forwarded-proto'] || 'http';
     return `${proto}://${host}`;
+};
+
+const getBearerToken = (request) => {
+    const header = (request.headers.authorization || '').trim();
+    const match = header.match(/^Bearer\s+(.+)$/i);
+    return match ? match[1].trim() : '';
+};
+
+const getSupabaseUserIdFromRequest = async (request) => {
+    const token = getBearerToken(request);
+    if (!token) return null;
+
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+
+    const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+        method: 'GET',
+        headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${token}`
+        }
+    });
+
+    const userJson = await userRes.json().catch(() => null);
+    if (!userRes.ok) return null;
+
+    return userJson?.id || userJson?.user?.id || null;
+};
+
+const signState = (stateB64, appSecret) => {
+    return crypto.createHmac('sha256', appSecret).update(stateB64).digest('hex');
+};
+
+const verifyStateSig = (stateB64, sig, appSecret) => {
+    if (!stateB64 || !sig || !appSecret) return false;
+    try {
+        const expected = signState(stateB64, appSecret);
+        const expectedBuf = Buffer.from(expected, 'hex');
+        const sigBuf = Buffer.from(String(sig), 'hex');
+        if (expectedBuf.length !== sigBuf.length) return false;
+        return crypto.timingSafeEqual(expectedBuf, sigBuf);
+    } catch {
+        return false;
+    }
 };
 
 const server = http.createServer(async (request, response) => {
@@ -345,20 +390,79 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    if (pathname === '/api/oauth/meta/callback' && request.method === 'GET') {
+    if (pathname === '/api/oauth/meta/start' && request.method === 'GET') {
         try {
-            const query = parsedUrl.query || {};
-            if (query.error) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: query.error_description || query.error }));
+            const appId = envVars['FACEBOOK_APP_ID'] || '';
+            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
+            if (!appId || !appSecret) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
                 return;
             }
 
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const appUrl = buildAppUrl(request);
+            if (!appUrl) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'app_url_nao_configurada' }));
+                return;
+            }
+
+            const redirectUri = `${appUrl.replace(/\/$/, '')}/api/oauth/meta/callback`;
+            const nonce = crypto.randomBytes(16).toString('hex');
+            const statePayload = { userId, platform: 'meta', nonce, ts: Date.now() };
+            const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+            const sig = signState(state, appSecret);
+
+            const params = new URLSearchParams();
+            params.set('client_id', appId);
+            params.set('redirect_uri', redirectUri);
+            params.set('state', state);
+            params.set('sig', sig);
+            params.set('response_type', 'code');
+            params.set('scope', 'public_profile');
+
+            const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ url: authUrl }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/oauth/meta/callback' && request.method === 'GET') {
+        try {
+            const query = parsedUrl.query || {};
             const code = query.code;
             const state = query.state;
-            if (!code || !state) {
+            const sig = query.sig;
+            if (!code || !state || !sig) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'codigo_ou_estado_ausente' }));
+                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const appId = envVars['FACEBOOK_APP_ID'] || '';
+            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
+            if (!appId || !appSecret) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
+                return;
+            }
+
+            const isValidSig = verifyStateSig(state, sig, appSecret);
+            if (!isValidSig) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'assinatura_invalida' }));
                 return;
             }
 
@@ -371,19 +475,10 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const clientId = payload.clientId;
-            const platform = payload.platform;
-            if (!clientId || !platform) {
+            const userId = payload?.userId;
+            if (!userId) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'estado_incompleto' }));
-                return;
-            }
-
-            const appId = envVars['FACEBOOK_APP_ID'] || '';
-            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
-            if (!appId || !appSecret) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
                 return;
             }
 
@@ -437,9 +532,10 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            const tableName = envVars['OAUTH_TOKENS_TABLE'] || 'user_oauth_tokens';
             const insertPayload = {
-                client_id: Number(clientId),
-                platform,
+                user_id: userId,
+                provider: 'meta',
                 status: 'connected',
                 external_id: meJson.id || null,
                 external_name: meJson.name || null,
@@ -451,7 +547,7 @@ const server = http.createServer(async (request, response) => {
                 }
             };
 
-            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
+            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${tableName}?on_conflict=user_id,provider`;
             const upsertRes = await fetch(upsertUrl, {
                 method: 'POST',
                 headers: {
@@ -470,7 +566,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const redirectUrl = `${appUrl.replace(/\/$/, '')}/clientes.html?cliente_id=${clientId}#conexoes`;
+            const redirectUrl = `${appUrl.replace(/\/$/, '')}/integracoes.html?provider=meta&status=connected`;
             response.writeHead(302, { Location: redirectUrl });
             response.end();
             return;
