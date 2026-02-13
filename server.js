@@ -417,14 +417,14 @@ const server = http.createServer(async (request, response) => {
             const redirectUri = `${appUrl.replace(/\/$/, '')}/api/oauth/meta/callback`;
             const nonce = crypto.randomBytes(16).toString('hex');
             const statePayload = { userId, platform: 'meta', nonce, ts: Date.now() };
-            const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
-            const sig = signState(state, appSecret);
+            const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+            const sig = signState(stateB64, appSecret);
+            const state = `${stateB64}.${sig}`;
 
             const params = new URLSearchParams();
             params.set('client_id', appId);
             params.set('redirect_uri', redirectUri);
             params.set('state', state);
-            params.set('sig', sig);
             params.set('response_type', 'code');
             params.set('scope', 'public_profile');
 
@@ -444,8 +444,7 @@ const server = http.createServer(async (request, response) => {
             const query = parsedUrl.query || {};
             const code = query.code;
             const state = query.state;
-            const sig = query.sig;
-            if (!code || !state || !sig) {
+            if (!code || !state) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'parametros_invalidos' }));
                 return;
@@ -459,7 +458,16 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const isValidSig = verifyStateSig(state, sig, appSecret);
+            const stateParts = String(state).split('.');
+            if (stateParts.length !== 2 || !stateParts[0] || !stateParts[1]) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const stateB64 = stateParts[0];
+            const sig = stateParts[1];
+            const isValidSig = verifyStateSig(stateB64, sig, appSecret);
             if (!isValidSig) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'assinatura_invalida' }));
@@ -468,7 +476,7 @@ const server = http.createServer(async (request, response) => {
 
             let payload = null;
             try {
-                payload = JSON.parse(Buffer.from(state, 'base64url').toString());
+                payload = JSON.parse(Buffer.from(stateB64, 'base64url').toString('utf8'));
             } catch (err) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'estado_invalido' }));
@@ -478,7 +486,7 @@ const server = http.createServer(async (request, response) => {
             const userId = payload?.userId;
             if (!userId) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'estado_incompleto' }));
+                response.end(JSON.stringify({ error: 'estado_invalido' }));
                 return;
             }
 
