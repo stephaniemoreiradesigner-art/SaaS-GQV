@@ -265,9 +265,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .not('data_nascimento', 'is', null);
 
             if (!errColab && colaboradores) {
-                const hojeDia = today.getDate();
-                const hojeMes = today.getMonth(); // 0-11
-
                 colaboradores.forEach(c => {
                     // Parse data nascimento (YYYY-MM-DD)
                     const parts = c.data_nascimento.split('-');
@@ -275,8 +272,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const nascDia = parseInt(parts[2]);
                         const nascMes = parseInt(parts[1]) - 1; // JS months are 0-based
 
-                        if (nascDia === hojeDia && nascMes === hojeMes) {
-                            // É aniversariante!
+                        const nextBirthday = new Date(today.getFullYear(), nascMes, nascDia);
+                        if (nextBirthday < today) nextBirthday.setFullYear(today.getFullYear() + 1);
+                        const diffMs = nextBirthday.getTime() - today.getTime();
+                        const diffDays = Math.floor(diffMs / 86400000);
+
+                        if (diffDays >= 0 && diffDays <= 15) {
                             
                             // Filtro de Permissão (Time)
                             let isVisible = false;
@@ -306,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 items.push({
                                     type: 'aniversario',
                                     title: `🎉 Parabéns, ${c.nome}!`,
-                                    desc: 'Aniversariante do dia',
+                                    desc: diffDays === 0 ? 'Aniversariante do dia' : `Aniversário em ${diffDays} dias`,
                                     link: null, // Não clicável
                                     icon: 'fa-birthday-cake',
                                     colorClass: 'bg-pink-100 text-pink-600' // Pink festivo
