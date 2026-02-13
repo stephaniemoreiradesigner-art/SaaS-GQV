@@ -475,8 +475,15 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            const payloadClientId = Number(payload?.clientId);
             const payloadPlatform = String(payload?.platform || '').toLowerCase();
-            if (!payload || Number(payload.clientId) !== clientId || !payload.timeId || !['facebook', 'instagram'].includes(payloadPlatform)) {
+            if (!payload || !Number.isFinite(payloadClientId) || payloadClientId !== clientId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'estado_invalido' }));
+                return;
+            }
+
+            if (!['facebook', 'instagram'].includes(payloadPlatform)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'estado_invalido' }));
                 return;
@@ -517,6 +524,7 @@ const server = http.createServer(async (request, response) => {
             const expiresIn = exchangeJson.expires_in || tokenJson.expires_in || null;
             const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
             const scope = exchangeJson.scope || tokenJson.scope || null;
+            const tokenType = exchangeJson.token_type || tokenJson.token_type || null;
 
             const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
             if (!supabaseUrl || !serviceRoleKey) {
@@ -525,15 +533,60 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            const meParams = new URLSearchParams();
+            meParams.set('fields', 'id,name');
+            meParams.set('access_token', accessToken);
+            const meRes = await fetch(`https://graph.facebook.com/v19.0/me?${meParams.toString()}`);
+            const meJson = await meRes.json();
+            if (!meRes.ok) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: meJson.error?.message || 'erro_ao_buscar_conta' }));
+                return;
+            }
+
+            const clientParams = new URLSearchParams();
+            clientParams.set('select', 'id,time_id');
+            clientParams.set('id', `eq.${clientId}`);
+            clientParams.set('limit', '1');
+            const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+            const clientRes = await fetch(clientUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const clientJson = await clientRes.json().catch(() => null);
+            if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
+                return;
+            }
+
+            const timeId = clientJson[0]?.time_id || null;
+            if (!timeId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'time_id_invalido' }));
+                return;
+            }
+
             const insertPayload = {
                 client_id: clientId,
-                time_id: payload.timeId,
+                time_id: timeId,
                 // Não usar 'meta' aqui porque o banco aceita apenas 'facebook' ou 'instagram'
                 platform: payloadPlatform,
                 status: 'connected',
+                external_id: meJson.id || null,
+                external_name: meJson.name || null,
                 access_token: accessToken,
                 token_expires_at: tokenExpiresAt,
-                scope
+                scope,
+                meta: {
+                    provider: 'meta',
+                    token_type: tokenType,
+                    raw_scope: scope
+                }
             };
 
             const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
@@ -555,7 +608,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const redirectUrl = `${appUrl.replace(/\/$/, '')}/clientes.html?cliente_id=${clientId}#conexoes`;
+            const redirectUrl = `${appUrl.replace(/\/$/, '')}/integracoes.html?provider=meta&status=connected&client_id=${clientId}&platform=${payloadPlatform}`;
             response.writeHead(302, { Location: redirectUrl });
             response.end();
             return;
@@ -596,9 +649,12 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const redirectUri = `${appUrl.replace(/\/$/, '')}/api/oauth/meta/callback`;
-            const statePayload = { clientId, platform };
-            const state = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+            const redirectUri = `${appUrl.replace(/\/$/, '')}/api/clients/${clientId}/oauth/meta/callback`;
+            const nonce = crypto.randomBytes(16).toString('hex');
+            const statePayload = { clientId: Number(clientId), platform, nonce, ts: Date.now() };
+            const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+            const sig = signState(stateB64, appSecret);
+            const state = `${stateB64}.${sig}`;
             const scopes = [
                 'pages_show_list',
                 'pages_read_engagement',
