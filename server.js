@@ -332,6 +332,337 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    const clientMetaPagesV2Match = pathname.match(/^\/api\/clients\/(\d+)\/meta\/pages$/);
+    if (clientMetaPagesV2Match && request.method === 'GET') {
+        try {
+            const clientId = Number(clientMetaPagesV2Match[1]);
+            if (!Number.isFinite(clientId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'access_token,status');
+            params.set('client_id', `eq.${clientId}`);
+            params.set('platform', 'eq.facebook');
+            params.set('status', 'eq.connected');
+            params.set('limit', '1');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?${params.toString()}`;
+            const connRes = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const connJson = await connRes.json().catch(() => null);
+            if (!connRes.ok) {
+                response.writeHead(connRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(connJson || { error: 'erro_ao_buscar_conexao' }));
+                return;
+            }
+
+            const connection = Array.isArray(connJson) ? connJson[0] : null;
+            const accessToken = connection?.access_token || null;
+            if (!accessToken) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'conexao_nao_encontrada' }));
+                return;
+            }
+
+            const graphParams = new URLSearchParams();
+            graphParams.set('fields', 'id,name,access_token');
+            graphParams.set('access_token', accessToken);
+            const graphRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?${graphParams.toString()}`);
+            const graphJson = await graphRes.json();
+            if (!graphRes.ok) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: graphJson.error?.message || 'erro_ao_listar_pages' }));
+                return;
+            }
+
+            const pages = Array.isArray(graphJson.data)
+                ? graphJson.data.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    page_access_token: item.access_token || null
+                }))
+                : [];
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ pages }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientMetaPageInstagramMatch = pathname.match(/^\/api\/clients\/(\d+)\/meta\/page\/([^/]+)\/instagram$/);
+    if (clientMetaPageInstagramMatch && request.method === 'GET') {
+        try {
+            const clientId = Number(clientMetaPageInstagramMatch[1]);
+            const pageId = clientMetaPageInstagramMatch[2];
+            if (!Number.isFinite(clientId) || !pageId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            let pageAccessToken = String((parsedUrl.query || {}).page_access_token || '').trim();
+            if (!pageAccessToken) {
+                const params = new URLSearchParams();
+                params.set('select', 'access_token,status');
+                params.set('client_id', `eq.${clientId}`);
+                params.set('platform', 'eq.facebook');
+                params.set('status', 'eq.connected');
+                params.set('limit', '1');
+
+                const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?${params.toString()}`;
+                const connRes = await fetch(targetUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`
+                    }
+                });
+
+                const connJson = await connRes.json().catch(() => null);
+                if (!connRes.ok) {
+                    response.writeHead(connRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(connJson || { error: 'erro_ao_buscar_conexao' }));
+                    return;
+                }
+
+                const connection = Array.isArray(connJson) ? connJson[0] : null;
+                const accessToken = connection?.access_token || null;
+                if (!accessToken) {
+                    response.writeHead(404, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'conexao_nao_encontrada' }));
+                    return;
+                }
+
+                const graphParams = new URLSearchParams();
+                graphParams.set('fields', 'id,name,access_token');
+                graphParams.set('access_token', accessToken);
+                const graphRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?${graphParams.toString()}`);
+                const graphJson = await graphRes.json();
+                if (!graphRes.ok) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: graphJson.error?.message || 'erro_ao_listar_pages' }));
+                    return;
+                }
+
+                const pages = Array.isArray(graphJson.data) ? graphJson.data : [];
+                const match = pages.find(item => String(item.id) === String(pageId));
+                pageAccessToken = match?.access_token || '';
+            }
+
+            if (!pageAccessToken) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'page_access_token_nao_encontrado' }));
+                return;
+            }
+
+            const graphParams = new URLSearchParams();
+            graphParams.set('fields', 'instagram_business_account{id,username}');
+            graphParams.set('access_token', pageAccessToken);
+            const graphRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(pageId)}?${graphParams.toString()}`);
+            const graphJson = await graphRes.json();
+            if (!graphRes.ok) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: graphJson.error?.message || 'erro_ao_buscar_instagram' }));
+                return;
+            }
+
+            const igAccount = graphJson.instagram_business_account || null;
+            const payload = igAccount
+                ? { ig_user_id: igAccount.id, ig_username: igAccount.username || null }
+                : { ig_user_id: null, ig_username: null };
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(payload));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientMetaSelectMatch = pathname.match(/^\/api\/clients\/(\d+)\/meta\/select$/);
+    if (clientMetaSelectMatch && request.method === 'POST') {
+        try {
+            const clientId = Number(clientMetaSelectMatch[1]);
+            if (!Number.isFinite(clientId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch (error) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const pageId = String(body?.page_id || '').trim();
+            const pageName = String(body?.page_name || '').trim() || null;
+            const pageAccessToken = String(body?.page_access_token || '').trim();
+            const igUserId = String(body?.ig_user_id || '').trim();
+            const igUsername = String(body?.ig_username || '').trim() || null;
+
+            if (!pageId || !pageAccessToken || !igUserId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const clientParams = new URLSearchParams();
+            clientParams.set('select', 'id,time_id');
+            clientParams.set('id', `eq.${clientId}`);
+            clientParams.set('limit', '1');
+            const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+            const clientRes = await fetch(clientUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const clientJson = await clientRes.json().catch(() => null);
+            if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
+                return;
+            }
+
+            const timeId = clientJson[0]?.time_id || null;
+            if (!timeId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'time_id_invalido' }));
+                return;
+            }
+
+            const payload = {
+                client_id: clientId,
+                time_id: timeId,
+                meta_page_id: pageId,
+                meta_page_name: pageName,
+                meta_page_access_token: pageAccessToken,
+                meta_ig_user_id: igUserId,
+                meta_ig_username: igUsername,
+                updated_at: new Date().toISOString()
+            };
+
+            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_selected_assets?on_conflict=client_id`;
+            const upsertRes = await fetch(upsertUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!upsertRes.ok) {
+                const errText = await upsertRes.text();
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: errText || 'erro_ao_salvar_selecao' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: true }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientSelectedAssetsMatch = pathname.match(/^\/api\/clients\/(\d+)\/assets\/selected$/);
+    if (clientSelectedAssetsMatch && request.method === 'GET') {
+        try {
+            const clientId = Number(clientSelectedAssetsMatch[1]);
+            if (!Number.isFinite(clientId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', '*');
+            params.set('client_id', `eq.${clientId}`);
+            params.set('limit', '1');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_selected_assets?${params.toString()}`;
+            const assetsRes = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const assetsJson = await assetsRes.json().catch(() => null);
+            if (!assetsRes.ok) {
+                response.writeHead(assetsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(assetsJson || { error: 'erro_ao_buscar_assets' }));
+                return;
+            }
+
+            const row = Array.isArray(assetsJson) ? assetsJson[0] || null : null;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: row }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     const clientMetaPagesMatch = pathname.match(/^\/api\/clients\/(\d+)\/meta\/assets\/pages$/);
     if (clientMetaPagesMatch && request.method === 'GET') {
         try {
