@@ -475,7 +475,8 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            if (!payload || Number(payload.clientId) !== clientId || !payload.timeId) {
+            const payloadPlatform = String(payload?.platform || '').toLowerCase();
+            if (!payload || Number(payload.clientId) !== clientId || !payload.timeId || !['facebook', 'instagram'].includes(payloadPlatform)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'estado_invalido' }));
                 return;
@@ -527,7 +528,7 @@ const server = http.createServer(async (request, response) => {
             const insertPayload = {
                 client_id: clientId,
                 time_id: payload.timeId,
-                platform: 'meta',
+                platform: payloadPlatform,
                 status: 'connected',
                 access_token: accessToken,
                 token_expires_at: tokenExpiresAt,
