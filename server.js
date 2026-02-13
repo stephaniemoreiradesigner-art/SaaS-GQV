@@ -528,6 +528,7 @@ const server = http.createServer(async (request, response) => {
             const insertPayload = {
                 client_id: clientId,
                 time_id: payload.timeId,
+                // Não usar 'meta' aqui porque o banco aceita apenas 'facebook' ou 'instagram'
                 platform: payloadPlatform,
                 status: 'connected',
                 access_token: accessToken,
