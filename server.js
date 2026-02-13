@@ -608,7 +608,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const redirectUrl = `${appUrl.replace(/\/$/, '')}/integracoes.html?provider=meta&status=connected&client_id=${clientId}&platform=${payloadPlatform}`;
+            const redirectUrl = `${appUrl.replace(/\/$/, '')}/clientes.html?client_id=${clientId}#conexoes`;
             response.writeHead(302, { Location: redirectUrl });
             response.end();
             return;
