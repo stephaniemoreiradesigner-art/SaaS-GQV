@@ -279,26 +279,24 @@ const server = http.createServer(async (request, response) => {
     if (connectionsListMatch && request.method === 'GET') {
         try {
             const clientId = connectionsListMatch[1];
-            const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
-            if (!supabaseUrl || !supabaseAnonKey) {
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'supabase_nao_configurado' }));
+                response.end(JSON.stringify({ error: 'supabase_nao_configurado', missing: ['SUPABASE_SERVICE_ROLE_KEY'] }));
                 return;
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,client_id,platform,status,external_id,external_name,token_expires_at,meta');
+            params.set('select', 'id,client_id,platform,status,external_id,external_name,token_expires_at,meta,time_id,scope');
             params.set('client_id', `eq.${clientId}`);
             params.set('order', 'platform.asc');
 
             const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?${params.toString()}`;
 
-            const headers = { apikey: supabaseAnonKey };
-            if (request.headers.authorization) {
-                headers.Authorization = request.headers.authorization;
-            } else {
-                headers.Authorization = `Bearer ${supabaseAnonKey}`;
-            }
+            const headers = {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`
+            };
 
             const supabaseResponse = await fetch(targetUrl, { method: 'GET', headers });
             const json = await supabaseResponse.json().catch(() => null);
