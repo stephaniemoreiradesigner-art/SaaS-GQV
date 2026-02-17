@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
+const axios = require('axios');
 
 const PORT = process.env.PORT || 3000;
 
@@ -280,6 +281,37 @@ const server = http.createServer(async (request, response) => {
             console.error('Erro no proxy Meta:', error);
             response.writeHead(500, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/meta/test-connection' && request.method === 'GET') {
+        try {
+            const systemUserToken = envVars['META_SYSTEM_USER_TOKEN'] || process.env.META_SYSTEM_USER_TOKEN || '';
+            if (!systemUserToken) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'META_SYSTEM_USER_TOKEN não configurado' }));
+                return;
+            }
+
+            const adAccountsUrl = `https://graph.facebook.com/v23.0/me/adaccounts?access_token=${systemUserToken}`;
+            const pagesUrl = `https://graph.facebook.com/v23.0/me/accounts?access_token=${systemUserToken}`;
+
+            const [adAccountsRes, pagesRes] = await Promise.all([
+                axios.get(adAccountsUrl, { timeout: 10000 }),
+                axios.get(pagesUrl, { timeout: 10000 })
+            ]);
+
+            const adAccounts = Array.isArray(adAccountsRes.data?.data) ? adAccountsRes.data.data : [];
+            const pages = Array.isArray(pagesRes.data?.data) ? pagesRes.data.data : [];
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: true, ad_accounts: adAccounts, pages }));
+            return;
+        } catch (error) {
+            const message = error?.response?.data?.error?.message || error?.message || 'erro_ao_testar_meta';
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: false, error: message }));
             return;
         }
     }
