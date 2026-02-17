@@ -316,7 +316,9 @@
                 const clientId = localStorage.getItem('current_client_id') || '1';
 
                 try {
-                    const res = await fetch(`/api/clients/${clientId}/oauth/meta/start?platform=facebook`);
+                    const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
+                    console.debug('OAuth start url', startUrl);
+                    const res = await fetch(startUrl);
                     const data = await res.json();
 
                     console.log('Resposta OAuth:', data);
