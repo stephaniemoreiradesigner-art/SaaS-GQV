@@ -113,6 +113,16 @@
                             <h3 class="text-lg font-medium text-gray-800">Integrações</h3>
                             <p class="text-sm text-gray-500 mt-1">Conecte provedores para leitura de métricas e criação de campanhas.</p>
                         </div>
+                        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+                            <div class="w-full md:max-w-md">
+                                <label for="integracoes-client-select" class="block text-sm font-medium text-gray-700 mb-2">Cliente</label>
+                                <select id="integracoes-client-select" class="w-full px-3 py-2.5 bg-white border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" disabled>
+                                    <option value="">Carregando...</option>
+                                </select>
+                                <div id="integracoes-client-empty" class="text-xs text-gray-500 mt-2 hidden">Nenhum cliente cadastrado.</div>
+                            </div>
+                            <div id="integracoes-client-active" class="text-xs text-gray-500 md:text-right hidden">Cliente ativo:</div>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                                 <div class="flex items-center justify-between mb-3">
@@ -304,40 +314,165 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const btn = document.getElementById('btn-connect-meta');
+            const clientSelect = document.getElementById('integracoes-client-select');
+            const clientActive = document.getElementById('integracoes-client-active');
+            const clientEmpty = document.getElementById('integracoes-client-empty');
             if (!btn) {
                 console.error('Botão Meta não encontrado');
-                return;
             }
 
-            btn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                console.log('Clique Meta detectado');
+            const setActiveClientLabel = (name) => {
+                if (!clientActive) return;
+                if (name) {
+                    clientActive.textContent = `Cliente ativo: ${name}`;
+                    clientActive.classList.remove('hidden');
+                } else {
+                    clientActive.textContent = '';
+                    clientActive.classList.add('hidden');
+                }
+            };
 
-                const clientId = localStorage.getItem('current_client_id');
-                if (!clientId) {
-                    alert('Selecione um cliente para iniciar a integração.');
+            const setEmptyState = (isEmpty) => {
+                if (!clientEmpty) return;
+                if (isEmpty) {
+                    clientEmpty.classList.remove('hidden');
+                } else {
+                    clientEmpty.classList.add('hidden');
+                }
+            };
+
+            const loadClientesForSelect = async () => {
+                if (!clientSelect) return;
+                clientSelect.disabled = true;
+                clientSelect.innerHTML = '<option value="">Carregando...</option>';
+                setEmptyState(false);
+
+                const supabase = await waitForSupabaseClient();
+                if (!supabase || !supabase.auth) {
+                    clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                    clientSelect.disabled = true;
                     return;
                 }
 
-                try {
-                    const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
-                    console.debug('OAuth start url', startUrl);
-                    const res = await fetch(startUrl);
-                    const data = await res.json();
+                const sessionResult = await supabase.auth.getSession();
+                const session = sessionResult && sessionResult.data ? sessionResult.data.session : null;
+                const user = session ? session.user : null;
+                if (!user) {
+                    window.location.href = 'index.html';
+                    return;
+                }
 
-                    console.log('Resposta OAuth:', data);
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select('id, nome_fantasia, nome_empresa');
 
-                    if (!res.ok || !data.url) {
-                        alert('Erro ao iniciar conexão Meta');
+                if (error) {
+                    console.error('Erro ao carregar clientes:', error);
+                    clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                    clientSelect.disabled = true;
+                    setEmptyState(true);
+                    return;
+                }
+
+                const clientes = Array.isArray(data) ? data : [];
+                const lista = clientes
+                    .map((cliente) => {
+                        const nome = cliente.nome_fantasia || cliente.nome_empresa || '';
+                        return {
+                            id: String(cliente.id),
+                            nome
+                        };
+                    })
+                    .filter((cliente) => cliente.id && cliente.nome);
+
+                lista.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+                if (lista.length === 0) {
+                    clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                    clientSelect.disabled = true;
+                    setEmptyState(true);
+                    setActiveClientLabel('');
+                    return;
+                }
+
+                clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+                lista.forEach((cliente) => {
+                    const option = document.createElement('option');
+                    option.value = cliente.id;
+                    option.textContent = cliente.nome;
+                    option.dataset.name = cliente.nome;
+                    clientSelect.appendChild(option);
+                });
+
+                clientSelect.disabled = false;
+                setEmptyState(false);
+
+                const storedId = localStorage.getItem('current_client_id');
+                const storedName = localStorage.getItem('current_client_name');
+                if (storedId) {
+                    clientSelect.value = storedId;
+                    if (clientSelect.value === storedId) {
+                        setActiveClientLabel(storedName || clientSelect.options[clientSelect.selectedIndex]?.textContent || '');
+                    } else {
+                        localStorage.removeItem('current_client_id');
+                        localStorage.removeItem('current_client_name');
+                        setActiveClientLabel('');
+                    }
+                } else {
+                    setActiveClientLabel('');
+                }
+            };
+
+            if (clientSelect) {
+                clientSelect.addEventListener('change', () => {
+                    const selectedOption = clientSelect.options[clientSelect.selectedIndex];
+                    const clientId = clientSelect.value;
+                    if (!clientId) {
+                        localStorage.removeItem('current_client_id');
+                        localStorage.removeItem('current_client_name');
+                        setActiveClientLabel('');
+                        return;
+                    }
+                    const clientName = selectedOption?.dataset?.name || selectedOption?.textContent || '';
+                    localStorage.setItem('current_client_id', clientId);
+                    localStorage.setItem('current_client_name', clientName);
+                    setActiveClientLabel(clientName);
+                });
+            }
+
+            loadClientesForSelect();
+
+            if (btn) {
+                btn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    console.log('Clique Meta detectado');
+
+                    const clientId = localStorage.getItem('current_client_id');
+                    if (!clientId) {
+                        alert('Selecione um cliente para iniciar a integração.');
                         return;
                     }
 
-                    window.location.href = data.url;
-                } catch (err) {
-                    console.error('Erro ao iniciar OAuth:', err);
-                    alert('Erro inesperado ao conectar com Meta');
-                }
-            });
+                    try {
+                        const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
+                        console.debug('OAuth start url', startUrl);
+                        const res = await fetch(startUrl);
+                        const data = await res.json();
+
+                        console.log('Resposta OAuth:', data);
+
+                        if (!res.ok || !data.url) {
+                            alert('Erro ao iniciar conexão Meta');
+                            return;
+                        }
+
+                        window.location.href = data.url;
+                    } catch (err) {
+                        console.error('Erro ao iniciar OAuth:', err);
+                        alert('Erro inesperado ao conectar com Meta');
+                    }
+                });
+            }
         });
     </script>
 </body>
