@@ -1161,8 +1161,8 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    const clientMetaConnectionsStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/connections\/meta\/start$/);
-    const clientMetaOauthStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/start$/);
+    const clientMetaConnectionsStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36}|\d+)\/connections\/meta\/start$/);
+    const clientMetaOauthStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36}|\d+)\/oauth\/meta\/start$/);
     const clientMetaStartMatch = clientMetaConnectionsStartMatch || clientMetaOauthStartMatch;
     if (clientMetaStartMatch && (request.method === 'GET' || request.method === 'POST')) {
         try {
@@ -1176,7 +1176,7 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    const clientMetaCallbackMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/callback$/);
+    const clientMetaCallbackMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36}|\d+)\/oauth\/meta\/callback$/);
     if (clientMetaCallbackMatch && request.method === 'GET') {
         try {
             const clientId = String(clientMetaCallbackMatch[1] || '').trim();
