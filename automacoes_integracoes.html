@@ -106,6 +106,7 @@
                         </div>
                     </nav>
                 </div>
+                <div id="integracoes-access-loader" class="text-sm text-gray-500 mb-4 hidden">Validando acesso...</div>
                 <div id="integracoes-content" class="space-y-6">
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <div class="mb-6">
@@ -168,33 +169,94 @@
             sidebar.classList.toggle('z-50');
         });
 
+        async function waitForSupabaseClient() {
+            if (window.supabaseClient) return window.supabaseClient;
+
+            const loader = document.getElementById('integracoes-access-loader');
+            if (loader) {
+                loader.textContent = 'Aguardando Supabase...';
+                loader.classList.remove('hidden');
+            }
+
+            return new Promise((resolve) => {
+                const maxWaitMs = 10000;
+                const intervalMs = 100;
+                let waited = 0;
+
+                const tryResolve = () => {
+                    if (window.supabaseClient) {
+                        resolve(window.supabaseClient);
+                        return true;
+                    }
+                    return false;
+                };
+
+                if (tryResolve()) return;
+
+                const interval = setInterval(() => {
+                    waited += intervalMs;
+                    if (tryResolve() || waited >= maxWaitMs) {
+                        clearInterval(interval);
+                        resolve(window.supabaseClient || null);
+                    }
+                }, intervalMs);
+            });
+        }
+
         async function enforceIntegrationsAccess() {
-            if (!window.supabaseClient || !window.supabaseClient.auth || !window.supabaseClient.auth.getSession) {
+            const loader = document.getElementById('integracoes-access-loader');
+            if (loader) {
+                loader.textContent = 'Validando acesso...';
+                loader.classList.remove('hidden');
+            }
+
+            const supabase = await waitForSupabaseClient();
+            if (!supabase || !supabase.auth || !supabase.auth.getSession) {
+                console.debug('redirect reason: supabase_not_ready');
                 window.location.href = 'index.html';
                 return;
             }
 
-            const sessionResult = await window.supabaseClient.auth.getSession();
+            const sessionResult = await supabase.auth.getSession();
             const session = sessionResult && sessionResult.data ? sessionResult.data.session : null;
+            const user = session ? session.user : null;
 
-            if (!session) {
+            console.debug('auth user id', user ? user.id : null);
+
+            if (!user) {
+                console.debug('redirect reason: no_session');
                 window.location.href = 'index.html';
                 return;
             }
 
-            const profileResult = await window.supabaseClient
+            let roleValue = null;
+            const profileById = await supabase
                 .from('profiles')
                 .select('role')
-                .eq('id', session.user.id)
-                .single();
+                .eq('id', user.id)
+                .maybeSingle();
 
-            const role = profileResult && profileResult.data ? profileResult.data.role : null;
+            if (profileById && profileById.data) {
+                roleValue = profileById.data.role;
+            } else {
+                const profileByUserId = await supabase
+                    .from('profiles')
+                    .select('role')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+                roleValue = profileByUserId && profileByUserId.data ? profileByUserId.data.role : null;
+            }
 
-            if (role !== 'super_admin' && role !== 'admin') {
+            const normalizedRole = String(roleValue || '').trim().toLowerCase();
+            console.debug('role recebido', normalizedRole);
+
+            if (!['super_admin', 'admin'].includes(normalizedRole)) {
+                console.debug('redirect reason: role_not_allowed');
                 window.location.href = 'dashboard.html';
                 return;
             }
 
+            if (loader) loader.classList.add('hidden');
             if (window.checkPermissions) window.checkPermissions();
             if (window.showContent) window.showContent();
         }
