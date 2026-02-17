@@ -902,7 +902,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentClientIdForConnections) return;
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/clients/${currentClientIdForConnections}/oauth/meta/start?platform=${encodeURIComponent(platform)}`, {
+        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/meta/start?platform=${encodeURIComponent(platform)}`, {
             method: 'GET',
             headers
         });
@@ -913,11 +913,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const data = await res.json();
-        if (!data.url) {
+        if (!data.auth_url) {
             throw new Error('URL de conexão não recebida');
         }
 
-        window.location.href = data.url;
+        window.location.href = data.auth_url;
     };
 
     const disconnectPlatform = async (platform) => {

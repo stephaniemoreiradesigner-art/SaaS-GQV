@@ -285,7 +285,8 @@
                 return;
             }
 
-            const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/oauth/meta/start?platform=facebook`, {
+            console.debug('Meta clientId', clientId);
+            const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`, {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${session.access_token}`
@@ -293,13 +294,26 @@
             });
 
             if (!res.ok) {
+                if (res.status !== 404) {
+                    const errorText = await res.text();
+                    console.error('Erro ao iniciar conexão Meta:', res.status, errorText);
+                    alert('Erro ao iniciar conexão Meta. Verifique sua sessão e tente novamente.');
+                }
+                return;
+            }
+
+            const contentType = res.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const errorText = await res.text();
+                console.error('Resposta inválida ao iniciar conexão Meta:', errorText);
+                alert('Erro ao iniciar conexão Meta. Resposta inesperada do servidor.');
                 return;
             }
 
             const data = await res.json();
-            if (data && data.url) {
-                console.debug('OAuth start response', data.url);
-                window.location.href = data.url;
+            if (data && data.auth_url) {
+                console.debug('Meta OAuth url', data.auth_url);
+                window.location.href = data.auth_url;
             }
         }
 
@@ -453,13 +467,15 @@
                     console.debug('Meta clientId', clientId);
 
                     try {
-                        const startUrl = `/api/clients/${encodeURIComponent(clientId)}/oauth/meta/start?platform=facebook`;
+                        const startUrl = `/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`;
                         console.debug('OAuth start url', startUrl);
                         const res = await fetch(startUrl);
                         if (!res.ok) {
-                            const errorText = await res.text();
-                            console.error('Erro ao iniciar conexão Meta:', res.status, errorText);
-                            alert('Erro ao iniciar conexão Meta. Verifique sua sessão e tente novamente.');
+                            if (res.status !== 404) {
+                                const errorText = await res.text();
+                                console.error('Erro ao iniciar conexão Meta:', res.status, errorText);
+                                alert('Erro ao iniciar conexão Meta. Verifique sua sessão e tente novamente.');
+                            }
                             return;
                         }
 
@@ -472,14 +488,14 @@
                         }
 
                         const data = await res.json();
-                        console.debug('Meta OAuth url', data?.url);
+                        console.debug('Meta OAuth url', data?.auth_url);
 
-                        if (!data?.url) {
+                        if (!data?.auth_url) {
                             alert('Erro ao iniciar conexão Meta');
                             return;
                         }
 
-                        window.location.href = data.url;
+                        window.location.href = data.auth_url;
                     } catch (err) {
                         console.error('Erro ao iniciar OAuth:', err);
                         alert('Erro inesperado ao conectar com Meta');

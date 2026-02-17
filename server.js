@@ -72,6 +72,101 @@ const getMetaRedirectUri = (request) => {
     return `${baseUrl.replace(/\/$/, '')}/api/oauth/meta/callback`;
 };
 
+const handleClientMetaStart = async (request, response, parsedUrl, clientId) => {
+    if (!clientId) {
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'cliente_invalido' }));
+        return;
+    }
+
+    const platform = String((parsedUrl.query || {}).platform || '').toLowerCase();
+    if (!['instagram', 'facebook'].includes(platform)) {
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'plataforma_invalida', message: 'platform deve ser instagram ou facebook' }));
+        return;
+    }
+
+    const appId = envVars['FACEBOOK_APP_ID'] || '';
+    const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
+    if (!appId || !appSecret) {
+        response.writeHead(500, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
+        return;
+    }
+
+    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+    if (!supabaseUrl || !serviceRoleKey) {
+        response.writeHead(500, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+        return;
+    }
+
+    const clientParams = new URLSearchParams();
+    clientParams.set('select', 'id,time_id');
+    clientParams.set('id', `eq.${clientId}`);
+    clientParams.set('limit', '1');
+    const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+    const clientRes = await fetch(clientUrl, {
+        method: 'GET',
+        headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`
+        }
+    });
+
+    const clientJson = await clientRes.json().catch(() => null);
+    if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
+        response.writeHead(404, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
+        return;
+    }
+
+    const timeId = clientJson[0]?.time_id || null;
+    if (!timeId) {
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'time_id_invalido' }));
+        return;
+    }
+
+    const redirectUri = getMetaRedirectUri(request);
+    if (!redirectUri) {
+        response.writeHead(500, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'meta_redirect_nao_configurado' }));
+        return;
+    }
+    const nonce = crypto.randomBytes(16).toString('hex');
+    const statePayload = { clientId, timeId, platform, nonce, ts: Date.now() };
+    const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
+    const sig = signState(stateB64, appSecret);
+    const state = `${stateB64}.${sig}`;
+
+    const responseType = 'code';
+    const scope = ['public_profile', 'ads_read'].join(',');
+    const params = new URLSearchParams();
+    params.set('client_id', appId);
+    params.set('redirect_uri', redirectUri);
+    params.set('state', state);
+    params.set('response_type', responseType);
+    params.set('scope', scope);
+    const configId = process.env.META_LOGIN_CONFIG_ID || '';
+    if (configId) {
+        params.set('config_id', configId);
+    }
+
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+    console.log('[META OAUTH URL]', authUrl);
+    console.debug('OAuth Meta start', {
+        clientId,
+        redirect_uri: redirectUri,
+        scope,
+        response_type: responseType,
+        platform,
+        authUrl
+    });
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ auth_url: authUrl }));
+};
+
 const getBearerToken = (request) => {
     const header = (request.headers.authorization || '').trim();
     const match = header.match(/^Bearer\s+(.+)$/i);
@@ -1058,102 +1153,13 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    const clientMetaStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/start$/);
-    if (clientMetaStartMatch && request.method === 'GET') {
+    const clientMetaConnectionsStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/connections\/meta\/start$/);
+    const clientMetaOauthStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/start$/);
+    const clientMetaStartMatch = clientMetaConnectionsStartMatch || clientMetaOauthStartMatch;
+    if (clientMetaStartMatch && (request.method === 'GET' || request.method === 'POST')) {
         try {
             const clientId = String(clientMetaStartMatch[1] || '').trim();
-            if (!clientId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'cliente_invalido' }));
-                return;
-            }
-
-            const platform = String((parsedUrl.query || {}).platform || '').toLowerCase();
-            if (!['instagram', 'facebook'].includes(platform)) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'plataforma_invalida', message: 'platform deve ser instagram ou facebook' }));
-                return;
-            }
-
-            const appId = envVars['FACEBOOK_APP_ID'] || '';
-            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
-            if (!appId || !appSecret) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
-                return;
-            }
-
-            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-            if (!supabaseUrl || !serviceRoleKey) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
-                return;
-            }
-
-            const clientParams = new URLSearchParams();
-            clientParams.set('select', 'id,time_id');
-            clientParams.set('id', `eq.${clientId}`);
-            clientParams.set('limit', '1');
-            const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
-            const clientRes = await fetch(clientUrl, {
-                method: 'GET',
-                headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`
-                }
-            });
-
-            const clientJson = await clientRes.json().catch(() => null);
-            if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
-                response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
-                return;
-            }
-
-            const timeId = clientJson[0]?.time_id || null;
-            if (!timeId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'time_id_invalido' }));
-                return;
-            }
-
-            const redirectUri = getMetaRedirectUri(request);
-            if (!redirectUri) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_redirect_nao_configurado' }));
-                return;
-            }
-            const nonce = crypto.randomBytes(16).toString('hex');
-            const statePayload = { clientId, timeId, platform, nonce, ts: Date.now() };
-            const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
-            const sig = signState(stateB64, appSecret);
-            const state = `${stateB64}.${sig}`;
-
-            const responseType = 'code';
-            const scope = ['public_profile', 'ads_read'].join(',');
-            const params = new URLSearchParams();
-            params.set('client_id', appId);
-            params.set('redirect_uri', redirectUri);
-            params.set('state', state);
-            params.set('response_type', responseType);
-            params.set('scope', scope);
-            const configId = process.env.META_LOGIN_CONFIG_ID || '';
-            if (configId) {
-                params.set('config_id', configId);
-            }
-
-            const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
-            console.log('[META OAUTH URL]', authUrl);
-            console.debug('OAuth Meta start', {
-                clientId,
-                redirect_uri: redirectUri,
-                scope,
-                response_type: responseType,
-                platform,
-                authUrl
-            });
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ url: authUrl }));
+            await handleClientMetaStart(request, response, parsedUrl, clientId);
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1299,69 +1305,6 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    // DEPRECATED: use /api/clients/:clientId/oauth/meta/start
-    const metaStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/connections\/meta\/start$/);
-    if (metaStartMatch && (request.method === 'GET' || request.method === 'POST')) {
-        try {
-            const clientId = String(metaStartMatch[1] || '').trim();
-            if (!clientId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'cliente_invalido' }));
-                return;
-            }
-            const platform = String((parsedUrl.query || {}).platform || '').toLowerCase();
-            if (!['instagram', 'facebook'].includes(platform)) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'plataforma_invalida', message: 'platform deve ser instagram ou facebook' }));
-                return;
-            }
-
-            const appId = envVars['FACEBOOK_APP_ID'] || '';
-            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
-            const missing = [];
-            if (!appId) missing.push('FACEBOOK_APP_ID');
-            if (!appSecret) missing.push('FACEBOOK_APP_SECRET');
-            if (missing.length > 0) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_nao_configurado', missing }));
-                return;
-            }
-
-            const redirectUri = getMetaRedirectUri(request);
-            if (!redirectUri) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_redirect_nao_configurado' }));
-                return;
-            }
-            const nonce = crypto.randomBytes(16).toString('hex');
-            const statePayload = { clientId, platform, nonce, ts: Date.now() };
-            const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
-            const sig = signState(stateB64, appSecret);
-            const state = `${stateB64}.${sig}`;
-            const scope = 'public_profile';
-            if (!scope || typeof scope !== 'string' || !scope.trim()) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'scope_invalido' }));
-                return;
-            }
-
-            const params = new URLSearchParams();
-            params.set('client_id', appId);
-            params.set('redirect_uri', redirectUri);
-            params.set('state', state);
-            params.set('scope', scope);
-            params.set('response_type', 'code');
-
-            const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ url: authUrl }));
-            return;
-        } catch (error) {
-            response.writeHead(500, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ error: error.message }));
-            return;
-        }
-    }
 
     // DEPRECATED: use /api/clients/:clientId/oauth/meta/start
     if (pathname === '/api/oauth/meta/start' && request.method === 'GET') {
