@@ -362,22 +362,20 @@
                     return;
                 }
 
-                const { data, error } = await supabase
-                    .from('clientes')
-                    .select('id, nome_fantasia, nome_empresa');
-
-                if (error) {
-                    console.error('Erro ao carregar clientes:', error);
+                const response = await fetch('/api/clients/list');
+                const payload = await response.json().catch(() => null);
+                if (!response.ok) {
+                    console.error('Erro ao carregar clientes:', payload);
                     clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
                     clientSelect.disabled = true;
                     setEmptyState(true);
                     return;
                 }
 
-                const clientes = Array.isArray(data) ? data : [];
+                const clientes = Array.isArray(payload?.clients) ? payload.clients : [];
                 const lista = clientes
                     .map((cliente) => {
-                        const nome = cliente.nome_fantasia || cliente.nome_empresa || '';
+                        const nome = cliente.nome || cliente.nome_fantasia || cliente.nome_empresa || '';
                         return {
                             id: String(cliente.id),
                             nome

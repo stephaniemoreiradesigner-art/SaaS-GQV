@@ -316,6 +316,54 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/clients/list' && request.method === 'GET') {
+        try {
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'supabase_nao_configurado', missing: ['SUPABASE_SERVICE_ROLE_KEY'] }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,nome_fantasia,nome_empresa');
+            params.set('order', 'nome_fantasia.asc,nome_empresa.asc');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${params.toString()}`;
+            const headers = {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`
+            };
+
+            const supabaseResponse = await fetch(targetUrl, { method: 'GET', headers });
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_buscar_clientes' }));
+                return;
+            }
+
+            const list = Array.isArray(json) ? json : [];
+            const clients = list
+                .map((cliente) => {
+                    const nome = cliente?.nome_fantasia || cliente?.nome_empresa || '';
+                    const id = cliente?.id ? String(cliente.id) : '';
+                    return { id, nome };
+                })
+                .filter((cliente) => cliente.id && cliente.nome);
+
+            clients.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ clients }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     const connectionsListMatch = pathname.match(/^\/api\/clients\/(\d+)\/connections$/);
     if (connectionsListMatch && request.method === 'GET') {
         try {
@@ -1010,11 +1058,11 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    const clientMetaStartMatch = pathname.match(/^\/api\/clients\/(\d+)\/oauth\/meta\/start$/);
+    const clientMetaStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/start$/);
     if (clientMetaStartMatch && request.method === 'GET') {
         try {
-            const clientId = Number(clientMetaStartMatch[1]);
-            if (!Number.isFinite(clientId)) {
+            const clientId = String(clientMetaStartMatch[1] || '').trim();
+            if (!clientId) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'cliente_invalido' }));
                 return;
@@ -1081,14 +1129,24 @@ const server = http.createServer(async (request, response) => {
             const sig = signState(stateB64, appSecret);
             const state = `${stateB64}.${sig}`;
 
+            const responseType = 'code';
+            const scope = 'public_profile';
             const params = new URLSearchParams();
             params.set('client_id', appId);
             params.set('redirect_uri', redirectUri);
             params.set('state', state);
-            params.set('response_type', 'code');
-            params.set('scope', 'public_profile');
+            params.set('response_type', responseType);
+            params.set('scope', scope);
 
             const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+            console.debug('OAuth Meta start', {
+                clientId,
+                redirect_uri: redirectUri,
+                scope,
+                response_type: responseType,
+                platform,
+                authUrl
+            });
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ url: authUrl }));
             return;
@@ -1099,7 +1157,7 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
-    const clientMetaCallbackMatch = pathname.match(/^\/api\/clients\/(\d+)\/oauth\/meta\/callback$/);
+    const clientMetaCallbackMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/callback$/);
     if (clientMetaCallbackMatch && request.method === 'GET') {
         const redirectPath = `/api/oauth/meta/callback${parsedUrl.search || ''}`;
         response.writeHead(302, { Location: redirectPath });
@@ -1108,10 +1166,15 @@ const server = http.createServer(async (request, response) => {
     }
 
     // DEPRECATED: use /api/clients/:clientId/oauth/meta/start
-    const metaStartMatch = pathname.match(/^\/api\/clients\/(\d+)\/connections\/meta\/start$/);
+    const metaStartMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/connections\/meta\/start$/);
     if (metaStartMatch && (request.method === 'GET' || request.method === 'POST')) {
         try {
-            const clientId = metaStartMatch[1];
+            const clientId = String(metaStartMatch[1] || '').trim();
+            if (!clientId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
             const platform = String((parsedUrl.query || {}).platform || '').toLowerCase();
             if (!['instagram', 'facebook'].includes(platform)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1137,7 +1200,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
             const nonce = crypto.randomBytes(16).toString('hex');
-            const statePayload = { clientId: Number(clientId), platform, nonce, ts: Date.now() };
+            const statePayload = { clientId, platform, nonce, ts: Date.now() };
             const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
             const sig = signState(stateB64, appSecret);
             const state = `${stateB64}.${sig}`;
@@ -1268,10 +1331,10 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const payloadClientId = Number(payload?.clientId);
+            const payloadClientId = String(payload?.clientId || '').trim();
             const payloadPlatform = String(payload?.platform || '').toLowerCase();
             const userId = payload?.userId || null;
-            const isClientFlow = Number.isFinite(payloadClientId) && ['facebook', 'instagram'].includes(payloadPlatform);
+            const isClientFlow = !!payloadClientId && ['facebook', 'instagram'].includes(payloadPlatform);
 
             if (!isClientFlow && !userId) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
