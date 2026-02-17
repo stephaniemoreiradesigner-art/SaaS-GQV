@@ -118,7 +118,7 @@
                                     <div class="font-semibold text-gray-800">Meta (Facebook/Instagram)</div>
                                     <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
                                 </div>
-                                <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
+                                <button id="meta-connect-btn" class="w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">Conectar</button>
                             </div>
                             <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                                 <div class="flex items-center justify-between mb-3">
@@ -199,7 +199,42 @@
             if (window.showContent) window.showContent();
         }
 
-        document.addEventListener('DOMContentLoaded', enforceIntegrationsAccess);
+        async function startMetaOAuth() {
+            const sessionResult = await window.supabaseClient.auth.getSession();
+            const session = sessionResult && sessionResult.data ? sessionResult.data.session : null;
+            if (!session || !session.access_token) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('platform', 'facebook');
+            params.set('scope', 'public_profile');
+
+            const res = await fetch(`/api/oauth/meta/start?${params.toString()}`, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`
+                }
+            });
+
+            if (!res.ok) {
+                return;
+            }
+
+            const data = await res.json();
+            if (data && data.url) {
+                window.location.href = data.url;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            enforceIntegrationsAccess();
+            const metaBtn = document.getElementById('meta-connect-btn');
+            if (metaBtn) {
+                metaBtn.addEventListener('click', startMetaOAuth);
+            }
+        });
     </script>
 </body>
 </html>
