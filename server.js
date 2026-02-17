@@ -249,6 +249,14 @@ const server = http.createServer(async (request, response) => {
         return;
     }
 
+    if (pathname === '/api/__version' && request.method === 'GET') {
+        const commit = envVars['GIT_SHA'] || process.env.GIT_SHA || null;
+        const nodeEnv = envVars['NODE_ENV'] || process.env.NODE_ENV || null;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ commit, env: nodeEnv }));
+        return;
+    }
+
     if (pathname === '/api/config' && request.method === 'GET') {
         const payload = {
             app_url: envVars['APP_URL'] || ''
