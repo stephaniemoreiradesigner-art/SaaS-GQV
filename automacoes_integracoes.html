@@ -119,7 +119,7 @@
                                     <div class="font-semibold text-gray-800">Meta (Facebook/Instagram)</div>
                                     <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
                                 </div>
-                                <button id="meta-connect-btn" class="w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">Conectar</button>
+                                <button id="btn-connect-meta" class="w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">Conectar</button>
                             </div>
                             <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                                 <div class="flex items-center justify-between mb-3">
@@ -299,6 +299,39 @@
             if (metaBtn) {
                 metaBtn.addEventListener('click', startMetaOAuth);
             }
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('btn-connect-meta');
+            if (!btn) {
+                console.error('Botão Meta não encontrado');
+                return;
+            }
+
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                console.log('Clique Meta detectado');
+
+                const clientId = localStorage.getItem('current_client_id') || '1';
+
+                try {
+                    const res = await fetch(`/api/clients/${clientId}/oauth/meta/start?platform=facebook`);
+                    const data = await res.json();
+
+                    console.log('Resposta OAuth:', data);
+
+                    if (!res.ok || !data.url) {
+                        alert('Erro ao iniciar conexão Meta');
+                        return;
+                    }
+
+                    window.location.href = data.url;
+                } catch (err) {
+                    console.error('Erro ao iniciar OAuth:', err);
+                    alert('Erro inesperado ao conectar com Meta');
+                }
+            });
         });
     </script>
 </body>
