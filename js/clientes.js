@@ -889,7 +889,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentClientIdForConnections) return;
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/meta/start?platform=${encodeURIComponent(platform)}`, {
+        const res = await fetch(`/api/clients/${currentClientIdForConnections}/oauth/meta/start?platform=${encodeURIComponent(platform)}`, {
             method: 'GET',
             headers
         });
