@@ -450,16 +450,23 @@
                         alert('Selecione um cliente para iniciar a integração.');
                         return;
                     }
+                    console.debug('Meta clientId', clientId);
 
                     try {
                         const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
                         console.debug('OAuth start url', startUrl);
                         const res = await fetch(startUrl);
+                        if (!res.ok) {
+                            const errorText = await res.text();
+                            console.error('Erro ao iniciar conexão Meta:', res.status, errorText);
+                            alert('Erro ao iniciar conexão Meta. Verifique sua sessão e tente novamente.');
+                            return;
+                        }
+
                         const data = await res.json();
+                        console.debug('Meta OAuth url', data?.url);
 
-                        console.log('Resposta OAuth:', data);
-
-                        if (!res.ok || !data.url) {
+                        if (!data?.url) {
                             alert('Erro ao iniciar conexão Meta');
                             return;
                         }
