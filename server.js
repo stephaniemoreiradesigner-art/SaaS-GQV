@@ -1130,15 +1130,20 @@ const server = http.createServer(async (request, response) => {
             const state = `${stateB64}.${sig}`;
 
             const responseType = 'code';
-            const scope = 'public_profile';
+            const scope = ['public_profile', 'ads_read'].join(',');
             const params = new URLSearchParams();
             params.set('client_id', appId);
             params.set('redirect_uri', redirectUri);
             params.set('state', state);
             params.set('response_type', responseType);
             params.set('scope', scope);
+            const configId = process.env.META_LOGIN_CONFIG_ID || '';
+            if (configId) {
+                params.set('config_id', configId);
+            }
 
             const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+            console.log('[META OAUTH URL]', authUrl);
             console.debug('OAuth Meta start', {
                 clientId,
                 redirect_uri: redirectUri,
