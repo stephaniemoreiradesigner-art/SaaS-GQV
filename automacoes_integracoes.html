@@ -101,7 +101,7 @@
                         <a href="automacoes.html?tab=backups" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
                             <i class="fas fa-history"></i> Backups
                         </a>
-                        <div class="tab-btn restricted whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-primary border-primary flex items-center gap-2" data-module="automacoes_integracoes">
+                        <div class="tab-btn restricted whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-primary border-primary flex items-center gap-2" data-roles="super_admin,admin">
                             <i class="fas fa-plug"></i> Integrações
                         </div>
                     </nav>
@@ -168,64 +168,38 @@
             sidebar.classList.toggle('z-50');
         });
 
-        const requiredPermissions = ['automacoes_integracoes', 'AUTOMATIONS_INTEGRATIONS_VIEW'];
-
-        async function resolveUserPermission() {
-            let attempts = 0;
-            while (!window.currentUserData && attempts < 20) {
-                await new Promise(r => setTimeout(r, 100));
-                attempts++;
+        async function enforceIntegrationsAccess() {
+            if (!window.supabaseClient || !window.supabaseClient.auth || !window.supabaseClient.auth.getSession) {
+                window.location.href = 'index.html';
+                return;
             }
 
-            let user = window.currentUserData || null;
-            let role = user && user.perfil_acesso ? user.perfil_acesso : 'usuario';
-            let permissoes = user && Array.isArray(user.permissoes) ? user.permissoes : [];
+            const sessionResult = await window.supabaseClient.auth.getSession();
+            const session = sessionResult && sessionResult.data ? sessionResult.data.session : null;
 
-            if ((!user || permissoes.length === 0) && window.supabaseClient?.auth?.getSession) {
-                const { data } = await window.supabaseClient.auth.getSession();
-                const session = data && data.session ? data.session : null;
-                if (session) {
-                    const { data: colab } = await window.supabaseClient
-                        .from('colaboradores')
-                        .select('perfil_acesso, permissoes')
-                        .eq('email', session.user.email)
-                        .maybeSingle();
-                    if (colab) {
-                        user = { ...(user || {}), perfil_acesso: colab.perfil_acesso, permissoes: colab.permissoes || [] };
-                        window.currentUserData = user;
-                        role = colab.perfil_acesso || role;
-                        permissoes = Array.isArray(colab.permissoes) ? colab.permissoes : [];
-                    }
-                }
+            if (!session) {
+                window.location.href = 'index.html';
+                return;
             }
 
-            return { role, permissoes };
-        }
+            const profileResult = await window.supabaseClient
+                .from('profiles')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
 
-        function hasIntegrationsAccess(role, permissoes) {
-            if (role === 'super_admin' || role === 'admin') return true;
-            return permissoes.some(p => requiredPermissions.includes(p));
-        }
+            const role = profileResult && profileResult.data ? profileResult.data.role : null;
 
-        async function applyIntegrationsGuard() {
-            const { role, permissoes } = await resolveUserPermission();
-            const allowed = hasIntegrationsAccess(role, permissoes);
-            const content = document.getElementById('integracoes-content');
-            const denied = document.getElementById('integracoes-no-access');
-
-            if (allowed) {
-                content?.classList.remove('hidden');
-                denied?.classList.add('hidden');
-            } else {
-                content?.classList.add('hidden');
-                denied?.classList.remove('hidden');
+            if (role !== 'super_admin' && role !== 'admin') {
+                window.location.href = 'dashboard.html';
+                return;
             }
 
             if (window.checkPermissions) window.checkPermissions();
             if (window.showContent) window.showContent();
         }
 
-        document.addEventListener('DOMContentLoaded', applyIntegrationsGuard);
+        document.addEventListener('DOMContentLoaded', enforceIntegrationsAccess);
     </script>
 </body>
 </html>
