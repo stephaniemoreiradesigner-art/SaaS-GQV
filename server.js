@@ -1164,10 +1164,139 @@ const server = http.createServer(async (request, response) => {
 
     const clientMetaCallbackMatch = pathname.match(/^\/api\/clients\/([0-9a-fA-F-]{36})\/oauth\/meta\/callback$/);
     if (clientMetaCallbackMatch && request.method === 'GET') {
-        const redirectPath = `/api/oauth/meta/callback${parsedUrl.search || ''}`;
-        response.writeHead(302, { Location: redirectPath });
-        response.end();
-        return;
+        try {
+            const clientId = String(clientMetaCallbackMatch[1] || '').trim();
+            const query = parsedUrl.query || {};
+            const code = query.code;
+            if (!clientId || !code) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const appId = envVars['FACEBOOK_APP_ID'] || '';
+            const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
+            if (!appId || !appSecret) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const clientParams = new URLSearchParams();
+            clientParams.set('select', 'id,time_id');
+            clientParams.set('id', `eq.${clientId}`);
+            clientParams.set('limit', '1');
+            const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+            const clientRes = await fetch(clientUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const clientJson = await clientRes.json().catch(() => null);
+            if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
+                return;
+            }
+
+            const timeId = clientJson[0]?.time_id || null;
+            if (!timeId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'time_id_invalido' }));
+                return;
+            }
+
+            const appUrl = buildAppUrl(request);
+            const redirectUri = appUrl ? `${appUrl.replace(/\/$/, '')}${pathname}` : pathname;
+
+            const tokenParams = new URLSearchParams();
+            tokenParams.set('client_id', appId);
+            tokenParams.set('client_secret', appSecret);
+            tokenParams.set('redirect_uri', redirectUri);
+            tokenParams.set('code', code);
+
+            const tokenRes = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?${tokenParams.toString()}`);
+            const tokenJson = await tokenRes.json();
+            if (!tokenRes.ok) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: tokenJson.error?.message || 'erro_ao_gerar_token' }));
+                return;
+            }
+
+            const exchangeParams = new URLSearchParams();
+            exchangeParams.set('grant_type', 'fb_exchange_token');
+            exchangeParams.set('client_id', appId);
+            exchangeParams.set('client_secret', appSecret);
+            exchangeParams.set('fb_exchange_token', tokenJson.access_token);
+
+            const exchangeRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?${exchangeParams.toString()}`);
+            const exchangeJson = await exchangeRes.json();
+            if (!exchangeRes.ok) {
+                console.error('Erro ao trocar token Meta:', exchangeJson.error?.message || 'erro_ao_gerar_token');
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: exchangeJson.error?.message || 'erro_ao_gerar_token' }));
+                return;
+            }
+
+            const accessToken = exchangeJson.access_token;
+            const expiresIn = Number(exchangeJson.expires_in);
+            const tokenExpiresAt = Number.isFinite(expiresIn)
+                ? new Date(Date.now() + expiresIn * 1000).toISOString()
+                : null;
+            const rawPlatform = String(query.platform || 'facebook').toLowerCase();
+            const platform = ['facebook', 'instagram'].includes(rawPlatform) ? rawPlatform : 'facebook';
+            const scope = ['public_profile', 'ads_read'].join(',');
+
+            const upsertPayload = {
+                client_id: clientId,
+                time_id: timeId,
+                platform,
+                status: 'connected',
+                access_token: accessToken,
+                token_expires_at: tokenExpiresAt,
+                scope
+            };
+
+            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
+            const upsertRes = await fetch(upsertUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(upsertPayload)
+            });
+
+            if (!upsertRes.ok) {
+                const errText = await upsertRes.text();
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: errText || 'erro_ao_salvar_conexao' }));
+                return;
+            }
+
+            const redirectUrl = appUrl
+                ? `${appUrl.replace(/\/$/, '')}/automacoes_integracoes.html?provider=meta&status=connected&client_id=${encodeURIComponent(clientId)}`
+                : `/automacoes_integracoes.html?provider=meta&status=connected&client_id=${encodeURIComponent(clientId)}`;
+            response.writeHead(302, { Location: redirectUrl });
+            response.end();
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
     }
 
     // DEPRECATED: use /api/clients/:clientId/oauth/meta/start
