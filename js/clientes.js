@@ -396,8 +396,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">R$ ${parseFloat(cliente.valor_mensalidade || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Dia ${cliente.dia_vencimento || '-'}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="editCliente('${cliente.id}')"><i class="fas fa-edit"></i></button>
-                    <button class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded transition-colors" onclick="deleteCliente('${cliente.id}')"><i class="fas fa-trash"></i></button>
+                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="abrirIntegracoes('${cliente.id}')" title="Integrações">
+                        <i class="fas fa-plug"></i>
+                    </button>
+                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="editCliente('${cliente.id}')" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded transition-colors" onclick="deleteCliente('${cliente.id}')" title="Excluir">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </td>
             `;
             clientesTableBody.appendChild(row);
@@ -690,6 +697,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error(e);
             alert('Erro ao excluir cliente.');
         }
+    }
+
+    window.abrirIntegracoes = function(clienteId) {
+        if (!clienteId) return;
+        localStorage.setItem('current_client_id', String(clienteId));
+        window.location.href = 'automacoes_integracoes.html';
     }
 
     // --- IMPORTAÇÃO CSV ---

@@ -313,7 +313,11 @@
                 e.preventDefault();
                 console.log('Clique Meta detectado');
 
-                const clientId = localStorage.getItem('current_client_id') || '1';
+                const clientId = localStorage.getItem('current_client_id');
+                if (!clientId) {
+                    alert('Selecione um cliente para iniciar a integração.');
+                    return;
+                }
 
                 try {
                     const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
