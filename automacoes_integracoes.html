@@ -269,11 +269,13 @@
                 return;
             }
 
-            const params = new URLSearchParams();
-            params.set('platform', 'facebook');
-            params.set('scope', 'public_profile');
+            const queryParams = new URLSearchParams(window.location.search);
+            const clientId = queryParams.get('cliente_id') || queryParams.get('cliente') || queryParams.get('client_id') || queryParams.get('clientId');
+            if (!clientId) {
+                return;
+            }
 
-            const res = await fetch(`/api/oauth/meta/start?${params.toString()}`, {
+            const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/oauth/meta/start?platform=facebook`, {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${session.access_token}`
@@ -286,6 +288,7 @@
 
             const data = await res.json();
             if (data && data.url) {
+                console.debug('OAuth start response', data.url);
                 window.location.href = data.url;
             }
         }
