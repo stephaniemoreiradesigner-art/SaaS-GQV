@@ -117,9 +117,9 @@
                     <button onclick="switchTab('backups')" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
                         <i class="fas fa-history"></i> Backups
                     </button>
-                    <button onclick="switchTab('integracoes')" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
+                    <a href="automacoes_integracoes.html" class="tab-btn restricted whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2" data-module="automacoes_integracoes">
                         <i class="fas fa-plug"></i> Integrações
-                    </button>
+                    </a>
                 </nav>
             </div>
 
@@ -332,57 +332,6 @@
                         <div id="version-editor-placeholder" class="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
                             <i class="fas fa-code-branch text-4xl text-gray-300 mb-3"></i>
                             <p class="text-gray-500">Selecione um fluxo à esquerda para gerenciar versões.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="integracoes" class="tab-content space-y-6">
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div class="mb-6">
-                        <h3 class="text-lg font-medium text-gray-800">Integrações</h3>
-                        <p class="text-sm text-gray-500 mt-1">Conecte provedores para leitura de métricas e criação de campanhas.</p>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="font-semibold text-gray-800">Meta (Facebook/Instagram)</div>
-                                <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="flex-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors" onclick="connectProvider('meta')">Conectar</button>
-                                <button class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white transition-colors" onclick="openProviderDetails('meta')">Ver detalhes</button>
-                            </div>
-                        </div>
-                        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="font-semibold text-gray-800">Google Ads</div>
-                                <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="flex-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors" onclick="connectProvider('google')">Conectar</button>
-                                <button class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white transition-colors" onclick="openProviderDetails('google')">Ver detalhes</button>
-                            </div>
-                        </div>
-                        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="font-semibold text-gray-800">LinkedIn Ads</div>
-                                <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="flex-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors" onclick="connectProvider('linkedin')">Conectar</button>
-                                <button class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white transition-colors" onclick="openProviderDetails('linkedin')">Ver detalhes</button>
-                            </div>
-                        </div>
-                        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                            <div class="flex items-center justify-between mb-3">
-                                <div class="font-semibold text-gray-800">TikTok Ads</div>
-                                <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="flex-1 px-3 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors" onclick="connectProvider('tiktok')">Conectar</button>
-                                <button class="flex-1 px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-white transition-colors" onclick="openProviderDetails('tiktok')">Ver detalhes</button>
-                            </div>
                         </div>
                     </div>
                 </div>

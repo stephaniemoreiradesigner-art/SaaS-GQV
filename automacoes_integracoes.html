@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automações - Integrações</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/theme.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
+            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+                <img src="assets/logo.png" id="logo-sidebar" alt="Logo" class="h-10 w-auto object-contain">
+            </div>
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+                <a href="dashboard.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-home w-6 text-center"></i>
+                    <span class="font-medium ml-2">Home</span>
+                </a>
+                <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-users w-6 text-center"></i>
+                    <span class="font-medium ml-2">Clientes</span>
+                </a>
+                <a href="tarefas.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-tasks w-6 text-center"></i>
+                    <span class="font-medium ml-2">Tarefas</span>
+                </a>
+                <a href="social_media.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors restricted" data-roles="super_admin,social_media">
+                    <i class="fas fa-hashtag w-6 text-center"></i>
+                    <span class="font-medium ml-2">Social Media</span>
+                </a>
+                <a href="trafego_pago.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors restricted" data-roles="super_admin,trafego_pago">
+                    <i class="fas fa-bullhorn w-6 text-center"></i>
+                    <span class="font-medium ml-2">Tráfego Pago</span>
+                </a>
+                <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-comments w-6 text-center"></i>
+                    <span class="font-medium ml-2">Chat</span>
+                </a>
+                <a href="financeiro.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors restricted" data-roles="super_admin,financeiro">
+                    <i class="fas fa-dollar-sign w-6 text-center"></i>
+                    <span class="font-medium ml-2">Financeiro</span>
+                </a>
+                <a href="automacoes.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-robot w-6 text-center"></i>
+                    <span class="font-medium ml-2">Automações</span>
+                </a>
+                <a href="colaboradores.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors restricted" data-roles="super_admin,admin">
+                    <i class="fas fa-user-friends w-6 text-center"></i>
+                    <span class="font-medium ml-2">Colaboradores</span>
+                </a>
+                <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors">
+                    <i class="fas fa-cog w-6 text-center"></i>
+                    <span class="font-medium ml-2">Configurações</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-100">
+                <div class="flex items-center gap-3 mb-3">
+                    <img id="user-avatar-sidebar" src="assets/avatar_placeholder.png" alt="User" class="h-9 w-9 rounded-full object-cover border border-gray-200">
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name-sidebar" class="text-sm font-medium text-gray-700 truncate">Carregando...</p>
+                        <p class="text-xs text-gray-500">Online</p>
+                    </div>
+                </div>
+                <button id="btn-logout-sidebar" class="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100 transition-colors">
+                    <i class="fas fa-sign-out-alt"></i> Sair
+                </button>
+            </div>
+        </aside>
+        <div class="flex-1 flex flex-col h-screen overflow-hidden relative dashboard-wrapper" style="display: none;">
+            <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 md:hidden z-10">
+                <img src="assets/logo.png" id="logo-mobile" alt="Logo" class="h-8 w-auto">
+                <button id="mobile-menu-btn" class="text-gray-500 hover:text-primary focus:outline-none">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </header>
+            <header class="bg-white border-b border-gray-200 h-16 hidden md:flex items-center justify-between px-6 z-10">
+                <h1 class="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-robot text-primary"></i> Central de Automação
+                </h1>
+                <div class="flex items-center gap-4">
+                    <button class="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors shadow-sm flex items-center gap-2" onclick="window.location.href='automacoes.html'">
+                        <i class="fas fa-project-diagram"></i> Fluxos
+                    </button>
+                </div>
+            </header>
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50">
+                <div class="border-b border-gray-200 mb-6 overflow-x-auto">
+                    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                        <a href="automacoes.html?tab=visao_geral_automacoes" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
+                            <i class="fas fa-chart-pie"></i> Visão Geral
+                        </a>
+                        <a href="automacoes.html?tab=fluxos" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
+                            <i class="fas fa-project-diagram"></i> Fluxos
+                        </a>
+                        <a href="automacoes.html?tab=backups" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
+                            <i class="fas fa-history"></i> Backups
+                        </a>
+                        <div class="tab-btn restricted whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-primary border-primary flex items-center gap-2" data-module="automacoes_integracoes">
+                            <i class="fas fa-plug"></i> Integrações
+                        </div>
+                    </nav>
+                </div>
+                <div id="integracoes-content" class="space-y-6">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-gray-800">Integrações</h3>
+                            <p class="text-sm text-gray-500 mt-1">Conecte provedores para leitura de métricas e criação de campanhas.</p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="font-semibold text-gray-800">Meta (Facebook/Instagram)</div>
+                                    <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
+                                </div>
+                                <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="font-semibold text-gray-800">Google</div>
+                                    <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
+                                </div>
+                                <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="font-semibold text-gray-800">LinkedIn</div>
+                                    <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
+                                </div>
+                                <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
+                            </div>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="font-semibold text-gray-800">TikTok</div>
+                                    <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
+                                </div>
+                                <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="integracoes-no-access" class="hidden">
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-10 text-center">
+                        <div class="w-16 h-16 mx-auto bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+                            <i class="fas fa-ban text-2xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800">Sem acesso</h3>
+                        <p class="text-sm text-gray-500 mt-2">Você não tem permissão para visualizar esta página.</p>
+                        <a href="dashboard.html" class="inline-flex mt-4 px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition-colors">Voltar para Home</a>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="js/app.js"></script>
+    <script src="js/components/sidebar.js"></script>
+    <script>
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
+            const sidebar = document.querySelector('aside');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('absolute');
+            sidebar.classList.toggle('h-full');
+            sidebar.classList.toggle('z-50');
+        });
+
+        const requiredPermissions = ['automacoes_integracoes', 'AUTOMATIONS_INTEGRATIONS_VIEW'];
+
+        async function resolveUserPermission() {
+            let attempts = 0;
+            while (!window.currentUserData && attempts < 20) {
+                await new Promise(r => setTimeout(r, 100));
+                attempts++;
+            }
+
+            let user = window.currentUserData || null;
+            let role = user && user.perfil_acesso ? user.perfil_acesso : 'usuario';
+            let permissoes = user && Array.isArray(user.permissoes) ? user.permissoes : [];
+
+            if ((!user || permissoes.length === 0) && window.supabaseClient?.auth?.getSession) {
+                const { data } = await window.supabaseClient.auth.getSession();
+                const session = data && data.session ? data.session : null;
+                if (session) {
+                    const { data: colab } = await window.supabaseClient
+                        .from('colaboradores')
+                        .select('perfil_acesso, permissoes')
+                        .eq('email', session.user.email)
+                        .maybeSingle();
+                    if (colab) {
+                        user = { ...(user || {}), perfil_acesso: colab.perfil_acesso, permissoes: colab.permissoes || [] };
+                        window.currentUserData = user;
+                        role = colab.perfil_acesso || role;
+                        permissoes = Array.isArray(colab.permissoes) ? colab.permissoes : [];
+                    }
+                }
+            }
+
+            return { role, permissoes };
+        }
+
+        function hasIntegrationsAccess(role, permissoes) {
+            if (role === 'super_admin' || role === 'admin') return true;
+            return permissoes.some(p => requiredPermissions.includes(p));
+        }
+
+        async function applyIntegrationsGuard() {
+            const { role, permissoes } = await resolveUserPermission();
+            const allowed = hasIntegrationsAccess(role, permissoes);
+            const content = document.getElementById('integracoes-content');
+            const denied = document.getElementById('integracoes-no-access');
+
+            if (allowed) {
+                content?.classList.remove('hidden');
+                denied?.classList.add('hidden');
+            } else {
+                content?.classList.add('hidden');
+                denied?.classList.remove('hidden');
+            }
+
+            if (window.checkPermissions) window.checkPermissions();
+            if (window.showContent) window.showContent();
+        }
+
+        document.addEventListener('DOMContentLoaded', applyIntegrationsGuard);
+    </script>
+</body>
+</html>
