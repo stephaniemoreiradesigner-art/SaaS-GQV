@@ -1109,13 +1109,18 @@ const server = http.createServer(async (request, response) => {
             const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
             const sig = signState(stateB64, appSecret);
             const state = `${stateB64}.${sig}`;
-            const scopes = 'public_profile';
+            const scope = 'public_profile';
+            if (!scope || typeof scope !== 'string' || !scope.trim()) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'scope_invalido' }));
+                return;
+            }
 
             const params = new URLSearchParams();
             params.set('client_id', appId);
             params.set('redirect_uri', redirectUri);
             params.set('state', state);
-            params.set('scope', scopes);
+            params.set('scope', scope);
             params.set('response_type', 'code');
 
             const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
