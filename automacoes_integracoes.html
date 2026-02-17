@@ -453,13 +453,21 @@
                     console.debug('Meta clientId', clientId);
 
                     try {
-                        const startUrl = `/api/clients/${clientId}/oauth/meta/start?platform=facebook`;
+                        const startUrl = `/api/clients/${encodeURIComponent(clientId)}/oauth/meta/start?platform=facebook`;
                         console.debug('OAuth start url', startUrl);
                         const res = await fetch(startUrl);
                         if (!res.ok) {
                             const errorText = await res.text();
                             console.error('Erro ao iniciar conexão Meta:', res.status, errorText);
                             alert('Erro ao iniciar conexão Meta. Verifique sua sessão e tente novamente.');
+                            return;
+                        }
+
+                        const contentType = res.headers.get('content-type') || '';
+                        if (!contentType.includes('application/json')) {
+                            const errorText = await res.text();
+                            console.error('Resposta inválida ao iniciar conexão Meta:', errorText);
+                            alert('Erro ao iniciar conexão Meta. Resposta inesperada do servidor.');
                             return;
                         }
 
