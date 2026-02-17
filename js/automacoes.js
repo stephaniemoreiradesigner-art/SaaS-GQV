@@ -120,6 +120,14 @@ window.switchTab = function(tabId) {
     if (tabId === 'visao_geral_automacoes') loadDashboardData();
 }
 
+window.connectProvider = function(provider) {
+    alert('Conectar: ' + provider);
+}
+
+window.openProviderDetails = function(provider) {
+    alert('Detalhes: ' + provider);
+}
+
 // --- DATA LOADING ---
 
 // Mock de Colaboradores (removido, inicia vazio)
