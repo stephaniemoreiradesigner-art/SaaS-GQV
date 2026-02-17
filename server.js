@@ -1269,139 +1269,24 @@ const server = http.createServer(async (request, response) => {
             exchangeParams.set('client_secret', appSecret);
             exchangeParams.set('fb_exchange_token', tokenJson.access_token);
 
-            const exchangeRes = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?${exchangeParams.toString()}`);
+            const exchangeRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?${exchangeParams.toString()}`);
             const exchangeJson = await exchangeRes.json();
             if (!exchangeRes.ok) {
+                console.error('Erro ao trocar token Meta:', exchangeJson.error?.message || 'erro_ao_gerar_token');
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: exchangeJson.error?.message || 'erro_ao_gerar_token' }));
                 return;
             }
 
             const accessToken = exchangeJson.access_token;
-            const expiresIn = exchangeJson.expires_in || tokenJson.expires_in || null;
-            const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000).toISOString() : null;
-            const scope = exchangeJson.scope || tokenJson.scope || null;
-            const tokenType = exchangeJson.token_type || tokenJson.token_type || null;
-
-            const meRes = await fetch(`https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
-            const meJson = await meRes.json();
-            if (!meRes.ok) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: meJson.error?.message || 'erro_ao_buscar_conta' }));
-                return;
-            }
-
-            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-            if (!supabaseUrl || !serviceRoleKey) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
-                return;
-            }
-
+            console.log('Token Meta trocado com sucesso');
             if (isClientFlow) {
-                const clientParams = new URLSearchParams();
-                clientParams.set('select', 'id,time_id');
-                clientParams.set('id', `eq.${payloadClientId}`);
-                clientParams.set('limit', '1');
-                const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
-                const clientRes = await fetch(clientUrl, {
-                    method: 'GET',
-                    headers: {
-                        apikey: serviceRoleKey,
-                        Authorization: `Bearer ${serviceRoleKey}`
-                    }
-                });
-
-                const clientJson = await clientRes.json().catch(() => null);
-                if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
-                    response.writeHead(404, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
-                    return;
-                }
-
-                const timeId = clientJson[0]?.time_id || null;
-                if (!timeId) {
-                    response.writeHead(400, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ error: 'time_id_invalido' }));
-                    return;
-                }
-
-                const insertPayload = {
-                    client_id: payloadClientId,
-                    time_id: timeId,
-                    platform: payloadPlatform,
-                    status: 'connected',
-                    external_id: meJson.id || null,
-                    external_name: meJson.name || null,
-                    access_token: accessToken,
-                    token_expires_at: tokenExpiresAt,
-                    scope,
-                    meta: {
-                        provider: 'meta',
-                        token_type: tokenType,
-                        raw_scope: scope
-                    }
-                };
-
-                const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
-                const upsertRes = await fetch(upsertUrl, {
-                    method: 'POST',
-                    headers: {
-                        apikey: serviceRoleKey,
-                        Authorization: `Bearer ${serviceRoleKey}`,
-                        'Content-Type': 'application/json',
-                        Prefer: 'resolution=merge-duplicates'
-                    },
-                    body: JSON.stringify(insertPayload)
-                });
-
-                if (!upsertRes.ok) {
-                    const errText = await upsertRes.text();
-                    response.writeHead(400, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ error: errText || 'erro_ao_salvar_conexao' }));
-                    return;
-                }
-
                 const appUrl = buildAppUrl(request);
                 const redirectUrl = appUrl
                     ? `${appUrl.replace(/\/$/, '')}/clientes.html?client_id=${payloadClientId}#conexoes`
                     : `/clientes.html?client_id=${payloadClientId}#conexoes`;
                 response.writeHead(302, { Location: redirectUrl });
                 response.end();
-                return;
-            }
-
-            const tableName = envVars['OAUTH_TOKENS_TABLE'] || 'user_oauth_tokens';
-            const insertPayload = {
-                user_id: userId,
-                provider: 'meta',
-                status: 'connected',
-                external_id: meJson.id || null,
-                external_name: meJson.name || null,
-                access_token: accessToken,
-                token_expires_at: tokenExpiresAt,
-                meta: {
-                    scope,
-                    token_type: tokenType
-                }
-            };
-
-            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${tableName}?on_conflict=user_id,provider`;
-            const upsertRes = await fetch(upsertUrl, {
-                method: 'POST',
-                headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`,
-                    'Content-Type': 'application/json',
-                    Prefer: 'resolution=merge-duplicates'
-                },
-                body: JSON.stringify(insertPayload)
-            });
-
-            if (!upsertRes.ok) {
-                const errText = await upsertRes.text();
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: errText || 'erro_ao_salvar_conexao' }));
                 return;
             }
 
