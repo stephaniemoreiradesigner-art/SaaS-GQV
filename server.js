@@ -1201,6 +1201,78 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/automation/workflows' && request.method === 'GET') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const clientId = String(parsedUrl.query.client_id || '').trim();
+            const params = new URLSearchParams();
+            params.set('select', '*');
+            if (clientId) params.set('tenant_id', `eq.${clientId}`);
+            params.set('order', 'created_at.desc');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/workflows?${params.toString()}`;
+            const headers = {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`
+            };
+
+            const supabaseResponse = await fetch(targetUrl, { method: 'GET', headers });
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_buscar_workflows' }));
+                return;
+            }
+
+            const workflows = Array.isArray(json) ? json : [];
+            const tenantIds = Array.from(new Set(workflows.map((wf) => wf?.tenant_id).filter(Boolean))).map(String);
+            const allNumeric = tenantIds.length > 0 && tenantIds.every((id) => /^\d+$/.test(id));
+            const allUuid = tenantIds.length > 0 && tenantIds.every((id) => /^[0-9a-fA-F-]{36}$/.test(id));
+
+            let clientMap = {};
+            if (tenantIds.length && (allNumeric || allUuid)) {
+                const clientParams = new URLSearchParams();
+                clientParams.set('select', 'id,nome_fantasia,nome_empresa');
+                clientParams.set('id', `in.(${tenantIds.join(',')})`);
+                const clientsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+                const clientsRes = await fetch(clientsUrl, { method: 'GET', headers });
+                const clientsJson = await clientsRes.json().catch(() => null);
+                if (clientsRes.ok && Array.isArray(clientsJson)) {
+                    clientsJson.forEach((cliente) => {
+                        const id = cliente?.id ? String(cliente.id) : '';
+                        if (id) clientMap[id] = cliente;
+                    });
+                }
+            }
+
+            const workflowsWithClients = workflows.map((wf) => ({
+                ...wf,
+                clientes: clientMap[String(wf.tenant_id)] || null
+            }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ workflows: workflowsWithClients }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/worklogs' && request.method === 'POST') {
         try {
             const userId = await getSupabaseUserIdFromRequest(request);

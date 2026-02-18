@@ -1,5 +1,5 @@
 // automacoes.js - Módulo de Automação v2.0
-const API_BASE = 'http://localhost:3000/api/automation';
+const API_BASE = window.location?.origin ? `${window.location.origin}/api/automation` : '/api/automation';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Tenta liberar a tela de loading usando a função global do app.js
@@ -33,6 +33,27 @@ const currentUser = {
     name: 'Stephanie (Admin)',
     photo: 'assets/avatar_placeholder.png' // Certifique-se de ter uma imagem ou use um placeholder genérico
 };
+
+async function getAutomationAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+async function fetchWorkflowsFromApi() {
+    const headers = await getAutomationAuthHeaders();
+    const response = await fetch(`${API_BASE}/workflows`, { headers });
+    const json = await response.json().catch(() => null);
+    if (!response.ok) {
+        const message = json?.error || json?.message || 'erro_ao_buscar_workflows';
+        throw new Error(message);
+    }
+    if (Array.isArray(json)) return json;
+    if (Array.isArray(json?.workflows)) return json.workflows;
+    return [];
+}
 
 async function initAutomations() {
     // Aguardar Supabase estar pronto
@@ -416,7 +437,15 @@ async function loadWorkflows() {
         renderWorkflowsTable(allWorkflows);
 
     } catch (e) {
-        console.error(e);
+        console.error('Erro ao carregar fluxos (Supabase):', e);
+        try {
+            const apiWorkflows = await fetchWorkflowsFromApi();
+            allWorkflows = apiWorkflows || [];
+            renderWorkflowsTable(allWorkflows);
+            return;
+        } catch (apiError) {
+            console.error('Erro ao carregar fluxos (API):', apiError);
+        }
         tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-sm text-red-500">Erro ao carregar fluxos.</td></tr>';
     }
 }
