@@ -95,7 +95,10 @@ async function loadTenants() {
 // --- TAB NAVIGATION ---
 window.switchTab = function(tabId) {
     // Hide all tabs
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.remove('active');
+        el.classList.add('hidden');
+    });
     
     // Reset buttons style
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -105,7 +108,10 @@ window.switchTab = function(tabId) {
     
     // Show target
     const target = document.getElementById(tabId);
-    if(target) target.classList.add('active');
+    if(target) {
+        target.classList.add('active');
+        target.classList.remove('hidden');
+    }
     
     // Update button state
     const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
