@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    const buildWaLink = (phone) => {
+    const normalizePhoneToWaMe = (phone) => {
         const digits = String(phone || '').replace(/\D/g, '');
         if (!digits) return '';
         const hasCountry = digits.startsWith('55') && digits.length >= 12;
@@ -441,9 +441,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
     };
 
-    const formatGroupLinkText = (value) => {
-        if (!value) return '';
-        return value.replace(/^https?:\/\//i, '');
+    const safeUrl = (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        return /^https?:\/\//i.test(raw) ? raw : '';
     };
 
     // 2. Renderizar Cards
@@ -467,36 +468,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             const responsavel = cliente.responsavel_nome || '-';
             const phone = cliente.telefone || '';
             const whatsapp = cliente.responsavel_whatsapp || phone;
-            const waLink = buildWaLink(whatsapp);
-            const grupoLink = normalizeGroupLink(cliente.link_grupo || '');
+            const waLink = normalizePhoneToWaMe(whatsapp);
+            const grupoLink = safeUrl(normalizeGroupLink(cliente.link_grupo || ''));
             const grupoRegistro = cliente.registro_grupo || '-';
             const logoUrl = cliente.logo_url || '';
             const initials = getInitials(nomeExibicao);
-            const grupoLinkText = formatGroupLinkText(grupoLink);
-            const lineTitle = `${nomeExibicao} • ${responsavel} • ${phone || '-'} • ${grupoLinkText || '-'}`;
+            const whatsappLabel = whatsapp || 'Não informado';
+            const grupoLabel = grupoLink ? 'Abrir grupo' : 'Não informado';
 
             const card = document.createElement('div');
-            card.className = 'group bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer';
+            card.className = 'bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition cursor-pointer';
             card.dataset.clientId = cliente.id;
             card.innerHTML = `
-                <div class="flex items-start gap-3">
+                <div class="flex gap-3 items-start">
                     <div class="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
                         ${logoUrl ? `<img src="${logoUrl}" alt="Logo ${nomeExibicao}" class="w-full h-full object-cover">` : `<span class="text-sm font-semibold text-gray-500">${initials}</span>`}
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm text-gray-900 font-semibold flex items-center gap-2 min-w-0" title="${lineTitle}">
-                            <span class="truncate">${nomeExibicao}</span>
-                            <span class="text-gray-400">•</span>
-                            <span class="truncate">${responsavel}</span>
-                            <span class="text-gray-400">•</span>
-                            ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="text-green-600 hover:underline truncate no-card-click" onclick="event.stopPropagation()" title="${phone}">${phone || '-'}</a>` : `<span class="truncate">${phone || '-'}</span>`}
-                            <span class="text-gray-400">•</span>
-                            ${grupoLink ? `<a href="${grupoLink}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline truncate no-card-click" onclick="event.stopPropagation()" title="${grupoLink}">${grupoLinkText || 'Grupo'}</a>` : `<span class="truncate">Grupo</span>`}
-                        </div>
-                        <div class="text-xs text-gray-500 mt-1">Grupo: <span class="font-medium text-gray-700">${grupoRegistro}</span></div>
-                        <div class="mt-3 flex flex-wrap gap-1">${servicosBadges}</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="font-semibold text-gray-800 truncate">${nomeExibicao}</div>
+                        <div class="text-sm text-gray-500 truncate">Responsável: ${responsavel}</div>
+                        ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener" class="text-sm text-green-600 hover:underline inline-flex items-center gap-2 mt-1 no-card-click" onclick="event.stopPropagation()"><i class="fab fa-whatsapp"></i> ${whatsappLabel}</a>` : `<div class="text-sm text-gray-400 inline-flex items-center gap-2 mt-1"><i class="fab fa-whatsapp"></i> ${whatsappLabel}</div>`}
+                        ${grupoLink ? `<a href="${grupoLink}" target="_blank" rel="noopener" class="text-sm text-[var(--color-primary)] hover:underline inline-flex items-center gap-2 mt-1 no-card-click" onclick="event.stopPropagation()"><i class="fas fa-link"></i> ${grupoLabel}</a>` : `<div class="text-sm text-gray-400 inline-flex items-center gap-2 mt-1"><i class="fas fa-link"></i> ${grupoLabel}</div>`}
                     </div>
                 </div>
+                ${servicosBadges ? `<div class="mt-3 flex flex-wrap gap-2">${servicosBadges}</div>` : ''}
             `;
             card.addEventListener('click', (event) => {
                 if (event.target.closest('a') || event.target.closest('button') || event.target.closest('.no-card-click')) return;
@@ -509,11 +504,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const buildLinkItem = (label, url) => {
         if (!url) return '';
-        const safeUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        const safeLink = safeUrl(url);
+        if (!safeLink) return '';
         return `
             <div class="flex items-center gap-2">
                 <span class="text-gray-500">${label}:</span>
-                <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline break-all">${safeUrl}</a>
+                <a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline break-all">${safeLink}</a>
             </div>
         `;
     };
@@ -542,8 +538,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const responsavel = cliente.responsavel_nome || '-';
         const telefone = cliente.telefone || '-';
         const whatsapp = cliente.responsavel_whatsapp || cliente.telefone || '';
-        const waLink = buildWaLink(whatsapp);
-        const grupoLink = normalizeGroupLink(cliente.link_grupo || '');
+        const waLink = normalizePhoneToWaMe(whatsapp);
+        const grupoLink = safeUrl(normalizeGroupLink(cliente.link_grupo || ''));
         const grupoRegistro = cliente.registro_grupo || 'Não informado';
 
         const titleEl = document.getElementById('client-view-title');
