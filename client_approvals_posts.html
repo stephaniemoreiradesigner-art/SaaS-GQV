@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aprovação de Posts - Painel do Cliente</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="js/theme.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased font-sans">
+    <div class="flex h-screen overflow-hidden">
+        <aside id="client-sidebar" class="flex flex-col w-64 bg-white border-r border-gray-200 hidden md:flex">
+            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+                <img src="assets/logo.png" id="logo-sidebar" alt="Logo" class="h-10 w-auto object-contain">
+            </div>
+            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
+                <a href="client_dashboard.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-grid-2 w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Dashboard</span>
+                </a>
+                <a href="client_integrations.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-plug w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Integrações</span>
+                </a>
+                <a href="client_approvals_calendar.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
+                    <i class="fas fa-calendar w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
+                    <span class="font-medium ml-2">Aprovar Calendário</span>
+                </a>
+                <a href="client_approvals_posts.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors">
+                    <i class="fas fa-clapperboard w-6 text-center"></i>
+                    <span class="font-medium ml-2">Aprovar Posts</span>
+                </a>
+            </nav>
+        </aside>
+
+        <div class="flex-1 flex flex-col min-h-screen">
+            <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8">
+                <div class="flex items-center gap-3">
+                    <button class="md:hidden text-gray-500 hover:text-primary" onclick="document.getElementById('client-sidebar').classList.toggle('hidden')">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
+                    <span class="text-sm text-gray-500 hidden sm:inline">Aprovar Posts</span>
+                </div>
+                <span class="text-sm text-gray-500 hidden md:inline">Painel do Cliente</span>
+            </header>
+
+            <main class="flex-1 px-4 md:px-8 py-6">
+                <h1 class="text-2xl font-bold text-gray-900 mb-6">Aprovação de Posts</h1>
+                <div class="bg-white border border-gray-200 rounded-2xl p-6">
+                    <p class="text-sm text-gray-500">Nenhum item pendente por enquanto</p>
+                    <div class="mt-4 flex flex-wrap gap-3">
+                        <button disabled class="px-4 py-2 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed">Aprovar</button>
+                        <button disabled class="px-4 py-2 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed">Solicitar ajustes</button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
