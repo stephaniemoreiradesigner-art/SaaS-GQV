@@ -783,7 +783,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 status: document.getElementById('status_cliente').value
             };
 
+                const getErrorMessage = (err) => String(err?.message || err?.error || err || '');
+                const hasMissingColumn = (err, column) => getErrorMessage(err).toLowerCase().includes(`'${column}'`) || getErrorMessage(err).toLowerCase().includes(`"${column}"`);
+                const stripMissingColumns = (data, err) => {
+                    const next = { ...data };
+                    if (hasMissingColumn(err, 'logo_url')) delete next.logo_url;
+                    if (hasMissingColumn(err, 'registro_grupo')) delete next.registro_grupo;
+                    return next;
+                };
+
                 let error;
+                let allowLogoColumn = true;
 
                 if (clienteId) {
                     if (logoFile) {
@@ -795,10 +805,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!clienteData.logo_url) clienteData.logo_url = null;
                         }
                     }
-                    const { error: updateError } = await window.supabaseClient
+                    let updatePayload = { ...clienteData };
+                    let { error: updateError } = await window.supabaseClient
                         .from('clientes')
-                        .update(clienteData)
+                        .update(updatePayload)
                         .eq('id', clienteId);
+                    if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo'))) {
+                        updatePayload = stripMissingColumns(updatePayload, updateError);
+                        if (!('logo_url' in updatePayload)) allowLogoColumn = false;
+                        const retry = await window.supabaseClient
+                            .from('clientes')
+                            .update(updatePayload)
+                            .eq('id', clienteId);
+                        updateError = retry.error;
+                    }
                     
                     error = updateError;
 
@@ -813,14 +833,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                         );
                     }
                 } else {
-                    const { data, error: insertError } = await window.supabaseClient
+                    let insertPayload = { ...clienteData };
+                    let { data, error: insertError } = await window.supabaseClient
                         .from('clientes')
-                        .insert([clienteData])
+                        .insert([insertPayload])
                         .select()
                         .single();
+                    if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo'))) {
+                        insertPayload = stripMissingColumns(insertPayload, insertError);
+                        if (!('logo_url' in insertPayload)) allowLogoColumn = false;
+                        const retry = await window.supabaseClient
+                            .from('clientes')
+                            .insert([insertPayload])
+                            .select()
+                            .single();
+                        data = retry.data;
+                        insertError = retry.error;
+                    }
                     
                     error = insertError;
-                    if (!error && data && logoFile) {
+                    if (!error && data && logoFile && allowLogoColumn) {
                         try {
                             const uploadedUrl = await uploadClientLogoFile(data.id, logoFile);
                             if (uploadedUrl) {
