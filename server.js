@@ -139,20 +139,32 @@ DIRETRIZES SOBRE DATA E HORÁRIO
 • Evitar concentrar posts em dias consecutivos sem estratégia.
 
 =================================
-FORMATO DE RESPOSTA
+FORMATO DE RESPOSTA (OBRIGATÓRIO)
 =================================
 
-Responder apenas com:
+Responder SOMENTE com JSON válido, sem texto extra, sem comentários e sem markdown.
 
-POST 1
-POST 2
-POST 3
-...
-
-Não explicar decisões.
-Não comentar lógica.
-Não adicionar textos fora da estrutura.
-Entregar apenas o calendário completo.`;
+Formato obrigatório:
+{
+  "month": "YYYY-MM",
+  "timezone": "America/Sao_Paulo",
+  "posts": [
+    {
+      "scheduled_date": "YYYY-MM-DD",
+      "scheduled_time": "HH:mm",
+      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",
+      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",
+      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",
+      "format": "Reels|Carrossel|Estático",
+      "theme": "...",
+      "hook": "...",
+      "structure": "...",
+      "caption": "...",
+      "cta": "...",
+      "hashtags": ["...", "..."]
+    }
+  ]
+}`;
 
 const readRequestBody = async (request) => {
     const buffers = [];
@@ -551,7 +563,7 @@ const server = http.createServer(async (request, response) => {
                     platformsText,
                     seasonalText,
                     contextText,
-                    'Retorne um array JSON seguindo o schema pedido no system prompt.'
+                    'Retorne JSON válido seguindo o schema pedido no system prompt.'
                 ].join(' ');
 
                 payload = {
@@ -595,20 +607,45 @@ const server = http.createServer(async (request, response) => {
             if (isCalendarMode && calendarContext) {
                 const contentRaw = String(responseJson?.choices?.[0]?.message?.content || '').trim();
                 const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
-                let postsJson = null;
+                let calendarJson = null;
                 try {
-                    postsJson = JSON.parse(sanitized);
+                    calendarJson = JSON.parse(sanitized);
                 } catch (parseError) {
-                    postsJson = null;
+                    calendarJson = null;
                 }
 
-                if (!Array.isArray(postsJson)) {
+                if (Array.isArray(calendarJson)) {
+                    calendarJson = {
+                        month: calendarContext.month,
+                        timezone: 'America/Sao_Paulo',
+                        posts: calendarJson
+                    };
+                    responseJson.choices[0].message.content = JSON.stringify(calendarJson);
+                } else if (!calendarJson || !Array.isArray(calendarJson.posts)) {
                     const converterPrompt = [
-                        'Converta o texto abaixo em um ARRAY JSON.',
-                        'Cada item do array deve ter as chaves:',
-                        '"data_agendada" (YYYY-MM-DD), "tema", "formato" (estatico|reels|carrossel), "conteudo_roteiro", "descricao_visual", "estrategia", "legenda_sugestao", "legenda_linkedin", "legenda_tiktok".',
-                        `Use o mês informado para converter datas DD/MM para YYYY-MM-DD. Mês atual: ${calendarContext.month}.`,
-                        `Retorne EXATAMENTE ${calendarContext.postsCount} itens.`,
+                        'Converta o texto abaixo em JSON válido no seguinte formato:',
+                        '{',
+                        '  "month": "YYYY-MM",',
+                        '  "timezone": "America/Sao_Paulo",',
+                        '  "posts": [',
+                        '    {',
+                        '      "scheduled_date": "YYYY-MM-DD",',
+                        '      "scheduled_time": "HH:mm",',
+                        '      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",',
+                        '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
+                        '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
+                        '      "format": "Reels|Carrossel|Estático",',
+                        '      "theme": "...",',
+                        '      "hook": "...",',
+                        '      "structure": "...",',
+                        '      "caption": "...",',
+                        '      "cta": "...",',
+                        '      "hashtags": ["...", "..."]',
+                        '    }',
+                        '  ]',
+                        '}',
+                        `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
+                        `Retorne EXATAMENTE ${calendarContext.postsCount} itens em posts.`,
                         'Se algum campo não existir no texto original, preencha com string vazia.',
                         'Texto para converter:',
                         contentRaw
@@ -643,16 +680,24 @@ const server = http.createServer(async (request, response) => {
                     }
 
                     const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
-                    let convertedArray = null;
+                    let convertedObject = null;
                     try {
-                        convertedArray = JSON.parse(convertedContent);
+                        convertedObject = JSON.parse(convertedContent);
                     } catch (convertedParseError) {
                         response.writeHead(500, { 'Content-Type': 'application/json' });
                         response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'Resposta convertida ainda inválida.' }));
                         return;
                     }
 
-                    responseJson.choices[0].message.content = JSON.stringify(convertedArray);
+                    if (Array.isArray(convertedObject)) {
+                        convertedObject = {
+                            month: calendarContext.month,
+                            timezone: 'America/Sao_Paulo',
+                            posts: convertedObject
+                        };
+                    }
+
+                    responseJson.choices[0].message.content = JSON.stringify(convertedObject);
                 }
             }
 

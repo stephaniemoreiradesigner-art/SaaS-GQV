@@ -1216,47 +1216,145 @@ async function generateCalendar(config = {}) {
         }
 
         let content = data.choices[0].message.content;
-        
-        let posts;
+
+        let calendarPayload;
         try {
-            posts = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
+            calendarPayload = JSON.parse(content.replace(/```json/g, '').replace(/```/g, ''));
         } catch (e) {
             console.error('Erro JSON:', content);
             throw new Error('Erro ao processar resposta da IA. Formato inválido.');
         }
 
-        if (!Array.isArray(posts)) throw new Error('A IA não retornou uma lista de posts válida.');
+        if (Array.isArray(calendarPayload)) {
+            calendarPayload = { month: currentMonth, timezone: 'America/Sao_Paulo', posts: calendarPayload };
+        }
 
-        // Função auxiliar para validar e corrigir datas (evita 29/fev em ano não bissexto)
-        const fixDate = (dateStr) => {
-            if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-            const [y, m, d] = dateStr.split('-').map(Number);
-            const date = new Date(y, m - 1, d);
-            // Se o mês mudou, a data era inválida (ex: 29/02 -> 01/03)
-            if (date.getMonth() !== m - 1) {
-                const lastDay = new Date(y, m, 0).getDate();
-                return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        if (!calendarPayload || !Array.isArray(calendarPayload.posts)) {
+            throw new Error('A IA não retornou um calendário válido.');
+        }
+
+        const rawPosts = calendarPayload.posts;
+        console.log('Posts recebidos da IA:', rawPosts.length);
+
+        const [year, month] = currentMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const usedDates = new Set();
+        let fallbackCursor = 1;
+
+        const normalizeFormat = (value) => {
+            const raw = String(value || '').toLowerCase();
+            if (raw.includes('reels')) return 'reels';
+            if (raw.includes('carrossel')) return 'carrossel';
+            if (raw.includes('estatic') || raw.includes('estático')) return 'estatico';
+            return 'estatico';
+        };
+
+        const normalizeTime = (value) => {
+            const raw = String(value || '').trim();
+            if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+            if (/^\d{1}:\d{2}$/.test(raw)) return `0${raw}`;
+            return '10:00';
+        };
+
+        const normalizeDate = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            if (raw.includes('T')) {
+                const [datePart] = raw.split('T');
+                if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
             }
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+                const [d, m, y] = raw.split('/').map(Number);
+                return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+            if (/^\d{2}\/\d{2}$/.test(raw)) {
+                const [d, m] = raw.split('/').map(Number);
+                return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+            return '';
+        };
+
+        const nextAvailableDate = () => {
+            while (fallbackCursor <= lastDay) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(fallbackCursor).padStart(2, '0')}`;
+                fallbackCursor += 1;
+                if (!usedDates.has(dateStr)) {
+                    usedDates.add(dateStr);
+                    return dateStr;
+                }
+            }
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            usedDates.add(dateStr);
             return dateStr;
         };
 
-        // Preparar posts para inserção em lote (Batch Insert)
-        const postsToInsert = posts.map(post => ({
-            cliente_id: parseInt(currentClienteId) || currentClienteId,
-            data_agendada: fixDate(post.data_agendada),
-            hora_agendada: '10:00',
-            formato: post.formato || 'post',
-            tema: post.tema || 'Sem título',
-            conteudo_roteiro: post.conteudo_roteiro || '',
-            descricao_visual: post.descricao_visual || '',
-            estrategia: post.estrategia || '',
-            legenda: post.legenda || post.legenda_sugestao || '',
-            legenda_linkedin: post.legenda_linkedin || null,
-            legenda_tiktok: post.legenda_tiktok || null,
-            status: 'rascunho'
-        }));
+        const isDateInMonth = (dateStr) => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+            const [y, m] = dateStr.split('-').map(Number);
+            return y === year && m === month;
+        };
 
-        console.log('Inserindo posts em lote:', postsToInsert);
+        const postsToInsert = [];
+        rawPosts.forEach((post, index) => {
+            const rawDate = post.scheduled_date || post.data_agendada || post.data || post.date || '';
+            const rawTime = post.scheduled_time || post.hora_agendada || post.horario || '';
+            let scheduledDate = normalizeDate(rawDate);
+            let scheduledTime = normalizeTime(rawTime);
+            let corrected = false;
+
+            if (!isDateInMonth(scheduledDate) || usedDates.has(scheduledDate)) {
+                scheduledDate = nextAvailableDate();
+                corrected = true;
+            } else {
+                usedDates.add(scheduledDate);
+            }
+
+            if (scheduledTime === '10:00' && String(rawTime || '').trim() === '') {
+                corrected = true;
+            }
+
+            const dataAgendada = `${scheduledDate}T${scheduledTime}:00`;
+            if (!scheduledDate || !scheduledTime) {
+                console.log('Post removido por data inválida:', index);
+                return;
+            }
+
+            if (corrected) {
+                console.log('Post corrigido por fallback:', index, dataAgendada);
+            }
+
+            const captionBase = post.caption || post.legenda || post.legenda_sugestao || '';
+            const cta = post.cta || '';
+            const hashtags = Array.isArray(post.hashtags) ? post.hashtags.filter(Boolean) : [];
+            const hashtagsText = hashtags.length
+                ? hashtags.map(tag => (String(tag).startsWith('#') ? tag : `#${tag}`)).join(' ')
+                : '';
+            const legendaParts = [captionBase, cta ? `\n\n${cta}` : '', hashtagsText ? `\n\n${hashtagsText}` : ''];
+            const legendaFinal = legendaParts.join('').trim();
+
+            const estrategiaParts = [post.pillar || '', post.objective || '', post.week || ''].filter(Boolean);
+
+            postsToInsert.push({
+                cliente_id: parseInt(currentClienteId) || currentClienteId,
+                data_agendada: dataAgendada,
+                hora_agendada: scheduledTime,
+                formato: normalizeFormat(post.format || post.formato),
+                tema: post.theme || post.tema || 'Sem título',
+                conteudo_roteiro: post.structure || post.conteudo_roteiro || '',
+                descricao_visual: post.descricao_visual || '',
+                estrategia: estrategiaParts.join(' | '),
+                legenda: legendaFinal,
+                legenda_linkedin: post.legenda_linkedin || null,
+                legenda_tiktok: post.legenda_tiktok || null,
+                status: 'rascunho'
+            });
+        });
+
+        console.log('Posts válidos para insert:', postsToInsert.length);
+        if (postsToInsert.length === 0) {
+            throw new Error('Nenhum post válido para inserir.');
+        }
 
         // Warmup do cache antes do insert
         try {
