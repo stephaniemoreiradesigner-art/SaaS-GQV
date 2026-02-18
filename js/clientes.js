@@ -399,6 +399,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="abrirIntegracoes('${cliente.id}')" title="Integrações">
                         <i class="fas fa-plug"></i>
                     </button>
+                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="openClientWorklogHistory('${cliente.id}', '${nomeExibicao.replace(/'/g, "\\'")}')" title="Histórico">
+                        <i class="fas fa-history"></i>
+                    </button>
                     <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="editCliente('${cliente.id}')" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
@@ -832,6 +835,212 @@ document.addEventListener('DOMContentLoaded', async () => {
         const token = data?.session?.access_token;
         if (!token) return { 'Content-Type': 'application/json' };
         return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    };
+
+    let worklogHistoryClientId = null;
+    let worklogHistoryClientName = null;
+    let worklogCollaboratorsMap = null;
+
+    const moduleLabels = {
+        social_media: 'Social Media',
+        traffic: 'Tráfego',
+        automations: 'Automações'
+    };
+
+    const formatWorklogDateTime = (value) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    };
+
+    const formatWorklogDate = (value) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('pt-BR');
+    };
+
+    const formatWorklogDuration = (seconds) => {
+        const total = Number(seconds);
+        if (!Number.isFinite(total) || total < 0) return '-';
+        const hrs = Math.floor(total / 3600);
+        const mins = Math.floor((total % 3600) / 60);
+        const secs = Math.floor(total % 60);
+        const pad = (val) => String(val).padStart(2, '0');
+        return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+    };
+
+    const setClientWorklogText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+
+    const ensureCollaboratorsMap = async () => {
+        if (worklogCollaboratorsMap) return;
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('colaboradores')
+                .select('id, nome, user_id, email')
+                .eq('ativo', true);
+            if (error) throw error;
+            worklogCollaboratorsMap = {};
+            (data || []).forEach(item => {
+                if (item.user_id) worklogCollaboratorsMap[item.user_id] = item.nome || item.email || item.user_id;
+                if (item.id && !worklogCollaboratorsMap[item.id]) worklogCollaboratorsMap[item.id] = item.nome || item.email || item.id;
+            });
+        } catch (err) {
+            console.warn('Não foi possível carregar colaboradores:', err);
+            worklogCollaboratorsMap = {};
+        }
+    };
+
+    const resolveCollaboratorName = async (id) => {
+        if (!id) return '-';
+        await ensureCollaboratorsMap();
+        return worklogCollaboratorsMap[id] || id;
+    };
+
+    window.openClientWorklogHistory = async function(clientId, clientName) {
+        const modal = document.getElementById('client-worklog-history-modal');
+        if (!modal) return;
+        worklogHistoryClientId = clientId;
+        worklogHistoryClientName = clientName || '';
+        setClientWorklogText('client-worklog-history-name', worklogHistoryClientName || 'Cliente');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        await loadClientWorklogs(clientId);
+    };
+
+    window.closeClientWorklogHistoryModal = function() {
+        const modal = document.getElementById('client-worklog-history-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    };
+
+    const loadClientWorklogs = async (clientId) => {
+        const body = document.getElementById('client-worklog-history-body');
+        if (!body) return;
+        body.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando histórico...</td></tr>`;
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/worklogs?client_id=${encodeURIComponent(clientId)}`, { headers });
+            const json = await res.json().catch(() => []);
+            if (!res.ok) {
+                throw new Error(json?.error || 'Erro ao carregar histórico');
+            }
+            const list = Array.isArray(json) ? json : [];
+            if (!list.length) {
+                body.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 italic">Nenhum registro encontrado.</td></tr>`;
+                return;
+            }
+
+            const collaboratorNames = await Promise.all(list.map(item => resolveCollaboratorName(item.created_by)));
+            body.innerHTML = '';
+            list.forEach((item, index) => {
+                const statusLabel = item.status === 'done' ? 'Concluído' : 'Em aberto';
+                const statusClass = item.status === 'done'
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+                const duration = item.status === 'done' ? formatWorklogDuration(item.duration_seconds) : '-';
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors border-b border-white';
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${formatWorklogDateTime(item.created_at)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${moduleLabels[item.module] || item.module || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">${item.action_type || '-'}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass} capitalize">
+                            ${statusLabel}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${collaboratorNames[index] || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">${duration}</td>
+                    <td class="px-6 py-4 text-right text-sm font-medium">
+                        <button onclick="openClientWorklogDetail('${item.id}')" class="text-primary hover:text-primary-hover transition-colors" title="Ver">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        } catch (err) {
+            console.error('Erro ao carregar histórico:', err);
+            body.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-500">Erro ao carregar histórico.</td></tr>`;
+        }
+    };
+
+    window.openClientWorklogDetail = async function(worklogId) {
+        const modal = document.getElementById('client-worklog-detail-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        await loadClientWorklogDetail(worklogId);
+    };
+
+    window.closeClientWorklogDetailModal = function() {
+        const modal = document.getElementById('client-worklog-detail-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    };
+
+    const loadClientWorklogDetail = async (worklogId) => {
+        try {
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}`, { headers });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) {
+                throw new Error(json?.error || 'Erro ao carregar detalhe');
+            }
+            await renderClientWorklogDetail(json);
+        } catch (err) {
+            console.error('Erro ao carregar detalhe:', err);
+            alert('Erro ao carregar detalhe do diário.');
+        }
+    };
+
+    const renderClientWorklogDetail = async (data) => {
+        const worklog = data?.worklog || {};
+        const actions = Array.isArray(data?.actions) ? data.actions : [];
+        const createdByName = await resolveCollaboratorName(worklog.created_by);
+        const statusLabel = worklog.status === 'done' ? 'Concluído' : 'Em aberto';
+        const duration = worklog.status === 'done' ? formatWorklogDuration(worklog.duration_seconds) : '-';
+
+        setClientWorklogText('client-worklog-detail-cliente', worklogHistoryClientName || '-');
+        setClientWorklogText('client-worklog-detail-module', moduleLabels[worklog.module] || worklog.module || '-');
+        setClientWorklogText('client-worklog-detail-tipo', worklog.action_type || '-');
+        setClientWorklogText('client-worklog-detail-prioridade', worklog.priority || '-');
+        setClientWorklogText('client-worklog-detail-prazo', formatWorklogDate(worklog.due_date));
+        setClientWorklogText('client-worklog-detail-criado-por', createdByName || '-');
+        setClientWorklogText('client-worklog-detail-criado-em', formatWorklogDateTime(worklog.created_at));
+        setClientWorklogText('client-worklog-detail-status', statusLabel);
+        setClientWorklogText('client-worklog-detail-duracao', duration);
+
+        const list = document.getElementById('client-worklog-actions-list');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!actions.length) {
+            list.innerHTML = '<div class="text-sm text-gray-500 italic">Nenhuma ação registrada.</div>';
+            return;
+        }
+
+        const actionNames = await Promise.all(actions.map(action => resolveCollaboratorName(action.created_by)));
+        actions.forEach((action, index) => {
+            const item = document.createElement('div');
+            item.className = 'bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2';
+            item.innerHTML = `
+                <div class="flex items-center justify-between text-xs text-gray-400">
+                    <span>${formatWorklogDateTime(action.created_at)}</span>
+                    <span>${actionNames[index] || '-'}</span>
+                </div>
+                <div class="text-sm text-gray-700">${action.note || '-'}</div>
+            `;
+            list.appendChild(item);
+        });
     };
 
     const getConnectionElements = (platform) => {
