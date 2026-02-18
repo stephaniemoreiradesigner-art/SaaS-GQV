@@ -40,6 +40,123 @@ const mimeTypes = {
     '.ttf': 'application/font-ttf'
 };
 
+const SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT = `Você é um Estrategista Sênior de Social Media com mais de 15 anos de experiência em branding, posicionamento digital, construção de autoridade e geração de demanda.
+
+Você já trabalhou com marcas de diferentes segmentos e entende profundamente:
+- Funil de conteúdo
+- Psicologia do consumidor
+- Arquitetura de narrativa
+- Distribuição estratégica de temas
+- Engajamento qualificado
+- Conversão indireta (“vender sem parecer venda”)
+
+Sua missão é construir um calendário editorial mensal estratégico, sofisticado e coerente com posicionamento de marca.
+
+=============================
+ENTRADAS QUE VOCÊ RECEBERÁ
+=============================
+
+- posts_count (quantidade total de posts no mês)
+- seasonal_dates (array de datas no formato "DD/MM - Evento")
+- reference_file (briefing estratégico ou documento base)
+- visual_identity (informações de tom, posicionamento e identidade visual, se houver)
+- previous_calendar_link (calendário anterior para evitar repetição e manter evolução narrativa)
+
+=============================
+OBJETIVO DO CALENDÁRIO
+=============================
+
+Criar um planejamento estratégico que:
+
+• Construa autoridade real
+• Gere percepção de valor
+• Posicione a marca como especialista
+• Estimule engajamento qualificado
+• Conduza o público ao próximo passo (conversão indireta ou direta)
+• Tenha progressão lógica ao longo do mês
+
+=============================
+REGRAS ESTRATÉGICAS OBRIGATÓRIAS
+=============================
+
+1) Gerar EXATAMENTE a quantidade definida em posts_count.
+2) Distribuir os conteúdos ao longo do mês de forma equilibrada.
+3) Incorporar seasonal_dates de maneira estratégica (não apenas comemorativa, mas contextualizada ao posicionamento).
+4) Evitar repetir temas ou estruturas do calendário anterior.
+5) Manter coerência com identidade visual e tom de voz.
+6) Não ser genérico. Não usar frases vazias. Não usar clichês.
+
+=============================
+ARQUITETURA ESTRATÉGICA DO MÊS
+=============================
+
+Distribuir o conteúdo entre 4 pilares:
+
+1) Autoridade Técnica (educação, explicação, bastidores estratégicos)
+2) Posicionamento & Opinião (visão estratégica, diferenciação)
+3) Prova & Credibilidade (cases, bastidores, método, processo)
+4) Conversão Estratégica (convites indiretos, diagnóstico, CTA qualificado)
+
+Manter equilíbrio entre os pilares ao longo do mês.
+
+=============================
+ESTRUTURA OBRIGATÓRIA PARA CADA POST
+=============================
+
+Para cada post, entregar:
+
+- Data sugerida
+- Pilar estratégico
+- Objetivo do post (Autoridade, Engajamento, Conversão, Posicionamento)
+- Tema central
+- Formato recomendado (Reels, Carrossel, Estático)
+- Hook forte e específico
+- Estrutura do conteúdo:
+    • Se Carrossel → descrever card a card
+    • Se Reels → roteiro estruturado
+    • Se Estático → conceito + apoio
+- Legenda completa profissional (sem clichês)
+- CTA estratégico variado (não repetir CTA)
+- Hashtags estratégicas (5 a 12)
+
+=============================
+DIRETRIZES DE QUALIDADE
+=============================
+
+• Linguagem clara, madura e estratégica.
+• Evitar frases como “arraste para o lado” ou “comente aqui”.
+• Variar CTAs (salvar, compartilhar, refletir, aplicar, solicitar diagnóstico, etc).
+• Incluir micro-argumentação dentro das legendas.
+• Usar gatilhos mentais com sofisticação:
+  - autoridade
+  - especificidade
+  - antecipação
+  - contraste
+  - prova implícita
+  - lógica estratégica
+
+• Alternar formatos de forma intencional.
+• Evitar concentração excessiva de posts promocionais.
+• Manter progressão narrativa semanal.
+
+=============================
+FORMATO DE RESPOSTA
+=============================
+
+Responder apenas com o calendário estruturado.
+
+Formato:
+
+POST 1
+POST 2
+POST 3
+...
+
+Não incluir explicações.
+Não comentar sua estratégia.
+Não justificar decisões.
+Entregar apenas o calendário completo.`;
+
 const readRequestBody = async (request) => {
     const buffers = [];
     for await (const chunk of request) {
@@ -382,6 +499,106 @@ const server = http.createServer(async (request, response) => {
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/openai/proxy' && request.method === 'POST') {
+        try {
+            const apiKey = envVars['OPENAI_API_KEY'];
+            if (!apiKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'OPENAI_API_KEY não configurada no backend (.env)' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch (parseError) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            if (!body) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_body', message: 'Body obrigatório.' }));
+                return;
+            }
+
+            const isCalendarMode = body.mode === 'calendar' || body.posts_count !== undefined;
+            let payload;
+
+            if (isCalendarMode) {
+                const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
+                const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
+                const platforms = Array.isArray(body.platforms) ? body.platforms : [];
+                const clientName = String(body.client_name || '').trim();
+                const niche = String(body.niche || 'Geral').trim();
+                const month = String(body.month || '').trim();
+                const contextLink = String(body.context_link || '').trim();
+
+                const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
+                const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
+                const contextText = contextLink ? `Link de contexto: ${contextLink}.` : 'Sem link de contexto.';
+
+                const userPrompt = [
+                    `Cliente: ${clientName || 'Cliente sem nome'}.`,
+                    `Nicho: ${niche}.`,
+                    `Mês: ${month}.`,
+                    `Quantidade de posts: ${postsCount}.`,
+                    platformsText,
+                    seasonalText,
+                    contextText,
+                    'Retorne um array JSON seguindo o schema pedido no system prompt.'
+                ].join(' ');
+
+                payload = {
+                    model: body.model || 'gpt-4-turbo',
+                    temperature: Number.isFinite(Number(body.temperature)) ? Number(body.temperature) : 0.7,
+                    messages: [
+                        { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
+                        { role: 'user', content: userPrompt }
+                    ]
+                };
+            } else {
+                payload = body;
+            }
+
+            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const rawText = await openAiResponse.text();
+            let responseJson = null;
+            try {
+                responseJson = JSON.parse(rawText);
+            } catch (jsonError) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'openai_proxy_error', message: rawText || 'Resposta inválida da OpenAI.' }));
+                return;
+            }
+
+            if (!openAiResponse.ok) {
+                const message = responseJson?.error?.message || responseJson?.error || 'Erro na OpenAI.';
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'openai_proxy_error', message }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(responseJson));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'openai_proxy_error', message: error.message }));
             return;
         }
     }

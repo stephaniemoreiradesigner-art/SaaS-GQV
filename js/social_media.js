@@ -87,6 +87,34 @@ window.closeConfigModal = function() {
     }
 }
 
+window.openGenerationConfigModal = function() {
+    const modal = document.getElementById('modal-generation-config');
+    if (!modal) return;
+    closeConfigModal();
+    setTimeout(() => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            const content = document.getElementById('modal-generation-config-content');
+            if (content) content.classList.remove('scale-95');
+        }, 10);
+    }, 250);
+}
+
+window.closeGenerationConfigModal = function() {
+    const modal = document.getElementById('modal-generation-config');
+    if (modal) {
+        modal.classList.add('opacity-0');
+        const content = document.getElementById('modal-generation-config-content');
+        if (content) content.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 300);
+    }
+}
+
 // Funções para manipulação de arquivos (Upload)
 window.updateFileName = function(input) {
     const id = input.id.replace('ia-', '');
@@ -154,7 +182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnHeaderGenerate) btnHeaderGenerate.addEventListener('click', handleGenerateClick);
     
     const btnModalGenerate = document.getElementById('btn-modal-generate');
-    if (btnModalGenerate) btnModalGenerate.addEventListener('click', generateCalendar);
+    if (btnModalGenerate) btnModalGenerate.addEventListener('click', openGenerationConfigModal);
     
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
@@ -171,6 +199,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (modalIa) {
         modalIa.addEventListener('click', (e) => {
             if (e.target === modalIa) closeConfigModal();
+        });
+    }
+
+    const modalGeneration = document.getElementById('modal-generation-config');
+    if (modalGeneration) {
+        modalGeneration.addEventListener('click', (e) => {
+            if (e.target === modalGeneration) closeGenerationConfigModal();
+        });
+    }
+
+    const btnGenerationCancel = document.getElementById('btn-generation-cancel');
+    if (btnGenerationCancel) btnGenerationCancel.addEventListener('click', closeGenerationConfigModal);
+
+    const btnGenerationClose = document.getElementById('btn-generation-close');
+    if (btnGenerationClose) btnGenerationClose.addEventListener('click', closeGenerationConfigModal);
+
+    const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
+    if (btnGenerationConfirm) {
+        btnGenerationConfirm.addEventListener('click', () => {
+            const postsCountInput = document.getElementById('postsCount');
+            const seasonalDatesInput = document.getElementById('seasonalDates');
+            const rawCount = postsCountInput ? parseInt(postsCountInput.value, 10) : 12;
+            const postsCount = Number.isFinite(rawCount) && rawCount > 0 ? rawCount : 12;
+            const seasonalDates = seasonalDatesInput ? seasonalDatesInput.value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean) : [];
+            closeGenerationConfigModal();
+            generateCalendar({ postsCount, seasonalDates });
         });
     }
 
@@ -1089,7 +1146,7 @@ async function deleteCalendar() {
     }
 }
 
-async function generateCalendar() {
+async function generateCalendar(config = {}) {
     if (!currentClienteId) {
         alert('Por favor, selecione um cliente primeiro.');
         return;
@@ -1122,58 +1179,42 @@ async function generateCalendar() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
 
     try {
-        // VIBECODE: Removido fetch de API Key do Frontend. O Proxy backend cuidará disso.
-        // const { data: configData } = await window.supabaseClient...
+        const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
+        const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
 
-        let legendInstruction = `"legenda_sugestao": "Legenda DENSA e PERSUASIVA (Mínimo 3 parágrafos) para Instagram/Facebook. Use Storytelling, AIDA e termine com CTA forte. Inclua hashtags."`;
-        
-        if (platforms.some(p => p.toLowerCase().includes('linkedin'))) {
-            legendInstruction += `, "legenda_linkedin": "Legenda adaptada para LinkedIn. Tom mais profissional/corporativo, focada em networking, carreira ou negócios. Sem hashtags exageradas."`;
-        }
-        
-        if (platforms.some(p => p.toLowerCase().includes('tiktok'))) {
-            legendInstruction += `, "legenda_tiktok": "Legenda curta e dinâmica para TikTok. Focada em retenção e trends. Use hashtags virais."`;
-        }
+        const contextLinkInput = document.getElementById('ia-link-contexto');
+        const contextLink = contextLinkInput ? contextLinkInput.value.trim() : '';
 
-        const prompt = `
-            Crie 12 posts para redes sociais para o cliente: ${client.nome_empresa}.
-            Nicho: ${client.nicho_atuacao || 'Geral'}.
-            Mês: ${currentMonth}.
-            
-            Retorne um ARRAY JSON com a seguinte estrutura:
-            [
-                {
-                    "data_agendada": "YYYY-MM-DD",
-                    "tema": "Título do post",
-                    "formato": "estatico|reels|carrossel",
-                    "conteudo_roteiro": "Roteiro detalhado ou texto do carrossel...",
-                    "descricao_visual": "Descrição da imagem/vídeo...",
-                    "estrategia": "Objetivo (Engajamento, Venda, Autoridade)...",
-                    ${legendInstruction}
-                }
-            ]
-            
-            Distribua as datas ao longo do mês.
-            Seja criativo e persuasivo.
-        `;
-
-        // VIBECODE: Usando Proxy Backend
         const response = await fetch('/api/openai/proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                model: "gpt-4-turbo",
-                messages: [{role: "system", content: "Você é um estrategista de social media expert. Retorne sempre JSON válido (array de objetos)."}, {role: "user", content: prompt}],
-                temperature: 0.7
+                mode: 'calendar',
+                model: 'gpt-4-turbo',
+                temperature: 0.7,
+                client_name: client.nome_empresa,
+                niche: client.nicho_atuacao || 'Geral',
+                month: currentMonth,
+                platforms,
+                posts_count: postsCount,
+                seasonal_dates: seasonalDates,
+                context_link: contextLink
             })
         });
 
-        if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || 'Erro na comunicação com a OpenAI (Proxy)');
+        const responseClone = response.clone();
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            const text = await responseClone.text();
+            throw new Error(text || 'Resposta inválida do servidor.');
         }
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || data.error || 'Erro na comunicação com a OpenAI (Proxy)');
+        }
+
         let content = data.choices[0].message.content;
         
         let posts;
