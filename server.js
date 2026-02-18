@@ -1201,6 +1201,403 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/worklogs' && request.method === 'POST') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            const clientId = String(body?.client_id || '').trim();
+            const moduleValue = String(body?.module || '').trim();
+            const actionType = String(body?.action_type || '').trim();
+            if (!clientId || !moduleValue || !actionType) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'dados_obrigatorios', message: 'client_id, module e action_type são obrigatórios.' }));
+                return;
+            }
+            if (!['social_media', 'traffic', 'automations'].includes(moduleValue)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'module_invalido', message: 'module deve ser social_media, traffic ou automations.' }));
+                return;
+            }
+
+            const payload = {
+                client_id: clientId,
+                module: moduleValue,
+                action_type: actionType,
+                priority: body?.priority ?? null,
+                requested_by_name: body?.requested_by_name ?? null,
+                due_date: body?.due_date ?? null,
+                creative_link: body?.creative_link ?? null,
+                description: body?.description ?? null,
+                created_by: userId
+            };
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?select=*`;
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_criar_worklog' }));
+                return;
+            }
+
+            const created = Array.isArray(json) ? json[0] : json;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(created));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/worklogs' && request.method === 'GET') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const clientId = String(parsedUrl.query.client_id || '').trim();
+            const moduleValue = String(parsedUrl.query.module || '').trim();
+            if (!clientId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'client_id_obrigatorio', message: 'client_id é obrigatório.' }));
+                return;
+            }
+            if (moduleValue && !['social_media', 'traffic', 'automations'].includes(moduleValue)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'module_invalido', message: 'module deve ser social_media, traffic ou automations.' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', '*');
+            params.set('client_id', `eq.${clientId}`);
+            if (moduleValue) params.set('module', `eq.${moduleValue}`);
+            params.set('order', 'created_at.desc');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?${params.toString()}`;
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_listar_worklogs' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(Array.isArray(json) ? json : []));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const worklogIdMatch = pathname.match(/^\/api\/worklogs\/([0-9a-fA-F-]{36})$/);
+    if (worklogIdMatch && request.method === 'GET') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const worklogId = worklogIdMatch[1];
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const worklogParams = new URLSearchParams();
+            worklogParams.set('select', '*');
+            worklogParams.set('id', `eq.${worklogId}`);
+            worklogParams.set('limit', '1');
+            const worklogUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?${worklogParams.toString()}`;
+            const worklogRes = await fetch(worklogUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const worklogJson = await worklogRes.json().catch(() => null);
+            if (!worklogRes.ok) {
+                response.writeHead(worklogRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(worklogJson || { error: 'erro_ao_buscar_worklog' }));
+                return;
+            }
+            const worklog = Array.isArray(worklogJson) ? worklogJson[0] : worklogJson;
+            if (!worklog) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'worklog_nao_encontrado' }));
+                return;
+            }
+
+            const actionsParams = new URLSearchParams();
+            actionsParams.set('select', '*');
+            actionsParams.set('worklog_id', `eq.${worklogId}`);
+            actionsParams.set('order', 'created_at.asc');
+            const actionsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklog_actions?${actionsParams.toString()}`;
+            const actionsRes = await fetch(actionsUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const actionsJson = await actionsRes.json().catch(() => null);
+            if (!actionsRes.ok) {
+                response.writeHead(actionsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(actionsJson || { error: 'erro_ao_buscar_actions' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                worklog,
+                actions: Array.isArray(actionsJson) ? actionsJson : []
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const worklogActionsMatch = pathname.match(/^\/api\/worklogs\/([0-9a-fA-F-]{36})\/actions$/);
+    if (worklogActionsMatch && request.method === 'POST') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const worklogId = worklogActionsMatch[1];
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const checkParams = new URLSearchParams();
+            checkParams.set('select', 'id,status');
+            checkParams.set('id', `eq.${worklogId}`);
+            checkParams.set('limit', '1');
+            const checkUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?${checkParams.toString()}`;
+            const checkRes = await fetch(checkUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const checkJson = await checkRes.json().catch(() => null);
+            if (!checkRes.ok) {
+                response.writeHead(checkRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(checkJson || { error: 'erro_ao_buscar_worklog' }));
+                return;
+            }
+            const worklog = Array.isArray(checkJson) ? checkJson[0] : checkJson;
+            if (!worklog) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'worklog_nao_encontrado' }));
+                return;
+            }
+            if (worklog.status !== 'open') {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'worklog_fechado', message: 'Ações só podem ser adicionadas com status open.' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            const note = String(body?.note || '').trim();
+            if (!note) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nota_obrigatoria', message: 'note é obrigatório.' }));
+                return;
+            }
+
+            const payload = {
+                worklog_id: worklogId,
+                note,
+                created_by: userId
+            };
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklog_actions?select=*`;
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_criar_action' }));
+                return;
+            }
+
+            const created = Array.isArray(json) ? json[0] : json;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(created));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const worklogCloseMatch = pathname.match(/^\/api\/worklogs\/([0-9a-fA-F-]{36})\/close$/);
+    if (worklogCloseMatch && request.method === 'POST') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const worklogId = worklogCloseMatch[1];
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const checkParams = new URLSearchParams();
+            checkParams.set('select', 'id,status');
+            checkParams.set('id', `eq.${worklogId}`);
+            checkParams.set('limit', '1');
+            const checkUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?${checkParams.toString()}`;
+            const checkRes = await fetch(checkUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const checkJson = await checkRes.json().catch(() => null);
+            if (!checkRes.ok) {
+                response.writeHead(checkRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(checkJson || { error: 'erro_ao_buscar_worklog' }));
+                return;
+            }
+            const worklog = Array.isArray(checkJson) ? checkJson[0] : checkJson;
+            if (!worklog) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'worklog_nao_encontrado' }));
+                return;
+            }
+            if (worklog.status !== 'open') {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'worklog_fechado', message: 'Worklog já está fechado.' }));
+                return;
+            }
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/worklogs?id=eq.${worklogId}&select=*`;
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'PATCH',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify({ status: 'done' })
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_fechar_worklog' }));
+                return;
+            }
+
+            const updated = Array.isArray(json) ? json[0] : json;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(updated));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     const connectionsListMatch = pathname.match(/^\/api\/clients\/(\d+)\/connections$/);
     if (connectionsListMatch && request.method === 'GET') {
         try {

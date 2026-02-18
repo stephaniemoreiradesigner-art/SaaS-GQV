@@ -58,11 +58,11 @@ window.openSocialMediaTab = function(tabName) {
         }
         // Load clients for logs filter if not loaded
         loadLogsClients(); 
-        if (window.loadTrafficLogs) {
-            console.log('Carregando logs de tráfego...');
-            window.loadTrafficLogs();
+        if (window.loadWorklogs) {
+            console.log('Carregando logs do diário...');
+            window.loadWorklogs();
         } else {
-            console.error('Função loadTrafficLogs não encontrada!');
+            console.error('Função loadWorklogs não encontrada!');
         }
     }
 }

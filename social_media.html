@@ -506,25 +506,24 @@
                         <p class="text-gray-500 mt-1">Histórico de atividades e solicitações.</p>
                     </div>
                 </div>
-                <button onclick="openTrafficLogModal()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium flex items-center gap-2">
+                <button onclick="openWorklogModal()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium flex items-center gap-2">
                     <i class="fas fa-plus"></i> Novo Registro
                 </button>
             </header>
 
             <!-- Filters -->
             <div class="flex flex-wrap gap-4 mb-6">
-                <select id="filter-cliente" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm min-w-[200px]" onchange="loadTrafficLogs()">
+                <select id="filter-cliente" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm min-w-[200px]" onchange="loadWorklogs()">
                     <option value="">Todos os Clientes</option>
                 </select>
                 
-                <select id="filter-status-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadTrafficLogs()">
+                <select id="filter-status-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadWorklogs()">
                     <option value="">Todos Status</option>
-                    <option value="pendente">Pendente</option>
-                    <option value="acompanhando">Acompanhando</option>
-                    <option value="feito">Feito</option>
+                    <option value="open">Em aberto</option>
+                    <option value="done">Concluído</option>
                 </select>
 
-                <select id="filter-prioridade-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadTrafficLogs()">
+                <select id="filter-prioridade-log" class="px-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm" onchange="loadWorklogs()">
                     <option value="">Todas Prioridades</option>
                     <option value="baixa">Baixa</option>
                     <option value="media">Média</option>
@@ -1040,7 +1039,7 @@
                 </button>
             </div>
             
-            <form onsubmit="submitTrafficLog(event)" class="space-y-4">
+            <form onsubmit="submitWorklog(event)" class="space-y-4">
                 <input type="hidden" id="log-id">
                 
                 <div>
@@ -1061,23 +1060,13 @@
                     </select>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select id="log-status" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
-                            <option value="pendente">Pendente</option>
-                            <option value="em_andamento">Em andamento</option>
-                            <option value="concluido">Concluído</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
-                        <select id="log-prioridade" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
-                            <option value="baixa">Baixa</option>
-                            <option value="media" selected>Média</option>
-                            <option value="alta">Alta</option>
-                        </select>
-                    </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
+                    <select id="log-prioridade" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="baixa">Baixa</option>
+                        <option value="media" selected>Média</option>
+                        <option value="alta">Alta</option>
+                    </select>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -1107,10 +1096,79 @@
                 </div>
 
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeTrafficLogModal()" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Cancelar</button>
+                    <button type="button" onclick="closeWorklogModal()" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Cancelar</button>
                     <button type="submit" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium shadow-md transition-all">Salvar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div id="worklog-detail-modal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl transform transition-all flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl sticky top-0 z-10">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-book text-primary"></i> Detalhe do Diário
+                    </h3>
+                    <p class="text-xs text-gray-500">Somente leitura no cabeçalho. Ações são adicionadas abaixo.</p>
+                </div>
+                <button onclick="closeWorklogDetailModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50">
+                <div class="bg-white border border-gray-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Cliente</div>
+                        <div id="worklog-detail-cliente" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Tipo de Ação</div>
+                        <div id="worklog-detail-tipo" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Prioridade</div>
+                        <div id="worklog-detail-prioridade" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Prazo</div>
+                        <div id="worklog-detail-prazo" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Criado por</div>
+                        <div id="worklog-detail-criado-por" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Criado em</div>
+                        <div id="worklog-detail-criado-em" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Status</div>
+                        <div id="worklog-detail-status" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wide">Duração</div>
+                        <div id="worklog-detail-duracao" class="text-sm font-semibold text-gray-800">-</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-semibold text-gray-700 mb-3">Timeline de Ações</h4>
+                    <div id="worklog-actions-list" class="space-y-3">
+                        <div class="text-sm text-gray-500 italic">Nenhuma ação registrada.</div>
+                    </div>
+                </div>
+
+                <div id="worklog-actions-form" class="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                    <label class="block text-sm font-medium text-gray-700">Adicionar ação</label>
+                    <textarea id="worklog-action-note" rows="3" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Descreva a ação realizada..."></textarea>
+                    <div class="flex items-center justify-between gap-3">
+                        <button id="worklog-action-submit" onclick="submitWorklogAction()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium shadow-md transition-all">Adicionar ação</button>
+                        <button id="worklog-close-btn" onclick="closeWorklog()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow-md transition-all">Concluir</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

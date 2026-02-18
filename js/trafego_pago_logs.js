@@ -493,3 +493,375 @@ window.deleteTrafficLog = async function(id) {
         alert('Erro ao excluir: ' + e.message);
     }
 }
+
+window.loadWorklogs = async function() {
+    const targetContainer = document.getElementById('logs-table-body');
+    if (!targetContainer) return;
+
+    targetContainer.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando registros...</td></tr>`;
+
+    const clienteId = document.getElementById('filter-cliente')?.value || '';
+    const statusFilter = document.getElementById('filter-status-log')?.value || '';
+    const prioridadeFilter = document.getElementById('filter-prioridade-log')?.value || '';
+
+    const select = document.getElementById('filter-cliente');
+    const clientOptions = select ? Array.from(select.options).slice(1) : [];
+    const clientIds = clienteId ? [clienteId] : clientOptions.map(opt => opt.value).filter(Boolean);
+    const clientNameMap = clientOptions.reduce((acc, opt) => {
+        acc[opt.value] = opt.textContent || opt.value;
+        return acc;
+    }, {});
+
+    if (clientIds.length === 0) {
+        targetContainer.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 italic">Selecione um cliente para ver os registros.</td></tr>`;
+        return;
+    }
+
+    try {
+        const headers = await getWorklogAuthHeaders();
+        const responses = await Promise.all(clientIds.map(async (id) => {
+            const res = await fetch(`/api/worklogs?client_id=${encodeURIComponent(id)}&module=social_media`, {
+                method: 'GET',
+                headers
+            });
+            const json = await res.json().catch(() => []);
+            if (!res.ok) {
+                throw new Error(json?.error || 'Erro ao carregar worklogs');
+            }
+            return Array.isArray(json) ? json : [];
+        }));
+
+        let logs = responses.flat();
+        if (statusFilter) logs = logs.filter(item => item.status === statusFilter);
+        if (prioridadeFilter) logs = logs.filter(item => (item.priority || '').toLowerCase() === prioridadeFilter);
+
+        logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        targetContainer.innerHTML = '';
+        if (!logs.length) {
+            targetContainer.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 italic">Nenhum registro encontrado.</td></tr>`;
+            return;
+        }
+
+        logs.forEach(log => {
+            const dataCriacao = formatWorklogDateTime(log.created_at);
+            const statusLabel = log.status === 'done' ? 'Concluído' : 'Em aberto';
+            const statusClass = log.status === 'done'
+                ? 'bg-green-100 text-green-700 border border-green-200'
+                : 'bg-yellow-100 text-yellow-700 border border-yellow-200';
+
+            let prioridadeClass = 'bg-gray-100 text-gray-700 border border-gray-200';
+            if (log.priority === 'alta') prioridadeClass = 'bg-red-100 text-red-700 border border-red-200 font-bold';
+            else if (log.priority === 'media') prioridadeClass = 'bg-blue-100 text-blue-700 border border-blue-200';
+            else if (log.priority === 'baixa') prioridadeClass = 'bg-green-100 text-green-700 border border-green-200';
+
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 transition-colors border-b border-white';
+            tr.innerHTML = `
+                <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${dataCriacao}</td>
+                <td class="px-6 py-4 text-sm font-medium text-gray-900">${clientNameMap[log.client_id] || 'Cliente Desconhecido'}</td>
+                <td class="px-6 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 capitalize border border-gray-200">
+                        ${log.action_type || '-'}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title="${log.description || ''}">
+                    ${log.description || '-'}
+                </td>
+                <td class="px-6 py-4">
+                    <div class="flex flex-col gap-1">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusClass} capitalize">
+                            ${statusLabel}
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${prioridadeClass} capitalize">
+                            ${log.priority || 'media'}
+                        </span>
+                    </div>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-600">
+                    ${log.requested_by_name || '-'}
+                </td>
+                <td class="px-6 py-4 text-right text-sm font-medium whitespace-nowrap">
+                    <button onclick="openWorklogDetailModal('${log.id}')" class="text-primary hover:text-primary-hover transition-colors" title="Ver Detalhe">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </td>
+            `;
+            targetContainer.appendChild(tr);
+        });
+    } catch (e) {
+        console.error('Erro ao carregar worklogs:', e);
+        targetContainer.innerHTML = `<tr><td colspan="7" class="text-red-500 text-center py-4">Erro ao carregar dados.</td></tr>`;
+    }
+}
+
+window.openWorklogModal = function() {
+    const modal = document.getElementById('traffic-log-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    const titleEl = modal.querySelector('h3');
+    if (titleEl) titleEl.innerHTML = '<i class="fas fa-pen-fancy text-primary"></i> Novo Registro';
+
+    const modalSelect = document.getElementById('log-cliente');
+    if (modalSelect && modalSelect.options.length <= 1) {
+        const mainFilter = document.getElementById('filter-cliente');
+        if (mainFilter) {
+            modalSelect.innerHTML = '<option value="">Selecione...</option>';
+            Array.from(mainFilter.options).forEach((opt, index) => {
+                if (index > 0) modalSelect.appendChild(opt.cloneNode(true));
+            });
+        }
+    }
+
+    const form = modal.querySelector('form');
+    if (form) form.reset();
+
+    if (document.getElementById('log-prioridade')) document.getElementById('log-prioridade').value = 'media';
+    if (document.getElementById('log-created-at')) document.getElementById('log-created-at').value = new Date().toLocaleString('pt-BR');
+}
+
+window.closeWorklogModal = function() {
+    const modal = document.getElementById('traffic-log-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+window.submitWorklog = async function(event) {
+    event.preventDefault();
+
+    const clienteId = document.getElementById('log-cliente')?.value;
+    const actionType = document.getElementById('log-tipo')?.value;
+    if (!clienteId || !actionType) {
+        alert('Preencha cliente e tipo de ação.');
+        return;
+    }
+
+    const payload = {
+        client_id: clienteId,
+        module: 'social_media',
+        action_type: actionType,
+        priority: document.getElementById('log-prioridade')?.value || 'media',
+        requested_by_name: document.getElementById('log-solicitante')?.value || null,
+        due_date: document.getElementById('log-prazo')?.value || null,
+        creative_link: document.getElementById('log-link')?.value || null,
+        description: document.getElementById('log-descricao')?.value || null
+    };
+
+    try {
+        const headers = await getWorklogAuthHeaders();
+        const res = await fetch('/api/worklogs', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.message || json?.error || 'Erro ao salvar worklog');
+        }
+
+        closeWorklogModal();
+        await loadWorklogs();
+        if (json?.id) {
+            openWorklogDetailModal(json.id);
+        }
+        alert('Registro criado com sucesso.');
+    } catch (e) {
+        console.error('Erro ao salvar worklog:', e);
+        alert('Erro ao salvar registro: ' + e.message);
+    }
+}
+
+window.openWorklogDetailModal = async function(worklogId) {
+    const modal = document.getElementById('worklog-detail-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    window.currentWorklogId = worklogId;
+    await loadWorklogDetail(worklogId);
+}
+
+window.closeWorklogDetailModal = function() {
+    const modal = document.getElementById('worklog-detail-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+async function loadWorklogDetail(worklogId) {
+    if (!worklogId) return;
+    const headers = await getWorklogAuthHeaders();
+    const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}`, {
+        method: 'GET',
+        headers
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+        alert(json?.error || 'Erro ao carregar detalhe do diário');
+        return;
+    }
+    window.currentWorklogDetail = json || null;
+    renderWorklogDetail(json);
+}
+
+async function renderWorklogDetail(data) {
+    const worklog = data?.worklog || {};
+    const actions = Array.isArray(data?.actions) ? data.actions : [];
+
+    const select = document.getElementById('filter-cliente');
+    const clientName = getClientNameFromSelect(worklog.client_id, select);
+    const createdAt = formatWorklogDateTime(worklog.created_at);
+    const dueDate = formatWorklogDate(worklog.due_date);
+    const statusLabel = worklog.status === 'done' ? 'Concluído' : 'Em aberto';
+    const duration = worklog.status === 'done' ? formatWorklogDuration(worklog.duration_seconds) : '-';
+    const createdBy = await resolveWorklogCreatedBy(worklog.created_by);
+
+    setText('worklog-detail-cliente', clientName || '-');
+    setText('worklog-detail-tipo', worklog.action_type || '-');
+    setText('worklog-detail-prioridade', worklog.priority || '-');
+    setText('worklog-detail-prazo', dueDate);
+    setText('worklog-detail-criado-por', createdBy || '-');
+    setText('worklog-detail-criado-em', createdAt);
+    setText('worklog-detail-status', statusLabel);
+    setText('worklog-detail-duracao', duration);
+
+    const list = document.getElementById('worklog-actions-list');
+    if (list) {
+        list.innerHTML = '';
+        if (!actions.length) {
+            list.innerHTML = '<div class="text-sm text-gray-500 italic">Nenhuma ação registrada.</div>';
+        } else {
+            actions.forEach(action => {
+                const item = document.createElement('div');
+                item.className = 'bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2';
+                const actionDate = formatWorklogDateTime(action.created_at);
+                item.innerHTML = `
+                    <div class="flex items-center justify-between text-xs text-gray-400">
+                        <span>${actionDate}</span>
+                        <span>${action.created_by || ''}</span>
+                    </div>
+                    <div class="text-sm text-gray-700">${action.note || '-'}</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+    }
+
+    const form = document.getElementById('worklog-actions-form');
+    if (form) {
+        if (worklog.status === 'open') {
+            form.classList.remove('hidden');
+            const noteInput = document.getElementById('worklog-action-note');
+            if (noteInput) noteInput.disabled = false;
+        } else {
+            form.classList.add('hidden');
+        }
+    }
+}
+
+window.submitWorklogAction = async function() {
+    const worklogId = window.currentWorklogId;
+    if (!worklogId) return;
+    const noteInput = document.getElementById('worklog-action-note');
+    const note = noteInput ? noteInput.value.trim() : '';
+    if (!note) {
+        alert('Descreva a ação antes de enviar.');
+        return;
+    }
+
+    try {
+        const headers = await getWorklogAuthHeaders();
+        const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}/actions`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ note })
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.message || json?.error || 'Erro ao adicionar ação');
+        }
+        if (noteInput) noteInput.value = '';
+        await loadWorklogDetail(worklogId);
+        await loadWorklogs();
+    } catch (e) {
+        console.error('Erro ao adicionar ação:', e);
+        alert('Erro ao adicionar ação: ' + e.message);
+    }
+}
+
+window.closeWorklog = async function() {
+    const worklogId = window.currentWorklogId;
+    if (!worklogId) return;
+    try {
+        const headers = await getWorklogAuthHeaders();
+        const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}/close`, {
+            method: 'POST',
+            headers
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.message || json?.error || 'Erro ao concluir worklog');
+        }
+        await loadWorklogDetail(worklogId);
+        await loadWorklogs();
+        alert('Worklog concluído.');
+    } catch (e) {
+        console.error('Erro ao concluir worklog:', e);
+        alert('Erro ao concluir: ' + e.message);
+    }
+}
+
+async function getWorklogAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+function formatWorklogDateTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatWorklogDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('pt-BR');
+}
+
+function formatWorklogDuration(seconds) {
+    const total = Number(seconds);
+    if (!Number.isFinite(total) || total < 0) return '-';
+    const hrs = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = Math.floor(total % 60);
+    const pad = (val) => String(val).padStart(2, '0');
+    return `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+}
+
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function getClientNameFromSelect(clientId, select) {
+    if (!clientId || !select) return '';
+    const opt = Array.from(select.options).find(o => String(o.value) === String(clientId));
+    return opt ? opt.textContent : '';
+}
+
+async function resolveWorklogCreatedBy(createdBy) {
+    if (!createdBy) return '';
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const currentId = sessionResult?.data?.session?.user?.id;
+    if (currentId && currentId === createdBy) return 'Você';
+    return createdBy;
+}
