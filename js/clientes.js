@@ -676,6 +676,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             carregarMensalidadesNoFormulario(cliente);
 
             await loadConnectionsForClient(cliente.id);
+            await loadClienteHistorico(cliente.id);
 
         } catch (e) {
             console.error('Erro ao editar cliente:', e);
@@ -1185,6 +1186,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         }
+    };
+
+    const loadClienteHistorico = async (clienteId) => {
+        const card = document.getElementById('cliente-historico-card');
+        const loading = document.getElementById('cliente-historico-loading');
+        const empty = document.getElementById('cliente-historico-empty');
+        const table = document.getElementById('cliente-historico-table');
+        const tbody = document.getElementById('cliente-historico-tbody');
+        if (!card || !loading || !empty || !table || !tbody) return;
+
+        if (!clienteId || !window.Logbook || typeof window.Logbook.listActionsByClient !== 'function') {
+            card.classList.add('hidden');
+            return;
+        }
+
+        card.classList.remove('hidden');
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+        table.classList.add('hidden');
+        tbody.innerHTML = '';
+
+        const items = await window.Logbook.listActionsByClient(clienteId);
+        loading.classList.add('hidden');
+
+        if (!items || items.length === 0) {
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        table.classList.remove('hidden');
+        items.slice(0, 50).forEach((item) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 transition-colors';
+            const createdAt = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '-';
+            const moduleLabel = window.Logbook.formatModuleLabel ? window.Logbook.formatModuleLabel(item.module) : item.module || '-';
+            const actionLabel = item.action_type || '-';
+            const details = item.details || '-';
+            tr.innerHTML = `
+                <td class="px-6 py-3 text-sm text-gray-600 whitespace-nowrap">${createdAt}</td>
+                <td class="px-6 py-3 text-sm text-gray-600">${moduleLabel}</td>
+                <td class="px-6 py-3 text-sm text-gray-700">${actionLabel}</td>
+                <td class="px-6 py-3 text-sm text-gray-600">${details}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     };
 
     const handleOAuthReturn = async () => {

@@ -811,6 +811,22 @@ async function savePost() {
                 
             if (taskError) console.error('Erro ao atualizar tarefa vinculada:', taskError);
 
+            if (window.Logbook && window.Logbook.addAction) {
+                window.Logbook.addAction({
+                    clienteId: currentClienteId,
+                    module: 'social_media',
+                    actionType: 'post_updated',
+                    title: 'Post atualizado',
+                    details: JSON.stringify({
+                        tema: postData.tema,
+                        data: postData.data_agendada,
+                        formato: postData.formato,
+                        status: postData.status
+                    }),
+                    refType: 'social_post',
+                    refId: eventId
+                });
+            }
         } else {
             postData.cliente_id = currentClienteId;
             postData.created_at = new Date();
@@ -823,6 +839,22 @@ async function savePost() {
                 .from('social_posts')
                 .insert([postData]);
             if (error) throw error;
+            if (window.Logbook && window.Logbook.addAction) {
+                window.Logbook.addAction({
+                    clienteId: currentClienteId,
+                    module: 'social_media',
+                    actionType: 'post_created',
+                    title: 'Post criado',
+                    details: JSON.stringify({
+                        tema: postData.tema,
+                        data: postData.data_agendada,
+                        formato: postData.formato,
+                        status: postData.status
+                    }),
+                    refType: 'social_post',
+                    refId: null
+                });
+            }
         }
 
         closePostModal();
@@ -851,6 +883,20 @@ async function deletePost() {
             .eq('id', eventId);
 
         if (error) throw error;
+
+        if (window.Logbook && window.Logbook.addAction) {
+            const temaValue = document.getElementById('post-tema')?.value;
+            const dataValue = document.getElementById('post-data')?.value;
+            window.Logbook.addAction({
+                clienteId: currentClienteId,
+                module: 'social_media',
+                actionType: 'post_deleted',
+                title: 'Post excluído',
+                details: JSON.stringify({ tema: temaValue, data: dataValue }),
+                refType: 'social_post',
+                refId: eventId
+            });
+        }
 
         closePostModal();
         const event = calendar.getEventById(eventId);

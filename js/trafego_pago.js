@@ -989,6 +989,24 @@ window.handleCreateCampaignStepper = async function(event) {
             if (error) throw error;
         }
 
+        if (window.Logbook && window.Logbook.addAction) {
+            window.Logbook.addAction({
+                clienteId: clientId,
+                module: 'trafego_pago',
+                actionType: 'campaign_created',
+                title: 'Campanha criada',
+                details: JSON.stringify({
+                    platform: payload.platform,
+                    campaign_name: payload.campaign_name,
+                    objective: payload.objective,
+                    daily_budget: payload.daily_budget,
+                    start_date: payload.start_date
+                }),
+                refType: 'traffic_campaign',
+                refId: null
+            });
+        }
+
         alert('Campanha criada com sucesso! Ela aparecerá na lista de campanhas.');
         event.target.reset();
         currentStep = 1;

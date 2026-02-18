@@ -515,6 +515,18 @@ window.saveWorkflow = async function(e) {
 
         if (error) throw error;
 
+        if (window.Logbook && window.Logbook.addAction) {
+            window.Logbook.addAction({
+                clienteId: client_id,
+                module: 'automacoes',
+                actionType: 'workflow_created',
+                title: 'Fluxo criado',
+                details: JSON.stringify({ name, status, environment, integration, version }),
+                refType: 'workflow',
+                refId: null
+            });
+        }
+
         alert('Fluxo criado com sucesso!');
         closeModal('modal-new-workflow');
         
