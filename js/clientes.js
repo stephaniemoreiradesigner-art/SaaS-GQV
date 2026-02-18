@@ -19,6 +19,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    const normalizeGroupLink = (value) => {
+        const trimmed = value ? String(value).trim() : '';
+        if (!trimmed) return '';
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return `https://${trimmed}`;
+    };
+
+    const updateGroupLinkPreview = (value) => {
+        const preview = document.getElementById('link_grupo_preview');
+        if (!preview) return;
+        if (value) {
+            preview.href = value;
+            preview.textContent = value;
+            preview.classList.remove('hidden');
+        } else {
+            preview.href = '#';
+            preview.textContent = 'Abrir grupo';
+            preview.classList.add('hidden');
+        }
+    };
+
+    const linkGrupoInput = document.getElementById('link_grupo');
+    if (linkGrupoInput) {
+        linkGrupoInput.addEventListener('blur', () => {
+            const normalized = normalizeGroupLink(linkGrupoInput.value);
+            linkGrupoInput.value = normalized;
+            updateGroupLinkPreview(normalized);
+        });
+    }
+
     function addMensalidadeRow(data) {
         if (!mensalidadesContainer) return;
 
@@ -475,6 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link_lp: document.getElementById('link_lp').value,
                 link_drive: document.getElementById('link_drive').value,
                 link_persona: document.getElementById('link_persona').value,
+                link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
                 
                 servicos: getCheckedValues('servicos'),
                 responsavel_trafego_colaborador_id: gestorColaboradorId,
@@ -638,6 +669,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('link_lp').value = cliente.link_lp || '';
             document.getElementById('link_drive').value = cliente.link_drive || '';
             document.getElementById('link_persona').value = cliente.link_persona || '';
+            document.getElementById('link_grupo').value = cliente.link_grupo || '';
+            updateGroupLinkPreview(normalizeGroupLink(cliente.link_grupo || ''));
             
             await loadInternalOwnersForSelects();
             const gestorSelect = document.getElementById('gestor_trafego_email');

@@ -1163,7 +1163,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,nome_fantasia,nome_empresa');
+            params.set('select', 'id,nome_fantasia,nome_empresa,link_grupo');
             params.set('order', 'nome_fantasia.asc,nome_empresa.asc');
 
             const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${params.toString()}`;
@@ -1185,7 +1185,8 @@ const server = http.createServer(async (request, response) => {
                 .map((cliente) => {
                     const nome = cliente?.nome_fantasia || cliente?.nome_empresa || '';
                     const id = cliente?.id ? String(cliente.id) : '';
-                    return { id, nome };
+                    const link_grupo = cliente?.link_grupo ? String(cliente.link_grupo) : '';
+                    return { id, nome, link_grupo };
                 })
                 .filter((cliente) => cliente.id && cliente.nome);
 
@@ -1193,6 +1194,161 @@ const server = http.createServer(async (request, response) => {
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ clients }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/logbook/actions' && request.method === 'GET') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const clienteId = String(parsedUrl.query.cliente_id || '').trim();
+            if (!clienteId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_id_obrigatorio' }));
+                return;
+            }
+
+            const moduleFilter = String(parsedUrl.query.module || '').trim();
+            const limit = Number(parsedUrl.query.limit || 50);
+            const targetLimit = Number.isNaN(limit) || limit <= 0 ? 50 : Math.min(limit, 200);
+            const headers = {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`
+            };
+
+            const fetchFromTable = async (table) => {
+                const params = new URLSearchParams();
+                params.set('select', '*');
+                params.set('cliente_id', `eq.${clienteId}`);
+                if (moduleFilter) params.set('module', `eq.${moduleFilter}`);
+                params.set('order', 'created_at.desc');
+                params.set('limit', String(targetLimit));
+                const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${table}?${params.toString()}`;
+                const supabaseResponse = await fetch(targetUrl, { method: 'GET', headers });
+                const json = await supabaseResponse.json().catch(() => null);
+                return { ok: supabaseResponse.ok, status: supabaseResponse.status, json };
+            };
+
+            let responseData = null;
+            const firstAttempt = await fetchFromTable('logbook_actions');
+            if (firstAttempt.ok) {
+                responseData = Array.isArray(firstAttempt.json) ? firstAttempt.json : [];
+            } else {
+                const secondAttempt = await fetchFromTable('actions');
+                if (!secondAttempt.ok) {
+                    response.writeHead(secondAttempt.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(secondAttempt.json || { error: 'erro_ao_buscar_diario' }));
+                    return;
+                }
+                responseData = Array.isArray(secondAttempt.json) ? secondAttempt.json : [];
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true, data: responseData }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/logbook/actions' && request.method === 'POST') {
+        try {
+            const userId = await getSupabaseUserIdFromRequest(request);
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nao_autorizado' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const body = JSON.parse(await readRequestBody(request));
+            const clienteId = body?.cliente_id ? String(body.cliente_id).trim() : '';
+            const moduleValue = body?.module ? String(body.module).trim() : '';
+
+            if (!clienteId || !moduleValue) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_id_e_module_obrigatorios' }));
+                return;
+            }
+
+            let details = body?.details ?? null;
+            if (typeof details === 'string') {
+                try {
+                    details = JSON.parse(details);
+                } catch {
+                    details = details.trim();
+                }
+            }
+
+            const createdAt = body?.created_at ? String(body.created_at) : new Date().toISOString();
+            const insertPayload = {
+                cliente_id: clienteId,
+                module: moduleValue,
+                action_type: body?.action_type || null,
+                title: body?.title || null,
+                details,
+                ref_type: body?.ref_type || null,
+                ref_id: body?.ref_id || null,
+                created_at: createdAt
+            };
+
+            const headers = {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation'
+            };
+
+            const tryInsert = async (table) => {
+                const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/${table}`;
+                const supabaseResponse = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(insertPayload)
+                });
+                const json = await supabaseResponse.json().catch(() => null);
+                return { ok: supabaseResponse.ok, status: supabaseResponse.status, json };
+            };
+
+            let insertResult = await tryInsert('logbook_actions');
+            if (!insertResult.ok) {
+                insertResult = await tryInsert('actions');
+            }
+
+            if (!insertResult.ok) {
+                response.writeHead(insertResult.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(insertResult.json || { error: 'erro_ao_salvar_diario' }));
+                return;
+            }
+
+            const inserted = Array.isArray(insertResult.json) ? insertResult.json[0] : insertResult.json;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true, data: inserted }));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });

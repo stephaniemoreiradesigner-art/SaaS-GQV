@@ -85,6 +85,8 @@ async function loadTenants() {
     const filterSelect = document.getElementById('filter-cliente-workflow');
     const modalSelect = document.getElementById('wf-client');
     const filterBackup = document.getElementById('filter-backup-client');
+    const logbookFilter = document.getElementById('logbook-client-filter');
+    const logbookModal = document.getElementById('logbook-cliente');
     
     try {
         const { data: clientes, error } = await window.supabaseClient
@@ -107,6 +109,8 @@ async function loadTenants() {
             populate(filterSelect, 'Todos os Clientes');
             populate(modalSelect, 'Selecione o Cliente...');
             populate(filterBackup, 'Selecione o Cliente...');
+            populate(logbookFilter, 'Selecione o Cliente');
+            populate(logbookModal, 'Selecione...');
         }
     } catch (e) {
         console.error('Erro ao carregar clientes:', e);
@@ -145,6 +149,12 @@ window.switchTab = function(tabId) {
     if (tabId === 'fluxos') loadWorkflows();
     if (tabId === 'backups') { /* Load backups logic if needed initially, or wait for selection */ }
     if (tabId === 'visao_geral_automacoes') loadDashboardData();
+    if (tabId === 'diario_bordo') {
+        const selectedClient = document.getElementById('logbook-client-filter')?.value || '';
+        if (selectedClient) {
+            loadLogbookRecords(selectedClient);
+        }
+    }
 }
 
 window.connectProvider = function(provider) {
@@ -517,6 +527,233 @@ function renderWorkflowsTable(workflows) {
                 <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="createSnapshot('${wf.id}')" title="Backup"><i class="fas fa-camera"></i></button>
                 <button class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded transition-colors" onclick="togglePause('${wf.id}')" title="Pausar"><i class="fas fa-power-off"></i></button>
             </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+const LOGBOOK_API_BASE = window.location?.origin || '';
+let currentLogbookClientId = '';
+
+const parseLogbookDetails = (details) => {
+    if (!details) return {};
+    if (typeof details === 'object') return details;
+    if (typeof details === 'string') {
+        try {
+            return JSON.parse(details);
+        } catch {
+            return {};
+        }
+    }
+    return {};
+};
+
+const formatLogbookDate = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('pt-BR');
+};
+
+const buildLogbookSummary = (item, details) => {
+    const candidates = [
+        details?.descricao,
+        details?.description,
+        details?.details,
+        item?.title
+    ];
+    const found = candidates.find((text) => text && String(text).trim().length);
+    return found ? String(found) : '-';
+};
+
+const getLogbookApiHeaders = async () => {
+    if (typeof getAutomationAuthHeaders === 'function') {
+        return await getAutomationAuthHeaders();
+    }
+    return {};
+};
+
+const setLogbookCreatedAt = (date = new Date()) => {
+    const display = document.getElementById('logbook-created-at-display');
+    const iso = document.getElementById('logbook-created-at-iso');
+    if (display) display.value = date.toLocaleString('pt-BR');
+    if (iso) iso.value = date.toISOString();
+};
+
+window.openLogbookModal = function() {
+    const modal = document.getElementById('logbook-modal');
+    if (!modal) return;
+    const selectedClient = document.getElementById('logbook-client-filter')?.value || '';
+    const clienteSelect = document.getElementById('logbook-cliente');
+    if (clienteSelect) clienteSelect.value = selectedClient;
+    document.getElementById('logbook-tipo').value = '';
+    document.getElementById('logbook-status').value = 'aberto';
+    document.getElementById('logbook-prioridade').value = 'media';
+    document.getElementById('logbook-solicitante').value = '';
+    document.getElementById('logbook-descricao').value = '';
+    document.getElementById('logbook-acoes').value = '';
+    document.getElementById('logbook-prazo').value = '';
+    setLogbookCreatedAt(new Date());
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+window.closeLogbookModal = function() {
+    const modal = document.getElementById('logbook-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+};
+
+window.saveLogbookRecord = async function(e) {
+    e.preventDefault();
+    const clienteId = document.getElementById('logbook-cliente').value;
+    const actionType = document.getElementById('logbook-tipo').value;
+    const status = document.getElementById('logbook-status').value;
+    const prioridade = document.getElementById('logbook-prioridade').value;
+    const solicitante = document.getElementById('logbook-solicitante').value;
+    const descricao = document.getElementById('logbook-descricao').value;
+    const acoesTomadas = document.getElementById('logbook-acoes').value;
+    const prazo = document.getElementById('logbook-prazo').value || null;
+    const createdAtIso = document.getElementById('logbook-created-at-iso').value || new Date().toISOString();
+
+    if (!clienteId) {
+        alert('Selecione um cliente.');
+        return;
+    }
+    if (!actionType) {
+        alert('Selecione o tipo de ação.');
+        return;
+    }
+
+    const detailsPayload = {
+        status,
+        prioridade,
+        solicitante,
+        descricao,
+        acoes_tomadas: acoesTomadas,
+        prazo,
+        created_at: createdAtIso
+    };
+
+    const payload = {
+        cliente_id: clienteId,
+        module: 'automacoes',
+        action_type: actionType,
+        title: `Registro - ${actionType}`,
+        details: JSON.stringify(detailsPayload),
+        ref_type: 'automation_log',
+        ref_id: null,
+        created_at: createdAtIso
+    };
+
+    try {
+        const { error } = await window.supabaseClient.rpc('add_action', payload);
+        if (error) throw error;
+        alert('Registro salvo com sucesso!');
+        window.closeLogbookModal();
+        currentLogbookClientId = clienteId;
+        loadLogbookRecords(clienteId);
+        return;
+    } catch (err) {
+        console.warn('Falha no RPC add_action, tentando backend:', err);
+    }
+
+    try {
+        const headers = await getLogbookApiHeaders();
+        const res = await fetch(`${LOGBOOK_API_BASE}/api/logbook/actions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(headers || {}) },
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Erro ao salvar registro');
+        alert('Registro salvo com sucesso!');
+        window.closeLogbookModal();
+        currentLogbookClientId = clienteId;
+        loadLogbookRecords(clienteId);
+    } catch (apiError) {
+        console.warn('Erro ao salvar registro (API):', apiError);
+        alert('Não foi possível salvar o registro. Tente novamente.');
+    }
+};
+
+async function loadLogbookRecords(clienteId) {
+    const tbody = document.getElementById('logbook-table-body');
+    if (!tbody) return;
+    currentLogbookClientId = clienteId || '';
+    if (!clienteId) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Selecione um cliente para carregar.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Carregando...</td></tr>';
+
+    try {
+        const tables = ['logbook_actions', 'actions'];
+        let rows = null;
+        let lastError = null;
+
+        for (const table of tables) {
+            const { data, error } = await window.supabaseClient
+                .from(table)
+                .select('*')
+                .eq('cliente_id', clienteId)
+                .eq('module', 'automacoes')
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (!error) {
+                rows = data || [];
+                lastError = null;
+                break;
+            }
+            lastError = error;
+        }
+
+        if (lastError) throw lastError;
+
+        renderLogbookRows(rows || []);
+    } catch (err) {
+        try {
+            const headers = await getLogbookApiHeaders();
+            const url = new URL(`${LOGBOOK_API_BASE}/api/logbook/actions`);
+            url.searchParams.set('cliente_id', clienteId);
+            url.searchParams.set('module', 'automacoes');
+            url.searchParams.set('limit', '50');
+            const res = await fetch(url.toString(), { headers: headers || {} });
+            const json = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(json?.error || 'Erro ao carregar diário');
+            const list = json?.data || [];
+            renderLogbookRows(Array.isArray(list) ? list : []);
+        } catch (apiErr) {
+            console.warn('Erro ao carregar diário (API):', apiErr);
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-red-500">Erro ao carregar diário.</td></tr>';
+        }
+    }
+}
+
+function renderLogbookRows(rows) {
+    const tbody = document.getElementById('logbook-table-body');
+    if (!tbody) return;
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Nenhum registro encontrado.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = '';
+    rows.forEach((item) => {
+        const details = parseLogbookDetails(item.details);
+        const status = details?.status || '-';
+        const prioridade = details?.prioridade || '-';
+        const resumo = buildLogbookSummary(item, details);
+        const data = formatLogbookDate(item.created_at);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${data}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${item.action_type || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${status}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${prioridade}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${resumo}</td>
         `;
         tbody.appendChild(tr);
     });

@@ -115,6 +115,9 @@
                     <button onclick="switchTab('fluxos')" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
                         <i class="fas fa-project-diagram"></i> Fluxos
                     </button>
+                    <button onclick="switchTab('diario_bordo')" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
+                        <i class="fas fa-clipboard-list"></i> Diário de Bordo
+                    </button>
                     <button onclick="switchTab('backups')" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300 flex items-center gap-2">
                         <i class="fas fa-history"></i> Backups
                     </button>
@@ -248,6 +251,47 @@
                             </thead>
                             <tbody id="table-workflows" class="bg-white divide-y divide-gray-200">
                                 <tr><td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">Carregando fluxos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. DIÁRIO DE BORDO -->
+            <div id="diario_bordo" class="tab-content hidden space-y-6">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div class="p-6 border-b border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-800">Diário de Bordo</h3>
+                            <p class="text-sm text-gray-500 mt-1">Registros das ações realizadas nas automações.</p>
+                        </div>
+                        <button class="px-3 py-1.5 bg-primary text-white text-sm font-medium rounded hover:bg-primary/90 transition-colors flex items-center gap-2" onclick="openLogbookModal()">
+                            <i class="fas fa-plus"></i> Novo Registro
+                        </button>
+                    </div>
+
+                    <div class="p-4 bg-gray-50 border-b border-gray-200">
+                        <div class="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                            <label class="text-sm font-medium text-gray-700">Cliente</label>
+                            <select id="logbook-client-filter" class="rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring focus:ring-primary/20 sm:text-sm py-2 w-full md:w-80" onchange="loadLogbookRecords(this.value)">
+                                <option value="">Selecione o Cliente</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridade</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resumo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logbook-table-body" class="bg-white divide-y divide-gray-200">
+                                <tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">Selecione um cliente para carregar.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -533,6 +577,89 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="logbook-modal" class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-pen-fancy text-primary"></i> Novo Registro
+                </h3>
+                <button onclick="closeLogbookModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <form onsubmit="saveLogbookRecord(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                    <select id="logbook-cliente" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Ação</label>
+                        <select id="logbook-tipo" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="">Selecione...</option>
+                            <option value="registro">Registro</option>
+                            <option value="ajuste">Ajuste</option>
+                            <option value="incidente">Incidente</option>
+                            <option value="deploy">Deploy</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select id="logbook-status" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="aberto">Aberto</option>
+                            <option value="em_andamento">Em andamento</option>
+                            <option value="concluido">Concluído</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prioridade</label>
+                        <select id="logbook-prioridade" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                            <option value="baixa">Baixa</option>
+                            <option value="media" selected>Média</option>
+                            <option value="alta">Alta</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Solicitante</label>
+                        <input type="text" id="logbook-solicitante" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Nome de quem solicitou">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Descrição / Solicitação</label>
+                    <textarea id="logbook-descricao" rows="3" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Descreva a solicitação..."></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ações Tomadas</label>
+                    <textarea id="logbook-acoes" rows="3" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Descreva o que foi feito..."></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Prazo</label>
+                        <input type="date" id="logbook-prazo" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Criação</label>
+                        <input type="text" id="logbook-created-at-display" class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-gray-500 cursor-not-allowed" readonly placeholder="Automático">
+                        <input type="hidden" id="logbook-created-at-iso">
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="closeLogbookModal()" class="px-4 py-2 text-gray-500 hover:text-gray-700 font-medium transition-colors">Cancelar</button>
+                    <button type="submit" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover font-medium shadow-md transition-all">Salvar</button>
+                </div>
+            </form>
         </div>
     </div>
 
