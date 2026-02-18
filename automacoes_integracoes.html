@@ -127,7 +127,7 @@
                             <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
                                 <div class="flex items-center justify-between mb-3">
                                     <div class="font-semibold text-gray-800">Meta (Facebook/Instagram)</div>
-                                    <span class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
+                                    <span id="meta-status-badge" class="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">Não conectado</span>
                                 </div>
                                 <button id="btn-connect-meta" class="w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors">Conectar</button>
                             </div>
@@ -331,9 +331,36 @@
             const clientSelect = document.getElementById('integracoes-client-select');
             const clientActive = document.getElementById('integracoes-client-active');
             const clientEmpty = document.getElementById('integracoes-client-empty');
+            const metaStatusBadge = document.getElementById('meta-status-badge');
             if (!btn) {
                 console.error('Botão Meta não encontrado');
             }
+
+            const setMetaCardState = (connected) => {
+                if (metaStatusBadge) {
+                    metaStatusBadge.textContent = connected ? 'Conectado' : 'Não conectado';
+                    metaStatusBadge.className = connected
+                        ? 'text-xs font-semibold bg-green-100 text-green-700 px-2 py-1 rounded-full'
+                        : 'text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full';
+                }
+                if (btn) {
+                    btn.textContent = connected ? 'Conectado' : 'Conectar';
+                    btn.disabled = !!connected;
+                    btn.className = connected
+                        ? 'w-full px-3 py-2 bg-green-600 text-white rounded-md text-sm font-medium'
+                        : 'w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors';
+                }
+            };
+
+            const fetchMetaStatus = async (clientId, platform) => {
+                if (!clientId) return;
+                const targetPlatform = platform || 'facebook';
+                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/status?platform=${encodeURIComponent(targetPlatform)}`);
+                if (!res.ok) return;
+                const data = await res.json().catch(() => null);
+                if (!data) return;
+                setMetaCardState(!!data.connected);
+            };
 
             const setActiveClientLabel = (name) => {
                 if (!clientActive) return;
@@ -443,6 +470,7 @@
                         localStorage.removeItem('current_client_id');
                         localStorage.removeItem('current_client_name');
                         setActiveClientLabel('');
+                        setMetaCardState(false);
                         return;
                     }
                     const clientName = selectedOption?.dataset?.name || selectedOption?.textContent || '';
@@ -452,7 +480,29 @@
                 });
             }
 
+            const queryParams = new URLSearchParams(window.location.search);
+            const queryClientId = queryParams.get('client_id') || queryParams.get('cliente_id') || queryParams.get('cliente');
+            const queryPlatform = queryParams.get('platform') || 'facebook';
+            const metaStatus = queryParams.get('meta');
+            const metaReason = queryParams.get('reason');
+
+            if (queryClientId) {
+                localStorage.setItem('current_client_id', queryClientId);
+            }
+
             loadClientesForSelect();
+
+            if (metaStatus === 'connected') {
+                alert('Meta conectado');
+                const clientId = queryClientId || localStorage.getItem('current_client_id');
+                fetchMetaStatus(clientId, queryPlatform);
+            }
+
+            if (metaStatus === 'error') {
+                const reasonText = metaReason ? `Motivo: ${metaReason}` : 'Tente novamente.';
+                alert(`Erro ao conectar Meta. ${reasonText}`);
+                setMetaCardState(false);
+            }
 
             if (btn) {
                 btn.addEventListener('click', async (e) => {

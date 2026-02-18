@@ -135,7 +135,9 @@ const handleClientMetaStart = async (request, response, parsedUrl, clientId) => 
         return;
     }
     const nonce = crypto.randomBytes(16).toString('hex');
-    const statePayload = { clientId, timeId, platform, nonce, ts: Date.now() };
+    const rawReturnTo = String((parsedUrl.query || {}).return_to || (parsedUrl.query || {}).returnTo || '').trim();
+    const returnTo = rawReturnTo || '/automacoes_integracoes.html';
+    const statePayload = { clientId, timeId, platform, nonce, ts: Date.now(), return_to: returnTo };
     const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
     const sig = signState(stateB64, appSecret);
     const state = `${stateB64}.${sig}`;
@@ -209,6 +211,26 @@ const verifyStateSig = (stateB64, sig, appSecret) => {
     } catch {
         return false;
     }
+};
+
+const maskToken = (token) => {
+    if (!token || typeof token !== 'string') return '';
+    if (token.length <= 12) return `${token.slice(0, 4)}...`;
+    return `${token.slice(0, 6)}...${token.slice(-4)}`;
+};
+
+const appendQuery = (baseUrl, params) => {
+    const urlParams = params instanceof URLSearchParams ? params : new URLSearchParams();
+    if (params && !(params instanceof URLSearchParams)) {
+        Object.entries(params).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') return;
+            urlParams.set(key, String(value));
+        });
+    }
+    const query = urlParams.toString();
+    if (!query) return baseUrl;
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    return `${baseUrl}${separator}${query}`;
 };
 
 const server = http.createServer(async (request, response) => {
@@ -514,6 +536,58 @@ const server = http.createServer(async (request, response) => {
             const result = platforms.map(platform => baseMap[platform]);
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify(result));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const metaStatusMatch = pathname.match(/^\/api\/clients\/(\d+)\/connections\/meta\/status$/);
+    if (metaStatusMatch && request.method === 'GET') {
+        try {
+            const clientId = metaStatusMatch[1];
+            const rawPlatform = String((parsedUrl.query || {}).platform || 'facebook').toLowerCase();
+            const platform = ['facebook', 'instagram'].includes(rawPlatform) ? rawPlatform : 'facebook';
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'platform,status,token_expires_at');
+            params.set('client_id', `eq.${clientId}`);
+            params.set('platform', `eq.${platform}`);
+            params.set('limit', '1');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?${params.toString()}`;
+            const connRes = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const connJson = await connRes.json().catch(() => null);
+            if (!connRes.ok) {
+                response.writeHead(connRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(connJson || { error: 'erro_ao_buscar_conexao' }));
+                return;
+            }
+
+            const connection = Array.isArray(connJson) ? connJson[0] : null;
+            const connected = connection?.status === 'connected';
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                connected,
+                platform,
+                expires_at: connection?.token_expires_at || null
+            }));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1339,7 +1413,9 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
             const nonce = crypto.randomBytes(16).toString('hex');
-            const statePayload = { userId, platform: 'meta', nonce, ts: Date.now() };
+            const rawReturnTo = String((parsedUrl.query || {}).return_to || (parsedUrl.query || {}).returnTo || '').trim();
+            const returnTo = rawReturnTo || '/automacoes_integracoes.html';
+            const statePayload = { userId, platform: 'meta', nonce, ts: Date.now(), return_to: returnTo };
             const stateB64 = Buffer.from(JSON.stringify(statePayload)).toString('base64url');
             const sig = signState(stateB64, appSecret);
             const state = `${stateB64}.${sig}`;
@@ -1368,69 +1444,133 @@ const server = http.createServer(async (request, response) => {
             const query = parsedUrl.query || {};
             const code = query.code;
             const state = query.state;
-            if (!code || !state) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
-                return;
-            }
+            const errorParam = query.error || query.error_reason || query.error_description;
 
+            console.log('META_CALLBACK_START', {
+                has_error: !!errorParam,
+                has_code: !!code,
+                has_state: !!state
+            });
+
+            const defaultReturnTo = '/automacoes_integracoes.html';
             const appId = envVars['FACEBOOK_APP_ID'] || '';
             const appSecret = envVars['FACEBOOK_APP_SECRET'] || '';
-            if (!appId || !appSecret) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_nao_configurado' }));
-                return;
-            }
 
-            const stateParts = String(state).split('.');
-            if (stateParts.length !== 2 || !stateParts[0] || !stateParts[1]) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'parametros_invalidos' }));
-                return;
-            }
+            const redirectToFront = (target, params) => {
+                const url = appendQuery(target || defaultReturnTo, params);
+                console.log('REDIRECTING_TO_FRONT', { url });
+                response.writeHead(302, { Location: url });
+                response.end();
+            };
 
-            const stateB64 = stateParts[0];
-            const sig = stateParts[1];
-            const isValidSig = verifyStateSig(stateB64, sig, appSecret);
-            if (!isValidSig) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'assinatura_invalida' }));
-                return;
-            }
+            const parseStatePayload = () => {
+                if (!state) return { ok: false, reason: 'estado_ausente' };
+                if (!appSecret) return { ok: false, reason: 'meta_nao_configurado' };
+                const stateParts = String(state).split('.');
+                if (stateParts.length !== 2 || !stateParts[0] || !stateParts[1]) {
+                    return { ok: false, reason: 'parametros_invalidos' };
+                }
+                const stateB64 = stateParts[0];
+                const sig = stateParts[1];
+                const isValidSig = verifyStateSig(stateB64, sig, appSecret);
+                if (!isValidSig) return { ok: false, reason: 'assinatura_invalida' };
+                let payload = null;
+                try {
+                    payload = JSON.parse(Buffer.from(stateB64, 'base64url').toString('utf8'));
+                } catch {
+                    return { ok: false, reason: 'estado_invalido' };
+                }
+                const stateTtlMs = 10 * 60 * 1000;
+                const now = Date.now();
+                const ts = Number(payload?.ts);
+                if (!Number.isFinite(ts) || Math.abs(now - ts) > stateTtlMs) {
+                    return { ok: false, reason: 'estado_expirado' };
+                }
+                return { ok: true, payload };
+            };
 
-            let payload = null;
-            try {
-                payload = JSON.parse(Buffer.from(stateB64, 'base64url').toString('utf8'));
-            } catch (err) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'estado_invalido' }));
-                return;
-            }
-
-            const stateTtlMs = 10 * 60 * 1000;
-            const now = Date.now();
-            const ts = Number(payload?.ts);
-            if (!Number.isFinite(ts) || Math.abs(now - ts) > stateTtlMs) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'estado_expirado' }));
-                return;
-            }
-
+            const parsedState = parseStatePayload();
+            const payload = parsedState.ok ? parsedState.payload : null;
             const payloadClientId = String(payload?.clientId || '').trim();
             const payloadPlatform = String(payload?.platform || '').toLowerCase();
-            const userId = payload?.userId || null;
-            const isClientFlow = !!payloadClientId && ['facebook', 'instagram'].includes(payloadPlatform);
+            const rawReturnTo = typeof payload?.return_to === 'string' ? payload.return_to.trim() : '';
+            const returnTo = rawReturnTo || defaultReturnTo;
 
-            if (!isClientFlow && !userId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'estado_invalido' }));
+            if (parsedState.ok) {
+                console.log('STATE_OK', {
+                    clientId: payloadClientId,
+                    platform: payloadPlatform,
+                    return_to: returnTo
+                });
+            }
+
+            if (errorParam) {
+                const reason = String(errorParam);
+                redirectToFront(returnTo, {
+                    meta: 'error',
+                    reason,
+                    client_id: payloadClientId || undefined
+                });
+                return;
+            }
+
+            if (!code || !state) {
+                redirectToFront(returnTo, {
+                    meta: 'error',
+                    reason: 'parametros_invalidos',
+                    client_id: payloadClientId || undefined
+                });
+                return;
+            }
+
+            if (!parsedState.ok) {
+                redirectToFront(defaultReturnTo, { meta: 'error', reason: parsedState.reason || 'estado_invalido' });
+                return;
+            }
+
+            if (!appId || !appSecret) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'meta_nao_configurado', client_id: payloadClientId || undefined });
+                return;
+            }
+
+            const platform = ['facebook', 'instagram'].includes(payloadPlatform) ? payloadPlatform : 'facebook';
+            if (!payloadClientId) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'cliente_invalido' });
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'service_role_nao_configurada', client_id: payloadClientId });
+                return;
+            }
+
+            const clientParams = new URLSearchParams();
+            clientParams.set('select', 'id,time_id');
+            clientParams.set('id', `eq.${payloadClientId}`);
+            clientParams.set('limit', '1');
+            const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+            const clientRes = await fetch(clientUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const clientJson = await clientRes.json().catch(() => null);
+            if (!clientRes.ok || !Array.isArray(clientJson) || clientJson.length === 0) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'cliente_nao_encontrado', client_id: payloadClientId });
+                return;
+            }
+            const timeId = clientJson[0]?.time_id || null;
+            if (!timeId) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'time_id_invalido', client_id: payloadClientId });
                 return;
             }
 
             const redirectUri = getMetaRedirectUri(request);
             if (!redirectUri) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'meta_redirect_nao_configurado' }));
+                redirectToFront(returnTo, { meta: 'error', reason: 'meta_redirect_nao_configurado', client_id: payloadClientId });
                 return;
             }
 
@@ -1443,8 +1583,7 @@ const server = http.createServer(async (request, response) => {
             const tokenRes = await fetch(`https://graph.facebook.com/v19.0/oauth/access_token?${tokenParams.toString()}`);
             const tokenJson = await tokenRes.json();
             if (!tokenRes.ok) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: tokenJson.error?.message || 'erro_ao_gerar_token' }));
+                redirectToFront(returnTo, { meta: 'error', reason: tokenJson.error?.message || 'erro_ao_gerar_token', client_id: payloadClientId });
                 return;
             }
 
@@ -1457,34 +1596,58 @@ const server = http.createServer(async (request, response) => {
             const exchangeRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?${exchangeParams.toString()}`);
             const exchangeJson = await exchangeRes.json();
             if (!exchangeRes.ok) {
-                console.error('Erro ao trocar token Meta:', exchangeJson.error?.message || 'erro_ao_gerar_token');
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: exchangeJson.error?.message || 'erro_ao_gerar_token' }));
+                redirectToFront(returnTo, { meta: 'error', reason: exchangeJson.error?.message || 'erro_ao_gerar_token', client_id: payloadClientId });
                 return;
             }
 
             const accessToken = exchangeJson.access_token;
-            console.log('Token Meta trocado com sucesso');
-            if (isClientFlow) {
-                const appUrl = buildAppUrl(request);
-                const redirectUrl = appUrl
-                    ? `${appUrl.replace(/\/$/, '')}/clientes.html?client_id=${payloadClientId}#conexoes`
-                    : `/clientes.html?client_id=${payloadClientId}#conexoes`;
-                response.writeHead(302, { Location: redirectUrl });
-                response.end();
+            const expiresIn = Number(exchangeJson.expires_in);
+            const tokenExpiresAt = Number.isFinite(expiresIn)
+                ? new Date(Date.now() + expiresIn * 1000).toISOString()
+                : null;
+
+            console.log('TOKEN_EXCHANGED', { token: maskToken(accessToken) });
+
+            const upsertPayload = {
+                client_id: payloadClientId,
+                time_id: timeId,
+                platform,
+                status: 'connected',
+                access_token: accessToken,
+                token_expires_at: tokenExpiresAt,
+                meta: { provider: 'meta' }
+            };
+
+            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
+            const upsertRes = await fetch(upsertUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(upsertPayload)
+            });
+
+            if (!upsertRes.ok) {
+                redirectToFront(returnTo, { meta: 'error', reason: 'erro_ao_salvar_conexao', client_id: payloadClientId });
                 return;
             }
 
-            const appUrl = buildAppUrl(request);
-            const redirectUrl = appUrl
-                ? `${appUrl.replace(/\/$/, '')}/integracoes.html?provider=meta&status=connected`
-                : '/integracoes.html?provider=meta&status=connected';
-            response.writeHead(302, { Location: redirectUrl });
-            response.end();
+            console.log('TOKEN_SAVED', { clientId: payloadClientId, platform });
+
+            redirectToFront(returnTo, {
+                client_id: payloadClientId,
+                meta: 'connected',
+                platform
+            });
             return;
         } catch (error) {
-            response.writeHead(500, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ error: error.message }));
+            const url = appendQuery('/automacoes_integracoes.html', { meta: 'error', reason: 'erro_interno' });
+            console.log('REDIRECTING_TO_FRONT', { url });
+            response.writeHead(302, { Location: url });
+            response.end();
             return;
         }
     }
