@@ -337,6 +337,55 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/colaboradores/convite' && request.method === 'GET') {
+        try {
+            const emailRaw = String(parsedUrl.query.email || '').trim().toLowerCase();
+            if (!emailRaw) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'email_obrigatorio' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,email,ativo');
+            params.set('email', `ilike.${emailRaw}`);
+            params.set('ativo', 'eq.true');
+            params.set('limit', '1');
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/colaboradores?${params.toString()}`;
+
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_verificar_convite' }));
+                return;
+            }
+
+            const row = Array.isArray(json) ? json[0] : null;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ allowed: !!row }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     // 1. Proxy para OpenAI
     if (pathname === '/api/openai/chat/completions' && request.method === 'POST') {
         try {

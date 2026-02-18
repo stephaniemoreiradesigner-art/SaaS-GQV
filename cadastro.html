@@ -111,11 +111,17 @@
                         return;
                     }
 
-                    const email = document.getElementById('email').value;
+                    const emailInput = document.getElementById('email').value;
+                    const email = String(emailInput || '').trim().toLowerCase();
                     const password = document.getElementById('password').value;
                     const confirmPassword = document.getElementById('confirmPassword').value;
                     const btn = form.querySelector('button');
                     const originalContent = btn.innerHTML;
+
+                    if (!email) {
+                        alert('Informe um e-mail válido.');
+                        return;
+                    }
 
                     if (password !== confirmPassword) {
                         alert('As senhas não conferem!');
@@ -127,20 +133,32 @@
                         btn.disabled = true;
                         btn.classList.add('opacity-75', 'cursor-not-allowed');
 
-                        // Verificar permissão
-                        const { data: colab, error: colabError } = await supabase
-                            .from('colaboradores')
-                            .select('email')
-                            .eq('email', email)
-                            .maybeSingle();
-
-                        if (colabError) {
-                            throw new Error('Erro ao verificar permissão: ' + colabError.message);
+                        let allowed = false;
+                        try {
+                            const inviteRes = await fetch(`/api/colaboradores/convite?email=${encodeURIComponent(email)}`);
+                            const inviteData = await inviteRes.json().catch(() => null);
+                            if (inviteRes.ok && inviteData && inviteData.allowed) {
+                                allowed = true;
+                            }
+                        } catch (inviteError) {
+                            console.warn('Falha ao verificar convite via API:', inviteError);
                         }
 
-                        if (!colab) {
-                            alert('E-mail não encontrado na base de convites. Peça ao Administrador para cadastrar seu e-mail antes de criar a senha.');
-                            return; 
+                        if (!allowed) {
+                            const { data: colab, error: colabError } = await supabase
+                                .from('colaboradores')
+                                .select('email')
+                                .ilike('email', email)
+                                .maybeSingle();
+
+                            if (colabError) {
+                                throw new Error('Erro ao verificar permissão: ' + colabError.message);
+                            }
+
+                            if (!colab) {
+                                alert('E-mail não encontrado na base de convites. Peça ao Administrador para cadastrar seu e-mail antes de criar a senha.');
+                                return; 
+                            }
                         }
 
                         const isFile = window.location.origin === 'null';
@@ -149,7 +167,7 @@
                             : window.location.origin + '/index.html';
 
                         const { data, error } = await supabase.auth.signUp({
-                            email: email,
+                            email,
                             password: password,
                             options: {
                                 emailRedirectTo: redirectUrl
