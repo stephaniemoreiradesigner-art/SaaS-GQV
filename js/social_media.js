@@ -10,6 +10,7 @@ var tempSelectedDate = null;
 var tempSelectedFormat = null;
 var calendarConnectionsCache = {};
 var lastSeasonalDates = [];
+var currentPostProps = null;
 
 function ensureCalendarCTAContainer() {
     let container = document.getElementById('calendar-connection-cta');
@@ -375,6 +376,7 @@ function initCalendar() {
 
 function openPostModal(event) {
     const props = event.extendedProps;
+    currentPostProps = props || null;
     const modal = document.getElementById('modal-post');
     const content = document.getElementById('modal-post-content');
     
@@ -1032,7 +1034,10 @@ async function improveCopyWithAI() {
     try {
         const baseCaption = stripHashtags(legendaInput.value);
         const hashtags = extractHashtags(legendaInput.value);
-        const { pillar, objective } = parseEstrategia(estrategiaInput?.value || '');
+        const fallbackEstrategia = currentPostProps?.estrategia || '';
+        const parsedEstrategia = parseEstrategia(estrategiaInput?.value || fallbackEstrategia);
+        const pillar = parsedEstrategia.pillar || currentPostProps?.pillar || currentPostProps?.pilar || '';
+        const objective = parsedEstrategia.objective || currentPostProps?.objective || currentPostProps?.objetivo || '';
         const clientContext = getClientContextPayload();
 
         const payload = {
@@ -1097,7 +1102,10 @@ async function changeThemeWithAI() {
     setButtonLoading(btn, true, 'Refazendo...');
 
     try {
-        const { pillar, objective } = parseEstrategia(estrategiaInput?.value || '');
+        const fallbackEstrategia = currentPostProps?.estrategia || '';
+        const parsedEstrategia = parseEstrategia(estrategiaInput?.value || fallbackEstrategia);
+        const pillar = parsedEstrategia.pillar || currentPostProps?.pillar || currentPostProps?.pilar || '';
+        const objective = parsedEstrategia.objective || currentPostProps?.objective || currentPostProps?.objetivo || '';
         const clientContext = getClientContextPayload();
         const currentTheme = temaInput.value || '';
         const possibleHook = String(roteiroInput.value || '').split('\n')[0] || '';
