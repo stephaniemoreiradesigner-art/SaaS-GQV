@@ -153,6 +153,38 @@
                                 <button class="w-full px-3 py-2 bg-gray-200 text-gray-500 rounded-md text-sm font-medium cursor-not-allowed" disabled>Em breve</button>
                             </div>
                         </div>
+                        <div id="meta-config-panel" class="mt-6 hidden border border-gray-200 rounded-lg p-4 bg-white">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="font-semibold text-gray-800">Configurar Meta</div>
+                                <button id="meta-config-close" class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Página</label>
+                                    <select id="meta-select-page" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                                        <option value="">Selecione uma página</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Instagram</label>
+                                    <select id="meta-select-ig" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                                        <option value="">Selecione um Instagram</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Ad Account (opcional)</label>
+                                    <select id="meta-select-adaccount" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                                        <option value="">Selecione um Ad Account</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-end gap-3 mt-4">
+                                <button id="meta-config-refresh" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200">Recarregar</button>
+                                <button id="meta-config-save" class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90">Salvar</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div id="integracoes-no-access" class="hidden">
@@ -332,24 +364,116 @@
             const clientActive = document.getElementById('integracoes-client-active');
             const clientEmpty = document.getElementById('integracoes-client-empty');
             const metaStatusBadge = document.getElementById('meta-status-badge');
+            const metaConfigPanel = document.getElementById('meta-config-panel');
+            const metaConfigClose = document.getElementById('meta-config-close');
+            const metaConfigSave = document.getElementById('meta-config-save');
+            const metaConfigRefresh = document.getElementById('meta-config-refresh');
+            const metaSelectPage = document.getElementById('meta-select-page');
+            const metaSelectIg = document.getElementById('meta-select-ig');
+            const metaSelectAdAccount = document.getElementById('meta-select-adaccount');
+            let metaConnectionState = 'disconnected';
+            let metaAssetsCache = null;
             if (!btn) {
                 console.error('Botão Meta não encontrado');
             }
 
-            const setMetaCardState = (connected) => {
+            const setMetaCardState = (state) => {
+                metaConnectionState = state;
                 if (metaStatusBadge) {
-                    metaStatusBadge.textContent = connected ? 'Conectado' : 'Não conectado';
-                    metaStatusBadge.className = connected
-                        ? 'text-xs font-semibold bg-green-100 text-green-700 px-2 py-1 rounded-full'
-                        : 'text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full';
+                    if (state === 'configured') {
+                        metaStatusBadge.textContent = 'Configurado';
+                        metaStatusBadge.className = 'text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-1 rounded-full';
+                    } else if (state === 'connected') {
+                        metaStatusBadge.textContent = 'Conectado';
+                        metaStatusBadge.className = 'text-xs font-semibold bg-green-100 text-green-700 px-2 py-1 rounded-full';
+                    } else {
+                        metaStatusBadge.textContent = 'Não conectado';
+                        metaStatusBadge.className = 'text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full';
+                    }
                 }
                 if (btn) {
-                    btn.textContent = connected ? 'Conectado' : 'Conectar';
-                    btn.disabled = !!connected;
-                    btn.className = connected
-                        ? 'w-full px-3 py-2 bg-green-600 text-white rounded-md text-sm font-medium'
-                        : 'w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors';
+                    if (state === 'configured') {
+                        btn.textContent = 'Configurado';
+                        btn.disabled = true;
+                        btn.className = 'w-full px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-medium';
+                    } else if (state === 'connected') {
+                        btn.textContent = 'Configurar';
+                        btn.disabled = false;
+                        btn.className = 'w-full px-3 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors';
+                    } else {
+                        btn.textContent = 'Conectar';
+                        btn.disabled = false;
+                        btn.className = 'w-full px-3 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 transition-colors';
+                    }
                 }
+            };
+
+            const showMetaConfigPanel = (show) => {
+                if (!metaConfigPanel) return;
+                if (show) {
+                    metaConfigPanel.classList.remove('hidden');
+                } else {
+                    metaConfigPanel.classList.add('hidden');
+                }
+            };
+
+            const updateInstagramOptions = (pageId) => {
+                if (!metaSelectIg) return;
+                metaSelectIg.innerHTML = '<option value="">Selecione um Instagram</option>';
+                if (!metaAssetsCache || !Array.isArray(metaAssetsCache.pages)) return;
+                const page = metaAssetsCache.pages.find(item => item.id === pageId);
+                if (page?.ig_business_id) {
+                    const option = document.createElement('option');
+                    option.value = page.ig_business_id;
+                    option.textContent = page.ig_business_id;
+                    metaSelectIg.appendChild(option);
+                }
+            };
+
+            const loadMetaAssets = async () => {
+                const clientId = localStorage.getItem('current_client_id');
+                if (!clientId) return;
+                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets?platform=facebook`);
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data) {
+                    alert('Erro ao carregar ativos Meta.');
+                    return;
+                }
+
+                metaAssetsCache = data;
+
+                if (metaSelectPage) {
+                    metaSelectPage.innerHTML = '<option value="">Selecione uma página</option>';
+                    (data.pages || []).forEach(page => {
+                        const option = document.createElement('option');
+                        option.value = page.id;
+                        option.textContent = page.name || page.id;
+                        option.dataset.token = page.page_access_token || '';
+                        option.dataset.name = page.name || '';
+                        metaSelectPage.appendChild(option);
+                    });
+                }
+
+                if (metaSelectAdAccount) {
+                    metaSelectAdAccount.innerHTML = '<option value="">Selecione um Ad Account</option>';
+                    (data.adaccounts || []).forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.id;
+                        option.textContent = account.name || account.account_id || account.id;
+                        option.dataset.name = account.name || '';
+                        metaSelectAdAccount.appendChild(option);
+                    });
+                }
+
+                updateInstagramOptions(metaSelectPage?.value || '');
+            };
+
+            const loadMetaSelected = async (clientId) => {
+                if (!clientId) return null;
+                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data) return null;
+                return data.data || null;
             };
 
             const fetchMetaStatus = async (clientId, platform) => {
@@ -359,7 +483,14 @@
                 if (!res.ok) return;
                 const data = await res.json().catch(() => null);
                 if (!data) return;
-                setMetaCardState(!!data.connected);
+                const selected = await loadMetaSelected(clientId);
+                if (selected?.meta_page_id) {
+                    setMetaCardState('configured');
+                } else if (data.connected) {
+                    setMetaCardState('connected');
+                } else {
+                    setMetaCardState('disconnected');
+                }
             };
 
             const setActiveClientLabel = (name) => {
@@ -452,6 +583,7 @@
                     clientSelect.value = storedId;
                     if (clientSelect.value === storedId) {
                         setActiveClientLabel(storedName || clientSelect.options[clientSelect.selectedIndex]?.textContent || '');
+                        fetchMetaStatus(storedId, 'facebook');
                     } else {
                         localStorage.removeItem('current_client_id');
                         localStorage.removeItem('current_client_name');
@@ -470,13 +602,15 @@
                         localStorage.removeItem('current_client_id');
                         localStorage.removeItem('current_client_name');
                         setActiveClientLabel('');
-                        setMetaCardState(false);
+                        setMetaCardState('disconnected');
+                        showMetaConfigPanel(false);
                         return;
                     }
                     const clientName = selectedOption?.dataset?.name || selectedOption?.textContent || '';
                     localStorage.setItem('current_client_id', clientId);
                     localStorage.setItem('current_client_name', clientName);
                     setActiveClientLabel(clientName);
+                    fetchMetaStatus(clientId, 'facebook');
                 });
             }
 
@@ -501,7 +635,77 @@
             if (metaStatus === 'error') {
                 const reasonText = metaReason ? `Motivo: ${metaReason}` : 'Tente novamente.';
                 alert(`Erro ao conectar Meta. ${reasonText}`);
-                setMetaCardState(false);
+                setMetaCardState('disconnected');
+            }
+
+            if (metaSelectPage) {
+                metaSelectPage.addEventListener('change', () => {
+                    updateInstagramOptions(metaSelectPage.value);
+                });
+            }
+
+            if (metaConfigClose) {
+                metaConfigClose.addEventListener('click', () => {
+                    showMetaConfigPanel(false);
+                });
+            }
+
+            if (metaConfigRefresh) {
+                metaConfigRefresh.addEventListener('click', async (event) => {
+                    event.preventDefault();
+                    await loadMetaAssets();
+                });
+            }
+
+            if (metaConfigSave) {
+                metaConfigSave.addEventListener('click', async (event) => {
+                    event.preventDefault();
+                    const clientId = localStorage.getItem('current_client_id');
+                    if (!clientId) {
+                        alert('Selecione um cliente.');
+                        return;
+                    }
+                    const pageOption = metaSelectPage?.options[metaSelectPage.selectedIndex];
+                    const pageId = metaSelectPage?.value || '';
+                    const pageAccessToken = pageOption?.dataset?.token || '';
+                    const pageName = pageOption?.dataset?.name || pageOption?.textContent || '';
+                    const igBusinessId = metaSelectIg?.value || '';
+                    const igUsername = metaSelectIg?.options[metaSelectIg.selectedIndex]?.textContent || '';
+                    const adAccountId = metaSelectAdAccount?.value || '';
+                    const adAccountName = metaSelectAdAccount?.options[metaSelectAdAccount.selectedIndex]?.dataset?.name || metaSelectAdAccount?.options[metaSelectAdAccount.selectedIndex]?.textContent || '';
+
+                    if (!pageId || !pageAccessToken) {
+                        alert('Selecione uma página válida.');
+                        return;
+                    }
+
+                    const payload = {
+                        page_id: pageId,
+                        page_access_token: pageAccessToken,
+                        ig_business_id: igBusinessId || null,
+                        ad_account_id: adAccountId || null,
+                        page_name: pageName || null,
+                        ig_username: igUsername || null,
+                        ad_account_name: adAccountName || null
+                    };
+
+                    const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        const errText = await res.text();
+                        console.error('Erro ao salvar ativos Meta:', errText);
+                        alert('Erro ao salvar ativos Meta.');
+                        return;
+                    }
+
+                    alert('Conexão configurada');
+                    setMetaCardState('configured');
+                    showMetaConfigPanel(false);
+                });
             }
 
             if (btn) {
@@ -517,6 +721,19 @@
                     console.debug('Meta clientId', clientId);
 
                     try {
+                        if (metaConnectionState === 'connected') {
+                            showMetaConfigPanel(true);
+                            await loadMetaAssets();
+                            const selected = await loadMetaSelected(clientId);
+                            if (selected?.meta_page_id && metaSelectPage) {
+                                metaSelectPage.value = selected.meta_page_id;
+                                updateInstagramOptions(selected.meta_page_id);
+                                if (selected?.meta_ig_user_id && metaSelectIg) {
+                                    metaSelectIg.value = selected.meta_ig_user_id;
+                                }
+                            }
+                            return;
+                        }
                         const startUrl = `/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`;
                         console.debug('OAuth start url', startUrl);
                         const res = await fetch(startUrl);

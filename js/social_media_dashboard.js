@@ -114,6 +114,20 @@ async function loadInsightsClients() {
 }
 
 const insightsConnectionsCache = {};
+const insightsSelectedAssetsCache = {};
+
+async function fetchMetaSelectedAssets(clientId) {
+    if (!clientId) return null;
+    if (insightsSelectedAssetsCache[clientId]) return insightsSelectedAssetsCache[clientId];
+    const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) {
+        insightsSelectedAssetsCache[clientId] = null;
+        return null;
+    }
+    insightsSelectedAssetsCache[clientId] = data.data || null;
+    return insightsSelectedAssetsCache[clientId];
+}
 
 async function updateInsightsPlatforms(clientId) {
     const platformSelect = document.getElementById('insights-platform');
@@ -277,19 +291,23 @@ async function fetchPlatformData(platform, clientData, developerToken, since, un
         const apiVersion = 'v19.0'; // Revertendo para v19.0 (Estável) pois v24.0 retornou erro 400.
 
         if (platform === 'facebook') {
-            try {
-                console.log(`[${platform}] Obtendo Page Access Token...`);
-                const tokenRes = await fetchMetaProxy(`/${apiVersion}/${socialId}?fields=access_token`, developerToken);
-                const tokenJson = await tokenRes.json();
+            if (clientData?.meta_page_access_token) {
+                targetToken = clientData.meta_page_access_token;
+            } else {
+                try {
+                    console.log(`[${platform}] Obtendo Page Access Token...`);
+                    const tokenRes = await fetchMetaProxy(`/${apiVersion}/${socialId}?fields=access_token`, developerToken);
+                    const tokenJson = await tokenRes.json();
 
-                if (tokenJson.access_token) {
-                    targetToken = tokenJson.access_token;
-                    console.log(`[${platform}] Page Access Token obtido com sucesso.`);
-                } else {
-                    console.warn(`[${platform}] Falha ao obter Page Access Token. Usando User Token (pode falhar para Insights).`, tokenJson);
+                    if (tokenJson.access_token) {
+                        targetToken = tokenJson.access_token;
+                        console.log(`[${platform}] Page Access Token obtido com sucesso.`);
+                    } else {
+                        console.warn(`[${platform}] Falha ao obter Page Access Token. Usando User Token (pode falhar para Insights).`, tokenJson);
+                    }
+                } catch (e) {
+                    console.error(`[${platform}] Erro na troca de token:`, e);
                 }
-            } catch (e) {
-                console.error(`[${platform}] Erro na troca de token:`, e);
             }
         }
 
@@ -671,6 +689,55 @@ window.loadInsights = async function() {
         return;
     }
 
+    const selectedAssets = await fetchMetaSelectedAssets(clienteId);
+    const hasMetaPage = !!selectedAssets?.meta_page_id;
+    const hasMetaIg = !!selectedAssets?.meta_ig_user_id;
+
+    if (platform === 'facebook' && !hasMetaPage) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+                <div class="bg-blue-50 p-6 rounded-full mb-4">
+                    <i class="fas fa-link text-3xl text-[var(--color-primary)]"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Página não configurada</h3>
+                <p class="text-gray-500 max-w-md mx-auto">
+                    Conecte e selecione sua Página/Instagram em Integrações.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    if (platform === 'instagram' && !hasMetaIg) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+                <div class="bg-blue-50 p-6 rounded-full mb-4">
+                    <i class="fas fa-link text-3xl text-[var(--color-primary)]"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Instagram não configurado</h3>
+                <p class="text-gray-500 max-w-md mx-auto">
+                    Conecte e selecione sua Página/Instagram em Integrações.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    if (platform === 'all' && !hasMetaPage && !hasMetaIg) {
+        container.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
+                <div class="bg-blue-50 p-6 rounded-full mb-4">
+                    <i class="fas fa-link text-3xl text-[var(--color-primary)]"></i>
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Meta não configurado</h3>
+                <p class="text-gray-500 max-w-md mx-auto">
+                    Conecte e selecione sua Página/Instagram em Integrações.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
     // Calcular Datas
     let startDate = new Date();
     let endDate = new Date();
@@ -763,6 +830,13 @@ window.loadInsights = async function() {
         const platformsToFetch = (platform === 'all') ? ['instagram', 'facebook'].filter(p => connectedSet.has(p)) : [platform];
         const isUnified = platform === 'all' && platformsToFetch.length > 1;
 
+        const mergedClientData = {
+            ...clientData,
+            instagram_id: selectedAssets?.meta_ig_user_id || clientData?.instagram_id,
+            facebook_page_id: selectedAssets?.meta_page_id || clientData?.facebook_page_id,
+            meta_page_access_token: selectedAssets?.meta_page_access_token || null
+        };
+
         window.currentReportData = {
             clientName: clientData?.nome_fantasia || 'Cliente',
             period: periodLabel,
@@ -776,7 +850,7 @@ window.loadInsights = async function() {
             try {
                 // Pass full date objects for filtering posts locally if needed, but fetchPlatformData expects timestamps for API
                 // We will pass timestamps to fetchPlatformData
-                const data = await fetchPlatformData(p, clientData, developerToken, since, until, periodFactor);
+                const data = await fetchPlatformData(p, mergedClientData, developerToken, since, until, periodFactor);
                 window.currentReportData.platforms[p] = data;
                 if (!primaryData && platform !== 'all') primaryData = data; // Keep first one for dashboard display if not unified
             } catch (err) {
