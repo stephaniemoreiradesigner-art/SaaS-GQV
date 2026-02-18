@@ -373,21 +373,45 @@ window.saveLLMUsage = async function(e) {
 
 async function loadWorkflows() {
     const tbody = document.getElementById('table-workflows');
+    if (!tbody) return;
     tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">Carregando...</td></tr>';
 
     try {
-        // Busca todos os fluxos com info do cliente
+        let workflowsData = null;
         const { data, error } = await window.supabaseClient
             .from('workflows')
-            .select(`
-                *,
-                clientes ( nome_empresa, nome_fantasia )
-            `)
+            .select(`*, clientes ( nome_empresa, nome_fantasia )`)
             .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        
-        allWorkflows = data || []; // Cache for filtering
+        if (!error) {
+            workflowsData = data || [];
+        } else {
+            const { data: plainData, error: plainError } = await window.supabaseClient
+                .from('workflows')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (plainError) throw plainError;
+
+            const tenantIds = Array.from(new Set((plainData || []).map(wf => wf.tenant_id).filter(Boolean)));
+            let clientMap = {};
+            if (tenantIds.length) {
+                const { data: clientsData } = await window.supabaseClient
+                    .from('clientes')
+                    .select('id, nome_empresa, nome_fantasia')
+                    .in('id', tenantIds);
+                (clientsData || []).forEach(client => {
+                    clientMap[client.id] = client;
+                });
+            }
+
+            workflowsData = (plainData || []).map(wf => ({
+                ...wf,
+                clientes: clientMap[wf.tenant_id] || null
+            }));
+        }
+
+        allWorkflows = workflowsData || [];
 
         renderWorkflowsTable(allWorkflows);
 
