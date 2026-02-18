@@ -529,6 +529,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const isCalendarMode = body.mode === 'calendar' || body.posts_count !== undefined;
+            let calendarContext = null;
             let payload;
 
             if (isCalendarMode) {
@@ -539,6 +540,7 @@ const server = http.createServer(async (request, response) => {
                 const niche = String(body.niche || 'Geral').trim();
                 const month = String(body.month || '').trim();
                 const contextLink = String(body.context_link || '').trim();
+                calendarContext = { postsCount, month };
 
                 const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
                 const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
@@ -591,6 +593,70 @@ const server = http.createServer(async (request, response) => {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'openai_proxy_error', message }));
                 return;
+            }
+
+            if (isCalendarMode && calendarContext) {
+                const contentRaw = String(responseJson?.choices?.[0]?.message?.content || '').trim();
+                const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                let postsJson = null;
+                try {
+                    postsJson = JSON.parse(sanitized);
+                } catch (parseError) {
+                    postsJson = null;
+                }
+
+                if (!Array.isArray(postsJson)) {
+                    const converterPrompt = [
+                        'Converta o texto abaixo em um ARRAY JSON.',
+                        'Cada item do array deve ter as chaves:',
+                        '"data_agendada" (YYYY-MM-DD), "tema", "formato" (estatico|reels|carrossel), "conteudo_roteiro", "descricao_visual", "estrategia", "legenda_sugestao", "legenda_linkedin", "legenda_tiktok".',
+                        `Use o mês informado para converter datas DD/MM para YYYY-MM-DD. Mês atual: ${calendarContext.month}.`,
+                        `Retorne EXATAMENTE ${calendarContext.postsCount} itens.`,
+                        'Se algum campo não existir no texto original, preencha com string vazia.',
+                        'Texto para converter:',
+                        contentRaw
+                    ].join('\n');
+
+                    const convertPayload = {
+                        model: body.model || 'gpt-4-turbo',
+                        temperature: 0.2,
+                        messages: [
+                            { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
+                            { role: 'user', content: converterPrompt }
+                        ]
+                    };
+
+                    const convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify(convertPayload)
+                    });
+
+                    const convertText = await convertResponse.text();
+                    let convertJson = null;
+                    try {
+                        convertJson = JSON.parse(convertText);
+                    } catch (convertParseError) {
+                        response.writeHead(500, { 'Content-Type': 'application/json' });
+                        response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'Falha ao converter resposta para JSON.' }));
+                        return;
+                    }
+
+                    const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+                    let convertedArray = null;
+                    try {
+                        convertedArray = JSON.parse(convertedContent);
+                    } catch (convertedParseError) {
+                        response.writeHead(500, { 'Content-Type': 'application/json' });
+                        response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'Resposta convertida ainda inválida.' }));
+                        return;
+                    }
+
+                    responseJson.choices[0].message.content = JSON.stringify(convertedArray);
+                }
             }
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
