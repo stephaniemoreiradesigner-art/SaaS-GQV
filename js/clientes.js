@@ -779,14 +779,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                 status: document.getElementById('status_cliente').value
             };
 
-                const getErrorMessage = (err) => String(err?.message || err?.error || err || '');
-                const hasMissingColumn = (err, column) => getErrorMessage(err).toLowerCase().includes(`'${column}'`) || getErrorMessage(err).toLowerCase().includes(`"${column}"`);
+                const getErrorMessage = (err) => String(err?.message || err?.error || err?.details || err || '');
+                const getErrorPayload = (err) => {
+                    try { return JSON.stringify(err || {}); } catch (e) { return ''; }
+                };
+                const hasMissingColumn = (err, column) => {
+                    const text = `${getErrorMessage(err)} ${getErrorPayload(err)}`.toLowerCase();
+                    return text.includes(`'${column}'`) || text.includes(`"${column}"`) || text.includes(column);
+                };
+                const getMissingColumnsCache = () => {
+                    try {
+                        const raw = localStorage.getItem('clientes_missing_columns') || '[]';
+                        const list = JSON.parse(raw);
+                        return new Set(Array.isArray(list) ? list : []);
+                    } catch (e) {
+                        return new Set();
+                    }
+                };
+                const setMissingColumnsCache = (set) => {
+                    try {
+                        localStorage.setItem('clientes_missing_columns', JSON.stringify(Array.from(set)));
+                    } catch (e) {}
+                };
                 const stripMissingColumns = (data, err) => {
                     const next = { ...data };
                     if (hasMissingColumn(err, 'logo_url')) delete next.logo_url;
                     if (hasMissingColumn(err, 'registro_grupo')) delete next.registro_grupo;
                     return next;
                 };
+                const missingColumns = getMissingColumnsCache();
+                if (missingColumns.has('logo_url')) delete clienteData.logo_url;
+                if (missingColumns.has('registro_grupo')) delete clienteData.registro_grupo;
 
                 let error;
                 let allowLogoColumn = true;
@@ -808,6 +831,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .eq('id', clienteId);
                     if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo'))) {
                         updatePayload = stripMissingColumns(updatePayload, updateError);
+                        if (hasMissingColumn(updateError, 'logo_url')) missingColumns.add('logo_url');
+                        if (hasMissingColumn(updateError, 'registro_grupo')) missingColumns.add('registro_grupo');
+                        setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in updatePayload)) allowLogoColumn = false;
                         const retry = await window.supabaseClient
                             .from('clientes')
@@ -837,6 +863,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .single();
                     if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo'))) {
                         insertPayload = stripMissingColumns(insertPayload, insertError);
+                        if (hasMissingColumn(insertError, 'logo_url')) missingColumns.add('logo_url');
+                        if (hasMissingColumn(insertError, 'registro_grupo')) missingColumns.add('registro_grupo');
+                        setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in insertPayload)) allowLogoColumn = false;
                         const retry = await window.supabaseClient
                             .from('clientes')
