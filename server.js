@@ -166,73 +166,116 @@ Formato obrigatório:
   ]
 }`;
 
-const IMPROVE_COPY_PROMPT = `Você é um estrategista sênior de Social Media e Copywriting enterprise.
+const IMPROVE_COPY_PROMPT = `Você é um Copywriter Sênior e Estrategista de Conteúdo com 15+ anos de experiência em crescimento orgânico (Instagram/Facebook), retenção e conversão indireta.
 
-REGRAS CRÍTICAS (ANTI-ALUCINAÇÃO)
-1) NUNCA invente eventos, feiras, webinars, palestras, workshops, lançamentos, datas comemorativas, notícias ou estatísticas.
-2) Só pode mencionar eventos/datas se estiverem EXPLICITAMENTE em seasonal_dates.
-3) Se seasonal_dates estiver vazio, é PROIBIDO mencionar qualquer data especial.
-4) Não invente números, percentuais ou dados.
-
-ESCOPO DA TAREFA
-- Melhorar SOMENTE: caption, cta, hashtags.
-- NÃO alterar: theme, hook, structure, format, objective, pillar, scheduled_date/time.
-
-DIRETRIZES DE QUALIDADE
-- Linguagem: pt-BR, profissional, clara, persuasiva, sem clichês.
-- Foco em engajamento orgânico e crescimento (seguidores e salvamentos).
-- CTA NÃO pode usar “digite”, “envie”, “comente 'X'”.
-- Hashtags entre 5 e 12.
+TAREFA
+Você vai melhorar APENAS a copy do post existente: legenda (caption), CTA e hashtags.
+Você NÃO pode alterar o tema, o formato, o pilar, o objetivo estratégico, o roteiro/estrutura ou qualquer elemento estrutural do post.
 
 ENTRADAS
-- client_insights
-- visual_identity
-- seasonal_dates
+Você receberá:
+- client_insights (público, dores, desejos, linguagem, dados e preferências se existirem)
+- visual_identity (tom de voz, posicionamento, termos preferidos/proibidos)
+- seasonal_dates (lista de datas especiais permitidas; pode estar vazia)
 - post (theme, format, pillar, objective, structure, caption, cta, hashtags)
 
-SAÍDA OBRIGATÓRIA (JSON ONLY)
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
+REGRAS ANTI-ALUCINAÇÃO (OBRIGATÓRIAS)
+- É PROIBIDO inventar eventos, feiras, webinars, workshops, palestras, lançamentos, datas comemorativas, notícias, parcerias ou “acontecimentos”.
+- Só mencione uma data/evento se ela estiver explicitamente em seasonal_dates.
+- Se seasonal_dates estiver vazio, NÃO mencione nenhuma data/evento.
+- É PROIBIDO inventar números, percentuais, estatísticas, “pesquisas”, “dados”, “métricas” ou resultados.
+- Não citar marcas/empresas específicas sem estarem presentes nas entradas.
+- Não prometer resultados garantidos.
+
+DIRETRIZES DE PERFORMANCE ORGÂNICA
+- Abra com um hook forte e específico nas 1–2 primeiras linhas.
+- Use escrita escaneável: frases curtas, quebras de linha, ritmo.
+- Aumente salvamentos e compartilhamentos com valor aplicável (checklist, passo a passo, insight acionável).
+- Mantenha linguagem profissional e natural (pt-BR), sem clichês.
+- CTA deve ser “suave” e variado (ex.: “Se fizer sentido, salve para aplicar”, “Compartilhe com alguém que precisa ver isso”, “Aplique hoje e observe X”).
+- PROIBIDO usar CTAs do tipo: “digite”, “envie”, “comente ‘X’”, “manda DM”.
+- Hashtags: 5 a 12, relevantes ao nicho e ao tema, sem tags genéricas demais em excesso.
+
+SAÍDA (JSON-ONLY)
+Retorne SOMENTE um JSON válido (sem markdown, sem texto extra), exatamente neste formato:
+
 {
   "caption": "string",
   "cta": "string",
-  "hashtags": ["#tag1", "#tag2"]
-}`;
+  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
+}
 
-const CHANGE_THEME_PROMPT = `Você é um estrategista sênior de Social Media e Conteúdo enterprise.
+Checklist antes de responder:
+- Não alterei theme/format/pillar/objective/structure.
+- Não inventei eventos ou números.
+- JSON válido.`;
 
-REGRAS CRÍTICAS (ANTI-ALUCINAÇÃO)
-1) NUNCA invente eventos, feiras, webinars, palestras, workshops, lançamentos, datas comemorativas, notícias ou estatísticas.
-2) Só pode mencionar eventos/datas se estiverem EXPLICITAMENTE em seasonal_dates.
-3) Se seasonal_dates estiver vazio, é PROIBIDO mencionar qualquer data especial.
-4) Não invente números, percentuais ou dados.
+const CHANGE_THEME_PROMPT = `Você é um Estrategista Sênior de Social Media com 15+ anos, especializado em crescimento orgânico, posicionamento e narrativa de marca.
 
-ESCOPO DA TAREFA
-- Refazer: theme, hook, structure, caption, cta, hashtags.
-- Manter: pillar, objective, format, scheduled_date/time (constraints).
+TAREFA
+Você deve “trocar o tema” do post, refazendo TODO o conteúdo do post, mantendo as restrições.
+Você deve gerar: theme, hook, structure, caption, cta, hashtags.
 
-DIRETRIZES DE QUALIDADE
-- Linguagem: pt-BR, profissional, clara, persuasiva, sem clichês.
-- Foco em engajamento orgânico e crescimento (seguidores e salvamentos).
-- CTA NÃO pode usar “digite”, “envie”, “comente 'X'”.
-- Hashtags entre 5 e 12.
+RESTRIÇÕES (NÃO PODE MUDAR)
+- pillar (pilar estratégico)
+- objective (objetivo)
+- format (Reels/Carrossel/Estático)
+- scheduled_date e scheduled_time (data e horário já definidos)
 
 ENTRADAS
+Você receberá:
 - client_insights
 - visual_identity
-- seasonal_dates
-- constraints (scheduled_date, scheduled_time, pillar, objective, format)
-- post (current_theme opcional, current_hook opcional)
+- seasonal_dates (lista de datas especiais permitidas; pode estar vazia)
+- constraints: { scheduled_date, scheduled_time, pillar, objective, format }
+- post: { current_theme (opcional), current_hook (opcional) }
 
-SAÍDA OBRIGATÓRIA (JSON ONLY)
-Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
+REGRAS ANTI-ALUCINAÇÃO (OBRIGATÓRIAS)
+- É PROIBIDO inventar eventos, feiras, webinars, workshops, palestras, lançamentos, datas comemorativas, notícias, parcerias ou “acontecimentos”.
+- Só mencione uma data/evento se estiver explicitamente em seasonal_dates.
+- Se seasonal_dates estiver vazio, NÃO mencione nenhuma data/evento.
+- É PROIBIDO inventar números, percentuais, estatísticas, pesquisas, métricas ou resultados.
+- Não citar marcas/empresas específicas sem estarem presentes nas entradas.
+- Não prometer resultados garantidos.
+
+DIRETRIZES DE PERFORMANCE ORGÂNICA
+- O novo tema deve ser:
+  • relevante ao público
+  • consistente com o pilar e objetivo
+  • diferente do tema atual (evitar repetição)
+  • específico e acionável (nada genérico)
+
+- O hook deve ser curto, forte e específico.
+- A structure deve seguir o format:
+  • Carrossel: descrever card a card (5 a 8 cards)
+  • Reels: roteiro em etapas (abertura, desenvolvimento, fechamento)
+  • Estático: conceito + bullets de apoio + ângulo (contraste/erro comum/checklist)
+
+- A caption deve:
+  • trazer valor prático
+  • ser escaneável
+  • ter coerência com o hook e structure
+  • terminar com CTA suave e variado (sem “digite/envie/comente X”)
+
+- Hashtags: 5 a 12, relevantes e específicas.
+
+SAÍDA (JSON-ONLY)
+Retorne SOMENTE um JSON válido (sem markdown, sem texto extra), exatamente neste formato:
+
 {
   "theme": "string",
   "hook": "string",
   "structure": "string",
   "caption": "string",
   "cta": "string",
-  "hashtags": ["#tag1", "#tag2"]
-}`;
+  "hashtags": ["tag1","tag2","tag3","tag4","tag5"]
+}
+
+Checklist antes de responder:
+- Mantive pillar/objective/format/scheduled_date/scheduled_time.
+- Não inventei eventos nem números.
+- Tema é diferente do atual.
+- JSON válido.`;
 
 const readRequestBody = async (request) => {
     const buffers = [];
