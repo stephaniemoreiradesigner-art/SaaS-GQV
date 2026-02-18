@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Cliente - Login</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-lg p-6 md:p-8">
+        <div class="flex items-center gap-3 mb-6">
+            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <i class="fas fa-user"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold">Painel do Cliente</h1>
+                <p class="text-sm text-gray-500">Acesse seu painel</p>
+            </div>
+        </div>
+        <form id="client-login-form" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">E-mail</label>
+                <input type="email" id="client-email" required class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Senha</label>
+                <input type="password" id="client-password" required class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none">
+            </div>
+            <div id="client-login-error" class="hidden text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3"></div>
+            <button type="submit" id="client-login-submit" class="w-full bg-primary text-white py-2.5 rounded-lg hover:bg-primary-hover transition-colors font-semibold flex items-center justify-center gap-2">
+                <i class="fas fa-sign-in-alt"></i> Entrar
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const loadClientSupabaseConfig = async () => {
+            const response = await fetch('/config');
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (!data?.supabaseUrl || !data?.supabaseAnonKey || data?.missing) return null;
+            return { supabaseUrl: data.supabaseUrl, supabaseAnonKey: data.supabaseAnonKey };
+        };
+
+        const normalizeRole = (value) => String(value || '').trim().toLowerCase();
+
+        const getProfileRole = async (client, user) => {
+            try {
+                const { data } = await client
+                    .from('profiles')
+                    .select('role')
+                    .eq('id', user.id)
+                    .maybeSingle();
+                return data?.role || null;
+            } catch (error) {
+                console.warn('Erro ao buscar perfil', error);
+                return null;
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const config = await loadClientSupabaseConfig();
+            if (!config || !window.supabase) {
+                const errorBox = document.getElementById('client-login-error');
+                errorBox.textContent = 'Configuração de login indisponível.';
+                errorBox.classList.remove('hidden');
+                return;
+            }
+            const supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            const { data } = await supabaseClient.auth.getSession();
+            if (data?.session) {
+                const user = data.session.user;
+                const role = normalizeRole((await getProfileRole(supabaseClient, user)) || user?.user_metadata?.role || user?.app_metadata?.role);
+                if (role === 'client') {
+                    window.location.href = '/client';
+                } else {
+                    window.location.href = '/dashboard.html';
+                }
+                return;
+            }
+
+            const form = document.getElementById('client-login-form');
+            const errorBox = document.getElementById('client-login-error');
+            const submitBtn = document.getElementById('client-login-submit');
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                errorBox.classList.add('hidden');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando';
+                const email = document.getElementById('client-email').value.trim();
+                const password = document.getElementById('client-password').value;
+                const { data: loginData, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error || !loginData?.session) {
+                    errorBox.textContent = 'E-mail ou senha inválidos.';
+                    errorBox.classList.remove('hidden');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar';
+                    return;
+                }
+                const user = loginData.session.user;
+                const role = normalizeRole((await getProfileRole(supabaseClient, user)) || user?.user_metadata?.role || user?.app_metadata?.role);
+                if (role !== 'client') {
+                    await supabaseClient.auth.signOut();
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+                window.location.href = '/client';
+            });
+        });
+    </script>
+</body>
+</html>

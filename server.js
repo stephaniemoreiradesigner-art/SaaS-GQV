@@ -3416,6 +3416,15 @@ const server = http.createServer(async (request, response) => {
         filePath = './index.html';
     }
 
+    const isClientRoute = pathname === '/client' || pathname === '/client/' || pathname.startsWith('/client/');
+    if (isClientRoute) {
+        if (pathname === '/client' || pathname === '/client/') {
+            filePath = './client/index.html';
+        } else if (!path.extname(filePath)) {
+            filePath = `.${pathname}.html`;
+        }
+    }
+
     const extname = String(path.extname(filePath)).toLowerCase();
     const contentType = mimeTypes[extname] || 'application/octet-stream';
 
