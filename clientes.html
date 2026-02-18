@@ -110,27 +110,11 @@
                         </div>
                     </div>
 
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left border-collapse">
-                                <thead>
-                                    <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wide">
-                                        <th class="px-6 py-4">Empresa</th>
-                                        <th class="px-6 py-4">Responsável</th>
-                                        <th class="px-6 py-4">Serviços</th>
-                                        <th class="px-6 py-4 text-right">Mensalidade</th>
-                                        <th class="px-6 py-4 text-center">Vencimento</th>
-                                        <th class="px-6 py-4 text-center">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="clientes-table-body" class="divide-y divide-gray-100">
-                                    <tr>
-                                        <td colspan="6" class="px-6 py-8 text-center text-gray-400">
-                                            <i class="fas fa-spinner fa-spin mr-2"></i> Carregando clientes...
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                        <div id="clientes-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            <div class="px-6 py-8 text-center text-gray-400">
+                                <i class="fas fa-spinner fa-spin mr-2"></i> Carregando clientes...
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -164,6 +148,19 @@
                             </h4>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Logo do Cliente</label>
+                                    <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                        <div class="w-20 h-20 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                                            <img id="logo_preview" src="" alt="Logo do cliente" class="w-full h-full object-cover hidden">
+                                            <span id="logo_preview_placeholder" class="text-sm font-semibold text-gray-500">Logo</span>
+                                        </div>
+                                        <div class="flex-1 w-full space-y-2">
+                                            <input type="file" id="logo_file" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:opacity-90">
+                                            <input type="url" id="logo_url" placeholder="https://... (URL alternativa)" class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none">
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="col-span-1 md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">Time / Squad *</label>
                                     <select id="time_id" required class="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none">
@@ -350,6 +347,10 @@
                                     <input type="url" id="link_grupo" placeholder="https://chat.whatsapp.com/..." class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none">
                                     <a id="link_grupo_preview" href="#" target="_blank" rel="noopener noreferrer" class="text-sm text-primary hover:underline mt-2 inline-block hidden">Abrir grupo</a>
                                 </div>
+                                <div class="col-span-1 md:col-span-2">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Registro do Grupo</label>
+                                    <input type="text" id="registro_grupo" placeholder="Ex: Grupo VIP 01" class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none">
+                                </div>
                             </div>
                         </div>
 
@@ -399,6 +400,80 @@
                         </div>
                     </form>
                 </div>
+
+        <div id="client-view-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+            <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                            <img id="client-view-logo" src="" alt="Logo do cliente" class="w-full h-full object-cover hidden">
+                            <span id="client-view-logo-placeholder" class="text-sm font-semibold text-gray-500">Logo</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800" id="client-view-title">Cliente</h3>
+                            <p class="text-sm text-gray-500" id="client-view-subtitle"></p>
+                        </div>
+                    </div>
+                    <button onclick="closeClientViewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase tracking-wide text-gray-400">Contato</p>
+                            <p class="text-sm text-gray-700" id="client-view-responsavel"></p>
+                            <a id="client-view-whatsapp" href="#" target="_blank" rel="noopener noreferrer" class="text-sm text-green-600 hover:underline inline-flex items-center gap-2">
+                                <i class="fab fa-whatsapp"></i> <span></span>
+                            </a>
+                            <p class="text-sm text-gray-600" id="client-view-email"></p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase tracking-wide text-gray-400">Grupo</p>
+                            <p class="text-sm text-gray-700" id="client-view-grupo-registro"></p>
+                            <a id="client-view-grupo-link" href="#" target="_blank" rel="noopener noreferrer" class="text-sm text-primary hover:underline inline-flex items-center gap-2">
+                                <i class="fas fa-link"></i> <span></span>
+                            </a>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-2">Serviços</p>
+                        <div id="client-view-servicos" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase tracking-wide text-gray-400">Mensalidade</p>
+                            <p class="text-sm text-gray-700" id="client-view-mensalidade"></p>
+                            <p class="text-sm text-gray-600" id="client-view-vencimento"></p>
+                        </div>
+                        <div class="space-y-2">
+                            <p class="text-xs uppercase tracking-wide text-gray-400">Status</p>
+                            <p class="text-sm text-gray-700" id="client-view-status"></p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-2">Links</p>
+                        <div id="client-view-links" class="space-y-2 text-sm text-gray-700"></div>
+                    </div>
+                </div>
+                <div class="px-6 py-4 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <button id="client-view-edit-btn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2">
+                            <i class="fas fa-pen"></i> Editar
+                        </button>
+                        <button id="client-view-history-btn" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
+                            <i class="fas fa-history"></i> Histórico
+                        </button>
+                        <button id="client-view-integrations-btn" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
+                            <i class="fas fa-plug"></i> Integrações
+                        </button>
+                    </div>
+                    <button id="client-view-delete-btn" class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2">
+                        <i class="fas fa-trash"></i> Excluir
+                    </button>
+                </div>
+            </div>
+        </div>
             </div>
         </main>
     </div>

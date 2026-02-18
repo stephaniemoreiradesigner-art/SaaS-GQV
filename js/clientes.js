@@ -4,11 +4,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.log('Módulo Clientes Iniciado');
 
-    const clientesTableBody = document.getElementById('clientes-table-body');
+    const clientesTableBody = document.getElementById('clientes-cards');
     const formCliente = document.getElementById('form-cliente');
     const mensalidadesContainer = document.getElementById('mensalidades-container');
 
-    const phoneInputs = ['telefone', 'responsavel_whatsapp'];
+    const phoneInputs = ['telefone', 'responsavel_whatsapp', 'responsavel_whatsapp_2'];
     phoneInputs.forEach(id => {
         const input = document.getElementById(id);
         if (input) {
@@ -46,6 +46,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             const normalized = normalizeGroupLink(linkGrupoInput.value);
             linkGrupoInput.value = normalized;
             updateGroupLinkPreview(normalized);
+        });
+    }
+
+    const normalizeLogoUrl = (value) => {
+        const trimmed = value ? String(value).trim() : '';
+        if (!trimmed) return '';
+        if (/^https?:\/\//i.test(trimmed)) return trimmed;
+        return `https://${trimmed}`;
+    };
+
+    const setLogoPreview = (url, placeholderText) => {
+        const img = document.getElementById('logo_preview');
+        const placeholder = document.getElementById('logo_preview_placeholder');
+        if (!img || !placeholder) return;
+        if (url) {
+            img.src = url;
+            img.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else {
+            img.src = '';
+            img.classList.add('hidden');
+            placeholder.textContent = placeholderText || 'Logo';
+            placeholder.classList.remove('hidden');
+        }
+    };
+
+    const logoUrlInput = document.getElementById('logo_url');
+    if (logoUrlInput) {
+        logoUrlInput.addEventListener('blur', () => {
+            const normalized = normalizeLogoUrl(logoUrlInput.value);
+            logoUrlInput.value = normalized;
+            setLogoPreview(normalized, 'Logo');
+        });
+    }
+
+    const logoFileInput = document.getElementById('logo_file');
+    if (logoFileInput) {
+        logoFileInput.addEventListener('change', () => {
+            const file = logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            setLogoPreview(url, 'Logo');
         });
     }
 
@@ -367,25 +409,44 @@ document.addEventListener('DOMContentLoaded', async () => {
             const message = error?.message || error?.error_description || JSON.stringify(error);
             console.error('Erro ao carregar clientes:', message, error);
             clientesTableBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-8">
-                        <div class="flex flex-col items-center justify-center text-red-500">
-                            <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                            <p>Erro ao carregar clientes.</p>
-                            <p class="text-sm text-gray-400 mt-1">${message}</p>
-                            <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm">
-                                Tentar Novamente
-                            </button>
-                        </div>
-                    </td>
-                </tr>`;
+                <div class="col-span-full text-center py-8">
+                    <div class="flex flex-col items-center justify-center text-red-500">
+                        <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
+                        <p>Erro ao carregar clientes.</p>
+                        <p class="text-sm text-gray-400 mt-1">${message}</p>
+                        <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm">
+                            Tentar Novamente
+                        </button>
+                    </div>
+                </div>`;
         } finally {
             // Libera a tela
             if (window.showContent) window.showContent();
         }
     }
 
-    // 2. Renderizar Tabela
+    const buildWaLink = (phone) => {
+        const digits = String(phone || '').replace(/\D/g, '');
+        if (!digits) return '';
+        const hasCountry = digits.startsWith('55') && digits.length >= 12;
+        const normalized = hasCountry ? digits : `55${digits}`;
+        return `https://wa.me/${normalized}`;
+    };
+
+    const getInitials = (value) => {
+        const text = String(value || '').trim();
+        if (!text) return 'CL';
+        const parts = text.split(' ').filter(Boolean);
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    };
+
+    const formatGroupLinkText = (value) => {
+        if (!value) return '';
+        return value.replace(/^https?:\/\//i, '');
+    };
+
+    // 2. Renderizar Cards
     function renderClientes(clientes) {
         clientesTableBody.innerHTML = '';
 
@@ -394,55 +455,256 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        const clientMap = {};
         clientes.forEach(cliente => {
+            clientMap[String(cliente.id)] = cliente;
             const servicosBadges = (cliente.servicos || [])
                 .map(s => `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mr-1">${s}</span>`)
                 .join('');
 
-            // Nome do Time
-            const nomeTime = cliente.times ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 ml-1">${cliente.times.nome}</span>` : '';
-
             // Nome Fantasia ou Razão Social
             const nomeExibicao = cliente.nome_fantasia || cliente.nome_empresa;
+            const responsavel = cliente.responsavel_nome || '-';
+            const phone = cliente.telefone || '';
+            const whatsapp = cliente.responsavel_whatsapp || phone;
+            const waLink = buildWaLink(whatsapp);
+            const grupoLink = normalizeGroupLink(cliente.link_grupo || '');
+            const grupoRegistro = cliente.registro_grupo || '-';
+            const logoUrl = cliente.logo_url || '';
+            const initials = getInitials(nomeExibicao);
+            const grupoLinkText = formatGroupLinkText(grupoLink);
+            const lineTitle = `${nomeExibicao} • ${responsavel} • ${phone || '-'} • ${grupoLinkText || '-'}`;
 
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0';
-            row.innerHTML = `
-                <td class="px-6 py-4">
-                    <div class="flex items-center flex-wrap">
-                        <strong class="text-gray-900 font-medium">${nomeExibicao}</strong> ${nomeTime}
+            const card = document.createElement('div');
+            card.className = 'group bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer';
+            card.dataset.clientId = cliente.id;
+            card.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                        ${logoUrl ? `<img src="${logoUrl}" alt="Logo ${nomeExibicao}" class="w-full h-full object-cover">` : `<span class="text-sm font-semibold text-gray-500">${initials}</span>`}
                     </div>
-                    <div class="text-xs text-gray-500 mt-1">${cliente.telefone || ''}</div>
-                </td>
-                <td class="px-6 py-4">
-                    <div class="text-sm text-gray-700">${cliente.responsavel_nome || '-'}</div>
-                    <a href="https://wa.me/55${(cliente.responsavel_whatsapp || '').replace(/\D/g, '')}" target="_blank" class="text-xs text-green-600 flex items-center gap-1 mt-0.5 hover:underline">
-                        <i class="fab fa-whatsapp"></i> ${cliente.responsavel_whatsapp || '-'}
-                    </a>
-                </td>
-                <td class="px-6 py-4">
-                    <div class="flex flex-wrap gap-1">${servicosBadges}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">R$ ${parseFloat(cliente.valor_mensalidade || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Dia ${cliente.dia_vencimento || '-'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="abrirIntegracoes('${cliente.id}')" title="Integrações">
-                        <i class="fas fa-plug"></i>
-                    </button>
-                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="openClientWorklogHistory('${cliente.id}', '${nomeExibicao.replace(/'/g, "\\'")}')" title="Histórico">
-                        <i class="fas fa-history"></i>
-                    </button>
-                    <button class="text-primary hover:text-primary/80 mr-3 p-1.5 hover:bg-primary/10 rounded transition-colors" onclick="editCliente('${cliente.id}')" title="Editar">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded transition-colors" onclick="deleteCliente('${cliente.id}')" title="Excluir">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm text-gray-900 font-semibold flex items-center gap-2 min-w-0" title="${lineTitle}">
+                            <span class="truncate">${nomeExibicao}</span>
+                            <span class="text-gray-400">•</span>
+                            <span class="truncate">${responsavel}</span>
+                            <span class="text-gray-400">•</span>
+                            ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="text-green-600 hover:underline truncate no-card-click" onclick="event.stopPropagation()" title="${phone}">${phone || '-'}</a>` : `<span class="truncate">${phone || '-'}</span>`}
+                            <span class="text-gray-400">•</span>
+                            ${grupoLink ? `<a href="${grupoLink}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline truncate no-card-click" onclick="event.stopPropagation()" title="${grupoLink}">${grupoLinkText || 'Grupo'}</a>` : `<span class="truncate">Grupo</span>`}
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">Grupo: <span class="font-medium text-gray-700">${grupoRegistro}</span></div>
+                        <div class="mt-3 flex flex-wrap gap-1">${servicosBadges}</div>
+                    </div>
+                </div>
             `;
-            clientesTableBody.appendChild(row);
+            card.addEventListener('click', (event) => {
+                if (event.target.closest('a') || event.target.closest('button') || event.target.closest('.no-card-click')) return;
+                openClientViewModal(cliente.id);
+            });
+            clientesTableBody.appendChild(card);
         });
+        window.clientCardsMap = clientMap;
     }
+
+    const buildLinkItem = (label, url) => {
+        if (!url) return '';
+        const safeUrl = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        return `
+            <div class="flex items-center gap-2">
+                <span class="text-gray-500">${label}:</span>
+                <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline break-all">${safeUrl}</a>
+            </div>
+        `;
+    };
+
+    const renderClientView = (cliente) => {
+        if (!cliente) return;
+        const nomeExibicao = cliente.nome_fantasia || cliente.nome_empresa || 'Cliente';
+        const logoUrl = cliente.logo_url || '';
+        const initials = getInitials(nomeExibicao);
+        const logoImg = document.getElementById('client-view-logo');
+        const logoPlaceholder = document.getElementById('client-view-logo-placeholder');
+        if (logoImg && logoPlaceholder) {
+            if (logoUrl) {
+                logoImg.src = logoUrl;
+                logoImg.classList.remove('hidden');
+                logoPlaceholder.classList.add('hidden');
+            } else {
+                logoImg.src = '';
+                logoImg.classList.add('hidden');
+                logoPlaceholder.textContent = initials;
+                logoPlaceholder.classList.remove('hidden');
+            }
+        }
+
+        const subtitle = cliente.times && cliente.times.nome ? cliente.times.nome : '';
+        const responsavel = cliente.responsavel_nome || '-';
+        const telefone = cliente.telefone || '-';
+        const whatsapp = cliente.responsavel_whatsapp || cliente.telefone || '';
+        const waLink = buildWaLink(whatsapp);
+        const grupoLink = normalizeGroupLink(cliente.link_grupo || '');
+        const grupoRegistro = cliente.registro_grupo || 'Não informado';
+
+        const titleEl = document.getElementById('client-view-title');
+        const subtitleEl = document.getElementById('client-view-subtitle');
+        if (titleEl) titleEl.textContent = nomeExibicao;
+        if (subtitleEl) subtitleEl.textContent = subtitle;
+
+        const responsavelEl = document.getElementById('client-view-responsavel');
+        if (responsavelEl) responsavelEl.textContent = `${responsavel} • ${telefone}`;
+
+        const emailEl = document.getElementById('client-view-email');
+        if (emailEl) emailEl.textContent = cliente.email_contato || 'Sem e-mail cadastrado';
+
+        const whatsappEl = document.getElementById('client-view-whatsapp');
+        if (whatsappEl) {
+            const textSpan = whatsappEl.querySelector('span');
+            if (waLink) {
+                whatsappEl.href = waLink;
+                whatsappEl.classList.remove('hidden');
+                if (textSpan) textSpan.textContent = whatsapp || telefone || 'WhatsApp';
+            } else {
+                whatsappEl.href = '#';
+                whatsappEl.classList.add('hidden');
+                if (textSpan) textSpan.textContent = '';
+            }
+        }
+
+        const grupoRegistroEl = document.getElementById('client-view-grupo-registro');
+        if (grupoRegistroEl) grupoRegistroEl.textContent = grupoRegistro;
+
+        const grupoLinkEl = document.getElementById('client-view-grupo-link');
+        if (grupoLinkEl) {
+            const textSpan = grupoLinkEl.querySelector('span');
+            if (grupoLink) {
+                grupoLinkEl.href = grupoLink;
+                grupoLinkEl.classList.remove('hidden');
+                if (textSpan) textSpan.textContent = grupoLink;
+            } else {
+                grupoLinkEl.href = '#';
+                grupoLinkEl.classList.add('hidden');
+                if (textSpan) textSpan.textContent = '';
+            }
+        }
+
+        const servicosContainer = document.getElementById('client-view-servicos');
+        if (servicosContainer) {
+            servicosContainer.innerHTML = '';
+            const servicos = Array.isArray(cliente.servicos) ? cliente.servicos : [];
+            if (servicos.length) {
+                servicos.forEach(servico => {
+                    const badge = document.createElement('span');
+                    badge.className = 'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800';
+                    badge.textContent = servico;
+                    servicosContainer.appendChild(badge);
+                });
+            } else {
+                servicosContainer.innerHTML = '<span class="text-sm text-gray-500">Nenhum serviço informado</span>';
+            }
+        }
+
+        const mensalidadeEl = document.getElementById('client-view-mensalidade');
+        if (mensalidadeEl) {
+            const valor = parseFloat(cliente.valor_mensalidade || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+            mensalidadeEl.textContent = `R$ ${valor}`;
+        }
+
+        const vencimentoEl = document.getElementById('client-view-vencimento');
+        if (vencimentoEl) vencimentoEl.textContent = cliente.dia_vencimento ? `Vencimento: dia ${cliente.dia_vencimento}` : 'Vencimento não informado';
+
+        const statusEl = document.getElementById('client-view-status');
+        if (statusEl) statusEl.textContent = cliente.status || 'Ativo';
+
+        const linksContainer = document.getElementById('client-view-links');
+        if (linksContainer) {
+            const links = [
+                buildLinkItem('Briefing', cliente.link_briefing),
+                buildLinkItem('Site', cliente.link_site),
+                buildLinkItem('Landing Page', cliente.link_lp),
+                buildLinkItem('Drive', cliente.link_drive),
+                buildLinkItem('Persona', cliente.link_persona),
+                buildLinkItem('Grupo', cliente.link_grupo)
+            ].filter(Boolean);
+            linksContainer.innerHTML = links.length ? links.join('') : '<span class="text-gray-500">Nenhum link informado</span>';
+        }
+
+        const editBtn = document.getElementById('client-view-edit-btn');
+        if (editBtn) {
+            editBtn.onclick = () => {
+                closeClientViewModal();
+                editCliente(cliente.id);
+            };
+        }
+
+        const deleteBtn = document.getElementById('client-view-delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = () => {
+                closeClientViewModal();
+                deleteCliente(cliente.id);
+            };
+        }
+
+        const historyBtn = document.getElementById('client-view-history-btn');
+        if (historyBtn) {
+            historyBtn.onclick = () => {
+                closeClientViewModal();
+                openClientWorklogHistory(cliente.id, nomeExibicao);
+            };
+        }
+
+        const integrationsBtn = document.getElementById('client-view-integrations-btn');
+        if (integrationsBtn) {
+            integrationsBtn.onclick = () => {
+                closeClientViewModal();
+                abrirIntegracoes(cliente.id);
+            };
+        }
+    };
+
+    window.openClientViewModal = async (clientId) => {
+        const modal = document.getElementById('client-view-modal');
+        if (!modal) return;
+        let cliente = window.clientCardsMap ? window.clientCardsMap[String(clientId)] : null;
+        if (!cliente) {
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from('clientes')
+                    .select('*')
+                    .eq('id', clientId)
+                    .single();
+                if (error) throw error;
+                cliente = data;
+            } catch (err) {
+                console.error('Erro ao carregar cliente:', err);
+                alert('Erro ao carregar detalhes do cliente.');
+                return;
+            }
+        }
+        renderClientView(cliente);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    };
+
+    window.closeClientViewModal = function() {
+        const modal = document.getElementById('client-view-modal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    };
+
+    const uploadClientLogoFile = async (clienteId, file) => {
+        if (!file) return null;
+        const bucket = 'client-logos';
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+        const path = `logos/${clienteId}-${Date.now()}-${safeName}`;
+        const { error } = await window.supabaseClient.storage
+            .from(bucket)
+            .upload(path, file, { upsert: true, contentType: file.type });
+        if (error) throw error;
+        const { data } = window.supabaseClient.storage.from(bucket).getPublicUrl(path);
+        return data.publicUrl;
+    };
 
     // 3. Salvar Cliente (Criar ou Editar)
     if (formCliente) {
@@ -481,6 +743,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
             const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
             const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
+            const logoUrlInputValue = normalizeLogoUrl(document.getElementById('logo_url').value);
+            const logoFileInput = document.getElementById('logo_file');
+            const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+            const registroGrupo = document.getElementById('registro_grupo').value;
 
             const clienteData = {
                 nome_empresa: document.getElementById('nome_empresa').value,
@@ -506,6 +772,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link_drive: document.getElementById('link_drive').value,
                 link_persona: document.getElementById('link_persona').value,
                 link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
+                registro_grupo: registroGrupo || null,
+                logo_url: logoUrlInputValue || null,
                 
                 servicos: getCheckedValues('servicos'),
                 responsavel_trafego_colaborador_id: gestorColaboradorId,
@@ -518,6 +786,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let error;
 
                 if (clienteId) {
+                    if (logoFile) {
+                        try {
+                            const uploadedUrl = await uploadClientLogoFile(clienteId, logoFile);
+                            if (uploadedUrl) clienteData.logo_url = uploadedUrl;
+                        } catch (uploadError) {
+                            console.warn('Erro ao subir logo:', uploadError);
+                            if (!clienteData.logo_url) clienteData.logo_url = null;
+                        }
+                    }
                     const { error: updateError } = await window.supabaseClient
                         .from('clientes')
                         .update(clienteData)
@@ -543,6 +820,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .single();
                     
                     error = insertError;
+                    if (!error && data && logoFile) {
+                        try {
+                            const uploadedUrl = await uploadClientLogoFile(data.id, logoFile);
+                            if (uploadedUrl) {
+                                const { error: logoUpdateError } = await window.supabaseClient
+                                    .from('clientes')
+                                    .update({ logo_url: uploadedUrl })
+                                    .eq('id', data.id);
+                                if (logoUpdateError) console.warn('Erro ao salvar logo no cliente:', logoUpdateError);
+                            }
+                        } catch (uploadError) {
+                            console.warn('Erro ao subir logo:', uploadError);
+                        }
+                    }
 
                     if (!error && data && clienteData.status === 'Ativo') {
                         await gerarCobrancasMensalidades(
@@ -671,6 +962,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('link_persona').value = cliente.link_persona || '';
             document.getElementById('link_grupo').value = cliente.link_grupo || '';
             updateGroupLinkPreview(normalizeGroupLink(cliente.link_grupo || ''));
+            document.getElementById('registro_grupo').value = cliente.registro_grupo || '';
+            document.getElementById('logo_url').value = cliente.logo_url || '';
+            setLogoPreview(normalizeLogoUrl(cliente.logo_url || ''), getInitials(cliente.nome_fantasia || cliente.nome_empresa || ''));
             
             await loadInternalOwnersForSelects();
             const gestorSelect = document.getElementById('gestor_trafego_email');
