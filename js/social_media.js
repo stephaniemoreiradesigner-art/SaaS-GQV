@@ -9,6 +9,7 @@ var clientDataMap = {};
 var tempSelectedDate = null;
 var tempSelectedFormat = null;
 var calendarConnectionsCache = {};
+var lastSeasonalDates = [];
 
 function ensureCalendarCTAContainer() {
     let container = document.getElementById('calendar-connection-cta');
@@ -424,10 +425,18 @@ function openPostModal(event) {
         const createField = (id, label, value, icon) => {
             const div = document.createElement('div');
             div.className = 'space-y-2';
+            const actionButton = id === 'post-legenda'
+                ? `<button type="button" id="btn-improve-copy" onclick="improveCopyWithAI()" class="text-xs px-3 py-1.5 border border-purple-300 text-purple-600 rounded-md hover:bg-purple-50 transition-colors flex items-center gap-1">
+                        <i class="fas fa-magic"></i> ✨ Melhorar com IA
+                   </button>`
+                : '';
             div.innerHTML = `
-                <label class="block text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <i class="fab fa-${icon}"></i> ${label}
-                </label>
+                <div class="flex items-center justify-between gap-3">
+                    <label class="block text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <i class="fab fa-${icon}"></i> ${label}
+                    </label>
+                    ${actionButton}
+                </div>
                 <textarea id="${id}" rows="3" 
                     class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none text-sm"
                     placeholder="Escreva a legenda para ${label.split(' ')[1]}...">${value || ''}</textarea>
@@ -512,6 +521,11 @@ function openPostModal(event) {
     });
 
     // Tratamento de botões se aprovado
+    const btnImproveCopy = document.getElementById('btn-improve-copy');
+    if (btnImproveCopy) btnImproveCopy.disabled = isApproved;
+    const btnChangeTheme = document.getElementById('btn-change-theme');
+    if (btnChangeTheme) btnChangeTheme.disabled = isApproved;
+
     const btnSave = document.querySelector('#modal-post button[onclick="savePost()"]');
     if (btnSave) {
         btnSave.disabled = isApproved;
@@ -951,6 +965,198 @@ async function refineWithAI(targetId = 'post-legenda') {
     }
 }
 
+function buildCaptionText(caption, cta, hashtags) {
+    const safeCaption = String(caption || '').trim();
+    const safeCta = String(cta || '').trim();
+    const tagList = Array.isArray(hashtags) ? hashtags.filter(Boolean).map(tag => String(tag)) : [];
+    const tagText = tagList.length
+        ? tagList.map(tag => (tag.startsWith('#') ? tag : `#${tag}`)).join(' ')
+        : '';
+    return [safeCaption, safeCta, tagText].filter(Boolean).join('\n\n').trim();
+}
+
+function extractHashtags(text) {
+    const matches = String(text || '').match(/#[\wÀ-ÿ_]+/g);
+    return matches ? Array.from(new Set(matches)) : [];
+}
+
+function stripHashtags(text) {
+    return String(text || '').replace(/#[\wÀ-ÿ_]+/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function parseEstrategia(estrategia) {
+    const parts = String(estrategia || '').split('|').map(part => part.trim()).filter(Boolean);
+    return {
+        pillar: parts[0] || '',
+        objective: parts[1] || ''
+    };
+}
+
+function getSeasonalDatesPayload() {
+    return Array.isArray(lastSeasonalDates) ? lastSeasonalDates : [];
+}
+
+function getClientContextPayload() {
+    const client = clientDataMap[currentClienteId] || {};
+    return {
+        client_insights: String(client.client_insights || client.insights || ''),
+        visual_identity: String(client.visual_identity || client.identidade_visual || '')
+    };
+}
+
+function setButtonLoading(button, isLoading, loadingLabel) {
+    if (!button) return;
+    if (isLoading) {
+        button.dataset.originalLabel = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${loadingLabel}`;
+    } else {
+        button.disabled = false;
+        button.innerHTML = button.dataset.originalLabel || button.innerHTML;
+        delete button.dataset.originalLabel;
+    }
+}
+
+async function improveCopyWithAI() {
+    const btn = document.getElementById('btn-improve-copy');
+    const legendaInput = document.getElementById('post-legenda');
+    const temaInput = document.getElementById('post-tema');
+    const roteiroInput = document.getElementById('post-roteiro');
+    const formatoInput = document.getElementById('post-formato');
+    const estrategiaInput = document.getElementById('post-estrategia');
+
+    if (!legendaInput || !temaInput || !roteiroInput || !formatoInput) return;
+
+    setButtonLoading(btn, true, 'Melhorando...');
+
+    try {
+        const baseCaption = stripHashtags(legendaInput.value);
+        const hashtags = extractHashtags(legendaInput.value);
+        const { pillar, objective } = parseEstrategia(estrategiaInput?.value || '');
+        const clientContext = getClientContextPayload();
+
+        const payload = {
+            client_insights: clientContext.client_insights,
+            visual_identity: clientContext.visual_identity,
+            seasonal_dates: getSeasonalDatesPayload(),
+            post: {
+                theme: temaInput.value || '',
+                format: formatoInput.value || '',
+                pillar,
+                objective,
+                structure: roteiroInput.value || '',
+                caption: baseCaption,
+                cta: '',
+                hashtags
+            }
+        };
+
+        const response = await fetch('/api/social/improve-copy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const responseClone = response.clone();
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            const text = await responseClone.text();
+            throw new Error(text || 'Resposta inválida do servidor.');
+        }
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || data.error || 'Erro ao melhorar legenda.');
+        }
+
+        const result = data.data || {};
+        legendaInput.value = buildCaptionText(result.caption, result.cta, result.hashtags);
+        legendaInput.classList.add('ring-2', 'ring-green-500');
+        setTimeout(() => legendaInput.classList.remove('ring-2', 'ring-green-500'), 2000);
+    } catch (err) {
+        console.error('Erro ao melhorar com IA:', err);
+        alert('Não foi possível melhorar a legenda. Tente novamente.');
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
+async function changeThemeWithAI() {
+    const btn = document.getElementById('btn-change-theme');
+    const legendaInput = document.getElementById('post-legenda');
+    const temaInput = document.getElementById('post-tema');
+    const roteiroInput = document.getElementById('post-roteiro');
+    const formatoInput = document.getElementById('post-formato');
+    const estrategiaInput = document.getElementById('post-estrategia');
+    const dataInput = document.getElementById('post-data');
+    const horaInput = document.getElementById('post-hora');
+
+    if (!legendaInput || !temaInput || !roteiroInput || !formatoInput) return;
+
+    setButtonLoading(btn, true, 'Refazendo...');
+
+    try {
+        const { pillar, objective } = parseEstrategia(estrategiaInput?.value || '');
+        const clientContext = getClientContextPayload();
+        const currentTheme = temaInput.value || '';
+        const possibleHook = String(roteiroInput.value || '').split('\n')[0] || '';
+
+        const payload = {
+            client_insights: clientContext.client_insights,
+            visual_identity: clientContext.visual_identity,
+            seasonal_dates: getSeasonalDatesPayload(),
+            constraints: {
+                scheduled_date: dataInput?.value || '',
+                scheduled_time: horaInput?.value || '',
+                pillar,
+                objective,
+                format: formatoInput.value || ''
+            },
+            post: {
+                current_theme: currentTheme,
+                current_hook: possibleHook
+            }
+        };
+
+        const response = await fetch('/api/social/change-theme', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const responseClone = response.clone();
+        let data;
+        try {
+            data = await response.json();
+        } catch (jsonError) {
+            const text = await responseClone.text();
+            throw new Error(text || 'Resposta inválida do servidor.');
+        }
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || data.error || 'Erro ao trocar tema.');
+        }
+
+        const result = data.data || {};
+        if (result.theme) temaInput.value = result.theme;
+        if (result.structure || result.hook) {
+            const roteiroFinal = result.hook
+                ? `Hook: ${result.hook}\n\n${result.structure || ''}`.trim()
+                : String(result.structure || '').trim();
+            roteiroInput.value = roteiroFinal;
+        }
+        legendaInput.value = buildCaptionText(result.caption, result.cta, result.hashtags);
+        legendaInput.classList.add('ring-2', 'ring-green-500');
+        setTimeout(() => legendaInput.classList.remove('ring-2', 'ring-green-500'), 2000);
+    } catch (err) {
+        console.error('Erro ao trocar tema com IA:', err);
+        alert('Não foi possível trocar o tema. Tente novamente.');
+    } finally {
+        setButtonLoading(btn, false);
+    }
+}
+
 async function loadClientes() {
     const select = document.getElementById('select-cliente');
     if (!select) return;
@@ -1181,6 +1387,7 @@ async function generateCalendar(config = {}) {
     try {
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
+        lastSeasonalDates = seasonalDates;
 
         const contextLinkInput = document.getElementById('ia-link-contexto');
         const contextLink = contextLinkInput ? contextLinkInput.value.trim() : '';

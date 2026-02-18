@@ -166,6 +166,74 @@ Formato obrigatório:
   ]
 }`;
 
+const IMPROVE_COPY_PROMPT = `Você é um estrategista sênior de Social Media e Copywriting enterprise.
+
+REGRAS CRÍTICAS (ANTI-ALUCINAÇÃO)
+1) NUNCA invente eventos, feiras, webinars, palestras, workshops, lançamentos, datas comemorativas, notícias ou estatísticas.
+2) Só pode mencionar eventos/datas se estiverem EXPLICITAMENTE em seasonal_dates.
+3) Se seasonal_dates estiver vazio, é PROIBIDO mencionar qualquer data especial.
+4) Não invente números, percentuais ou dados.
+
+ESCOPO DA TAREFA
+- Melhorar SOMENTE: caption, cta, hashtags.
+- NÃO alterar: theme, hook, structure, format, objective, pillar, scheduled_date/time.
+
+DIRETRIZES DE QUALIDADE
+- Linguagem: pt-BR, profissional, clara, persuasiva, sem clichês.
+- Foco em engajamento orgânico e crescimento (seguidores e salvamentos).
+- CTA NÃO pode usar “digite”, “envie”, “comente 'X'”.
+- Hashtags entre 5 e 12.
+
+ENTRADAS
+- client_insights
+- visual_identity
+- seasonal_dates
+- post (theme, format, pillar, objective, structure, caption, cta, hashtags)
+
+SAÍDA OBRIGATÓRIA (JSON ONLY)
+Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
+{
+  "caption": "string",
+  "cta": "string",
+  "hashtags": ["#tag1", "#tag2"]
+}`;
+
+const CHANGE_THEME_PROMPT = `Você é um estrategista sênior de Social Media e Conteúdo enterprise.
+
+REGRAS CRÍTICAS (ANTI-ALUCINAÇÃO)
+1) NUNCA invente eventos, feiras, webinars, palestras, workshops, lançamentos, datas comemorativas, notícias ou estatísticas.
+2) Só pode mencionar eventos/datas se estiverem EXPLICITAMENTE em seasonal_dates.
+3) Se seasonal_dates estiver vazio, é PROIBIDO mencionar qualquer data especial.
+4) Não invente números, percentuais ou dados.
+
+ESCOPO DA TAREFA
+- Refazer: theme, hook, structure, caption, cta, hashtags.
+- Manter: pillar, objective, format, scheduled_date/time (constraints).
+
+DIRETRIZES DE QUALIDADE
+- Linguagem: pt-BR, profissional, clara, persuasiva, sem clichês.
+- Foco em engajamento orgânico e crescimento (seguidores e salvamentos).
+- CTA NÃO pode usar “digite”, “envie”, “comente 'X'”.
+- Hashtags entre 5 e 12.
+
+ENTRADAS
+- client_insights
+- visual_identity
+- seasonal_dates
+- constraints (scheduled_date, scheduled_time, pillar, objective, format)
+- post (current_theme opcional, current_hook opcional)
+
+SAÍDA OBRIGATÓRIA (JSON ONLY)
+Retorne SOMENTE JSON válido, sem markdown, sem texto extra:
+{
+  "theme": "string",
+  "hook": "string",
+  "structure": "string",
+  "caption": "string",
+  "cta": "string",
+  "hashtags": ["#tag1", "#tag2"]
+}`;
+
 const readRequestBody = async (request) => {
     const buffers = [];
     for await (const chunk of request) {
@@ -508,6 +576,233 @@ const server = http.createServer(async (request, response) => {
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/social/improve-copy' && request.method === 'POST') {
+        try {
+            const apiKey = envVars['OPENAI_API_KEY'];
+            if (!apiKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_nao_configurada', message: 'OPENAI_API_KEY não configurada.' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch (parseError) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            const post = body?.post || {};
+            const hasPost = post && typeof post === 'object';
+            if (!hasPost || !String(post.theme || '').trim() || !String(post.format || '').trim()) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'dados_obrigatorios', message: 'Informe post.theme e post.format.' }));
+                return;
+            }
+
+            const payload = {
+                model: body?.model || 'gpt-4-turbo',
+                temperature: 0.4,
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: IMPROVE_COPY_PROMPT },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            client_insights: body?.client_insights || '',
+                            visual_identity: body?.visual_identity || '',
+                            seasonal_dates: Array.isArray(body?.seasonal_dates) ? body.seasonal_dates : [],
+                            post
+                        })
+                    }
+                ]
+            };
+
+            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const rawText = await openAiResponse.text();
+            let responseJson = null;
+            try {
+                responseJson = JSON.parse(rawText);
+            } catch (jsonError) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_response_invalida', message: rawText || 'Resposta inválida da OpenAI.' }));
+                return;
+            }
+
+            if (!openAiResponse.ok) {
+                response.writeHead(openAiResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_error', message: responseJson.error?.message || 'Erro na OpenAI.' }));
+                return;
+            }
+
+            const content = String(responseJson?.choices?.[0]?.message?.content || '').trim();
+            let result = null;
+            try {
+                result = JSON.parse(content);
+            } catch (parseError) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'json_parse_error', message: 'Falha ao interpretar JSON da IA.' }));
+                return;
+            }
+
+            const hashtags = Array.isArray(result?.hashtags) ? result.hashtags.filter(Boolean) : [];
+            if (!String(result?.caption || '').trim() || !String(result?.cta || '').trim()) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'saida_invalida', message: 'Resposta incompleta da IA.' }));
+                return;
+            }
+            if (hashtags.length < 5 || hashtags.length > 12) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'hashtags_invalidas', message: 'Quantidade de hashtags fora do intervalo (5-12).' }));
+                return;
+            }
+            const ctaText = String(result.cta || '').toLowerCase();
+            if (ctaText.includes('digite') || ctaText.includes('envie') || ctaText.includes("comente '") || ctaText.includes('comente "')) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'cta_invalido', message: 'CTA inválido para as regras do negócio.' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: true, data: { caption: result.caption, cta: result.cta, hashtags } }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: false, error: 'erro_interno', message: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/social/change-theme' && request.method === 'POST') {
+        try {
+            const apiKey = envVars['OPENAI_API_KEY'];
+            if (!apiKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_nao_configurada', message: 'OPENAI_API_KEY não configurada.' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch (parseError) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            const constraints = body?.constraints || {};
+            const hasConstraints = constraints && typeof constraints === 'object';
+            if (!hasConstraints || !String(constraints.format || '').trim() || !String(constraints.pillar || '').trim() || !String(constraints.objective || '').trim()) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'dados_obrigatorios', message: 'Informe constraints.format, constraints.pillar e constraints.objective.' }));
+                return;
+            }
+
+            const payload = {
+                model: body?.model || 'gpt-4-turbo',
+                temperature: 0.6,
+                response_format: { type: 'json_object' },
+                messages: [
+                    { role: 'system', content: CHANGE_THEME_PROMPT },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            client_insights: body?.client_insights || '',
+                            visual_identity: body?.visual_identity || '',
+                            seasonal_dates: Array.isArray(body?.seasonal_dates) ? body.seasonal_dates : [],
+                            constraints,
+                            post: body?.post || {}
+                        })
+                    }
+                ]
+            };
+
+            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const rawText = await openAiResponse.text();
+            let responseJson = null;
+            try {
+                responseJson = JSON.parse(rawText);
+            } catch (jsonError) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_response_invalida', message: rawText || 'Resposta inválida da OpenAI.' }));
+                return;
+            }
+
+            if (!openAiResponse.ok) {
+                response.writeHead(openAiResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'openai_error', message: responseJson.error?.message || 'Erro na OpenAI.' }));
+                return;
+            }
+
+            const content = String(responseJson?.choices?.[0]?.message?.content || '').trim();
+            let result = null;
+            try {
+                result = JSON.parse(content);
+            } catch (parseError) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'json_parse_error', message: 'Falha ao interpretar JSON da IA.' }));
+                return;
+            }
+
+            const hashtags = Array.isArray(result?.hashtags) ? result.hashtags.filter(Boolean) : [];
+            if (!String(result?.theme || '').trim() || !String(result?.hook || '').trim() || !String(result?.structure || '').trim()) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'saida_invalida', message: 'Resposta incompleta da IA.' }));
+                return;
+            }
+            if (hashtags.length < 5 || hashtags.length > 12) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'hashtags_invalidas', message: 'Quantidade de hashtags fora do intervalo (5-12).' }));
+                return;
+            }
+            const ctaText = String(result?.cta || '').toLowerCase();
+            if (ctaText.includes('digite') || ctaText.includes('envie') || ctaText.includes("comente '") || ctaText.includes('comente "')) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ success: false, error: 'cta_invalido', message: 'CTA inválido para as regras do negócio.' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                success: true,
+                data: {
+                    theme: result.theme,
+                    hook: result.hook,
+                    structure: result.structure,
+                    caption: result.caption,
+                    cta: result.cta,
+                    hashtags
+                }
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: false, error: 'erro_interno', message: error.message }));
             return;
         }
     }
