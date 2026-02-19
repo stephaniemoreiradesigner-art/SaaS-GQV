@@ -515,6 +515,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const normalizeEmailValue = (value) => String(value || '').trim().toLowerCase();
+    const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const logDev = (...args) => {
+        if (isDev) console.log(...args);
+    };
 
     const updateClientAccessUI = ({ liberado, disabled, note, loading }) => {
         const statusEl = document.getElementById('client-view-access-status');
@@ -646,8 +650,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const responsavelEl = document.getElementById('client-view-responsavel');
         if (responsavelEl) responsavelEl.textContent = `${responsavel} • ${telefone}`;
 
-        const emailEl = document.getElementById('client-view-email');
-        if (emailEl) emailEl.textContent = cliente.email_contato || 'Sem e-mail cadastrado';
+        const emailEmpresaEl = document.getElementById('client-view-email-empresa');
+        const emailResponsavelEl = document.getElementById('client-view-email-responsavel');
+        const emailEmpresa = cliente.email_contato || cliente.email || '';
+        const emailResponsavel = cliente.responsavel_email || cliente.email_responsavel || '';
+        if (emailEmpresaEl) emailEmpresaEl.textContent = emailEmpresa || 'Sem e-mail cadastrado';
+        if (emailResponsavelEl) emailResponsavelEl.textContent = emailResponsavel || 'Sem e-mail cadastrado';
 
         const whatsappEl = document.getElementById('client-view-whatsapp');
         if (whatsappEl) {
@@ -756,6 +764,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupClientAccessControls(cliente);
     };
 
+    const refreshClientById = async (clientId) => {
+        const { data, error } = await window.supabaseClient
+            .from('clientes')
+            .select('*')
+            .eq('id', clientId)
+            .single();
+        if (error) throw error;
+        if (window.clientCardsMap) {
+            window.clientCardsMap[String(clientId)] = data;
+        }
+        const modal = document.getElementById('client-view-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            renderClientView(data);
+            logDev('cliente atualizado usado no modal', data);
+        }
+        return data;
+    };
+
     window.openClientViewModal = async (clientId) => {
         const modal = document.getElementById('client-view-modal');
         if (!modal) return;
@@ -841,6 +867,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const logoFileInput = document.getElementById('logo_file');
             const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
             const registroGrupo = document.getElementById('registro_grupo').value;
+            const emailEmpresaValue = normalizeEmailValue(document.getElementById('email_contato').value);
 
             const clienteData = {
                 nome_empresa: document.getElementById('nome_empresa').value,
@@ -848,7 +875,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 time_id: document.getElementById('time_id').value || null,
                 telefone: document.getElementById('telefone').value,
                 endereco: document.getElementById('endereco').value,
-                email_contato: document.getElementById('email_contato').value,
+                email_contato: emailEmpresaValue || null,
                 responsavel_nome: document.getElementById('responsavel_nome').value,
                 responsavel_whatsapp: document.getElementById('responsavel_whatsapp').value,
                 responsavel_nome_2: document.getElementById('responsavel_nome_2').value,
@@ -923,10 +950,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                     let updatePayload = { ...clienteData };
-                    let { error: updateError } = await window.supabaseClient
+                    logDev('payload enviado no update', updatePayload);
+                    let { data: updateData, error: updateError } = await window.supabaseClient
                         .from('clientes')
                         .update(updatePayload)
-                        .eq('id', clienteId);
+                        .eq('id', clienteId)
+                        .select()
+                        .single();
                     if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo'))) {
                         updatePayload = stripMissingColumns(updatePayload, updateError);
                         if (hasMissingColumn(updateError, 'logo_url')) missingColumns.add('logo_url');
@@ -936,11 +966,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const retry = await window.supabaseClient
                             .from('clientes')
                             .update(updatePayload)
-                            .eq('id', clienteId);
+                            .eq('id', clienteId)
+                            .select()
+                            .single();
+                        updateData = retry.data;
                         updateError = retry.error;
                     }
                     
                     error = updateError;
+                    logDev('retorno do supabase (update)', { data: updateData, error: updateError });
+                    if (!error && !updateData) {
+                        throw new Error('Nenhuma linha atualizada.');
+                    }
 
                     if (!error) {
                         await gerarCobrancasMensalidades(
@@ -975,6 +1012,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     
                     error = insertError;
+                    logDev('retorno do supabase (insert)', { data, error: insertError });
+                    if (!error && !data) {
+                        throw new Error('Nenhuma linha inserida.');
+                    }
                     if (!error && data && logoFile && allowLogoColumn) {
                         try {
                             const uploadedUrl = await uploadClientLogoFile(data.id, logoFile);
@@ -1003,6 +1044,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 if (error) throw error;
+
+                const refreshedClientId = clienteId || (data && data.id ? data.id : null);
+                if (refreshedClientId) {
+                    try {
+                        await refreshClientById(refreshedClientId);
+                    } catch (refreshError) {
+                        console.error('Erro ao recarregar cliente atualizado:', refreshError);
+                    }
+                }
 
                 alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
                 
