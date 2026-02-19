@@ -226,9 +226,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             const path = window.location.pathname;
             const isLoginPage = path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/');
             const isRestrictedPage = !isLoginPage;
+            const isDashboardPage = path.includes('dashboard.html');
 
             if (session) {
                 console.log('👤 Usuário logado:', session.user.email);
+                if (isDashboardPage) {
+                    try {
+                        const { data: profileData } = await window.supabaseClient
+                            .from('profiles')
+                            .select('role')
+                            .eq('id', session.user.id)
+                            .maybeSingle();
+                        if (profileData && profileData.role === 'client') {
+                            await window.supabaseClient.auth.signOut();
+                            window.location.href = 'client_login.html';
+                            return;
+                        }
+                    } catch (error) {
+                        console.warn('Erro ao validar role do usuário:', error);
+                    }
+                }
                 
                 if (isLoginPage) {
                     window.location.href = 'dashboard.html';

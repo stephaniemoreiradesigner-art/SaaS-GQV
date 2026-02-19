@@ -26,7 +26,13 @@
         if (!window.supabase) return null;
         const config = await loadConfig();
         if (!config) return null;
-        window.supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+        window.supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+            auth: {
+                storageKey: 'gqv_client_auth',
+                persistSession: true,
+                autoRefreshToken: true
+            }
+        });
         return window.supabaseClient;
     };
 
