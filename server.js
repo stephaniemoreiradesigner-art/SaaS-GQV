@@ -503,6 +503,18 @@ const getProfileForUser = async (request, userId) => {
     return Array.isArray(byUserId.data) ? byUserId.data[0] : null;
 };
 
+const getAuthedProfile = async (request, response) => {
+    const user = await requireAuth(request, response);
+    if (!user) return null;
+    const profile = await getProfileForUser(request, user.id);
+    if (!profile) {
+        response.writeHead(404, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'profile_not_found' }));
+        return null;
+    }
+    return { user, profile };
+};
+
 const getSupabaseUserIdFromRequest = async (request) => {
     const token = getBearerToken(request);
     if (!token) return null;
@@ -639,16 +651,11 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/me/context' && request.method === 'GET') {
         try {
-            const user = await requireAuth(request, response);
-            if (!user) return;
+            const authContext = await getAuthedProfile(request, response);
+            if (!authContext) return;
+            const { user, profile } = authContext;
 
-            const profileRow = await getProfileForUser(request, user.id);
-            if (!profileRow) {
-                response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'profile_not_found' }));
-                return;
-            }
-            if (!profileRow.tenant_id) {
+            if (!profile.tenant_id) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'missing_tenant' }));
                 return;
@@ -656,7 +663,7 @@ const server = http.createServer(async (request, response) => {
 
             const clientRes = await supabaseRest(
                 request,
-                `/rest/v1/clientes?select=id,nome_fantasia,nome_empresa,telefone,logo_url&id=eq.${profileRow.tenant_id}&limit=1`
+                `/rest/v1/clientes?select=id,nome_fantasia,nome_empresa,telefone,logo_url&id=eq.${profile.tenant_id}&limit=1`
             );
             const clientRow = Array.isArray(clientRes.data) ? clientRes.data[0] : null;
             if (!clientRow) {
@@ -667,7 +674,7 @@ const server = http.createServer(async (request, response) => {
 
             const payload = {
                 user: { id: user.id, email: user.email },
-                profile: { role: profileRow.role || null, tenant_id: profileRow.tenant_id },
+                profile: { role: profile.role || null, tenant_id: profile.tenant_id },
                 client: {
                     id: clientRow.id,
                     nome_fantasia: clientRow.nome_fantasia,
@@ -905,20 +912,12 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/social/pending-posts' && request.method === 'GET') {
         try {
-            const user = await requireAuth(request, response);
-            if (!user) return;
+            const authContext = await getAuthedProfile(request, response);
+            if (!authContext) return;
+            const { user, profile } = authContext;
 
-            const profileRes = await supabaseRest(
-                request,
-                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
-            );
-            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
-            if (!profileRow) {
-                response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'profile_not_found' }));
-                return;
-            }
-            if (!profileRow.tenant_id) {
+            if (!profile.tenant_id) {
+                console.warn('pending-posts missing_tenant', { userId: user.id, email: user.email });
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'missing_tenant' }));
                 return;
@@ -938,7 +937,7 @@ const server = http.createServer(async (request, response) => {
 
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(cliente_id)');
-            params.set('social_calendars.cliente_id', `eq.${profileRow.tenant_id}`);
+            params.set('social_calendars.cliente_id', `eq.${profile.tenant_id}`);
             params.set('status', 'in.(pendente_aprovação,pendente_aprovacao,aguardando_aprovacao,pending,pending_approval,pendente)');
             params.set('order', order);
             params.set('limit', String(limit));
