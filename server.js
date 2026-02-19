@@ -683,19 +683,18 @@ const server = http.createServer(async (request, response) => {
             }
 
             const roleValue = kind === 'client' ? 'client' : 'colaborador';
-            const profilePayload = { role: roleValue };
+            const profilePayload = { id: userId, role: roleValue, email };
             if (kind === 'client' && inviteRow?.client_id) {
                 profilePayload.client_id = inviteRow.client_id;
             }
 
             const profileUpdate = await supabaseAdmin
                 .from('profiles')
-                .update(profilePayload)
-                .eq('id', userId);
+                .upsert(profilePayload, { onConflict: 'id' });
 
             if (profileUpdate.error) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil' }));
+                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil', message: profileUpdate.error.message }));
                 return;
             }
 
