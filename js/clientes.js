@@ -514,6 +514,102 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     };
 
+    const normalizeEmailValue = (value) => String(value || '').trim().toLowerCase();
+
+    const updateClientAccessUI = ({ liberado, disabled, note, loading }) => {
+        const statusEl = document.getElementById('client-view-access-status');
+        const buttonEl = document.getElementById('client-view-access-btn');
+        const noteEl = document.getElementById('client-view-access-note');
+        if (statusEl) statusEl.textContent = `Acesso: ${liberado ? 'Liberado' : 'Não liberado'}`;
+        if (noteEl) noteEl.textContent = note || '';
+        if (buttonEl) {
+            const buttonLabel = liberado ? 'Revogar acesso' : 'Liberar acesso ao painel';
+            const iconClass = liberado ? 'fas fa-ban' : 'fas fa-key';
+            buttonEl.innerHTML = `<i class="${iconClass}"></i> ${loading ? 'Processando...' : buttonLabel}`;
+            buttonEl.disabled = !!disabled || !!loading;
+            if (buttonEl.disabled) {
+                buttonEl.classList.add('opacity-75', 'cursor-not-allowed');
+            } else {
+                buttonEl.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+    };
+
+    const fetchClientInviteStatus = async (cliente) => {
+        const emailNormalizado = normalizeEmailValue(cliente.email_contato || cliente.responsavel_email || cliente.email || '');
+        let query = window.supabaseClient
+            .from('client_invites')
+            .select('id,email,client_id')
+            .limit(1);
+        if (emailNormalizado) {
+            query = query.or(`client_id.eq.${cliente.id},email.ilike.${emailNormalizado}`);
+        } else {
+            query = query.eq('client_id', cliente.id);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        return (data && data[0]) || null;
+    };
+
+    const setupClientAccessControls = async (cliente) => {
+        const buttonEl = document.getElementById('client-view-access-btn');
+        if (!buttonEl) return;
+        const emailNormalizado = normalizeEmailValue(cliente.email_contato || cliente.responsavel_email || cliente.email || '');
+        if (!emailNormalizado) {
+            updateClientAccessUI({
+                liberado: false,
+                disabled: true,
+                note: 'Cadastre o e-mail do responsável antes.',
+                loading: false
+            });
+            buttonEl.onclick = () => {
+                alert('Cadastre o e-mail do responsável antes.');
+            };
+            return;
+        }
+
+        updateClientAccessUI({ liberado: false, disabled: true, note: '', loading: true });
+        let invite = null;
+        try {
+            invite = await fetchClientInviteStatus(cliente);
+        } catch (error) {
+            console.error('Erro ao buscar acesso do cliente:', error);
+            alert('Erro ao buscar acesso do cliente.');
+        }
+        let liberado = !!invite;
+        updateClientAccessUI({ liberado, disabled: false, note: '', loading: false });
+
+        buttonEl.onclick = async () => {
+            updateClientAccessUI({ liberado, disabled: true, note: '', loading: true });
+            try {
+                if (liberado) {
+                    const { error } = await window.supabaseClient
+                        .from('client_invites')
+                        .delete()
+                        .eq('client_id', cliente.id);
+                    if (error) throw error;
+                    liberado = false;
+                    alert('Acesso revogado com sucesso.');
+                } else {
+                    const { error } = await window.supabaseClient
+                        .from('client_invites')
+                        .upsert(
+                            { email: emailNormalizado, client_id: cliente.id },
+                            { onConflict: 'client_id' }
+                        );
+                    if (error) throw error;
+                    liberado = true;
+                    alert('Acesso liberado com sucesso.');
+                }
+            } catch (error) {
+                console.error('Erro ao atualizar acesso do cliente:', error);
+                alert('Erro ao atualizar acesso do cliente.');
+            } finally {
+                updateClientAccessUI({ liberado, disabled: false, note: '', loading: false });
+            }
+        };
+    };
+
     const renderClientView = (cliente) => {
         if (!cliente) return;
         const nomeExibicao = cliente.nome_fantasia || cliente.nome_empresa || 'Cliente';
@@ -656,6 +752,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 abrirIntegracoes(cliente.id);
             };
         }
+
+        setupClientAccessControls(cliente);
     };
 
     window.openClientViewModal = async (clientId) => {

@@ -1,5 +1,16 @@
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS client_id uuid;
 
+CREATE TABLE IF NOT EXISTS public.client_invites (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    email text NOT NULL,
+    client_id uuid NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    CONSTRAINT client_invites_email_unique UNIQUE (email)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS client_invites_client_id_unique
+    ON public.client_invites (client_id);
+
 CREATE TABLE IF NOT EXISTS public.client_approvals (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id uuid NOT NULL,
