@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .from('client_invites')
                         .upsert(
                             { email: emailNormalizado, client_id: cliente.id },
-                            { onConflict: 'client_id' }
+                            { onConflict: 'email' }
                         );
                     if (error) throw error;
                     liberado = true;

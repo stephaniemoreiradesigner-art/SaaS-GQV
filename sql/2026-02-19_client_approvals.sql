@@ -3,13 +3,37 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS client_id uuid;
 CREATE TABLE IF NOT EXISTS public.client_invites (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     email text NOT NULL,
-    client_id uuid NOT NULL,
+    client_id bigint NOT NULL,
     created_at timestamptz DEFAULT now(),
     CONSTRAINT client_invites_email_unique UNIQUE (email)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS client_invites_client_id_unique
     ON public.client_invites (client_id);
+
+ALTER TABLE public.client_invites ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Client invites admin select" ON public.client_invites;
+DROP POLICY IF EXISTS "Client invites admin insert" ON public.client_invites;
+DROP POLICY IF EXISTS "Client invites admin update" ON public.client_invites;
+DROP POLICY IF EXISTS "Client invites admin delete" ON public.client_invites;
+
+CREATE POLICY "Client invites admin select" ON public.client_invites
+FOR SELECT TO authenticated
+USING (public.is_admin());
+
+CREATE POLICY "Client invites admin insert" ON public.client_invites
+FOR INSERT TO authenticated
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Client invites admin update" ON public.client_invites
+FOR UPDATE TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Client invites admin delete" ON public.client_invites
+FOR DELETE TO authenticated
+USING (public.is_admin());
 
 CREATE TABLE IF NOT EXISTS public.client_approvals (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
