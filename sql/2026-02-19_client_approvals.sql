@@ -63,9 +63,11 @@ CREATE INDEX IF NOT EXISTS client_approval_comments_approval_created_idx
 INSERT INTO public.client_approvals (id, client_id, type, item_id, title, preview_url, status)
 VALUES
     ('11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000001', 'post', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Post de exemplo', 'https://exemplo.com/preview-post', 'pending'),
-    ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'calendar', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Calendário de exemplo', null, 'pending');
+    ('22222222-2222-2222-2222-222222222222', '00000000-0000-0000-0000-000000000001', 'calendar', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Calendário de exemplo', null, 'pending')
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.client_approval_comments (id, approval_id, author_role, comment)
 VALUES
     ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'team', 'Exemplo: revise o tom do texto.'),
-    ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'team', 'Exemplo: valide as datas do calendário.');
+    ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'team', 'Exemplo: valide as datas do calendário.')
+ON CONFLICT (id) DO NOTHING;
