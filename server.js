@@ -515,6 +515,25 @@ const getAuthedProfile = async (request, response) => {
     return { user, profile };
 };
 
+const getAuthContext = async (request, response) => {
+    const user = await requireAuth(request, response);
+    if (!user) return null;
+    const profile = await getProfileForUser(request, user.id);
+    if (!profile) {
+        response.writeHead(403, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'profile_not_found' }));
+        return null;
+    }
+    const tenantId = profile.tenant_id;
+    if (!tenantId) {
+        console.warn('missing_tenant', { userId: user.id, email: user.email });
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'missing_tenant' }));
+        return null;
+    }
+    return { user, profile, tenantId };
+};
+
 const getSupabaseUserIdFromRequest = async (request) => {
     const token = getBearerToken(request);
     if (!token) return null;
@@ -863,30 +882,19 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const user = await requireAuth(request, response);
-            if (!user) return;
-
-            const profileRow = await getProfileForUser(request, user.id);
-            if (!profileRow) {
-                response.writeHead(404, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'profile_not_found' }));
-                return;
-            }
-            const role = String(profileRow.role || '').trim().toLowerCase();
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { profile, tenantId } = authContext;
+            const role = String(profile.role || '').trim().toLowerCase();
             if (!['client', 'admin'].includes(role)) {
                 response.writeHead(403, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'acesso_negado' }));
                 return;
             }
-            if (!profileRow.tenant_id) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'missing_tenant' }));
-                return;
-            }
 
             const params = new URLSearchParams();
             params.set('select', '*');
-            params.set('tenant_id', `eq.${profileRow.tenant_id}`);
+            params.set('tenant_id', `eq.${tenantId}`);
             params.set('type', `eq.${type}`);
             params.set('order', 'created_at.desc');
 
@@ -912,16 +920,9 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/social/pending-posts' && request.method === 'GET') {
         try {
-            const authContext = await getAuthedProfile(request, response);
+            const authContext = await getAuthContext(request, response);
             if (!authContext) return;
-            const { user, profile } = authContext;
-
-            if (!profile.tenant_id) {
-                console.warn('pending-posts missing_tenant', { userId: user.id, email: user.email });
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'missing_tenant' }));
-                return;
-            }
+            const { tenantId } = authContext;
 
             const from = String(parsedUrl.query.from || '').trim();
             const to = String(parsedUrl.query.to || '').trim();
@@ -937,7 +938,7 @@ const server = http.createServer(async (request, response) => {
 
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(cliente_id)');
-            params.set('social_calendars.cliente_id', `eq.${profile.tenant_id}`);
+            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
             params.set('status', 'in.(pendente_aprovação,pendente_aprovacao,aguardando_aprovacao,pending,pending_approval,pendente)');
             params.set('order', order);
             params.set('limit', String(limit));
