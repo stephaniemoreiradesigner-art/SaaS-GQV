@@ -896,6 +896,81 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/client/social/pending-posts' && request.method === 'GET') {
+        try {
+            const user = await requireAuth(request, response);
+            if (!user) return;
+
+            const profileRes = await supabaseRest(
+                request,
+                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
+            );
+            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+            if (!profileRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'profile_not_found' }));
+                return;
+            }
+            if (!profileRow.tenant_id) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'missing_tenant' }));
+                return;
+            }
+
+            const from = String(parsedUrl.query.from || '').trim();
+            const to = String(parsedUrl.query.to || '').trim();
+            const limitRaw = parseInt(parsedUrl.query.limit, 10);
+            const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+            const orderRaw = String(parsedUrl.query.order || '').trim().toLowerCase();
+            const orderParts = orderRaw.split('.');
+            const orderFieldRaw = orderParts[0] || '';
+            const orderDir = orderParts[1] === 'desc' ? 'desc' : 'asc';
+            const orderField = orderFieldRaw === 'scheduled_at' ? 'data_agendada' : orderFieldRaw;
+            const allowedOrderFields = new Set(['data_agendada', 'created_at']);
+            const order = allowedOrderFields.has(orderField) ? `${orderField}.${orderDir}` : 'data_agendada.asc';
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(cliente_id)');
+            params.set('social_calendars.cliente_id', `eq.${profileRow.tenant_id}`);
+            params.set('status', 'in.(pendente_aprovação,pendente_aprovacao,aguardando_aprovacao,pending,pending_approval,pendente)');
+            params.set('order', order);
+            params.set('limit', String(limit));
+            if (from) params.set('data_agendada', `gte.${from}`);
+            if (to) params.set('data_agendada', `lte.${to}`);
+
+            const postsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${params.toString()}`
+            );
+            if (postsRes.status < 200 || postsRes.status >= 300) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsRes.data || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            const items = Array.isArray(postsRes.data) ? postsRes.data : [];
+            const payload = items.map((item) => ({
+                id: item.id,
+                titulo: item.tema || null,
+                tema: item.tema || null,
+                legenda: item.legenda || null,
+                data_agendada: item.data_agendada || null,
+                scheduled_at: item.data_agendada || null,
+                plataforma: item.plataformas || null,
+                status: item.status || null,
+                media_url: item.imagem_url || null
+            }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ items: payload }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     const clientApprovalMatch = pathname.match(/^\/api\/client\/approvals\/([0-9a-fA-F-]{36})$/);
     if (clientApprovalMatch && request.method === 'GET') {
         try {
