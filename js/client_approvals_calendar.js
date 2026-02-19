@@ -4,35 +4,32 @@
         current: null
     };
 
-    const getAuthHeaders = async () => {
-        const supabase = await window.clientApp?.getSupabaseClient?.();
-        const sessionResult = await supabase?.auth?.getSession();
-        const token = sessionResult?.data?.session?.access_token;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-        return headers;
-    };
-
-    const fetchJson = async (url, options = {}) => {
-        const res = await fetch(url, options);
-        const text = await res.text();
-        let data = null;
-        try {
-            data = text ? JSON.parse(text) : null;
-        } catch {
-            data = null;
-        }
-        if (!res.ok) {
-            const message = data?.error || data?.message || 'Erro ao carregar dados';
-            throw new Error(message);
-        }
-        return data;
-    };
-
     const setEmptyState = (visible) => {
         const emptyEl = document.getElementById('calendar-empty-state');
         const container = document.getElementById('calendar-container');
         if (emptyEl) emptyEl.classList.toggle('hidden', !visible);
+        if (container) container.classList.toggle('hidden', visible);
+    };
+
+    const setErrorState = (visible, message, detail) => {
+        const errorEl = document.getElementById('calendar-error-state');
+        const messageEl = document.getElementById('calendar-error-message');
+        const detailEl = document.getElementById('calendar-error-detail');
+        const emptyEl = document.getElementById('calendar-empty-state');
+        const container = document.getElementById('calendar-container');
+        if (messageEl) messageEl.textContent = message || 'Erro ao carregar calendário. Tente novamente.';
+        const isDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        if (detailEl) {
+            if (visible && isDev && detail) {
+                detailEl.textContent = detail;
+                detailEl.classList.remove('hidden');
+            } else {
+                detailEl.textContent = '';
+                detailEl.classList.add('hidden');
+            }
+        }
+        if (errorEl) errorEl.classList.toggle('hidden', !visible);
+        if (emptyEl) emptyEl.classList.toggle('hidden', visible);
         if (container) container.classList.toggle('hidden', visible);
     };
 
@@ -159,10 +156,36 @@
         if (!range) return;
         const { from, to } = range;
         try {
-            const headers = await getAuthHeaders();
-            const data = await fetchJson(`/api/client/social/pending-posts?from=${from}&to=${to}`, { headers });
+            const supabase = await window.clientApp?.getSupabaseClient?.();
+            const sessionResult = await supabase?.auth?.getSession();
+            const session = sessionResult?.data?.session;
+            const token = session?.access_token;
+            if (!token) {
+                setErrorState(true, 'Sessão expirada.');
+                return;
+            }
+            const headers = {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            };
+            const url = `/api/client/social/pending-posts?from=${from}&to=${to}`;
+            const res = await fetch(url, { headers });
+            const text = await res.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = null;
+            }
+            if (!res.ok) {
+                console.error(text);
+                setEmptyState(false);
+                setErrorState(true, 'Erro ao carregar calendário. Tente novamente.', text || data?.error || data?.message);
+                return;
+            }
             const items = Array.isArray(data?.items) ? data.items : [];
             state.items = items;
+            setErrorState(false);
             if (!items.length) {
                 setEmptyState(true);
                 return;
@@ -170,7 +193,8 @@
             setEmptyState(false);
             renderCalendar(monthStr, items);
         } catch {
-            setEmptyState(true);
+            setEmptyState(false);
+            setErrorState(true, 'Erro ao carregar calendário. Tente novamente.');
         }
     };
 
