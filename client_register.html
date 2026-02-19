@@ -31,6 +31,7 @@
                             class="appearance-none block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm transition-all shadow-sm" 
                             placeholder="seu@email.com">
                     </div>
+                    <p id="email-invite-note" class="text-xs text-gray-500 mt-2 hidden">E-mail preenchido a partir do convite. Para trocar, fale com o administrador.</p>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
@@ -81,6 +82,16 @@
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-register-form');
             if (!form) return;
+            const emailInputElement = document.getElementById('email');
+            const inviteNote = document.getElementById('email-invite-note');
+            const params = new URLSearchParams(window.location.search);
+            const inviteEmail = String(params.get('email') || '').trim().toLowerCase();
+            if (inviteEmail && emailInputElement) {
+                emailInputElement.value = inviteEmail;
+                emailInputElement.readOnly = true;
+                emailInputElement.classList.add('bg-gray-100');
+                if (inviteNote) inviteNote.classList.remove('hidden');
+            }
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const emailInput = document.getElementById('email').value;
