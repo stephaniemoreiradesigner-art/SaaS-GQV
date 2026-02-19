@@ -488,6 +488,21 @@ const requireAuth = async (request, response) => {
     return { id: userId, email };
 };
 
+const getProfileForUser = async (request, userId) => {
+    if (!userId) return null;
+    const byId = await supabaseRest(
+        request,
+        `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${userId}&limit=1`
+    );
+    const rowById = Array.isArray(byId.data) ? byId.data[0] : null;
+    if (rowById) return rowById;
+    const byUserId = await supabaseRest(
+        request,
+        `/rest/v1/profiles?select=id,role,tenant_id&user_id=eq.${userId}&limit=1`
+    );
+    return Array.isArray(byUserId.data) ? byUserId.data[0] : null;
+};
+
 const getSupabaseUserIdFromRequest = async (request) => {
     const token = getBearerToken(request);
     if (!token) return null;
@@ -627,11 +642,7 @@ const server = http.createServer(async (request, response) => {
             const user = await requireAuth(request, response);
             if (!user) return;
 
-            const profileRes = await supabaseRest(
-                request,
-                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
-            );
-            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+            const profileRow = await getProfileForUser(request, user.id);
             if (!profileRow) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'profile_not_found' }));
@@ -848,11 +859,7 @@ const server = http.createServer(async (request, response) => {
             const user = await requireAuth(request, response);
             if (!user) return;
 
-            const profileRes = await supabaseRest(
-                request,
-                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
-            );
-            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+            const profileRow = await getProfileForUser(request, user.id);
             if (!profileRow) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'profile_not_found' }));
