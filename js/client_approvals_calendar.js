@@ -49,10 +49,12 @@
     const buildMonthRange = (monthStr) => {
         const [year, month] = monthStr.split('-').map((part) => parseInt(part, 10));
         if (!year || !month) return null;
-        const firstDay = new Date(Date.UTC(year, month - 1, 1));
-        const nextMonth = new Date(Date.UTC(year, month, 1));
-        const from = firstDay.toISOString().slice(0, 10);
-        const to = nextMonth.toISOString().slice(0, 10);
+        const paddedMonth = String(month).padStart(2, '0');
+        const nextMonthValue = month === 12 ? 1 : month + 1;
+        const nextYearValue = month === 12 ? year + 1 : year;
+        const paddedNextMonth = String(nextMonthValue).padStart(2, '0');
+        const from = `${year}-${paddedMonth}-01`;
+        const to = `${nextYearValue}-${paddedNextMonth}-01`;
         return { from, to, firstDayLocal: new Date(year, month - 1, 1) };
     };
 
@@ -182,9 +184,14 @@
                 data = null;
             }
             if (!res.ok) {
-                console.error(text);
+                const isMissingTenant = res.status === 400 && data?.error === 'missing_tenant';
                 setEmptyState(false);
-                setErrorState(true, 'Erro ao carregar calendário. Tente novamente.', text || data?.error || data?.message);
+                if (isMissingTenant) {
+                    setErrorState(true, 'Seu usuário ainda não está vinculado a uma empresa. Fale com o suporte.');
+                } else {
+                    console.error(text);
+                    setErrorState(true, 'Erro ao carregar calendário. Tente novamente.', text || data?.error || data?.message);
+                }
                 return;
             }
             const items = Array.isArray(data?.items) ? data.items : [];
