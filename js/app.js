@@ -237,7 +237,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .select('role')
                             .eq('id', session.user.id)
                             .maybeSingle();
-                        if (profileData && profileData.role === 'client') {
+                        const normalizedRole = String(profileData?.role || '').trim().toLowerCase();
+                        if (normalizedRole === 'client' || normalizedRole === 'cliente') {
                             await window.supabaseClient.auth.signOut();
                             window.location.href = 'client_login.html';
                             return;

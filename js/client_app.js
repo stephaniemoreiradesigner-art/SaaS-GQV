@@ -52,8 +52,10 @@
             .from('profiles')
             .select('role')
             .eq('id', session.user.id)
-            .single();
-        if (error || !profile || profile.role !== 'client') {
+            .maybeSingle();
+        const normalizedRole = String(profile?.role || '').trim().toLowerCase();
+        const isClientRole = normalizedRole === 'client' || normalizedRole === 'cliente';
+        if (error || !isClientRole) {
             alert('Acesso restrito ao painel do cliente.');
             await supabase.auth.signOut();
             window.location.href = redirectTo;

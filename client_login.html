@@ -79,9 +79,13 @@
                         .from('profiles')
                         .select('role')
                         .eq('id', session.user.id)
-                        .single();
+                        .maybeSingle();
+                    const metadataRole = session.user?.user_metadata?.role || session.user?.app_metadata?.role || '';
+                    const profileRole = profile?.role || metadataRole || '';
+                    const normalizedRole = String(profileRole || '').trim().toLowerCase();
+                    const isClientRole = normalizedRole === 'client' || normalizedRole === 'cliente';
 
-                    if (profileError || !profile || profile.role !== 'client') {
+                    if (profileError || !isClientRole) {
                         alert('Acesso restrito ao painel do cliente.');
                         await supabase.auth.signOut();
                         return;
