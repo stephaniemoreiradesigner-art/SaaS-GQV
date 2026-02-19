@@ -4,6 +4,7 @@ const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
 const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
 
 const PORT = process.env.PORT || 3000;
 
@@ -292,6 +293,14 @@ const getSupabaseConfig = () => {
     return { supabaseUrl, supabaseAnonKey, serviceRoleKey };
 };
 
+const getSupabaseAdminClient = () => {
+    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+    if (!supabaseUrl || !serviceRoleKey) return null;
+    return createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    });
+};
+
 const buildAppUrl = (request) => {
     const baseUrl = envVars['APP_BASE_URL'] || envVars['APP_URL'] || process.env.APP_BASE_URL || process.env.APP_URL || '';
     if (baseUrl) return baseUrl;
@@ -567,6 +576,137 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
+    }
+
+    if (pathname === '/api/auth/register-invite' && request.method === 'POST') {
+        try {
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const email = String(body?.email || '').trim().toLowerCase();
+            const password = String(body?.password || '');
+            const kind = String(body?.kind || '').trim().toLowerCase();
+
+            if (!email || !password || !['client', 'colaborador'].includes(kind)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'dados_invalidos' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            let inviteRow = null;
+            if (kind === 'client') {
+                const params = new URLSearchParams();
+                params.set('select', 'id,email,client_id');
+                params.set('email', `ilike.${email}`);
+                params.set('limit', '1');
+                const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_invites?${params.toString()}`;
+                const inviteRes = await fetch(targetUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`
+                    }
+                });
+                const inviteJson = await inviteRes.json().catch(() => null);
+                if (!inviteRes.ok || !Array.isArray(inviteJson) || inviteJson.length === 0) {
+                    response.writeHead(403, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'not_invited' }));
+                    return;
+                }
+                inviteRow = inviteJson[0] || null;
+            } else {
+                const params = new URLSearchParams();
+                params.set('select', 'id,email,ativo,perfil_acesso');
+                params.set('email', `ilike.${email}`);
+                params.set('ativo', 'eq.true');
+                params.set('limit', '1');
+                const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/colaboradores?${params.toString()}`;
+                const inviteRes = await fetch(targetUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`
+                    }
+                });
+                const inviteJson = await inviteRes.json().catch(() => null);
+                if (!inviteRes.ok || !Array.isArray(inviteJson) || inviteJson.length === 0) {
+                    response.writeHead(403, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'not_invited' }));
+                    return;
+                }
+            }
+
+            const supabaseAdmin = getSupabaseAdminClient();
+            if (!supabaseAdmin) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const { data, error } = await supabaseAdmin.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true
+            });
+
+            if (error) {
+                const message = String(error.message || '').toLowerCase();
+                if (error.status === 422 || message.includes('already') || message.includes('existe')) {
+                    response.writeHead(409, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'user_exists' }));
+                    return;
+                }
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_ao_criar_usuario' }));
+                return;
+            }
+
+            const userId = data?.user?.id || null;
+            if (!userId) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'usuario_nao_criado' }));
+                return;
+            }
+
+            const roleValue = kind === 'client' ? 'client' : 'colaborador';
+            const profilePayload = { role: roleValue };
+            if (kind === 'client' && inviteRow?.client_id) {
+                profilePayload.client_id = inviteRow.client_id;
+            }
+
+            const profileUpdate = await supabaseAdmin
+                .from('profiles')
+                .update(profilePayload)
+                .eq('id', userId);
+
+            if (profileUpdate.error) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
     }
 
     if (pathname === '/api/client/approvals' && request.method === 'GET') {
