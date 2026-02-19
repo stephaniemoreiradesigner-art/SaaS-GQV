@@ -433,6 +433,50 @@ const getSupabaseUserIdFromRequest = async (request) => {
     return userJson?.id || userJson?.user?.id || null;
 };
 
+const getClientProfileFromRequest = async (request) => {
+    const userId = await getSupabaseUserIdFromRequest(request);
+    if (!userId) return null;
+
+    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+    if (!supabaseUrl || !serviceRoleKey) return null;
+
+    const params = new URLSearchParams();
+    params.set('select', 'id,role,client_id');
+    params.set('id', `eq.${userId}`);
+    params.set('limit', '1');
+
+    const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/profiles?${params.toString()}`;
+    const profileRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`
+        }
+    });
+
+    const profileJson = await profileRes.json().catch(() => null);
+    if (!profileRes.ok || !Array.isArray(profileJson) || profileJson.length === 0) {
+        return null;
+    }
+
+    return profileJson[0] || null;
+};
+
+const requireClientRole = async (request, response) => {
+    const profile = await getClientProfileFromRequest(request);
+    if (!profile) {
+        response.writeHead(401, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'nao_autorizado' }));
+        return null;
+    }
+    if (profile.role !== 'client' || !profile.client_id) {
+        response.writeHead(403, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'acesso_negado' }));
+        return null;
+    }
+    return profile;
+};
+
 const signState = (stateB64, appSecret) => {
     return crypto.createHmac('sha256', appSecret).update(stateB64).digest('hex');
 };
@@ -523,6 +567,308 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
+    }
+
+    if (pathname === '/api/client/approvals' && request.method === 'GET') {
+        try {
+            const type = String(parsedUrl.query.type || '').trim().toLowerCase();
+            if (!['post', 'calendar'].includes(type)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tipo_invalido' }));
+                return;
+            }
+
+            const profile = await requireClientRole(request, response);
+            if (!profile) return;
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,client_id,type,item_id,title,preview_url,status,created_at');
+            params.set('client_id', `eq.${profile.client_id}`);
+            params.set('type', `eq.${type}`);
+            params.set('order', 'created_at.desc');
+
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?${params.toString()}`;
+            const supabaseResponse = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+
+            const json = await supabaseResponse.json().catch(() => null);
+            if (!supabaseResponse.ok) {
+                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(json || { error: 'erro_ao_listar_aprovacoes' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(Array.isArray(json) ? json : []));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientApprovalMatch = pathname.match(/^\/api\/client\/approvals\/([0-9a-fA-F-]{36})$/);
+    if (clientApprovalMatch && request.method === 'GET') {
+        try {
+            const approvalId = clientApprovalMatch[1];
+            const profile = await requireClientRole(request, response);
+            if (!profile) return;
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const approvalParams = new URLSearchParams();
+            approvalParams.set('select', 'id,client_id,type,item_id,title,preview_url,status,created_at');
+            approvalParams.set('id', `eq.${approvalId}`);
+            approvalParams.set('limit', '1');
+            const approvalUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?${approvalParams.toString()}`;
+            const approvalRes = await fetch(approvalUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const approvalJson = await approvalRes.json().catch(() => null);
+            if (!approvalRes.ok || !Array.isArray(approvalJson) || approvalJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'aprovacao_nao_encontrada' }));
+                return;
+            }
+
+            const approval = approvalJson[0];
+            if (approval.client_id !== profile.client_id) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+
+            const commentsParams = new URLSearchParams();
+            commentsParams.set('select', 'id,approval_id,author_role,comment,created_at');
+            commentsParams.set('approval_id', `eq.${approvalId}`);
+            commentsParams.set('order', 'created_at.asc');
+            const commentsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approval_comments?${commentsParams.toString()}`;
+            const commentsRes = await fetch(commentsUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const commentsJson = await commentsRes.json().catch(() => null);
+            if (!commentsRes.ok) {
+                response.writeHead(commentsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentsJson || { error: 'erro_ao_listar_comentarios' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ approval, comments: Array.isArray(commentsJson) ? commentsJson : [] }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientApprovalCommentMatch = pathname.match(/^\/api\/client\/approvals\/([0-9a-fA-F-]{36})\/comment$/);
+    if (clientApprovalCommentMatch && request.method === 'POST') {
+        try {
+            const approvalId = clientApprovalCommentMatch[1];
+            const profile = await requireClientRole(request, response);
+            if (!profile) return;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const comment = String(body?.comment || '').trim();
+            if (!comment) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'comentario_obrigatorio' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const approvalParams = new URLSearchParams();
+            approvalParams.set('select', 'id,client_id,status');
+            approvalParams.set('id', `eq.${approvalId}`);
+            approvalParams.set('limit', '1');
+            const approvalUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?${approvalParams.toString()}`;
+            const approvalRes = await fetch(approvalUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const approvalJson = await approvalRes.json().catch(() => null);
+            if (!approvalRes.ok || !Array.isArray(approvalJson) || approvalJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'aprovacao_nao_encontrada' }));
+                return;
+            }
+
+            const approval = approvalJson[0];
+            if (approval.client_id !== profile.client_id) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+
+            const insertPayload = {
+                approval_id: approvalId,
+                author_role: 'client',
+                comment
+            };
+            const insertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approval_comments`;
+            const insertRes = await fetch(insertUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify(insertPayload)
+            });
+            const insertJson = await insertRes.json().catch(() => null);
+            if (!insertRes.ok) {
+                response.writeHead(insertRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(insertJson || { error: 'erro_ao_inserir_comentario' }));
+                return;
+            }
+
+            const created = Array.isArray(insertJson) ? insertJson[0] : insertJson;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(created || null));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientApprovalStatusMatch = pathname.match(/^\/api\/client\/approvals\/([0-9a-fA-F-]{36})\/status$/);
+    if (clientApprovalStatusMatch && request.method === 'POST') {
+        try {
+            const approvalId = clientApprovalStatusMatch[1];
+            const profile = await requireClientRole(request, response);
+            if (!profile) return;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const status = String(body?.status || '').trim();
+            if (!['approved', 'changes_requested'].includes(status)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'status_invalido' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const approvalParams = new URLSearchParams();
+            approvalParams.set('select', 'id,client_id,status');
+            approvalParams.set('id', `eq.${approvalId}`);
+            approvalParams.set('limit', '1');
+            const approvalUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?${approvalParams.toString()}`;
+            const approvalRes = await fetch(approvalUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const approvalJson = await approvalRes.json().catch(() => null);
+            if (!approvalRes.ok || !Array.isArray(approvalJson) || approvalJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'aprovacao_nao_encontrada' }));
+                return;
+            }
+
+            const approval = approvalJson[0];
+            if (approval.client_id !== profile.client_id) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+            if (approval.status !== 'pending') {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'status_nao_permite_alteracao' }));
+                return;
+            }
+
+            const updateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?id=eq.${approvalId}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'PATCH',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify({ status })
+            });
+            const updateJson = await updateRes.json().catch(() => null);
+            if (!updateRes.ok) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(updateJson || { error: 'erro_ao_atualizar_status' }));
+                return;
+            }
+
+            const updated = Array.isArray(updateJson) ? updateJson[0] : updateJson;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(updated || null));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
     }
 
     if (pathname === '/colaboradores' && request.method === 'GET') {
