@@ -492,13 +492,13 @@ const getProfileForUser = async (request, userId) => {
     if (!userId) return null;
     const byId = await supabaseRest(
         request,
-        `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${userId}&limit=1`
+        `/rest/v1/profiles?select=id,role,tenant_id,client_id&id=eq.${userId}&limit=1`
     );
     const rowById = Array.isArray(byId.data) ? byId.data[0] : null;
     if (rowById) return rowById;
     const byUserId = await supabaseRest(
         request,
-        `/rest/v1/profiles?select=id,role,tenant_id&user_id=eq.${userId}&limit=1`
+        `/rest/v1/profiles?select=id,role,tenant_id,client_id&user_id=eq.${userId}&limit=1`
     );
     return Array.isArray(byUserId.data) ? byUserId.data[0] : null;
 };
@@ -515,6 +515,48 @@ const getAuthedProfile = async (request, response) => {
     return { user, profile };
 };
 
+const resolveTenantIdFromClientId = async (request, clientId) => {
+    if (!clientId) return null;
+    const approvalRes = await supabaseRest(
+        request,
+        `/rest/v1/client_approvals?select=item_id,type&client_id=eq.${clientId}&limit=1`
+    );
+    const approvalRow = Array.isArray(approvalRes.data) ? approvalRes.data[0] : null;
+    if (!approvalRow?.item_id) return null;
+    const type = String(approvalRow.type || '').trim().toLowerCase();
+    const itemId = approvalRow.item_id;
+    if (type === 'post') {
+        const postRes = await supabaseRest(
+            request,
+            `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(cliente_id)&id=eq.${itemId}&limit=1`
+        );
+        const postRow = Array.isArray(postRes.data) ? postRes.data[0] : null;
+        return postRow?.social_calendars?.cliente_id || postRow?.cliente_id || null;
+    }
+    if (type === 'calendar') {
+        const calendarRes = await supabaseRest(
+            request,
+            `/rest/v1/social_calendars?select=cliente_id&id=eq.${itemId}&limit=1`
+        );
+        const calendarRow = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
+        return calendarRow?.cliente_id || null;
+    }
+    const postRes = await supabaseRest(
+        request,
+        `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(cliente_id)&id=eq.${itemId}&limit=1`
+    );
+    const postRow = Array.isArray(postRes.data) ? postRes.data[0] : null;
+    if (postRow?.social_calendars?.cliente_id || postRow?.cliente_id) {
+        return postRow?.social_calendars?.cliente_id || postRow?.cliente_id || null;
+    }
+    const calendarRes = await supabaseRest(
+        request,
+        `/rest/v1/social_calendars?select=cliente_id&id=eq.${itemId}&limit=1`
+    );
+    const calendarRow = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
+    return calendarRow?.cliente_id || null;
+};
+
 const getAuthContext = async (request, response) => {
     const user = await requireAuth(request, response);
     if (!user) return null;
@@ -524,7 +566,10 @@ const getAuthContext = async (request, response) => {
         response.end(JSON.stringify({ error: 'profile_not_found' }));
         return null;
     }
-    const tenantId = profile.tenant_id;
+    let tenantId = profile.tenant_id;
+    if (!tenantId && profile.client_id) {
+        tenantId = await resolveTenantIdFromClientId(request, profile.client_id);
+    }
     if (!tenantId) {
         console.warn('missing_tenant', { userId: user.id, email: user.email });
         response.writeHead(400, { 'Content-Type': 'application/json' });
@@ -670,19 +715,13 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/me/context' && request.method === 'GET') {
         try {
-            const authContext = await getAuthedProfile(request, response);
+            const authContext = await getAuthContext(request, response);
             if (!authContext) return;
-            const { user, profile } = authContext;
-
-            if (!profile.tenant_id) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'missing_tenant' }));
-                return;
-            }
+            const { user, profile, tenantId } = authContext;
 
             const clientRes = await supabaseRest(
                 request,
-                `/rest/v1/clientes?select=id,nome_fantasia,nome_empresa,telefone,logo_url&id=eq.${profile.tenant_id}&limit=1`
+                `/rest/v1/clientes?select=id,nome_fantasia,nome_empresa,telefone,logo_url&id=eq.${tenantId}&limit=1`
             );
             const clientRow = Array.isArray(clientRes.data) ? clientRes.data[0] : null;
             if (!clientRow) {
@@ -693,7 +732,11 @@ const server = http.createServer(async (request, response) => {
 
             const payload = {
                 user: { id: user.id, email: user.email },
-                profile: { role: profile.role || null, tenant_id: profile.tenant_id },
+                profile: {
+                    role: profile.role || null,
+                    tenant_id: tenantId,
+                    client_id: profile.client_id || null
+                },
                 client: {
                     id: clientRow.id,
                     nome_fantasia: clientRow.nome_fantasia,
