@@ -23,13 +23,28 @@
         return null;
     };
 
-    const getAuthHeaders = async () => {
+    const getSessionOrRedirect = async () => {
         const supabase = await window.clientApp?.getSupabaseClient?.();
-        const sessionResult = await supabase?.auth?.getSession();
-        const token = sessionResult?.data?.session?.access_token;
-        const headers = { 'Content-Type': 'application/json' };
-        if (token) headers.Authorization = `Bearer ${token}`;
-        return headers;
+        if (!supabase) {
+            window.location.href = 'client_login.html';
+            return null;
+        }
+        const sessionResult = await supabase.auth.getSession();
+        const session = sessionResult?.data?.session || null;
+        if (!session?.access_token) {
+            window.location.href = 'client_login.html';
+            return null;
+        }
+        return session;
+    };
+
+    const getAuthHeaders = async () => {
+        const session = await getSessionOrRedirect();
+        if (!session) return null;
+        return {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+        };
     };
 
     const fetchJson = async (url, options = {}) => {
@@ -127,6 +142,7 @@
 
         try {
             const headers = await getAuthHeaders();
+            if (!headers) return;
             const data = await fetchJson(`/api/client/approvals/${approval.id}`, { headers });
             const comments = Array.isArray(data?.comments) ? data.comments : [];
             renderComments(comments);
@@ -185,6 +201,7 @@
         if (!state.current) return;
         try {
             const headers = await getAuthHeaders();
+            if (!headers) return;
             const data = await fetchJson(`/api/client/approvals/${state.current.id}/status`, {
                 method: 'POST',
                 headers,
@@ -211,6 +228,7 @@
         if (!comment) return;
         try {
             const headers = await getAuthHeaders();
+            if (!headers) return;
             const data = await fetchJson(`/api/client/approvals/${state.current.id}/comment`, {
                 method: 'POST',
                 headers,
@@ -272,6 +290,7 @@
         if (listEl) listEl.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">Carregando aprovações...</div>';
         try {
             const headers = await getAuthHeaders();
+            if (!headers) return;
             const data = await fetchJson(`/api/client/approvals?type=${encodeURIComponent(type)}`, { headers });
             state.approvals = Array.isArray(data) ? data : [];
             renderList();

@@ -157,11 +157,15 @@
         const { from, to } = range;
         try {
             const supabase = await window.clientApp?.getSupabaseClient?.();
-            const sessionResult = await supabase?.auth?.getSession();
+            if (!supabase) {
+                window.location.href = 'client_login.html';
+                return;
+            }
+            const sessionResult = await supabase.auth.getSession();
             const session = sessionResult?.data?.session;
             const token = session?.access_token;
             if (!token) {
-                setErrorState(true, 'Sessão expirada.');
+                window.location.href = 'client_login.html';
                 return;
             }
             const headers = {
