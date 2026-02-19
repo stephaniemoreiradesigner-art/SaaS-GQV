@@ -135,7 +135,8 @@
                     }
 
                     if (payload?.error === 'user_exists') {
-                        alert('Usuário já existe. Faça login.');
+                        alert("Este e-mail já tem acesso. Clique em 'Faça Login'.");
+                        window.location.href = `client_login.html?email=${encodeURIComponent(email)}`;
                         return;
                     }
 
