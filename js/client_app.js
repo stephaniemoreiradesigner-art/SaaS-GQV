@@ -70,9 +70,32 @@
         window.location.href = 'client_login.html';
     };
 
+    const getMeContext = async () => {
+        const supabase = await getSupabaseClient();
+        if (!supabase) throw new Error('supabase_nao_inicializado');
+        const { data } = await supabase.auth.getSession();
+        const accessToken = data?.session?.access_token || '';
+        if (!accessToken) throw new Error('unauthorized');
+        const response = await fetch('/api/me/context', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            const errorMessage = payload?.error || 'erro_ao_buscar_contexto';
+            const error = new Error(errorMessage);
+            error.payload = payload;
+            throw error;
+        }
+        return payload;
+    };
+
     window.clientApp = {
         getSupabaseClient,
         requireClientAuth,
         clientLogout
     };
+
+    window.getMeContext = getMeContext;
 })();

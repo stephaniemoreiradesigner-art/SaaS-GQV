@@ -421,6 +421,73 @@ const getBearerToken = (request) => {
     return match ? match[1].trim() : '';
 };
 
+const supabaseRest = async (request, pathWithQuery, method = 'GET', body = null) => {
+    const token = getBearerToken(request);
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
+    if (!supabaseUrl || !supabaseAnonKey) {
+        return { status: 500, data: { error: 'supabase_nao_configurado' }, text: '' };
+    }
+    const baseUrl = supabaseUrl.replace(/\/$/, '');
+    const normalizedPath = pathWithQuery.startsWith('/') ? pathWithQuery : `/${pathWithQuery}`;
+    const targetUrl = `${baseUrl}${normalizedPath}`;
+    const headers = {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${token}`
+    };
+    if (body !== null && body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+    }
+    const response = await fetch(targetUrl, {
+        method,
+        headers,
+        body: body !== null && body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    } catch {
+        data = null;
+    }
+    return { status: response.status, data, text };
+};
+
+const requireAuth = async (request, response) => {
+    const token = getBearerToken(request);
+    if (!token) {
+        response.writeHead(401, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'unauthorized' }));
+        return null;
+    }
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
+    if (!supabaseUrl || !supabaseAnonKey) {
+        response.writeHead(500, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'supabase_nao_configurado' }));
+        return null;
+    }
+    const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+        method: 'GET',
+        headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${token}`
+        }
+    });
+    const userJson = await userRes.json().catch(() => null);
+    if (!userRes.ok) {
+        response.writeHead(401, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'unauthorized' }));
+        return null;
+    }
+    const userId = userJson?.id || userJson?.user?.id || null;
+    const email = userJson?.email || userJson?.user?.email || null;
+    if (!userId) {
+        response.writeHead(401, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'unauthorized' }));
+        return null;
+    }
+    return { id: userId, email };
+};
+
 const getSupabaseUserIdFromRequest = async (request) => {
     const token = getBearerToken(request);
     if (!token) return null;
@@ -553,6 +620,67 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
+    }
+
+    if (pathname === '/api/me/context' && request.method === 'GET') {
+        try {
+            const user = await requireAuth(request, response);
+            if (!user) return;
+
+            const profileRes = await supabaseRest(
+                request,
+                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
+            );
+            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+            if (!profileRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'profile_not_found' }));
+                return;
+            }
+            if (!profileRow.tenant_id) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'missing_tenant' }));
+                return;
+            }
+
+            const clientRes = await supabaseRest(
+                request,
+                `/rest/v1/clientes?select=id,nome_fantasia,nome_empresa,telefone,logo_url&id=eq.${profileRow.tenant_id}&limit=1`
+            );
+            const clientRow = Array.isArray(clientRes.data) ? clientRes.data[0] : null;
+            if (!clientRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'client_not_found' }));
+                return;
+            }
+
+            const payload = {
+                user: { id: user.id, email: user.email },
+                profile: { role: profileRow.role || null, tenant_id: profileRow.tenant_id },
+                client: {
+                    id: clientRow.id,
+                    nome_fantasia: clientRow.nome_fantasia,
+                    nome_empresa: clientRow.nome_empresa,
+                    telefone: clientRow.telefone,
+                    logo_url: clientRow.logo_url
+                },
+                modules: {
+                    dashboard: true,
+                    tasks: true,
+                    approvals: true,
+                    billing: true,
+                    chat: true,
+                    integrations: true
+                }
+            };
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(payload));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'internal_error' }));
+            return;
+        }
     }
 
     if (pathname === '/health' && request.method === 'GET') {
