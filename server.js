@@ -845,40 +845,49 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const profile = await requireClientRole(request, response);
-            if (!profile) return;
+            const user = await requireAuth(request, response);
+            if (!user) return;
 
-            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-            if (!supabaseUrl || !serviceRoleKey) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+            const profileRes = await supabaseRest(
+                request,
+                `/rest/v1/profiles?select=id,role,tenant_id&id=eq.${user.id}&limit=1`
+            );
+            const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+            if (!profileRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'profile_not_found' }));
+                return;
+            }
+            const role = String(profileRow.role || '').trim().toLowerCase();
+            if (!['client', 'admin'].includes(role)) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+            if (!profileRow.tenant_id) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'missing_tenant' }));
                 return;
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,client_id,type,item_id,title,preview_url,status,created_at');
-            params.set('client_id', `eq.${profile.client_id}`);
+            params.set('select', '*');
+            params.set('tenant_id', `eq.${profileRow.tenant_id}`);
             params.set('type', `eq.${type}`);
             params.set('order', 'created_at.desc');
 
-            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?${params.toString()}`;
-            const supabaseResponse = await fetch(targetUrl, {
-                method: 'GET',
-                headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`
-                }
-            });
-
-            const json = await supabaseResponse.json().catch(() => null);
-            if (!supabaseResponse.ok) {
-                response.writeHead(supabaseResponse.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(json || { error: 'erro_ao_listar_aprovacoes' }));
+            const approvalsRes = await supabaseRest(
+                request,
+                `/rest/v1/aprovacoes?${params.toString()}`
+            );
+            if (approvalsRes.status < 200 || approvalsRes.status >= 300) {
+                response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(approvalsRes.data || { error: 'erro_ao_listar_aprovacoes' }));
                 return;
             }
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify(Array.isArray(json) ? json : []));
+            response.end(JSON.stringify(Array.isArray(approvalsRes.data) ? approvalsRes.data : []));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
