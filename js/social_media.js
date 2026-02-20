@@ -499,6 +499,15 @@ function initCalendar() {
     updateApprovalButtonsForView(calendar?.view?.type || '');
 }
 
+async function ensureCalendarRendered() {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl || !calendar) return false;
+    if (!calendarEl.querySelector('.fc-view-harness')) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    return true;
+}
+
 function openPostModal(event) {
     const props = event.extendedProps;
     currentPostProps = props || null;
@@ -1487,6 +1496,11 @@ function checkSelection() {
 
 async function loadCalendarData() {
     if (!currentClienteId || !currentMonth) return;
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl || !calendar) {
+        console.error('[generateCalendar] container não encontrado');
+        return;
+    }
     
     // Calcular corretamente o último dia do mês
     const [year, month] = currentMonth.split('-').map(Number);
@@ -1559,6 +1573,11 @@ async function loadCalendarData() {
             updateWeeklyApproveState();
         }
 
+        const ready = await ensureCalendarRendered();
+        if (!ready) {
+            console.error('[generateCalendar] container não encontrado');
+            return;
+        }
         calendar.removeAllEvents();
         data.forEach(post => {
             calendar.addEvent({
@@ -1912,7 +1931,11 @@ async function generateCalendar(config = {}) {
             throw error;
         }
 
-        closeConfigModal();
+        if (typeof closeConfigModal === 'function') closeConfigModal();
+        const calendarContainer = document.getElementById('calendar');
+        if (!calendarContainer) {
+            console.error('[generateCalendar] container não encontrado');
+        }
         await loadCalendarData();
         
         // Notificação de Sucesso
@@ -1941,7 +1964,11 @@ window.openFormatModal = function(dateStr) {
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-        setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            const content = modal.firstElementChild;
+            if (content) content.classList.remove('scale-95');
+        }, 10);
     }
 }
 
@@ -1953,7 +1980,11 @@ window.selectFormat = function(format) {
         if (modal) {
              modal.classList.remove('hidden');
              modal.classList.add('flex');
-             setTimeout(() => { modal.classList.remove('opacity-0'); modal.firstElementChild.classList.remove('scale-95'); }, 10);
+             setTimeout(() => {
+                 modal.classList.remove('opacity-0');
+                 const content = modal.firstElementChild;
+                 if (content) content.classList.remove('scale-95');
+             }, 10);
         }
     }, 300);
 }
