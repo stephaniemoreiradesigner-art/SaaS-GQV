@@ -70,6 +70,59 @@
         el.textContent = label;
     };
 
+    const normalizeMedias = (raw) => {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string' && raw.trim()) {
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        }
+        return [];
+    };
+
+    const resolvePreviewUrl = (post, supabase) => {
+        const medias = normalizeMedias(post?.medias);
+        const primary = medias.find((item) => item && (item.public_url || item.path)) || null;
+        if (primary?.public_url) return primary.public_url;
+        if (primary?.path && supabase?.storage) {
+            const { data } = supabase.storage.from('social_media_uploads').getPublicUrl(primary.path);
+            if (data?.publicUrl) return data.publicUrl;
+        }
+        return post?.imagem_url || post?.video_url || post?.arquivo_url || '';
+    };
+
+    const buildSnapshot = (post, previewUrl) => ({
+        data_agendada: post?.data_agendada || null,
+        tema: post?.tema || null,
+        legenda: post?.legenda || null,
+        legenda_linkedin: post?.legenda_linkedin || null,
+        legenda_tiktok: post?.legenda_tiktok || null,
+        formato: post?.formato || null,
+        imagem_url: post?.imagem_url || null,
+        video_url: post?.video_url || null,
+        arquivo_url: post?.arquivo_url || null,
+        link_criativo: post?.link_criativo || null,
+        preview_url: previewUrl || null
+    });
+
+    const extractSnapshot = (approval) => {
+        const items = approval?.client_approval_items;
+        if (!Array.isArray(items) || items.length === 0) return null;
+        return items[0]?.snapshot || null;
+    };
+
+    const getDisplayData = (approval) => {
+        const snapshot = approval?.snapshot || null;
+        return {
+            title: snapshot?.tema || approval?.title || 'Sem título',
+            caption: snapshot?.legenda || approval?.caption || 'Sem legenda',
+            previewUrl: snapshot?.preview_url || approval?.preview_url || ''
+        };
+    };
+
     const renderEmpty = (visible) => {
         const emptyEl = document.getElementById('client-approvals-empty');
         if (!emptyEl) return;
@@ -87,22 +140,23 @@
         }
         renderEmpty(false);
         state.approvals.forEach((approval) => {
+            const display = getDisplayData(approval);
             const card = document.createElement('button');
             card.type = 'button';
             card.className = 'bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition cursor-pointer text-left';
             card.addEventListener('click', () => openModal(approval));
 
-            const preview = approval.preview_url
-                ? `<img src="${approval.preview_url}" class="w-20 h-20 rounded-lg object-cover border border-gray-200" alt="Preview">`
+            const preview = display.previewUrl
+                ? `<img src="${display.previewUrl}" class="w-20 h-20 rounded-lg object-cover border border-gray-200" alt="Preview">`
                 : `<div class="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-xs text-gray-400">Sem mídia</div>`;
-            const caption = approval.caption ? approval.caption : 'Sem legenda';
+            const caption = display.caption;
 
             card.innerHTML = `
                 <div class="flex gap-4">
                     <div class="flex-shrink-0">${preview}</div>
                     <div class="flex-1 min-w-0">
                         <div class="flex items-start justify-between gap-3">
-                            <h3 class="text-base font-semibold text-gray-800 truncate">${approval.title || 'Sem título'}</h3>
+                            <h3 class="text-base font-semibold text-gray-800 truncate">${display.title}</h3>
                             <span class="approval-status-badge"></span>
                         </div>
                         <p class="text-sm text-gray-500 line-clamp-2 mt-1">${caption}</p>
@@ -119,6 +173,7 @@
         const modal = document.getElementById('client-approval-modal');
         if (!modal) return;
         state.current = approval;
+        const display = getDisplayData(approval);
 
         const titleEl = document.getElementById('client-approval-title');
         const statusEl = document.getElementById('client-approval-status');
@@ -130,29 +185,29 @@
         const approveBtn = document.getElementById('client-approval-approve');
         const changesBtn = document.getElementById('client-approval-changes');
 
-        if (titleEl) titleEl.textContent = approval.title || 'Sem título';
+        if (titleEl) titleEl.textContent = display.title;
         if (statusEl) setBadge(statusEl, approval.status);
         if (previewEl) {
-            if (approval.preview_url) {
-                previewEl.href = approval.preview_url;
+            if (display.previewUrl) {
+                previewEl.href = display.previewUrl;
                 previewEl.classList.remove('hidden');
             } else {
                 previewEl.classList.add('hidden');
             }
         }
         if (mediaEl) {
-            if (approval.preview_url) {
-                const isVideo = String(approval.preview_url).match(/\.(mp4|mov|webm)$/i) || String(approval.preview_url).includes('video');
+            if (display.previewUrl) {
+                const isVideo = String(display.previewUrl).match(/\.(mp4|mov|webm)$/i) || String(display.previewUrl).includes('video');
                 mediaEl.innerHTML = isVideo
-                    ? `<video src="${approval.preview_url}" class="w-full h-full object-cover bg-black" controls></video>`
-                    : `<img src="${approval.preview_url}" class="w-full h-full object-cover" alt="Preview">`;
+                    ? `<video src="${display.previewUrl}" class="w-full h-full object-cover bg-black" controls></video>`
+                    : `<img src="${display.previewUrl}" class="w-full h-full object-cover" alt="Preview">`;
                 mediaEl.classList.remove('hidden');
             } else {
                 mediaEl.innerHTML = 'Sem mídia disponível';
                 mediaEl.classList.remove('hidden');
             }
         }
-        if (captionEl) captionEl.textContent = approval.caption || 'Sem legenda';
+        if (captionEl) captionEl.textContent = display.caption;
         if (commentInput) commentInput.value = '';
         if (commentsEl) commentsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando comentários...</div>';
         if (approveBtn) approveBtn.disabled = approval.status !== 'pending';
@@ -304,6 +359,33 @@
         if (commentBtn) commentBtn.addEventListener('click', handleComment);
     };
 
+    const enrichApprovalsWithSnapshots = async (approvals) => {
+        const enriched = approvals.map((approval) => ({
+            ...approval,
+            snapshot: extractSnapshot(approval)
+        }));
+        const missing = enriched.filter((approval) => !approval.snapshot && approval.item_id);
+        if (!missing.length) return enriched;
+        const supabase = await window.clientApp?.getSupabaseClient?.();
+        if (!supabase) return enriched;
+        const ids = Array.from(new Set(missing.map((item) => item.item_id).filter(Boolean)));
+        if (!ids.length) return enriched;
+        const { data, error } = await supabase
+            .from('social_posts')
+            .select('id,tema,legenda,legenda_linkedin,legenda_tiktok,formato,imagem_url,video_url,arquivo_url,link_criativo,data_agendada,medias')
+            .in('id', ids);
+        if (error || !Array.isArray(data)) return enriched;
+        const fallbackMap = {};
+        data.forEach((post) => {
+            const previewUrl = resolvePreviewUrl(post, supabase);
+            fallbackMap[post.id] = buildSnapshot(post, previewUrl);
+        });
+        return enriched.map((approval) => ({
+            ...approval,
+            snapshot: approval.snapshot || fallbackMap[approval.item_id] || null
+        }));
+    };
+
     const loadApprovals = async () => {
         const type = getTypeFromPage();
         if (!type) return;
@@ -313,7 +395,8 @@
             const headers = await getAuthHeaders();
             if (!headers) return;
             const data = await fetchJson(`/api/client/approvals?type=${encodeURIComponent(type)}`, { headers });
-            state.approvals = Array.isArray(data) ? data : [];
+            const approvals = Array.isArray(data) ? data : [];
+            state.approvals = await enrichApprovalsWithSnapshots(approvals);
             renderList();
         } catch (error) {
             if (listEl) listEl.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">Erro ao carregar aprovações.</div>';

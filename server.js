@@ -989,14 +989,14 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', '*');
-            params.set('tenant_id', `eq.${tenantId}`);
+            params.set('select', '*,client_approval_items(*)');
+            params.set('client_id', `eq.${tenantId}`);
             params.set('type', `eq.${type}`);
             params.set('order', 'created_at.desc');
 
             const approvalsRes = await supabaseRest(
                 request,
-                `/rest/v1/aprovacoes?${params.toString()}`
+                `/rest/v1/client_approvals?${params.toString()}`
             );
             if (approvalsRes.status < 200 || approvalsRes.status >= 300) {
                 response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
@@ -1365,7 +1365,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(cliente_id)');
+            params.set('select', 'id,tema,legenda,legenda_linkedin,legenda_tiktok,link_criativo,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(cliente_id)');
             params.set('social_calendars.cliente_id', `eq.${tenantId}`);
             params.set('data_agendada', `gte.${from}`);
             params.append('data_agendada', `lte.${to}`);
@@ -1452,11 +1452,26 @@ const server = http.createServer(async (request, response) => {
                     return;
                 }
 
+                const snapshot = {
+                    data_agendada: post.data_agendada || null,
+                    tema: tema || null,
+                    legenda: legenda || null,
+                    legenda_linkedin: post.legenda_linkedin || null,
+                    legenda_tiktok: post.legenda_tiktok || null,
+                    formato: post.formato || null,
+                    imagem_url: post.imagem_url || null,
+                    video_url: post.video_url || null,
+                    arquivo_url: post.arquivo_url || null,
+                    link_criativo: post.link_criativo || null,
+                    preview_url: previewUrl || null
+                };
+
                 completePosts.push({
                     id: post.id,
                     tema,
                     legenda,
-                    preview_url: previewUrl
+                    preview_url: previewUrl,
+                    snapshot
                 });
             });
 
@@ -1545,15 +1560,45 @@ const server = http.createServer(async (request, response) => {
                     apikey: serviceRoleKey,
                     Authorization: `Bearer ${serviceRoleKey}`,
                     'Content-Type': 'application/json',
-                    Prefer: 'resolution=merge-duplicates'
+                    Prefer: 'resolution=merge-duplicates,return=representation'
                 },
                 body: JSON.stringify(approvalsPayload)
             });
-            if (!approvalsRes.ok) {
-                const approvalText = await approvalsRes.text();
+            const approvalsJson = await approvalsRes.json().catch(() => null);
+            if (!approvalsRes.ok || !Array.isArray(approvalsJson)) {
                 response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: approvalText || 'erro_ao_criar_aprovacoes' }));
+                response.end(JSON.stringify(approvalsJson || { error: 'erro_ao_criar_aprovacoes' }));
                 return;
+            }
+
+            const approvalItemsPayload = approvalsJson.map((approval) => {
+                const postMatch = completePosts.find((post) => String(post.id) === String(approval.item_id));
+                if (!postMatch) return null;
+                return {
+                    approval_id: approval.id,
+                    post_id: postMatch.id,
+                    snapshot: postMatch.snapshot
+                };
+            }).filter(Boolean);
+
+            if (approvalItemsPayload.length) {
+                const itemsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approval_items?on_conflict=approval_id,post_id`;
+                const itemsRes = await fetch(itemsUrl, {
+                    method: 'POST',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'resolution=ignore-duplicates'
+                    },
+                    body: JSON.stringify(approvalItemsPayload)
+                });
+                if (!itemsRes.ok) {
+                    const itemsJson = await itemsRes.json().catch(() => null);
+                    response.writeHead(itemsRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(itemsJson || { error: 'erro_ao_criar_snapshot' }));
+                    return;
+                }
             }
 
             const baseUrl = buildAppUrl(request);

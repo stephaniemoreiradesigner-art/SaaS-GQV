@@ -70,6 +70,14 @@ CREATE TABLE IF NOT EXISTS public.client_approval_comments (
     created_at timestamptz DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.client_approval_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    approval_id uuid NOT NULL REFERENCES public.client_approvals(id) ON DELETE CASCADE,
+    post_id uuid REFERENCES public.social_posts(id) ON DELETE SET NULL,
+    snapshot jsonb NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS client_approvals_client_type_status_idx
     ON public.client_approvals (client_id, type, status);
 
@@ -78,6 +86,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS client_approvals_unique_item_batch_idx
 
 CREATE INDEX IF NOT EXISTS client_approval_comments_approval_created_idx
     ON public.client_approval_comments (approval_id, created_at);
+
+CREATE INDEX IF NOT EXISTS client_approval_items_approval_idx
+    ON public.client_approval_items (approval_id);
+
+CREATE INDEX IF NOT EXISTS client_approval_items_post_idx
+    ON public.client_approval_items (post_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS client_approval_items_unique_post
+    ON public.client_approval_items (approval_id, post_id)
+    WHERE post_id IS NOT NULL;
 
 INSERT INTO public.client_approvals (id, client_id, type, item_id, title, preview_url, status)
 VALUES
