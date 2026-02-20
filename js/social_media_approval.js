@@ -22,31 +22,71 @@ async function loadApprovalClients() {
     } catch (e) { console.error('Erro ao carregar clientes:', e); }
 }
 
+async function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+function showApprovalFeedback(message, type = 'success') {
+    if (window.showToast) {
+        window.showToast(message, type);
+        return;
+    }
+    alert(message);
+}
+
+async function sendMonthlyApproval() {
+    if (!currentClienteId || !currentMonth) {
+        alert('Selecione um cliente e um mês primeiro.');
+        return;
+    }
+    const btnApprove = document.getElementById('btn-approve');
+    if (typeof setButtonLoading === 'function') {
+        setButtonLoading(btnApprove, true, 'Enviando...');
+    }
+    try {
+        const headers = await getAuthHeaders();
+        const res = await fetch('/api/social/approval-batch', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ client_id: currentClienteId, month: currentMonth })
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+        if (!res.ok) {
+            const message = data?.error === 'nenhum_post'
+                ? 'Nenhum post encontrado para este mês.'
+                : 'Não foi possível enviar o calendário.';
+            showApprovalFeedback(message, 'error');
+            return;
+        }
+        showApprovalFeedback('Calendário enviado para aprovação', 'success');
+        if (typeof loadCalendarData === 'function') await loadCalendarData();
+    } catch (err) {
+        console.error('Erro ao enviar calendário:', err);
+        showApprovalFeedback('Não foi possível enviar o calendário.', 'error');
+    } finally {
+        if (typeof setButtonLoading === 'function') {
+            setButtonLoading(btnApprove, false);
+        }
+    }
+}
+
 window.sendForApproval = async function() {
-    await loadApprovalClients();
-    
-    const select = document.getElementById('approval-client-select');
-    if (select && currentClienteId) select.value = currentClienteId;
-    
-    // Define datas padrão (Mês atual se não houver seleção)
-    let targetMonth = currentMonth;
-    if (!targetMonth) {
-        const now = new Date();
-        targetMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (!currentClienteId || !currentMonth) {
+        alert('Selecione um cliente e um mês primeiro.');
+        return;
     }
-
-    if (targetMonth) {
-        const [year, month] = targetMonth.split('-').map(Number);
-        const lastDay = new Date(year, month, 0).getDate();
-        
-        const startInput = document.getElementById('approval-date-start');
-        const endInput = document.getElementById('approval-date-end');
-        
-        if (startInput) startInput.value = `${targetMonth}-01`;
-        if (endInput) endInput.value = `${targetMonth}-${String(lastDay).padStart(2, '0')}`;
-    }
-
-    openModalAnim('modal-approval-date');
+    if (!confirm('Confirma o envio do calendário deste mês para aprovação?')) return;
+    await sendMonthlyApproval();
 }
 
 async function handleApprovalDateSelection() {
@@ -205,76 +245,7 @@ function renderApprovalPreview(posts) {
 }
 
 async function confirmSendApproval() {
-    const listContainer = document.getElementById('approval-preview-list');
-    const count = document.getElementById('approval-count-badge').innerText;
-    
-    if (!confirm(`Confirma o envio de ${count} para aprovação?`)) return;
-
-    // Gerar ID do grupo de aprovação
-    const approvalGroupId = crypto.randomUUID();
-    
-    // Obter IDs dos posts que estão sendo exibidos
-    // Como não armazenei os IDs no DOM, vou re-buscar ou armazenar na renderização.
-    // Melhor: Armazenar IDs na renderização.
-    // Vou modificar renderApprovalPreview para guardar os IDs em um array global temporário ou ler do DOM.
-    
-    const postCards = listContainer.querySelectorAll('div[data-post-id]');
-    const postIds = Array.from(postCards).map(card => card.dataset.postId);
-
-    if (postIds.length === 0) {
-        alert('Nenhum post para enviar.');
-        return;
-    }
-
-    const btn = document.querySelector('button[onclick="confirmSendApproval()"]');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-    btn.disabled = true;
-
-    try {
-        // Atualizar posts no Supabase
-        const { error } = await window.supabaseClient
-            .from('social_posts')
-            .update({ 
-                status: 'pendente_aprovação',
-                approval_group_id: approvalGroupId,
-                data_envio_aprovacao: new Date()
-            })
-            .in('id', postIds);
-
-        if (error) throw error;
-
-        // Gerar Link (compatível com file:// e http://)
-        let baseUrl = window.location.origin;
-        if (window.location.protocol === 'file:' || window.location.origin === 'null') {
-            const path = window.location.pathname;
-            const directory = path.substring(0, path.lastIndexOf('/'));
-            baseUrl = `file://${directory}`;
-        } else {
-            // Para servidor web, usamos o diretório atual se aprovacao.html estiver na mesma pasta
-            const path = window.location.pathname;
-            const directory = path.substring(0, path.lastIndexOf('/'));
-            baseUrl = `${window.location.origin}${directory}`;
-        }
-        
-        // Remove trailing slash if exists to avoid double slash
-        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
-
-        const approvalLink = `${baseUrl}/aprovacao.html?id=${approvalGroupId}`;
-        
-        // Fechar modal de preview
-        closeModalAnim('modal-approval-preview');
-
-        // Mostrar Modal de Sucesso com Link
-        showApprovalSuccessModal(approvalLink);
-
-    } catch (err) {
-        console.error('Erro ao enviar para aprovação:', err);
-        alert('Erro ao enviar: ' + err.message);
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
+    await sendMonthlyApproval();
 }
 
 function showApprovalSuccessModal(link) {
@@ -335,4 +306,3 @@ window.closeApprovalSuccessModal = function() {
     // Recarregar calendário para mostrar novos status
     if (typeof loadCalendarData === 'function') loadCalendarData();
 }
-

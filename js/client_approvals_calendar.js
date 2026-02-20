@@ -46,6 +46,63 @@
         return `${text.slice(0, max - 3)}...`;
     };
 
+    const getAuthHeaders = async () => {
+        const supabase = await window.clientApp?.getSupabaseClient?.();
+        if (!supabase) {
+            window.location.href = 'client_login.html';
+            return null;
+        }
+        const sessionResult = await supabase.auth.getSession();
+        const session = sessionResult?.data?.session;
+        const token = session?.access_token;
+        if (!token) {
+            window.location.href = 'client_login.html';
+            return null;
+        }
+        return {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+        };
+    };
+
+    const getStatusConfig = (status) => {
+        const normalized = String(status || '').trim().toLowerCase();
+        if (['aprovado', 'approved'].includes(normalized)) {
+            return {
+                label: 'APROVADO',
+                className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700'
+            };
+        }
+        if (['ajuste_solicitado', 'needs_adjustment'].includes(normalized)) {
+            return {
+                label: 'AJUSTE SOLICITADO',
+                className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700'
+            };
+        }
+        return {
+            label: 'PENDENTE',
+            className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700'
+        };
+    };
+
+    const setApprovalBatchButton = (approvalId) => {
+        const btn = document.getElementById('client-approval-batch-btn');
+        if (!btn) return;
+        if (approvalId) {
+            btn.classList.remove('hidden');
+        } else {
+            btn.classList.add('hidden');
+        }
+    };
+
+    const showFeedback = (message) => {
+        if (window.showToast) {
+            window.showToast(message);
+        } else {
+            alert(message);
+        }
+    };
+
     const buildMonthRange = (monthStr) => {
         const [year, month] = monthStr.split('-').map((part) => parseInt(part, 10));
         if (!year || !month) return null;
@@ -67,18 +124,25 @@
         const statusEl = document.getElementById('client-calendar-modal-status');
         const dateEl = document.getElementById('client-calendar-modal-date');
         const platformEl = document.getElementById('client-calendar-modal-platform');
+        const formatEl = document.getElementById('client-calendar-modal-format');
+        const themeEl = document.getElementById('client-calendar-modal-theme');
         const captionEl = document.getElementById('client-calendar-modal-caption');
+        const reasonEl = document.getElementById('client-calendar-modal-reason');
         const mediaWrap = document.getElementById('client-calendar-modal-media');
         const mediaImg = document.getElementById('client-calendar-modal-media-img');
 
         if (titleEl) titleEl.textContent = item.tema || item.titulo || 'Sem título';
         if (statusEl) {
-            statusEl.className = 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700';
-            statusEl.textContent = 'PENDENTE';
+            const statusConfig = getStatusConfig(item.status);
+            statusEl.className = statusConfig.className;
+            statusEl.textContent = statusConfig.label;
         }
         if (dateEl) dateEl.textContent = formatDate(item.data_agendada || item.scheduled_at);
         if (platformEl) platformEl.textContent = item.plataforma || 'Não informado';
+        if (formatEl) formatEl.textContent = item.formato || 'Não informado';
+        if (themeEl) themeEl.textContent = item.tema || item.titulo || 'Sem tema';
         if (captionEl) captionEl.textContent = item.legenda || 'Sem legenda';
+        if (reasonEl) reasonEl.value = item.feedback_ajuste || '';
         if (mediaWrap && mediaImg) {
             if (item.media_url) {
                 mediaImg.src = item.media_url;
@@ -97,6 +161,8 @@
         if (!modal) return;
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        const reasonEl = document.getElementById('client-calendar-modal-reason');
+        if (reasonEl) reasonEl.value = '';
         state.current = null;
     };
 
@@ -153,28 +219,67 @@
         }
     };
 
+    const updateLocalItemStatus = (itemId, status, feedback) => {
+        const items = Array.isArray(state.items) ? state.items : [];
+        const updatedItems = items.map((item) => {
+            if (item.id !== itemId) return item;
+            return {
+                ...item,
+                status,
+                feedback_ajuste: feedback ?? item.feedback_ajuste
+            };
+        });
+        state.items = updatedItems;
+        if (state.current && state.current.id === itemId) {
+            state.current.status = status;
+            if (feedback !== undefined) state.current.feedback_ajuste = feedback;
+            const statusEl = document.getElementById('client-calendar-modal-status');
+            if (statusEl) {
+                const statusConfig = getStatusConfig(status);
+                statusEl.className = statusConfig.className;
+                statusEl.textContent = statusConfig.label;
+            }
+        }
+        if (state.month) renderCalendar(state.month, updatedItems);
+    };
+
+    const updateApprovalItemStatus = async (status, reason) => {
+        if (!state.current?.id) return;
+        const headers = await getAuthHeaders();
+        if (!headers) return;
+        const res = await fetch(`/api/client/social/approval-items/${state.current.id}/status`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ status, reason })
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+        if (!res.ok) {
+            const message = data?.error === 'motivo_obrigatorio'
+                ? 'Informe o motivo do ajuste.'
+                : 'Não foi possível atualizar o status.';
+            showFeedback(message);
+            return;
+        }
+        const nextStatus = data?.status || status;
+        const feedback = data?.feedback_ajuste ?? reason ?? null;
+        updateLocalItemStatus(state.current.id, nextStatus, feedback);
+        showFeedback('Status atualizado com sucesso.');
+    };
+
     const loadCalendarForMonth = async (monthStr) => {
         const range = buildMonthRange(monthStr);
         if (!range) return;
-        const { from, to } = range;
+        state.month = monthStr;
         try {
-            const supabase = await window.clientApp?.getSupabaseClient?.();
-            if (!supabase) {
-                window.location.href = 'client_login.html';
-                return;
-            }
-            const sessionResult = await supabase.auth.getSession();
-            const session = sessionResult?.data?.session;
-            const token = session?.access_token;
-            if (!token) {
-                window.location.href = 'client_login.html';
-                return;
-            }
-            const headers = {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-            };
-            const url = `/api/client/social/pending-posts?from=${from}&to=${to}`;
+            const headers = await getAuthHeaders();
+            if (!headers) return;
+            const url = `/api/client/social/approval-batch?month=${monthStr}`;
             const res = await fetch(url, { headers });
             const text = await res.text();
             let data = null;
@@ -196,12 +301,15 @@
             }
             const items = Array.isArray(data?.items) ? data.items : [];
             state.items = items;
+            state.approvalId = data?.approval_id || null;
             setErrorState(false);
             if (!items.length) {
                 setEmptyState(true);
+                setApprovalBatchButton(null);
                 return;
             }
             setEmptyState(false);
+            setApprovalBatchButton(state.approvalId);
             renderCalendar(monthStr, items);
         } catch {
             setEmptyState(false);
@@ -212,7 +320,33 @@
     const init = () => {
         const monthInput = document.getElementById('calendar-month-input');
         const closeBtn = document.getElementById('client-calendar-modal-close');
+        const approveBtn = document.getElementById('client-calendar-modal-approve');
+        const changesBtn = document.getElementById('client-calendar-modal-changes');
+        const batchBtn = document.getElementById('client-approval-batch-btn');
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
+        if (approveBtn) {
+            approveBtn.addEventListener('click', () => {
+                updateApprovalItemStatus('approved');
+            });
+        }
+        if (changesBtn) {
+            changesBtn.addEventListener('click', () => {
+                const reasonEl = document.getElementById('client-calendar-modal-reason');
+                const reason = reasonEl ? reasonEl.value.trim() : '';
+                if (!reason) {
+                    showFeedback('Informe o motivo do ajuste.');
+                    return;
+                }
+                updateApprovalItemStatus('needs_adjustment', reason);
+            });
+        }
+        if (batchBtn) {
+            batchBtn.addEventListener('click', () => {
+                if (state.approvalId) {
+                    window.location.href = `aprovacao.html?id=${state.approvalId}`;
+                }
+            });
+        }
 
         if (monthInput) {
             const now = new Date();

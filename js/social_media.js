@@ -1065,6 +1065,42 @@ function setButtonLoading(button, isLoading, loadingLabel) {
     }
 }
 
+async function getAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+function setApproveButtonLabel(button, label) {
+    if (!button) return;
+    if (!button.dataset.iconHtml) {
+        const iconEl = button.querySelector('i');
+        button.dataset.iconHtml = iconEl ? iconEl.outerHTML : '';
+    }
+    button.innerHTML = `${button.dataset.iconHtml ? `${button.dataset.iconHtml} ` : ''}${label}`;
+}
+
+async function fetchApprovalBatchStatus(clientId, month) {
+    if (!clientId || !month) return null;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/social/approval-batch?client_id=${encodeURIComponent(clientId)}&month=${encodeURIComponent(month)}`, { headers });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+        if (!res.ok) return null;
+        return data || null;
+    } catch {
+        return null;
+    }
+}
+
 async function improveCopyWithAI() {
     const btn = document.getElementById('btn-improve-copy');
     const legendaInput = document.getElementById('post-legenda');
@@ -1341,6 +1377,24 @@ async function loadCalendarData() {
             } else {
                 // Desabilitado
                 btnApprove.className = 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+            }
+        }
+
+        if (btnApprove) {
+            if (!hasPosts) {
+                setApproveButtonLabel(btnApprove, 'Enviar calendário para aprovação');
+                btnApprove.dataset.approvalSent = 'false';
+            } else {
+                const approvalStatus = await fetchApprovalBatchStatus(currentClienteId, currentMonth);
+                if (approvalStatus?.approval_id) {
+                    setApproveButtonLabel(btnApprove, 'Reenviar calendário para aprovação');
+                    btnApprove.dataset.approvalSent = 'true';
+                    btnApprove.dataset.approvalId = approvalStatus.approval_id;
+                } else {
+                    setApproveButtonLabel(btnApprove, 'Enviar calendário para aprovação');
+                    btnApprove.dataset.approvalSent = 'false';
+                    delete btnApprove.dataset.approvalId;
+                }
             }
         }
 

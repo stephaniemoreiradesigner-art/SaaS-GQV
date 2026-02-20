@@ -961,6 +961,549 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/client/calendar/approvals' && request.method === 'GET') {
+        try {
+            const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !supabaseAnonKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'supabase_nao_configurado' }));
+                return;
+            }
+            if (!serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const token = getBearerToken(request);
+            if (!token) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+
+            const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+                method: 'GET',
+                headers: {
+                    apikey: supabaseAnonKey,
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            const userJson = await userRes.json().catch(() => null);
+            if (!userRes.ok) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+            const userId = userJson?.id || userJson?.user?.id || null;
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+
+            const profileParams = new URLSearchParams();
+            profileParams.set('select', 'tenant_id');
+            profileParams.set('id', `eq.${userId}`);
+            profileParams.set('limit', '1');
+            const profileUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/profiles?${profileParams.toString()}`;
+            const profileRes = await fetch(profileUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const profileJson = await profileRes.json().catch(() => null);
+            if (!profileRes.ok || !Array.isArray(profileJson) || profileJson.length === 0) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
+
+            const tenantId = profileJson[0]?.tenant_id;
+            if (!tenantId || !/^\d+$/.test(String(tenantId))) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
+
+            const month = String(parsedUrl.query.month || '').trim();
+            if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'month_invalido' }));
+                return;
+            }
+
+            const mesReferencia = `${month}-01`;
+
+            const calendarParams = new URLSearchParams();
+            calendarParams.set('select', '*');
+            calendarParams.set('cliente_id', `eq.${tenantId}`);
+            calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
+            calendarParams.set('limit', '1');
+            const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
+            const calendarRes = await fetch(calendarUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const calendarJson = await calendarRes.json().catch(() => null);
+            if (!calendarRes.ok) {
+                response.writeHead(calendarRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(calendarJson || { error: 'erro_ao_listar_calendario' }));
+                return;
+            }
+
+            let calendar = Array.isArray(calendarJson) ? calendarJson[0] : null;
+            if (!calendar) {
+                const insertRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars`, {
+                    method: 'POST',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        cliente_id: tenantId,
+                        mes_referencia: mesReferencia,
+                        status: 'draft'
+                    })
+                });
+                const insertJson = await insertRes.json().catch(() => null);
+                if (!insertRes.ok || !Array.isArray(insertJson) || insertJson.length === 0) {
+                    response.writeHead(insertRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(insertJson || { error: 'erro_ao_criar_calendario' }));
+                    return;
+                }
+                calendar = insertJson[0];
+            }
+
+            const postsParams = new URLSearchParams();
+            postsParams.set('select', '*');
+            postsParams.set('calendar_id', `eq.${calendar.id}`);
+            postsParams.set('order', 'data_agendada.asc');
+            const postsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?${postsParams.toString()}`;
+            const postsRes = await fetch(postsUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const postsJson = await postsRes.json().catch(() => null);
+            if (!postsRes.ok) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsJson || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ tenant_id: tenantId, calendar, post: Array.isArray(postsJson) ? postsJson : [] }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/social/approval-batch' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const clientId = String(parsedUrl.query.client_id || '').trim();
+            const month = String(parsedUrl.query.month || '').trim();
+            if (!clientId || !/^\d+$/.test(clientId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
+            if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'mes_invalido' }));
+                return;
+            }
+
+            const [year, monthValue] = month.split('-').map(Number);
+            const lastDay = new Date(year, monthValue, 0).getDate();
+            const startDate = `${month}-01`;
+            const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
+            params.set('social_calendars.cliente_id', `eq.${clientId}`);
+            params.set('data_agendada', `gte.${startDate}`);
+            params.append('data_agendada', `lte.${endDate}`);
+            params.set('order', 'data_agendada.asc');
+
+            const postsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${params.toString()}`
+            );
+            if (postsRes.status < 200 || postsRes.status >= 300) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsRes.data || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            const items = Array.isArray(postsRes.data) ? postsRes.data : [];
+            const withApproval = items.filter((item) => item.approval_group_id);
+            if (!withApproval.length) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ approval_id: null, batch_status: 'none', items: [] }));
+                return;
+            }
+
+            withApproval.sort((a, b) => {
+                const aTime = a.data_envio_aprovacao ? new Date(a.data_envio_aprovacao).getTime() : 0;
+                const bTime = b.data_envio_aprovacao ? new Date(b.data_envio_aprovacao).getTime() : 0;
+                return bTime - aTime;
+            });
+            const approvalId = withApproval[0].approval_group_id;
+            const batchItems = items.filter((item) => item.approval_group_id === approvalId);
+            const payload = batchItems.map((item) => ({
+                id: item.id,
+                tema: item.tema || null,
+                legenda: item.legenda || null,
+                data_agendada: item.data_agendada || null,
+                plataforma: item.plataformas || null,
+                formato: item.formato || null,
+                status: item.status || null,
+                feedback_ajuste: item.feedback_ajuste || null
+            }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ approval_id: approvalId, batch_status: 'sent', items: payload }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/social/approval-batch' && request.method === 'POST') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const clientId = String(body?.client_id || '').trim();
+            const month = String(body?.month || '').trim();
+            if (!clientId || !/^\d+$/.test(clientId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_invalido' }));
+                return;
+            }
+            if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'mes_invalido' }));
+                return;
+            }
+
+            const [year, monthValue] = month.split('-').map(Number);
+            const lastDay = new Date(year, monthValue, 0).getDate();
+            const startDate = `${month}-01`;
+            const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
+            params.set('social_calendars.cliente_id', `eq.${clientId}`);
+            params.set('data_agendada', `gte.${startDate}`);
+            params.append('data_agendada', `lte.${endDate}`);
+            params.set('order', 'data_agendada.asc');
+
+            const postsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${params.toString()}`
+            );
+            if (postsRes.status < 200 || postsRes.status >= 300) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsRes.data || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            const items = Array.isArray(postsRes.data) ? postsRes.data : [];
+            if (!items.length) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nenhum_post' }));
+                return;
+            }
+
+            const withApproval = items.filter((item) => item.approval_group_id);
+            let approvalId = null;
+            if (withApproval.length) {
+                withApproval.sort((a, b) => {
+                    const aTime = a.data_envio_aprovacao ? new Date(a.data_envio_aprovacao).getTime() : 0;
+                    const bTime = b.data_envio_aprovacao ? new Date(b.data_envio_aprovacao).getTime() : 0;
+                    return bTime - aTime;
+                });
+                approvalId = withApproval[0].approval_group_id;
+            }
+            if (!approvalId) {
+                approvalId = crypto.randomUUID();
+            }
+
+            const ids = items.map((item) => item.id).filter(Boolean);
+            if (!ids.length) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'nenhum_post' }));
+                return;
+            }
+
+            const updatePayload = {
+                status: 'pendente_aprovação',
+                approval_group_id: approvalId,
+                data_envio_aprovacao: new Date().toISOString()
+            };
+
+            const updateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?id=in.(${ids.join(',')})`,
+                'PATCH',
+                updatePayload
+            );
+            if (updateRes.status < 200 || updateRes.status >= 300) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(updateRes.data || { error: 'erro_ao_atualizar_posts' }));
+                return;
+            }
+
+            const payload = items.map((item) => ({
+                id: item.id,
+                tema: item.tema || null,
+                legenda: item.legenda || null,
+                data_agendada: item.data_agendada || null,
+                plataforma: item.plataformas || null,
+                formato: item.formato || null,
+                status: 'pendente_aprovação',
+                feedback_ajuste: item.feedback_ajuste || null
+            }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ approval_id: approvalId, batch_status: 'sent', items: payload }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/client/social/approval-batch' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId } = authContext;
+
+            const month = String(parsedUrl.query.month || '').trim();
+            if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'mes_invalido' }));
+                return;
+            }
+
+            const [year, monthValue] = month.split('-').map(Number);
+            const lastDay = new Date(year, monthValue, 0).getDate();
+            const startDate = `${month}-01`;
+            const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
+            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
+            params.set('data_agendada', `gte.${startDate}`);
+            params.append('data_agendada', `lte.${endDate}`);
+            params.set('order', 'data_agendada.asc');
+
+            const postsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${params.toString()}`
+            );
+            if (postsRes.status < 200 || postsRes.status >= 300) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsRes.data || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            const items = Array.isArray(postsRes.data) ? postsRes.data : [];
+            const withApproval = items.filter((item) => item.approval_group_id);
+            if (!withApproval.length) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ approval_id: null, batch_status: 'none', items: [] }));
+                return;
+            }
+
+            withApproval.sort((a, b) => {
+                const aTime = a.data_envio_aprovacao ? new Date(a.data_envio_aprovacao).getTime() : 0;
+                const bTime = b.data_envio_aprovacao ? new Date(b.data_envio_aprovacao).getTime() : 0;
+                return bTime - aTime;
+            });
+            const approvalId = withApproval[0].approval_group_id;
+            const batchItems = items.filter((item) => item.approval_group_id === approvalId);
+            const payload = batchItems.map((item) => ({
+                id: item.id,
+                tema: item.tema || null,
+                legenda: item.legenda || null,
+                data_agendada: item.data_agendada || null,
+                plataforma: item.plataformas || null,
+                formato: item.formato || null,
+                status: item.status || null,
+                feedback_ajuste: item.feedback_ajuste || null
+            }));
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ approval_id: approvalId, batch_status: 'sent', items: payload }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const clientApprovalItemStatusMatch = pathname.match(/^\/api\/client\/social\/approval-items\/([0-9a-fA-F-]{36})\/status$/);
+    if (clientApprovalItemStatusMatch && request.method === 'POST') {
+        try {
+            const itemId = clientApprovalItemStatusMatch[1];
+            const profile = await requireClientRole(request, response);
+            if (!profile) return;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const statusRaw = String(body?.status || '').trim().toLowerCase();
+            const reason = String(body?.reason || '').trim();
+            let nextStatus = null;
+            if (statusRaw === 'approved') nextStatus = 'aprovado';
+            if (statusRaw === 'needs_adjustment') nextStatus = 'ajuste_solicitado';
+            if (!nextStatus) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'status_invalido' }));
+                return;
+            }
+            if (nextStatus === 'ajuste_solicitado' && !reason) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'motivo_obrigatorio' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,calendar_id,approval_group_id');
+            params.set('id', `eq.${itemId}`);
+            params.set('limit', '1');
+            const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?${params.toString()}`;
+            const checkRes = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const checkJson = await checkRes.json().catch(() => null);
+            if (!checkRes.ok || !Array.isArray(checkJson) || checkJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'post_nao_encontrado' }));
+                return;
+            }
+
+            const postRow = checkJson[0];
+            if (!postRow?.calendar_id) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'post_nao_encontrado' }));
+                return;
+            }
+
+            const calendarParams = new URLSearchParams();
+            calendarParams.set('select', 'cliente_id');
+            calendarParams.set('id', `eq.${postRow.calendar_id}`);
+            calendarParams.set('limit', '1');
+            const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
+            const calendarRes = await fetch(calendarUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const calendarJson = await calendarRes.json().catch(() => null);
+            if (!calendarRes.ok || !Array.isArray(calendarJson) || calendarJson.length === 0) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'post_nao_encontrado' }));
+                return;
+            }
+
+            const calendar = calendarJson[0];
+            if (String(calendar.cliente_id) !== String(profile.client_id)) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+
+            const updatePayload = {
+                status: nextStatus,
+                updated_at: new Date().toISOString()
+            };
+            if (nextStatus === 'ajuste_solicitado') {
+                updatePayload.feedback_ajuste = reason;
+            }
+
+            const updateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?id=eq.${itemId}`;
+            const updateRes = await fetch(updateUrl, {
+                method: 'PATCH',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation'
+                },
+                body: JSON.stringify(updatePayload)
+            });
+            const updateJson = await updateRes.json().catch(() => null);
+            if (!updateRes.ok) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(updateJson || { error: 'erro_ao_atualizar_post' }));
+                return;
+            }
+
+            const updated = Array.isArray(updateJson) ? updateJson[0] : updateJson;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(updated || null));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/client/social/pending-posts' && request.method === 'GET') {
         try {
             const authContext = await getAuthContext(request, response);

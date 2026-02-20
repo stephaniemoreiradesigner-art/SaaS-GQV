@@ -29,9 +29,14 @@
             <div class="max-w-6xl mx-auto space-y-8">
                 <div class="flex flex-col gap-4">
                     <h1 class="text-2xl font-bold text-gray-900">Aprovação de Calendário</h1>
-                    <div class="flex flex-col gap-2 max-w-xs">
-                        <label for="calendar-month-input" class="text-sm font-medium text-gray-700">Selecione o mês</label>
-                        <input id="calendar-month-input" type="month" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300">
+                    <div class="flex flex-col gap-3">
+                        <div class="flex flex-col gap-2 max-w-xs">
+                            <label for="calendar-month-input" class="text-sm font-medium text-gray-700">Selecione o mês</label>
+                            <input id="calendar-month-input" type="month" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300">
+                        </div>
+                        <button id="client-approval-batch-btn" type="button" class="hidden w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">
+                            Aprovar Post(s)
+                        </button>
                     </div>
                 </div>
                 <div id="calendar-error-state" class="hidden">
@@ -98,10 +103,22 @@
                         <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Plataforma</p>
                         <p id="client-calendar-modal-platform"></p>
                     </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Formato</p>
+                        <p id="client-calendar-modal-format"></p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Tema</p>
+                        <p id="client-calendar-modal-theme"></p>
+                    </div>
                 </div>
                 <div>
                     <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Legenda</p>
                     <p id="client-calendar-modal-caption" class="text-sm text-gray-700 whitespace-pre-wrap"></p>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Motivo do ajuste</p>
+                    <textarea id="client-calendar-modal-reason" rows="3" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder="Escreva o motivo do ajuste"></textarea>
                 </div>
                 <div id="client-calendar-modal-media" class="hidden">
                     <p class="text-xs uppercase tracking-wide text-gray-400 mb-2">Mídia</p>
