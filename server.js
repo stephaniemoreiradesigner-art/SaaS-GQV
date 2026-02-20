@@ -1123,7 +1123,7 @@ const server = http.createServer(async (request, response) => {
                     body: JSON.stringify({
                         cliente_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: 'pending'
+                        status: 'rascunho'
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
