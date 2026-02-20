@@ -71,3 +71,9 @@ VALUES
     ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'team', 'Exemplo: revise o tom do texto.'),
     ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'team', 'Exemplo: valide as datas do calendário.')
 ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.social_posts
+ADD COLUMN IF NOT EXISTS medias jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.social_posts
+ADD COLUMN IF NOT EXISTS creative_guide jsonb;

@@ -167,6 +167,59 @@ Formato obrigatório:
   ]
 }`;
 
+const DESIGNER_SENIOR_CREATIVE_PROMPT = `Você é um Diretor de Arte e Designer Sênior (15+ anos) especializado em conteúdo de performance orgânica para Instagram/Facebook (Meta), LinkedIn e TikTok. 
+
+TAREFA 
+Gerar um guia visual executável para o post, baseado no tema, formato e legenda. 
+O guia deve ser tão claro que uma pessoa leiga consiga executar. 
+
+ENTRADAS 
+- platform_targets (meta/linkedin/tiktok) 
+- format (Reels/Carrossel/Estático) 
+- theme 
+- hook (se houver) 
+- caption (legenda) 
+- visual_identity (se houver) 
+- seasonal_dates (lista permitida; pode estar vazia) 
+
+REGRAS ANTI-ALUCINAÇÃO 
+- Proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias. 
+- Só mencionar algo se estiver explicitamente em seasonal_dates. 
+- Proibido inventar números/estatísticas/resultados. 
+
+ENTREGA (TEM QUE SER EXECUTÁVEL) 
+1) Direção de arte (estilo visual): composição, clima, referências genéricas (ex: “clean”, “editorial”, “documental”), ritmo. 
+2) Guia passo a passo (como montar no Canva/CapCut): 
+   - o que colocar 
+   - onde colocar 
+   - qual ordem 
+   - tamanho relativo (ex: título grande, texto curto) 
+3) Checklist de assets (o que o time precisa reunir) 
+4) Texto na tela (se vídeo) ou hierarquia por card (se carrossel) 
+
+ADAPTAÇÃO POR FORMATO 
+- Se format = Reels/TikTok: 
+  - Roteiro por cenas (Cena 1..N) 
+  - Enquadramento (close, meio corpo, tela de celular, b-roll) 
+  - Texto na tela (curto e forte) 
+  - Ritmo (tempo por cena) 
+  - Sugestão de transições simples 
+- Se format = Carrossel: 
+  - Cards 1..8 com: headline, sub, bullets, prova, CTA 
+  - Diretriz de layout (margens, respiro, contraste) 
+- Se format = Estático: 
+  - Layout (título, apoio, elemento visual, CTA discreto) 
+  - Variação de 2 opções (A/B) se possível 
+
+SAÍDA (JSON-ONLY) 
+Retorne SOMENTE um JSON válido, sem markdown: 
+
+{ 
+  "creative_guide": "texto em passos curtos e claros", 
+  "assets_checklist": ["...","...","..."], 
+  "layout_or_script": "roteiro por cenas OU cards por slide" 
+}`;
+
 const IMPROVE_COPY_PROMPT = `Você é um Copywriter Sênior e Estrategista de Conteúdo com 15+ anos de experiência em crescimento orgânico (Instagram/Facebook), retenção e conversão indireta.
 
 TAREFA
@@ -1070,7 +1123,7 @@ const server = http.createServer(async (request, response) => {
                     body: JSON.stringify({
                         cliente_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: 'draft'
+                        status: 'pending'
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
@@ -2173,11 +2226,12 @@ const server = http.createServer(async (request, response) => {
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
                 const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
                 const platforms = Array.isArray(body.platforms) ? body.platforms : [];
+                const visualIdentity = String(body.visual_identity || '').trim();
                 const clientName = String(body.client_name || '').trim();
                 const niche = String(body.niche || 'Geral').trim();
                 const month = String(body.month || '').trim();
                 const contextLink = String(body.context_link || '').trim();
-                calendarContext = { postsCount, month };
+                calendarContext = { postsCount, month, seasonalDates, platforms, visualIdentity };
 
                 const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
                 const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
@@ -2326,6 +2380,61 @@ const server = http.createServer(async (request, response) => {
                     }
 
                     responseJson.choices[0].message.content = JSON.stringify(convertedObject);
+                    calendarJson = convertedObject;
+                }
+
+                if (calendarJson && Array.isArray(calendarJson.posts)) {
+                    for (const post of calendarJson.posts) {
+                        const format = post.format || post.formato || '';
+                        const theme = post.theme || post.tema || '';
+                        const hookValue = String(post.hook || '').trim();
+                        const structure = String(post.structure || post.conteudo_roteiro || '').trim();
+                        const possibleHook = hookValue || (structure ? structure.split('\n')[0] : '');
+                        const caption = post.caption || post.legenda || post.legenda_sugestao || '';
+                        const creativeInput = {
+                            platform_targets: calendarContext.platforms || [],
+                            format,
+                            theme,
+                            hook: possibleHook,
+                            caption,
+                            visual_identity: calendarContext.visualIdentity || '',
+                            seasonal_dates: calendarContext.seasonalDates || []
+                        };
+                        const creativePayload = {
+                            model: body.model || 'gpt-4-turbo',
+                            temperature: 0.5,
+                            response_format: { type: 'json_object' },
+                            messages: [
+                                { role: 'system', content: DESIGNER_SENIOR_CREATIVE_PROMPT },
+                                { role: 'user', content: JSON.stringify(creativeInput) }
+                            ]
+                        };
+                        try {
+                            const creativeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${apiKey}`
+                                },
+                                body: JSON.stringify(creativePayload)
+                            });
+                            const creativeText = await creativeResponse.text();
+                            let creativeJson = null;
+                            try {
+                                const parsedCreativeResponse = JSON.parse(creativeText);
+                                const content = String(parsedCreativeResponse?.choices?.[0]?.message?.content || '').trim();
+                                creativeJson = content ? JSON.parse(content) : null;
+                            } catch (parseError) {
+                                creativeJson = null;
+                            }
+                            if (creativeJson && typeof creativeJson === 'object') {
+                                post.creative_guide = creativeJson;
+                            }
+                        } catch (creativeError) {
+                            post.creative_guide = post.creative_guide || null;
+                        }
+                    }
+                    responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                 }
             }
 

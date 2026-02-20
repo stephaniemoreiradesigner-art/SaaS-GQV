@@ -151,6 +151,206 @@ window.clearFileInput = function(id) {
     }
 }
 
+const MEDIA_BUCKET = 'social_media_uploads';
+const mediaUploadState = {
+    feed: [],
+    story: []
+};
+
+function sanitizeFileName(name) {
+    return String(name || 'arquivo').replace(/[^a-zA-Z0-9.\-_]/g, '_');
+}
+
+function resolveMediaType(file) {
+    const name = String(file?.name || '');
+    const type = String(file?.type || '');
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    if (type === 'application/pdf' || name.match(/\.pdf$/i)) return 'pdf';
+    if (name.match(/\.(doc|docx|txt)$/i) || type.includes('word') || type.includes('text')) return 'doc';
+    return 'doc';
+}
+
+function normalizeMedias(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function getLegacyMedias(post) {
+    const list = [];
+    if (post?.imagem_url) {
+        list.push({ public_url: post.imagem_url, type: 'image', name: 'imagem', size: null, source: 'post_media' });
+    }
+    if (post?.video_url) {
+        list.push({ public_url: post.video_url, type: 'video', name: 'video', size: null, source: 'post_media' });
+    }
+    if (post?.arquivo_url) {
+        list.push({ public_url: post.arquivo_url, type: 'doc', name: 'arquivo', size: null, source: 'post_media' });
+    }
+    return list;
+}
+
+function getPostMedias(post) {
+    const normalized = normalizeMedias(post?.medias);
+    if (normalized.length) return normalized;
+    return getLegacyMedias(post);
+}
+
+function getPublicUrlFromPath(path) {
+    if (!path || !window.supabaseClient?.storage) return '';
+    const { data } = window.supabaseClient.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || '';
+}
+
+function normalizeCreativeGuide(value) {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+            const parsed = JSON.parse(trimmed);
+            return typeof parsed === 'object' ? parsed : value;
+        } catch {
+            return value;
+        }
+    }
+    return null;
+}
+
+function formatCreativeGuideForTextarea(value) {
+    const guide = normalizeCreativeGuide(value);
+    if (!guide) return '';
+    if (typeof guide === 'string') return guide;
+    const parts = [];
+    if (guide.creative_guide) parts.push(String(guide.creative_guide));
+    if (Array.isArray(guide.assets_checklist) && guide.assets_checklist.length) {
+        parts.push(`Assets:\n- ${guide.assets_checklist.join('\n- ')}`);
+    }
+    if (guide.layout_or_script) parts.push(`Layout/Roteiro:\n${guide.layout_or_script}`);
+    return parts.filter(Boolean).join('\n\n');
+}
+
+function mergeCreativeGuide(existing, textValue) {
+    const trimmed = String(textValue || '').trim();
+    if (!trimmed) return existing || null;
+    const normalized = normalizeCreativeGuide(existing);
+    if (normalized && typeof normalized === 'object') {
+        return { ...normalized, creative_guide: trimmed };
+    }
+    return trimmed;
+}
+
+function buildMediaThumbs(medias) {
+    const items = Array.isArray(medias) ? medias : [];
+    if (!items.length) return '';
+    const thumbs = items.slice(0, 3).map((media) => {
+        const url = media.public_url || getPublicUrlFromPath(media.path);
+        if (media.type === 'image' && url) {
+            return `<img src="${url}" class="w-6 h-6 rounded object-cover border border-gray-200" alt="">`;
+        }
+        if (media.type === 'video' && url) {
+            return `<div class="w-6 h-6 rounded bg-gray-900 text-white flex items-center justify-center text-[10px]"><i class="fas fa-play"></i></div>`;
+        }
+        if (media.type === 'pdf') {
+            return `<div class="w-6 h-6 rounded bg-red-50 text-red-600 flex items-center justify-center text-[10px]"><i class="fas fa-file-pdf"></i></div>`;
+        }
+        return `<div class="w-6 h-6 rounded bg-gray-100 text-gray-500 flex items-center justify-center text-[10px]"><i class="fas fa-file"></i></div>`;
+    });
+    return `<div class="mt-2 flex gap-1">${thumbs.join('')}</div>`;
+}
+
+function renderPostMediaList(medias) {
+    const list = document.getElementById('post-media-list');
+    if (!list) return;
+    const items = Array.isArray(medias) ? medias : [];
+    if (!items.length) {
+        list.innerHTML = '<div class="text-sm text-gray-500">Nenhum anexo.</div>';
+        return;
+    }
+    list.innerHTML = '';
+    items.forEach((media) => {
+        const url = media.public_url || getPublicUrlFromPath(media.path);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg';
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-3';
+        if (media.type === 'image' && url) {
+            left.innerHTML = `<img src="${url}" class="w-12 h-12 rounded-lg object-cover border border-gray-200" alt="">`;
+        } else if (media.type === 'video' && url) {
+            left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-gray-900 text-white flex items-center justify-center"><i class="fas fa-play"></i></div>`;
+        } else if (media.type === 'pdf') {
+            left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><i class="fas fa-file-pdf text-lg"></i></div>`;
+        } else {
+            left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center"><i class="fas fa-file text-lg"></i></div>`;
+        }
+        const meta = document.createElement('div');
+        meta.className = 'flex flex-col';
+        const name = document.createElement('span');
+        name.className = 'text-sm font-medium text-gray-700';
+        name.textContent = media.name || 'Anexo';
+        const tag = document.createElement('span');
+        tag.className = 'text-xs text-gray-400 uppercase';
+        tag.textContent = media.source || 'post_media';
+        meta.appendChild(name);
+        meta.appendChild(tag);
+        left.appendChild(meta);
+        const link = document.createElement('a');
+        link.className = 'text-xs text-primary font-semibold underline';
+        link.href = url || '#';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = url ? 'Abrir' : 'Indisponível';
+        wrapper.appendChild(left);
+        wrapper.appendChild(link);
+        list.appendChild(wrapper);
+    });
+}
+
+function resetMediaUploadState() {
+    mediaUploadState.feed = [];
+    mediaUploadState.story = [];
+}
+
+function buildStoragePath({ clientId, month, postId, source, fileName }) {
+    const safeName = sanitizeFileName(fileName);
+    const parts = [`client_${clientId}`];
+    if (month) parts.push(`month_${month}`);
+    parts.push(source || 'post_media');
+    if (postId) parts.push(`post_${postId}`);
+    return `${parts.join('/')}/${Date.now()}-${safeName}`;
+}
+
+async function uploadMediaFiles(files, { clientId, month, postId, source }) {
+    const uploads = [];
+    if (!files || !files.length) return uploads;
+    for (const file of files) {
+        const path = buildStoragePath({ clientId, month, postId, source, fileName: file.name });
+        const { error } = await window.supabaseClient.storage
+            .from(MEDIA_BUCKET)
+            .upload(path, file, { upsert: true, contentType: file.type });
+        if (error) throw error;
+        const publicUrl = getPublicUrlFromPath(path);
+        uploads.push({
+            path,
+            type: resolveMediaType(file),
+            name: file.name,
+            size: file.size,
+            source: source || 'post_media',
+            public_url: publicUrl || null
+        });
+    }
+    return uploads;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     initCalendar();
     await loadClientes();
@@ -339,6 +539,7 @@ function initCalendar() {
                 textColorClass = 'text-yellow-700';
             }
 
+            const mediaThumbs = buildMediaThumbs(getPostMedias(props));
             let html = `
                 <div class="event-card text-xs ${borderColorClass} ${bgColorClass} shadow-sm rounded-r overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
                     <div class="font-bold truncate flex items-center gap-1.5 ${textColorClass}">
@@ -346,6 +547,7 @@ function initCalendar() {
                         <span class="truncate">${arg.event.title}</span>
                         ${statusIcon}
                     </div>
+                    ${mediaThumbs}
                 </div>
             `;
             return { html: html };
@@ -399,13 +601,12 @@ function openPostModal(event) {
         platInput.value = clientPlatforms.join(', ') || 'Nenhuma conectada';
     }
 
-    const visualInput = document.getElementById('post-visual');
-    if(visualInput) visualInput.value = props.descricao_visual || '';
-
     const roteiroInput = document.getElementById('post-roteiro');
     if(roteiroInput) roteiroInput.value = props.conteudo_roteiro || '';
 
     document.getElementById('post-estrategia').value = props.estrategia || '';
+    const creativeField = document.getElementById('post-visual');
+    if (creativeField) creativeField.value = formatCreativeGuideForTextarea(props.creative_guide || props.descricao_visual);
     
     const container = document.getElementById('legendas-container');
     if (container) {
@@ -468,6 +669,9 @@ function openPostModal(event) {
         // Configurar Upload de Mídia (Feed/Story)
         setupMediaUpload(activePlatforms, (props.formato || 'estatico').toLowerCase());
     }
+
+    resetMediaUploadState();
+    renderPostMediaList(getPostMedias(props));
 
     // Carregar feedback se houver
     const feedbackArea = document.getElementById('feedback-area');
@@ -642,6 +846,7 @@ function setupMediaUpload(platforms, formato) {
     }
     
     section.classList.remove('hidden');
+    resetMediaUploadState();
     
     // Reset inputs
     if(feedInput) feedInput.value = '';
@@ -695,6 +900,7 @@ function handleFileSelect(event, type, maxFiles, acceptType) {
         return;
     }
 
+    const acceptedFiles = [];
     files.forEach(file => {
         // Validação de tipo
         if (acceptType === 'image' && !file.type.startsWith('image/')) {
@@ -720,6 +926,7 @@ function handleFileSelect(event, type, maxFiles, acceptType) {
             video.src = URL.createObjectURL(file);
         }
 
+        acceptedFiles.push(file);
         const reader = new FileReader();
         reader.onload = function(e) {
             const div = document.createElement('div');
@@ -746,6 +953,7 @@ function handleFileSelect(event, type, maxFiles, acceptType) {
         };
         reader.readAsDataURL(file);
     });
+    mediaUploadState[type] = acceptedFiles;
 }
 
 function closePostModal() {
@@ -782,6 +990,18 @@ async function savePost() {
             legenda_tiktok: document.getElementById('post-legenda-tiktok')?.value,
             updated_at: new Date()
         };
+        postData.creative_guide = mergeCreativeGuide(currentPostProps?.creative_guide, document.getElementById('post-visual')?.value);
+        const existingMedias = getPostMedias(currentPostProps);
+        const selectedFiles = [...mediaUploadState.feed, ...mediaUploadState.story];
+        if (selectedFiles.length) {
+            const uploadedMedias = await uploadMediaFiles(selectedFiles, {
+                clientId: currentClienteId,
+                month: currentMonth,
+                postId: eventId || null,
+                source: 'post_media'
+            });
+            postData.medias = [...existingMedias, ...uploadedMedias];
+        }
 
         const currentStatus = modal.dataset.currentStatus;
 
@@ -835,6 +1055,15 @@ async function savePost() {
             // Vou manter 'rascunho' na criação para não poluir com pendências incompletas, 
             // a menos que o usuário edite depois.
             postData.status = 'rascunho'; 
+            if (!postData.medias && selectedFiles.length) {
+                const uploadedMedias = await uploadMediaFiles(selectedFiles, {
+                    clientId: currentClienteId,
+                    month: currentMonth,
+                    postId: null,
+                    source: 'post_media'
+                });
+                postData.medias = uploadedMedias;
+            }
             const { error } = await window.supabaseClient
                 .from('social_posts')
                 .insert([postData]);
@@ -1513,7 +1742,8 @@ async function generateCalendar(config = {}) {
                 platforms,
                 posts_count: postsCount,
                 seasonal_dates: seasonalDates,
-                context_link: contextLink
+                context_link: contextLink,
+                visual_identity: client.visual_identity || client.identidade_visual || ''
             })
         });
 
@@ -1550,6 +1780,28 @@ async function generateCalendar(config = {}) {
 
         const rawPosts = calendarPayload.posts;
         console.log('Posts recebidos da IA:', rawPosts.length);
+
+        const referenceInput = document.getElementById('ia-referencias');
+        const visualInputFile = document.getElementById('ia-identidade-visual');
+        const generalMedias = [];
+        if (referenceInput?.files?.length) {
+            const uploaded = await uploadMediaFiles([referenceInput.files[0]], {
+                clientId: currentClienteId,
+                month: currentMonth,
+                postId: null,
+                source: 'reference'
+            });
+            generalMedias.push(...uploaded);
+        }
+        if (visualInputFile?.files?.length) {
+            const uploaded = await uploadMediaFiles([visualInputFile.files[0]], {
+                clientId: currentClienteId,
+                month: currentMonth,
+                postId: null,
+                source: 'visual_identity'
+            });
+            generalMedias.push(...uploaded);
+        }
 
         const [year, month] = currentMonth.split('-').map(Number);
         const lastDay = new Date(year, month, 0).getDate();
@@ -1658,11 +1910,13 @@ async function generateCalendar(config = {}) {
                 tema: post.theme || post.tema || 'Sem título',
                 conteudo_roteiro: post.structure || post.conteudo_roteiro || '',
                 descricao_visual: post.descricao_visual || '',
+                creative_guide: post.creative_guide || null,
                 estrategia: estrategiaParts.join(' | '),
                 legenda: legendaFinal,
                 legenda_linkedin: post.legenda_linkedin || null,
                 legenda_tiktok: post.legenda_tiktok || null,
-                status: 'rascunho'
+                status: 'rascunho',
+                medias: generalMedias
             });
         });
 

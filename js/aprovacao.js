@@ -121,6 +121,43 @@ async function loadPosts() {
     }
 }
 
+function normalizeMedias(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function getLegacyMedias(post) {
+    const list = [];
+    if (post?.imagem_url) list.push({ public_url: post.imagem_url, type: 'image', name: 'imagem' });
+    if (post?.video_url) list.push({ public_url: post.video_url, type: 'video', name: 'video' });
+    if (post?.arquivo_url) list.push({ public_url: post.arquivo_url, type: 'doc', name: 'arquivo' });
+    return list;
+}
+
+function getPostMedias(post) {
+    const normalized = normalizeMedias(post?.medias);
+    if (normalized.length) return normalized;
+    return getLegacyMedias(post);
+}
+
+function getPublicUrlFromPath(path) {
+    if (!path || !window.supabaseClient?.storage) return '';
+    const { data } = window.supabaseClient.storage.from('social_media_uploads').getPublicUrl(path);
+    return data?.publicUrl || '';
+}
+
+function resolveMediaUrl(media) {
+    return media.public_url || getPublicUrlFromPath(media.path);
+}
+
 function renderPosts(posts) {
     const grid = document.getElementById('posts-grid');
     grid.innerHTML = '';
@@ -144,13 +181,18 @@ function renderPosts(posts) {
         
         // Mídia Preview (Thumb)
         let mediaThumb = '<div class="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-400"><i class="fas fa-image text-3xl"></i></div>';
-        const mediaUrl = post.imagem_url || post.video_url || post.arquivo_url;
-        
+        const medias = getPostMedias(post);
+        const media = medias[0];
+        const mediaUrl = media ? resolveMediaUrl(media) : '';
         if (mediaUrl) {
-            if (post.video_url || mediaUrl.match(/\.(mp4|mov|webm)$/i)) {
+            if (media.type === 'video' || mediaUrl.match(/\.(mp4|mov|webm)$/i)) {
                 mediaThumb = `<video src="${mediaUrl}" class="w-full h-48 object-cover" muted></video>`;
-            } else {
+            } else if (media.type === 'image') {
                 mediaThumb = `<img src="${mediaUrl}" class="w-full h-48 object-cover" alt="Preview">`;
+            } else if (media.type === 'pdf') {
+                mediaThumb = '<div class="w-full h-48 bg-red-50 flex items-center justify-center text-red-500"><i class="fas fa-file-pdf text-3xl"></i></div>';
+            } else {
+                mediaThumb = '<div class="w-full h-48 bg-gray-100 flex items-center justify-center text-gray-400"><i class="fas fa-file text-3xl"></i></div>';
             }
         }
 
@@ -208,16 +250,21 @@ function openPostDetails(postId) {
     // Mídia Grande
     const mediaContainer = document.getElementById('media-container');
     const btnDownload = document.getElementById('btn-download');
-    const mediaUrl = post.imagem_url || post.video_url || post.arquivo_url;
+    const medias = getPostMedias(post);
+    const primary = medias[0];
+    const mediaUrl = primary ? resolveMediaUrl(primary) : '';
 
     if (mediaUrl) {
         btnDownload.href = mediaUrl;
         btnDownload.classList.remove('hidden');
-        
-        if (post.video_url || mediaUrl.match(/\.(mp4|mov|webm)$/i)) {
+        if (primary.type === 'video' || mediaUrl.match(/\.(mp4|mov|webm)$/i)) {
             mediaContainer.innerHTML = `<video src="${mediaUrl}" class="max-w-full max-h-full rounded-lg shadow-2xl" controls></video>`;
-        } else {
+        } else if (primary.type === 'image') {
             mediaContainer.innerHTML = `<img src="${mediaUrl}" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl" alt="Arte">`;
+        } else if (primary.type === 'pdf') {
+            mediaContainer.innerHTML = '<div class="w-full h-64 bg-red-50 text-red-500 flex items-center justify-center rounded-lg"><i class="fas fa-file-pdf text-4xl"></i></div>';
+        } else {
+            mediaContainer.innerHTML = '<div class="w-full h-64 bg-gray-100 text-gray-500 flex items-center justify-center rounded-lg"><i class="fas fa-file text-4xl"></i></div>';
         }
     } else {
         mediaContainer.innerHTML = '<div class="text-white opacity-50">Sem mídia</div>';

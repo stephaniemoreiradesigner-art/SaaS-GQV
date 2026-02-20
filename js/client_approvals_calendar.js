@@ -40,6 +40,41 @@
         return parsed.toLocaleDateString('pt-BR');
     };
 
+    const normalizeMedias = (raw) => {
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === 'string' && raw.trim()) {
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        }
+        return [];
+    };
+
+    const getLegacyMedias = (item) => {
+        const list = [];
+        if (item?.imagem_url) list.push({ public_url: item.imagem_url, type: 'image', name: 'imagem' });
+        if (item?.video_url) list.push({ public_url: item.video_url, type: 'video', name: 'video' });
+        if (item?.arquivo_url) list.push({ public_url: item.arquivo_url, type: 'doc', name: 'arquivo' });
+        return list;
+    };
+
+    const getPostMedias = (item) => {
+        const normalized = normalizeMedias(item?.medias);
+        if (normalized.length) return normalized;
+        return getLegacyMedias(item);
+    };
+
+    const getPublicUrlFromPath = async (path) => {
+        if (!path) return '';
+        const supabase = await window.clientApp?.getSupabaseClient?.();
+        if (!supabase?.storage) return '';
+        const { data } = supabase.storage.from('social_media_uploads').getPublicUrl(path);
+        return data?.publicUrl || '';
+    };
+
     const truncate = (text, max = 48) => {
         if (!text) return '';
         if (text.length <= max) return text;
@@ -115,7 +150,7 @@
         return { from, to, firstDayLocal: new Date(year, month - 1, 1) };
     };
 
-    const openModal = (item) => {
+    const openModal = async (item) => {
         const modal = document.getElementById('client-calendar-modal');
         if (!modal) return;
         state.current = item;
@@ -129,7 +164,7 @@
         const captionEl = document.getElementById('client-calendar-modal-caption');
         const reasonEl = document.getElementById('client-calendar-modal-reason');
         const mediaWrap = document.getElementById('client-calendar-modal-media');
-        const mediaImg = document.getElementById('client-calendar-modal-media-img');
+        const mediaList = document.getElementById('client-calendar-modal-media-list');
 
         if (titleEl) titleEl.textContent = item.tema || item.titulo || 'Sem título';
         if (statusEl) {
@@ -143,12 +178,42 @@
         if (themeEl) themeEl.textContent = item.tema || item.titulo || 'Sem tema';
         if (captionEl) captionEl.textContent = item.legenda || 'Sem legenda';
         if (reasonEl) reasonEl.value = item.feedback_ajuste || '';
-        if (mediaWrap && mediaImg) {
-            if (item.media_url) {
-                mediaImg.src = item.media_url;
-                mediaWrap.classList.remove('hidden');
-            } else {
+        if (mediaWrap && mediaList) {
+            const medias = getPostMedias(item);
+            if (!medias.length) {
                 mediaWrap.classList.add('hidden');
+            } else {
+                mediaWrap.classList.remove('hidden');
+                mediaList.innerHTML = '';
+                for (const media of medias) {
+                    const url = media.public_url || await getPublicUrlFromPath(media.path);
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg';
+                    const left = document.createElement('div');
+                    left.className = 'flex items-center gap-3';
+                    if (media.type === 'image' && url) {
+                        left.innerHTML = `<img src="${url}" class="w-12 h-12 rounded-lg object-cover border border-gray-200" alt="">`;
+                    } else if (media.type === 'video' && url) {
+                        left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-gray-900 text-white flex items-center justify-center"><i class="fas fa-play"></i></div>`;
+                    } else if (media.type === 'pdf') {
+                        left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-red-50 text-red-600 flex items-center justify-center"><i class="fas fa-file-pdf text-lg"></i></div>`;
+                    } else {
+                        left.innerHTML = `<div class="w-12 h-12 rounded-lg bg-gray-100 text-gray-500 flex items-center justify-center"><i class="fas fa-file text-lg"></i></div>`;
+                    }
+                    const name = document.createElement('span');
+                    name.className = 'text-sm font-medium text-gray-700';
+                    name.textContent = media.name || 'Anexo';
+                    left.appendChild(name);
+                    const link = document.createElement('a');
+                    link.className = 'text-xs text-purple-700 font-semibold underline';
+                    link.href = url || '#';
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    link.textContent = url ? 'Abrir' : 'Indisponível';
+                    row.appendChild(left);
+                    row.appendChild(link);
+                    mediaList.appendChild(row);
+                }
             }
         }
 
