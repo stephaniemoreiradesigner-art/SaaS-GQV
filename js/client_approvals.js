@@ -89,22 +89,28 @@
         state.approvals.forEach((approval) => {
             const card = document.createElement('button');
             card.type = 'button';
-            card.className = 'bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition cursor-pointer text-left';
+            card.className = 'bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition cursor-pointer text-left';
             card.addEventListener('click', () => openModal(approval));
 
-            const row = document.createElement('div');
-            row.className = 'flex items-center justify-between gap-3';
+            const preview = approval.preview_url
+                ? `<img src="${approval.preview_url}" class="w-20 h-20 rounded-lg object-cover border border-gray-200" alt="Preview">`
+                : `<div class="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-xs text-gray-400">Sem mídia</div>`;
+            const caption = approval.caption ? approval.caption : 'Sem legenda';
 
-            const title = document.createElement('h3');
-            title.className = 'text-base font-semibold text-gray-800';
-            title.textContent = approval.title || 'Sem título';
-
-            const badge = document.createElement('span');
-            setBadge(badge, approval.status);
-
-            row.appendChild(title);
-            row.appendChild(badge);
-            card.appendChild(row);
+            card.innerHTML = `
+                <div class="flex gap-4">
+                    <div class="flex-shrink-0">${preview}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-start justify-between gap-3">
+                            <h3 class="text-base font-semibold text-gray-800 truncate">${approval.title || 'Sem título'}</h3>
+                            <span class="approval-status-badge"></span>
+                        </div>
+                        <p class="text-sm text-gray-500 line-clamp-2 mt-1">${caption}</p>
+                    </div>
+                </div>
+            `;
+            const badge = card.querySelector('.approval-status-badge');
+            if (badge) setBadge(badge, approval.status);
             listEl.appendChild(card);
         });
     };
@@ -117,6 +123,8 @@
         const titleEl = document.getElementById('client-approval-title');
         const statusEl = document.getElementById('client-approval-status');
         const previewEl = document.getElementById('client-approval-preview');
+        const mediaEl = document.getElementById('client-approval-media');
+        const captionEl = document.getElementById('client-approval-caption');
         const commentsEl = document.getElementById('client-approval-comments');
         const commentInput = document.getElementById('client-approval-comment-input');
         const approveBtn = document.getElementById('client-approval-approve');
@@ -132,6 +140,19 @@
                 previewEl.classList.add('hidden');
             }
         }
+        if (mediaEl) {
+            if (approval.preview_url) {
+                const isVideo = String(approval.preview_url).match(/\.(mp4|mov|webm)$/i) || String(approval.preview_url).includes('video');
+                mediaEl.innerHTML = isVideo
+                    ? `<video src="${approval.preview_url}" class="w-full h-full object-cover bg-black" controls></video>`
+                    : `<img src="${approval.preview_url}" class="w-full h-full object-cover" alt="Preview">`;
+                mediaEl.classList.remove('hidden');
+            } else {
+                mediaEl.innerHTML = 'Sem mídia disponível';
+                mediaEl.classList.remove('hidden');
+            }
+        }
+        if (captionEl) captionEl.textContent = approval.caption || 'Sem legenda';
         if (commentInput) commentInput.value = '';
         if (commentsEl) commentsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando comentários...</div>';
         if (approveBtn) approveBtn.disabled = approval.status !== 'pending';

@@ -1286,17 +1286,14 @@ const server = http.createServer(async (request, response) => {
             }
 
             const currentStatus = String(calendar?.status || '').trim();
-            if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(currentStatus)) {
-                response.writeHead(200, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ tenant_id: tenantId, calendar }));
-                return;
-            }
+            const shareToken = calendar.share_token || crypto.randomUUID();
+            const accessPassword = calendar.access_password || crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+            const shouldUpdateStatus = currentStatus === 'rascunho';
+            const shouldUpdateTokens = !calendar.share_token || !calendar.access_password;
 
-            if (currentStatus === 'rascunho') {
-                const shareToken = calendar.share_token || crypto.randomUUID();
-                const accessPassword = calendar.access_password || crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+            if (shouldUpdateStatus || shouldUpdateTokens) {
                 const updatePayload = {
-                    status: 'aguardando_aprovacao',
+                    status: shouldUpdateStatus ? 'aguardando_aprovacao' : currentStatus || 'aguardando_aprovacao',
                     share_token: shareToken,
                     access_password: accessPassword,
                     updated_at: new Date().toISOString()
@@ -1321,8 +1318,257 @@ const server = http.createServer(async (request, response) => {
                 calendar = updateJson[0];
             }
 
+            const baseUrl = buildAppUrl(request);
+            const approvalLink = baseUrl && calendar?.share_token
+                ? `${baseUrl.replace(/\/$/, '')}/aprovacao_social.html?token=${calendar.share_token}`
+                : '';
+
             response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ tenant_id: tenantId, calendar }));
+            response.end(JSON.stringify({
+                tenant_id: tenantId,
+                calendar,
+                approval_link: approvalLink,
+                access_password: calendar?.access_password || accessPassword
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/client/post/approvals/submit' && request.method === 'POST') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId } = authContext;
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const from = String(parsedUrl.query.from || '').trim();
+            const to = String(parsedUrl.query.to || '').trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'periodo_invalido' }));
+                return;
+            }
+            if (from > to) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'periodo_invalido' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,tema,legenda,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(cliente_id)');
+            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
+            params.set('data_agendada', `gte.${from}`);
+            params.append('data_agendada', `lte.${to}`);
+            params.set('order', 'data_agendada.asc');
+
+            const postsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?${params.toString()}`;
+            const postsRes = await fetch(postsUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const postsJson = await postsRes.json().catch(() => null);
+            if (!postsRes.ok) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsJson || { error: 'erro_ao_listar_posts' }));
+                return;
+            }
+
+            const posts = Array.isArray(postsJson) ? postsJson : [];
+            if (!posts.length) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    batch: null,
+                    approval_link: '',
+                    access_password: null,
+                    items_count: 0,
+                    missing: []
+                }));
+                return;
+            }
+
+            const normalizeMedias = (raw) => {
+                if (Array.isArray(raw)) return raw;
+                if (typeof raw === 'string' && raw.trim()) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        return Array.isArray(parsed) ? parsed : [];
+                    } catch {
+                        return [];
+                    }
+                }
+                return [];
+            };
+
+            const resolveMediaUrl = (media) => {
+                if (!media) return '';
+                if (media.public_url) return media.public_url;
+                if (media.path) {
+                    const baseUrl = supabaseUrl.replace(/\/$/, '');
+                    return `${baseUrl}/storage/v1/object/public/social_media_uploads/${media.path}`;
+                }
+                return '';
+            };
+
+            const resolvePreviewUrl = (post) => {
+                const medias = normalizeMedias(post.medias);
+                const primary = medias.find((item) => item && (item.public_url || item.path)) || null;
+                const mediaUrl = resolveMediaUrl(primary);
+                if (mediaUrl) return mediaUrl;
+                return post.imagem_url || post.video_url || post.arquivo_url || '';
+            };
+
+            const completePosts = [];
+            const missingPosts = [];
+
+            posts.forEach((post) => {
+                const tema = String(post.tema || '').trim();
+                const legenda = String(post.legenda || '').trim();
+                const previewUrl = resolvePreviewUrl(post);
+                const missingFields = [];
+                if (!tema) missingFields.push('tema');
+                if (!legenda) missingFields.push('legenda');
+                if (!previewUrl) missingFields.push('criativo');
+
+                if (missingFields.length) {
+                    missingPosts.push({
+                        id: post.id,
+                        data_agendada: post.data_agendada || null,
+                        tema: tema || null,
+                        missing: missingFields
+                    });
+                    return;
+                }
+
+                completePosts.push({
+                    id: post.id,
+                    tema,
+                    legenda,
+                    preview_url: previewUrl
+                });
+            });
+
+            if (!completePosts.length) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    batch: null,
+                    approval_link: '',
+                    access_password: null,
+                    items_count: 0,
+                    missing: missingPosts
+                }));
+                return;
+            }
+
+            const batchParams = new URLSearchParams();
+            batchParams.set('select', '*');
+            batchParams.set('client_id', `eq.${tenantId}`);
+            batchParams.set('kind', 'eq.posts_week');
+            batchParams.set('period_start', `eq.${from}`);
+            batchParams.set('period_end', `eq.${to}`);
+            batchParams.set('order', 'created_at.desc');
+            batchParams.set('limit', '1');
+            const batchUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approval_batches?${batchParams.toString()}`;
+            const batchRes = await fetch(batchUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const batchJson = await batchRes.json().catch(() => null);
+            if (!batchRes.ok) {
+                response.writeHead(batchRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(batchJson || { error: 'erro_ao_listar_batch' }));
+                return;
+            }
+
+            let batch = Array.isArray(batchJson) ? batchJson[0] : null;
+            if (!batch) {
+                const shareToken = crypto.randomUUID();
+                const accessPassword = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+                const insertBatchPayload = {
+                    client_id: tenantId,
+                    kind: 'posts_week',
+                    period_start: from,
+                    period_end: to,
+                    share_token: shareToken,
+                    access_password: accessPassword
+                };
+                const insertBatchUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approval_batches`;
+                const insertBatchRes = await fetch(insertBatchUrl, {
+                    method: 'POST',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify(insertBatchPayload)
+                });
+                const insertBatchJson = await insertBatchRes.json().catch(() => null);
+                if (!insertBatchRes.ok || !Array.isArray(insertBatchJson) || insertBatchJson.length === 0) {
+                    response.writeHead(insertBatchRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(insertBatchJson || { error: 'erro_ao_criar_batch' }));
+                    return;
+                }
+                batch = insertBatchJson[0];
+            }
+
+            const approvalsPayload = completePosts.map((post) => ({
+                client_id: tenantId,
+                type: 'post',
+                item_id: post.id,
+                title: post.tema || 'Post',
+                caption: post.legenda || null,
+                preview_url: post.preview_url || null,
+                status: 'pending',
+                batch_id: batch.id
+            }));
+
+            const approvalsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_approvals?on_conflict=type,item_id,batch_id`;
+            const approvalsRes = await fetch(approvalsUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(approvalsPayload)
+            });
+            if (!approvalsRes.ok) {
+                const approvalText = await approvalsRes.text();
+                response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: approvalText || 'erro_ao_criar_aprovacoes' }));
+                return;
+            }
+
+            const baseUrl = buildAppUrl(request);
+            const approvalLink = baseUrl && batch?.share_token
+                ? `${baseUrl.replace(/\/$/, '')}/client/approvals/posts?token=${batch.share_token}`
+                : '';
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                batch,
+                approval_link: approvalLink,
+                access_password: batch?.access_password || null,
+                items_count: completePosts.length,
+                missing: missingPosts
+            }));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });

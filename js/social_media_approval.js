@@ -30,6 +30,53 @@ async function getAuthHeaders() {
     return headers;
 }
 
+const MEDIA_BUCKET = 'social_media_uploads';
+let approvalRangeFrom = null;
+let approvalRangeTo = null;
+let approvalCompletePosts = [];
+let approvalMissingPosts = [];
+
+function normalizeMedias(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string' && raw.trim()) {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+    return [];
+}
+
+function getLegacyMedias(post) {
+    const list = [];
+    if (post?.imagem_url) list.push({ public_url: post.imagem_url });
+    if (post?.video_url) list.push({ public_url: post.video_url });
+    if (post?.arquivo_url) list.push({ public_url: post.arquivo_url });
+    return list;
+}
+
+function getPostMedias(post) {
+    const normalized = normalizeMedias(post?.medias);
+    if (normalized.length) return normalized;
+    return getLegacyMedias(post);
+}
+
+function getPublicUrlFromPath(path) {
+    if (!path || !window.supabaseClient?.storage) return '';
+    const { data } = window.supabaseClient.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || '';
+}
+
+function resolvePreviewUrl(post) {
+    const medias = getPostMedias(post);
+    const primary = medias.find((item) => item && (item.public_url || item.path)) || null;
+    if (primary?.public_url) return primary.public_url;
+    if (primary?.path) return getPublicUrlFromPath(primary.path);
+    return post.imagem_url || post.video_url || post.arquivo_url || '';
+}
+
 function showApprovalFeedback(message, type = 'success') {
     if (window.showToast) {
         window.showToast(message, type);
@@ -49,10 +96,9 @@ async function sendMonthlyApproval() {
     }
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch('/api/social/approval-batch', {
+        const res = await fetch(`/api/client/calendar/approvals/submit?month=${encodeURIComponent(currentMonth)}`, {
             method: 'POST',
-            headers,
-            body: JSON.stringify({ client_id: currentClienteId, month: currentMonth })
+            headers
         });
         const text = await res.text();
         let data = null;
@@ -62,13 +108,15 @@ async function sendMonthlyApproval() {
             data = null;
         }
         if (!res.ok) {
-            const message = data?.error === 'nenhum_post'
-                ? 'Nenhum post encontrado para este mês.'
-                : 'Não foi possível enviar o calendário.';
+            const message = 'Não foi possível enviar o calendário.';
             showApprovalFeedback(message, 'error');
             return;
         }
-        showApprovalFeedback('Calendário enviado para aprovação', 'success');
+        if (data?.approval_link) {
+            showApprovalSuccessModal(data.approval_link, data.access_password);
+        } else {
+            showApprovalFeedback('Calendário enviado para aprovação', 'success');
+        }
         if (typeof loadCalendarData === 'function') await loadCalendarData();
     } catch (err) {
         console.error('Erro ao enviar calendário:', err);
@@ -89,8 +137,24 @@ window.sendForApproval = async function() {
     await sendMonthlyApproval();
 }
 
+window.sendWeekForApproval = function() {
+    if (!currentClienteId) {
+        alert('Selecione um cliente primeiro.');
+        return;
+    }
+    const select = document.getElementById('approval-client-select');
+    if (select) select.value = currentClienteId;
+    const range = getWeekRangeFromCalendar();
+    if (range) {
+        const startInput = document.getElementById('approval-date-start');
+        const endInput = document.getElementById('approval-date-end');
+        if (startInput) startInput.value = range.start;
+        if (endInput) endInput.value = range.end;
+    }
+    openModalAnim('modal-approval-date');
+}
+
 async function handleApprovalDateSelection() {
-    // Verificar seleção de cliente no modal
     const select = document.getElementById('approval-client-select');
     if (select && select.value) {
         if (currentClienteId !== select.value) {
@@ -119,7 +183,6 @@ async function handleApprovalDateSelection() {
     if (!startDate || !endDate) return alert('Selecione as datas de início e fim.');
     if (startDate > endDate) return alert('A data inicial não pode ser maior que a final.');
 
-    // Fetch Posts
     try {
         const { data: posts, error } = await window.supabaseClient
             .from('social_posts')
@@ -131,9 +194,6 @@ async function handleApprovalDateSelection() {
 
         if (error) throw error;
 
-        // FILTRO DE APROVAÇÃO
-        // Regra: Permitir enviar 'pendente' e 'rascunho' (posts gerados ou salvos mas não enviados).
-        // Exclui 'aprovado', 'pendente_aprovação' (já enviado).
         const postsParaEnvio = posts.filter(p => ['pendente', 'rascunho'].includes(p.status));
 
         if (!postsParaEnvio || postsParaEnvio.length === 0) {
@@ -141,8 +201,39 @@ async function handleApprovalDateSelection() {
             return;
         }
 
-        renderApprovalPreview(postsParaEnvio);
+        approvalRangeFrom = startDate;
+        approvalRangeTo = endDate;
+        approvalCompletePosts = [];
+        approvalMissingPosts = [];
+
+        postsParaEnvio.forEach((post) => {
+            const tema = String(post.tema || '').trim();
+            const legenda = String(post.legenda || '').trim();
+            const previewUrl = resolvePreviewUrl(post);
+            const missing = [];
+            if (!tema) missing.push('tema');
+            if (!legenda) missing.push('legenda');
+            if (!previewUrl) missing.push('criativo');
+            if (missing.length) {
+                approvalMissingPosts.push({
+                    id: post.id,
+                    data_agendada: post.data_agendada || null,
+                    tema: tema || null,
+                    missing
+                });
+                return;
+            }
+            approvalCompletePosts.push({ ...post, preview_url: previewUrl });
+        });
+
         closeModalAnim('modal-approval-date');
+        if (approvalMissingPosts.length) {
+            renderMissingApprovalList(approvalMissingPosts);
+            openModalAnim('modal-approval-missing');
+            return;
+        }
+
+        renderApprovalPreview(approvalCompletePosts);
         openModalAnim('modal-approval-preview');
 
     } catch (err) {
@@ -177,32 +268,13 @@ function renderApprovalPreview(posts) {
         
         // Arte Preview
         let artPreview = '<div class="h-full w-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs rounded-lg border border-dashed border-gray-300">Sem Arte</div>';
-        
-        // Verifica se há arquivos nas colunas de mídia (ajuste conforme seu schema atual, assumindo 'arquivo_url' ou similar que implementamos recentemente?)
-        // Wait, I need to check the schema for media columns. I implemented upload recently but didn't verify column names.
-        // Usually it's file_url or similar. Let's assume standard names or check.
-        // Actually, looking at previous code, I see 'imagem_url' and 'video_url' in my render logic plan. 
-        // Let's check `social_media.js` save function to be sure what columns are used.
-        
-        // Checking savePost in social_media.js...
-        // ...
-        // const postData = { ... }; 
-        // I should check what columns are actually being used for media.
-        // Since I don't have the file open right now, I'll assume `arquivo_url` or `imagem_url`.
-        // Let's use `imagem_url` and `video_url` as placeholders, but I should probably check.
-        // Re-reading `savePost` in previous turn... it didn't show media columns being saved in the snippet.
-        // But the user asked for upload functionality recently.
-        // Let's check `savePost` again to see what columns are updated.
-
-        if (post.imagem_url || post.video_url || post.arquivo_url) {
-            const url = post.imagem_url || post.video_url || post.arquivo_url;
-            // Simple check for extension or column type
-            const isVideo = url.match(/\.(mp4|mov|webm)$/i) || post.video_url;
-            
+        const previewUrl = post.preview_url || resolvePreviewUrl(post);
+        if (previewUrl) {
+            const isVideo = previewUrl.match(/\.(mp4|mov|webm)$/i) || String(previewUrl).includes('video');
             if (isVideo) {
-                 artPreview = `<video src="${url}" class="h-full w-full object-cover rounded-lg bg-black" controls></video>`;
+                artPreview = `<video src="${previewUrl}" class="h-full w-full object-cover rounded-lg bg-black" controls></video>`;
             } else {
-                 artPreview = `<img src="${url}" class="h-full w-full object-cover rounded-lg" alt="Arte">`;
+                artPreview = `<img src="${previewUrl}" class="h-full w-full object-cover rounded-lg" alt="Arte">`;
             }
         }
 
@@ -245,14 +317,109 @@ function renderApprovalPreview(posts) {
 }
 
 async function confirmSendApproval() {
-    await sendMonthlyApproval();
+    await sendWeeklyApproval();
 }
 
-function showApprovalSuccessModal(link) {
+window.sendOnlyCompleteWeek = async function() {
+    await sendWeeklyApproval();
+    closeModalAnim('modal-approval-missing');
+}
+
+async function sendWeeklyApproval() {
+    if (!currentClienteId || !approvalRangeFrom || !approvalRangeTo) {
+        alert('Selecione um cliente e um período primeiro.');
+        return;
+    }
+    const btnApprove = document.getElementById('btn-approve-week');
+    if (typeof setButtonLoading === 'function') {
+        setButtonLoading(btnApprove, true, 'Enviando...');
+    }
+    try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/client/post/approvals/submit?from=${encodeURIComponent(approvalRangeFrom)}&to=${encodeURIComponent(approvalRangeTo)}`, {
+            method: 'POST',
+            headers
+        });
+        const text = await res.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+        if (!res.ok) {
+            showApprovalFeedback('Não foi possível enviar os posts.', 'error');
+            return;
+        }
+        if (data?.missing?.length) {
+            renderMissingApprovalList(data.missing);
+            openModalAnim('modal-approval-missing');
+        }
+        if (data?.approval_link) {
+            showApprovalSuccessModal(data.approval_link, data.access_password);
+        } else {
+            showApprovalFeedback('Posts enviados para aprovação', 'success');
+        }
+        if (typeof loadCalendarData === 'function') await loadCalendarData();
+        closeModalAnim('modal-approval-preview');
+    } catch (err) {
+        console.error('Erro ao enviar posts:', err);
+        showApprovalFeedback('Não foi possível enviar os posts.', 'error');
+    } finally {
+        if (typeof setButtonLoading === 'function') {
+            setButtonLoading(btnApprove, false);
+        }
+    }
+}
+
+function getWeekRangeFromCalendar() {
+    const view = window.calendar?.view;
+    if (!view?.currentStart || !view?.currentEnd) return null;
+    const startDate = new Date(view.currentStart);
+    const endDate = new Date(view.currentEnd);
+    endDate.setDate(endDate.getDate() - 1);
+    return {
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0]
+    };
+}
+
+function renderMissingApprovalList(items) {
+    const list = document.getElementById('approval-missing-list');
+    const count = document.getElementById('approval-missing-count');
+    if (!list) return;
+    list.innerHTML = '';
+    const data = Array.isArray(items) ? items : [];
+    if (count) count.textContent = `${data.length} posts incompletos`;
+    data.forEach((item) => {
+        const dateLabel = item.data_agendada || 'Sem data';
+        const tema = item.tema || 'Sem tema';
+        const missing = Array.isArray(item.missing) ? item.missing.join(', ') : '';
+        const row = document.createElement('div');
+        row.className = 'bg-white border border-gray-200 rounded-lg p-3 flex items-center justify-between';
+        row.innerHTML = `
+            <div>
+                <div class="text-sm font-semibold text-gray-800">${tema}</div>
+                <div class="text-xs text-gray-500">${dateLabel}</div>
+            </div>
+            <span class="text-xs font-medium text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-lg">${missing || 'Incompleto'}</span>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function showApprovalSuccessModal(link, accessPassword) {
     // Criar modal dinamicamente ou usar um existente
     // Vou criar um HTML string e injetar, ou melhor, adicionar ao HTML principal.
     // Para agilidade, vou usar um alert customizado ou injetar um modal simples agora.
     
+    const passwordHtml = accessPassword ? `
+        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center gap-3 mb-4">
+            <div class="text-xs text-gray-500 uppercase tracking-wide font-semibold">Senha</div>
+            <div class="text-sm text-gray-700 font-medium">${accessPassword}</div>
+        </div>
+    ` : '';
+
     const modalHtml = `
         <div id="modal-approval-success" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 transition-opacity duration-300">
             <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 transform scale-95 transition-transform duration-300">
@@ -261,9 +428,11 @@ function showApprovalSuccessModal(link) {
                         <i class="fas fa-check"></i>
                     </div>
                     <h3 class="text-2xl font-bold text-gray-800">Pronto para Enviar!</h3>
-                    <p class="text-gray-500 mt-2">Os posts foram marcados como pendentes. Compartilhe o link abaixo com seu cliente.</p>
+                    <p class="text-gray-500 mt-2">Compartilhe o link abaixo com seu cliente.</p>
                 </div>
-                
+
+                ${passwordHtml}
+
                 <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center gap-3 mb-6">
                     <input type="text" value="${link}" readonly class="bg-transparent border-none text-gray-600 text-sm flex-1 focus:ring-0 w-full" id="approval-link-input">
                     <button onclick="copyApprovalLink()" class="text-blue-600 hover:text-blue-700 font-medium text-sm">Copiar</button>

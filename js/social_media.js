@@ -9,6 +9,7 @@ var clientDataMap = {};
 var tempSelectedDate = null;
 var tempSelectedFormat = null;
 var calendarConnectionsCache = {};
+var socialPostsCache = [];
 var lastSeasonalDates = [];
 var currentPostProps = null;
 
@@ -570,10 +571,14 @@ function initCalendar() {
         
         eventClick: function(info) {
             openPostModal(info.event);
+        },
+        datesSet: function(info) {
+            updateApprovalButtonsForView(info.view?.type || '');
         }
     });
 
     calendar.render();
+    updateApprovalButtonsForView(calendar?.view?.type || '');
 }
 
 function openPostModal(event) {
@@ -1315,7 +1320,7 @@ async function fetchApprovalBatchStatus(clientId, month) {
     if (!clientId || !month) return null;
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/social/approval-batch?client_id=${encodeURIComponent(clientId)}&month=${encodeURIComponent(month)}`, { headers });
+        const res = await fetch(`/api/client/calendar/approvals?month=${encodeURIComponent(month)}`, { headers });
         const text = await res.text();
         let data = null;
         try {
@@ -1324,7 +1329,9 @@ async function fetchApprovalBatchStatus(clientId, month) {
             data = null;
         }
         if (!res.ok) return null;
-        return data || null;
+        const calendar = data?.calendar || null;
+        if (!calendar) return null;
+        return { status: calendar.status };
     } catch {
         return null;
     }
@@ -1537,17 +1544,19 @@ async function loadClientes() {
 function checkSelection() {
     const btnConfig = document.getElementById('btn-config-ia');
     const btnApprove = document.getElementById('btn-approve');
+    const btnApproveWeek = document.getElementById('btn-approve-week');
     const btnDelete = document.getElementById('btn-delete-calendar');
 
     if (currentClienteId && currentMonth) {
         if (btnConfig) btnConfig.disabled = false;
         loadCalendarData();
         updateCalendarConnections(currentClienteId);
+        updateApprovalButtonsForView(calendar?.view?.type || '');
     } else {
         if (btnConfig) btnConfig.disabled = true;
         
         // Resetar botões se não houver seleção
-        [btnApprove, btnDelete].forEach(btn => {
+        [btnApprove, btnApproveWeek, btnDelete].forEach(btn => {
             if (btn) {
                 btn.disabled = true;
                 btn.className = 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
@@ -1581,10 +1590,12 @@ async function loadCalendarData() {
         if (error) throw error;
 
         console.log(`Posts carregados: ${data.length}`);
+        socialPostsCache = Array.isArray(data) ? data : [];
 
         // Atualiza estado dos botões (Habilitar apenas se houver posts)
         const btnDelete = document.getElementById('btn-delete-calendar');
         const btnApprove = document.getElementById('btn-approve');
+        const btnApproveWeek = document.getElementById('btn-approve-week');
         const hasPosts = data.length > 0;
 
         if (btnDelete) {
@@ -1615,16 +1626,19 @@ async function loadCalendarData() {
                 btnApprove.dataset.approvalSent = 'false';
             } else {
                 const approvalStatus = await fetchApprovalBatchStatus(currentClienteId, currentMonth);
-                if (approvalStatus?.approval_id) {
+                if (approvalStatus?.status && approvalStatus.status !== 'rascunho') {
                     setApproveButtonLabel(btnApprove, 'Reenviar calendário para aprovação');
                     btnApprove.dataset.approvalSent = 'true';
-                    btnApprove.dataset.approvalId = approvalStatus.approval_id;
+                    btnApprove.dataset.approvalStatus = approvalStatus.status;
                 } else {
                     setApproveButtonLabel(btnApprove, 'Enviar calendário para aprovação');
                     btnApprove.dataset.approvalSent = 'false';
-                    delete btnApprove.dataset.approvalId;
+                    delete btnApprove.dataset.approvalStatus;
                 }
             }
+        }
+        if (btnApproveWeek) {
+            updateWeeklyApproveState();
         }
 
         calendar.removeAllEvents();
@@ -1638,6 +1652,58 @@ async function loadCalendarData() {
         });
     } catch (err) {
         console.error('Erro ao carregar posts:', err);
+    }
+}
+
+function updateApprovalButtonsForView(viewType) {
+    const btnApprove = document.getElementById('btn-approve');
+    const btnApproveWeek = document.getElementById('btn-approve-week');
+    if (!btnApprove || !btnApproveWeek) return;
+    const isWeek = viewType === 'timeGridWeek';
+    if (isWeek) {
+        btnApprove.classList.add('hidden');
+        btnApproveWeek.classList.remove('hidden');
+    } else {
+        btnApprove.classList.remove('hidden');
+        btnApproveWeek.classList.add('hidden');
+    }
+    updateWeeklyApproveState();
+}
+
+function getCalendarWeekRange() {
+    if (!calendar?.view?.currentStart || !calendar?.view?.currentEnd) return null;
+    const start = new Date(calendar.view.currentStart);
+    const end = new Date(calendar.view.currentEnd);
+    end.setDate(end.getDate() - 1);
+    return { start, end };
+}
+
+function toDateOnly(value) {
+    if (!value) return '';
+    if (typeof value === 'string') return value.split('T')[0];
+    return value.toISOString().split('T')[0];
+}
+
+function updateWeeklyApproveState() {
+    const btnApproveWeek = document.getElementById('btn-approve-week');
+    if (!btnApproveWeek) return;
+    const range = getCalendarWeekRange();
+    if (!currentClienteId || !range) {
+        btnApproveWeek.disabled = true;
+        btnApproveWeek.className = 'hidden flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+        return;
+    }
+    const start = toDateOnly(range.start);
+    const end = toDateOnly(range.end);
+    const hasPostsInWeek = socialPostsCache.some((post) => {
+        const date = toDateOnly(post.data_agendada);
+        return date >= start && date <= end;
+    });
+    btnApproveWeek.disabled = !hasPostsInWeek;
+    if (hasPostsInWeek) {
+        btnApproveWeek.className = 'flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white border border-green-600 rounded-lg cursor-pointer hover:bg-green-600 font-medium text-sm shadow-md transition-all';
+    } else {
+        btnApproveWeek.className = 'hidden flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
     }
 }
 

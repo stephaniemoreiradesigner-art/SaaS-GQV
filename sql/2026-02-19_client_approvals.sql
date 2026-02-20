@@ -41,10 +41,26 @@ CREATE TABLE IF NOT EXISTS public.client_approvals (
     type text NOT NULL CHECK (type IN ('post','calendar')),
     item_id uuid NOT NULL,
     title text NOT NULL,
+    caption text,
     preview_url text,
     status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','changes_requested')),
     created_at timestamptz DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS public.client_approval_batches (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id uuid NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('posts_week')),
+    period_start date NOT NULL,
+    period_end date NOT NULL,
+    share_token uuid NOT NULL DEFAULT gen_random_uuid(),
+    access_password text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    CONSTRAINT client_approval_batches_period_unique UNIQUE (client_id, kind, period_start, period_end)
+);
+
+ALTER TABLE public.client_approvals
+ADD COLUMN IF NOT EXISTS batch_id uuid REFERENCES public.client_approval_batches(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS public.client_approval_comments (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -56,6 +72,9 @@ CREATE TABLE IF NOT EXISTS public.client_approval_comments (
 
 CREATE INDEX IF NOT EXISTS client_approvals_client_type_status_idx
     ON public.client_approvals (client_id, type, status);
+
+CREATE UNIQUE INDEX IF NOT EXISTS client_approvals_unique_item_batch_idx
+    ON public.client_approvals (type, item_id, batch_id);
 
 CREATE INDEX IF NOT EXISTS client_approval_comments_approval_created_idx
     ON public.client_approval_comments (approval_id, created_at);
