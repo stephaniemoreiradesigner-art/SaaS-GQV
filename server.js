@@ -1164,6 +1164,173 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/client/calendar/approvals/submit' && request.method === 'POST') {
+        try {
+            const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !supabaseAnonKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'supabase_nao_configurado' }));
+                return;
+            }
+            if (!serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const token = getBearerToken(request);
+            if (!token) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+
+            const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+                method: 'GET',
+                headers: {
+                    apikey: supabaseAnonKey,
+                    Authorization: `Bearer ${token}`
+                }
+            });
+            const userJson = await userRes.json().catch(() => null);
+            if (!userRes.ok) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+            const userId = userJson?.id || userJson?.user?.id || null;
+            if (!userId) {
+                response.writeHead(401, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'unauthorized' }));
+                return;
+            }
+
+            const profileParams = new URLSearchParams();
+            profileParams.set('select', 'tenant_id');
+            profileParams.set('id', `eq.${userId}`);
+            profileParams.set('limit', '1');
+            const profileUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/profiles?${profileParams.toString()}`;
+            const profileRes = await fetch(profileUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const profileJson = await profileRes.json().catch(() => null);
+            if (!profileRes.ok || !Array.isArray(profileJson) || profileJson.length === 0) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
+
+            const tenantId = profileJson[0]?.tenant_id;
+            if (!tenantId || !/^\d+$/.test(String(tenantId))) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
+
+            const month = String(parsedUrl.query.month || '').trim();
+            if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'month_invalido' }));
+                return;
+            }
+
+            const mesReferencia = `${month}-01`;
+
+            const calendarParams = new URLSearchParams();
+            calendarParams.set('select', '*');
+            calendarParams.set('cliente_id', `eq.${tenantId}`);
+            calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
+            calendarParams.set('limit', '1');
+            const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
+            const calendarRes = await fetch(calendarUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const calendarJson = await calendarRes.json().catch(() => null);
+            if (!calendarRes.ok) {
+                response.writeHead(calendarRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(calendarJson || { error: 'erro_ao_listar_calendario' }));
+                return;
+            }
+
+            let calendar = Array.isArray(calendarJson) ? calendarJson[0] : null;
+            if (!calendar) {
+                const insertRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars`, {
+                    method: 'POST',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        cliente_id: tenantId,
+                        mes_referencia: mesReferencia,
+                        status: 'rascunho'
+                    })
+                });
+                const insertJson = await insertRes.json().catch(() => null);
+                if (!insertRes.ok || !Array.isArray(insertJson) || insertJson.length === 0) {
+                    response.writeHead(insertRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(insertJson || { error: 'erro_ao_criar_calendario' }));
+                    return;
+                }
+                calendar = insertJson[0];
+            }
+
+            const currentStatus = String(calendar?.status || '').trim();
+            if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(currentStatus)) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ tenant_id: tenantId, calendar }));
+                return;
+            }
+
+            if (currentStatus === 'rascunho') {
+                const shareToken = calendar.share_token || crypto.randomUUID();
+                const accessPassword = calendar.access_password || crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+                const updatePayload = {
+                    status: 'aguardando_aprovacao',
+                    share_token: shareToken,
+                    access_password: accessPassword,
+                    updated_at: new Date().toISOString()
+                };
+                const updateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?id=eq.${calendar.id}`;
+                const updateRes = await fetch(updateUrl, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify(updatePayload)
+                });
+                const updateJson = await updateRes.json().catch(() => null);
+                if (!updateRes.ok || !Array.isArray(updateJson) || updateJson.length === 0) {
+                    response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(updateJson || { error: 'erro_ao_atualizar_calendario' }));
+                    return;
+                }
+                calendar = updateJson[0];
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ tenant_id: tenantId, calendar }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/social/approval-batch' && request.method === 'GET') {
         try {
             const authContext = await getAuthContext(request, response);
