@@ -114,3 +114,10 @@ ADD COLUMN IF NOT EXISTS medias jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 ALTER TABLE public.social_posts
 ADD COLUMN IF NOT EXISTS creative_guide jsonb;
+
+ALTER TABLE public.clientes
+ADD COLUMN IF NOT EXISTS persona_briefing text,
+ADD COLUMN IF NOT EXISTS brand_kit_url text,
+ADD COLUMN IF NOT EXISTS reference_doc_url text,
+ADD COLUMN IF NOT EXISTS ai_memory_summary text,
+ADD COLUMN IF NOT EXISTS ai_memory_updated_at timestamptz;

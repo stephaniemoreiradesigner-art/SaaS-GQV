@@ -61,39 +61,9 @@ async function updateCalendarConnections(clientId) {
     }
 }
 
-// Funções Globais para o Modal de Configuração (HTML -> JS)
-window.openConfigModal = function() {
-    const modal = document.getElementById('modal-ia');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        // Pequeno delay para permitir que o display:flex seja aplicado antes da opacidade
-        setTimeout(() => {
-            modal.classList.remove('opacity-0');
-            const content = document.getElementById('modal-ia-content');
-            if (content) content.classList.remove('scale-95');
-        }, 10);
-    }
-}
-
-window.closeConfigModal = function() {
-    const modal = document.getElementById('modal-ia');
-    if (modal) {
-        modal.classList.add('opacity-0');
-        const content = document.getElementById('modal-ia-content');
-        if (content) content.classList.add('scale-95');
-        
-        setTimeout(() => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }, 300);
-    }
-}
-
 window.openGenerationConfigModal = function() {
     const modal = document.getElementById('modal-generation-config');
     if (!modal) return;
-    closeConfigModal();
     setTimeout(() => {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -115,40 +85,6 @@ window.closeGenerationConfigModal = function() {
             modal.classList.add('hidden');
             modal.classList.remove('flex');
         }, 300);
-    }
-}
-
-// Funções para manipulação de arquivos (Upload)
-window.updateFileName = function(input) {
-    const id = input.id.replace('ia-', '');
-    // Tenta encontrar o label pelo ID composto, se não, tenta um fallback genérico ou loga erro
-    let label = document.getElementById('file-name-' + id);
-    let btnDelete = document.getElementById('btn-delete-' + id);
-    
-    // Fallback para IDs que podem não ter o prefixo 'ia-' no HTML (caso haja inconsistência)
-    if (!label && input.id === 'ia-referencias') label = document.getElementById('file-name-referencias');
-    if (!btnDelete && input.id === 'ia-referencias') btnDelete = document.getElementById('btn-delete-referencias');
-
-    if (input.files && input.files[0]) {
-        if(label) {
-            label.textContent = input.files[0].name;
-            label.classList.add('text-primary');
-        }
-        if(btnDelete) btnDelete.classList.remove('hidden');
-    } else {
-        if(label) {
-            label.textContent = 'Escolher arquivo';
-            label.classList.remove('text-primary');
-        }
-        if(btnDelete) btnDelete.classList.add('hidden');
-    }
-}
-
-window.clearFileInput = function(id) {
-    const input = document.getElementById(id);
-    if (input) {
-        input.value = '';
-        window.updateFileName(input);
     }
 }
 
@@ -384,26 +320,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnHeaderGenerate = document.getElementById('btn-header-generate');
     if (btnHeaderGenerate) btnHeaderGenerate.addEventListener('click', handleGenerateClick);
     
-    const btnModalGenerate = document.getElementById('btn-modal-generate');
-    if (btnModalGenerate) btnModalGenerate.addEventListener('click', openGenerationConfigModal);
-    
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
-
-    const btnCancelModal = document.getElementById('btn-modal-cancel');
-    if (btnCancelModal) {
-        btnCancelModal.addEventListener('click', (e) => {
-            e.preventDefault();
-            closeConfigModal();
-        });
-    }
-
-    const modalIa = document.getElementById('modal-ia');
-    if (modalIa) {
-        modalIa.addEventListener('click', (e) => {
-            if (e.target === modalIa) closeConfigModal();
-        });
-    }
 
     const modalGeneration = document.getElementById('modal-generation-config');
     if (modalGeneration) {
@@ -1726,7 +1644,7 @@ async function handleGenerateClick() {
         return;
     }
 
-    openConfigModal();
+    openGenerationConfigModal();
 }
 
 async function deleteCalendar() {
@@ -1780,7 +1698,7 @@ async function generateCalendar(config = {}) {
         return;
     }
 
-    const btn = document.getElementById('btn-modal-generate');
+    const btn = document.getElementById('btn-generation-confirm') || document.getElementById('btn-header-generate');
     if (!btn) return;
     
     const originalText = btn.innerHTML;
@@ -1792,8 +1710,7 @@ async function generateCalendar(config = {}) {
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
         lastSeasonalDates = seasonalDates;
 
-        const contextLinkInput = document.getElementById('ia-link-contexto');
-        const contextLink = contextLinkInput ? contextLinkInput.value.trim() : '';
+        const contextLink = null;
 
         const response = await fetch('/api/openai/proxy', {
             method: 'POST',
@@ -1802,6 +1719,7 @@ async function generateCalendar(config = {}) {
                 mode: 'calendar',
                 model: 'gpt-4-turbo',
                 temperature: 0.7,
+                client_id: currentClienteId,
                 client_name: client.nome_empresa,
                 niche: client.nicho_atuacao || 'Geral',
                 month: currentMonth,
@@ -1809,7 +1727,7 @@ async function generateCalendar(config = {}) {
                 posts_count: postsCount,
                 seasonal_dates: seasonalDates,
                 context_link: contextLink,
-                visual_identity: client.visual_identity || client.identidade_visual || ''
+                visual_identity: client.visual_identity || client.identidade_visual || null
             })
         });
 
@@ -1847,27 +1765,7 @@ async function generateCalendar(config = {}) {
         const rawPosts = calendarPayload.posts;
         console.log('Posts recebidos da IA:', rawPosts.length);
 
-        const referenceInput = document.getElementById('ia-referencias');
-        const visualInputFile = document.getElementById('ia-identidade-visual');
         const generalMedias = [];
-        if (referenceInput?.files?.length) {
-            const uploaded = await uploadMediaFiles([referenceInput.files[0]], {
-                clientId: currentClienteId,
-                month: currentMonth,
-                postId: null,
-                source: 'reference'
-            });
-            generalMedias.push(...uploaded);
-        }
-        if (visualInputFile?.files?.length) {
-            const uploaded = await uploadMediaFiles([visualInputFile.files[0]], {
-                clientId: currentClienteId,
-                month: currentMonth,
-                postId: null,
-                source: 'visual_identity'
-            });
-            generalMedias.push(...uploaded);
-        }
 
         const [year, month] = currentMonth.split('-').map(Number);
         const lastDay = new Date(year, month, 0).getDate();

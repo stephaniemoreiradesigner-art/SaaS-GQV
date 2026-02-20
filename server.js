@@ -62,6 +62,11 @@ ENTRADAS QUE VOCÊ RECEBERÁ
 - reference_file
 - visual_identity
 - previous_calendar_link
+- persona_briefing
+- brand_kit_url
+- reference_doc_url
+- ai_memory_summary
+- history_summary
 - client_insights (informações sobre público, nicho, comportamento, dados de engajamento, melhores dias/horários se disponíveis)
 
 =================================
@@ -103,6 +108,8 @@ REGRAS OBRIGATÓRIAS
 4) Evitar repetição do calendário anterior.
 5) Variar formatos e CTAs.
 6) Não usar frases genéricas ou clichês.
+7) Proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias fora de seasonal_dates.
+8) Se seasonal_dates estiver vazio, não mencionar nenhuma data/evento.
 
 =================================
 PARA CADA POST, ENTREGAR:
@@ -119,6 +126,8 @@ PARA CADA POST, ENTREGAR:
 - Hook forte
 - Estrutura do conteúdo
 - Legenda completa
+- Se LinkedIn estiver ativo, incluir legenda_linkedin
+- Se TikTok estiver ativo, incluir legenda_tiktok
 - CTA estratégico variado
 - Hashtags (5 a 12)
 
@@ -2689,20 +2698,145 @@ const server = http.createServer(async (request, response) => {
                 const niche = String(body.niche || 'Geral').trim();
                 const month = String(body.month || '').trim();
                 const contextLink = String(body.context_link || '').trim();
+                const clientId = body.client_id || null;
                 calendarContext = { postsCount, month, seasonalDates, platforms, visualIdentity };
+
+                const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+                let clientProfile = null;
+                let historySummary = '';
+                if (supabaseUrl && serviceRoleKey && clientId) {
+                    const clientParams = new URLSearchParams();
+                    clientParams.set('select', 'id,persona_briefing,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at,client_insights,visual_identity,identidade_visual,nome_empresa,nicho_atuacao');
+                    clientParams.set('id', `eq.${clientId}`);
+                    clientParams.set('limit', '1');
+                    const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
+                    const clientRes = await fetch(clientUrl, {
+                        method: 'GET',
+                        headers: {
+                            apikey: serviceRoleKey,
+                            Authorization: `Bearer ${serviceRoleKey}`
+                        }
+                    });
+                    const clientJson = await clientRes.json().catch(() => null);
+                    if (clientRes.ok && Array.isArray(clientJson) && clientJson.length) {
+                        clientProfile = clientJson[0];
+                    }
+
+                    const since = new Date();
+                    since.setMonth(since.getMonth() - 6);
+                    const sinceIso = since.toISOString();
+                    const postsParams = new URLSearchParams();
+                    postsParams.set('select', 'tema,legenda,legenda_linkedin,legenda_tiktok,data_agendada,status');
+                    postsParams.set('cliente_id', `eq.${clientId}`);
+                    postsParams.set('data_agendada', `gte.${sinceIso}`);
+                    postsParams.set('order', 'data_agendada.desc');
+                    postsParams.set('limit', '200');
+                    const postsUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?${postsParams.toString()}`;
+                    const postsRes = await fetch(postsUrl, {
+                        method: 'GET',
+                        headers: {
+                            apikey: serviceRoleKey,
+                            Authorization: `Bearer ${serviceRoleKey}`
+                        }
+                    });
+                    const postsJson = await postsRes.json().catch(() => null);
+                    const posts = Array.isArray(postsJson) ? postsJson : [];
+                    if (posts.length) {
+                        const themeCounts = {};
+                        const captionLengths = [];
+                        const ctaWords = {
+                            comente: 0,
+                            salve: 0,
+                            compartilhe: 0,
+                            clique: 0,
+                            saiba: 0,
+                            fale: 0,
+                            direct: 0,
+                            link: 0
+                        };
+                        let emojiCount = 0;
+                        let captionCount = 0;
+                        posts.forEach((post) => {
+                            const theme = String(post?.tema || '').trim();
+                            if (theme) {
+                                const key = theme.toLowerCase();
+                                themeCounts[key] = (themeCounts[key] || 0) + 1;
+                            }
+                            const captions = [post?.legenda, post?.legenda_linkedin, post?.legenda_tiktok].filter(Boolean);
+                            captions.forEach((caption) => {
+                                const text = String(caption || '').trim();
+                                if (!text) return;
+                                captionCount += 1;
+                                captionLengths.push(text.length);
+                                const lower = text.toLowerCase();
+                                if (lower.includes('comente')) ctaWords.comente += 1;
+                                if (lower.includes('salve')) ctaWords.salve += 1;
+                                if (lower.includes('compartilhe')) ctaWords.compartilhe += 1;
+                                if (lower.includes('clique')) ctaWords.clique += 1;
+                                if (lower.includes('saiba')) ctaWords.saiba += 1;
+                                if (lower.includes('fale')) ctaWords.fale += 1;
+                                if (lower.includes('direct') || lower.includes('dm')) ctaWords.direct += 1;
+                                if (lower.includes('link')) ctaWords.link += 1;
+                                emojiCount += (text.match(/[\u{1F300}-\u{1FAD6}]/gu) || []).length;
+                            });
+                        });
+                        const topThemes = Object.entries(themeCounts)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 12)
+                            .map(([name]) => name);
+                        const avgLength = captionLengths.length
+                            ? Math.round(captionLengths.reduce((sum, val) => sum + val, 0) / captionLengths.length)
+                            : 0;
+                        const topCtas = Object.entries(ctaWords)
+                            .filter(([, value]) => value > 0)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 5)
+                            .map(([word]) => word);
+                        const emojiAverage = captionCount ? (emojiCount / captionCount).toFixed(1) : '0';
+                        historySummary = [
+                            topThemes.length ? `Temas recentes: ${topThemes.join(', ')}.` : '',
+                            avgLength ? `Tamanho médio de legenda: ${avgLength} caracteres.` : '',
+                            topCtas.length ? `CTAs mais comuns: ${topCtas.join(', ')}.` : '',
+                            `Média de emojis por legenda: ${emojiAverage}.`
+                        ].filter(Boolean).join(' ');
+                    }
+                }
 
                 const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
                 const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
                 const contextText = contextLink ? `Link de contexto: ${contextLink}.` : 'Sem link de contexto.';
+                const personaBriefing = String(clientProfile?.persona_briefing || '').trim();
+                const brandKitUrl = String(clientProfile?.brand_kit_url || '').trim();
+                const referenceDocUrl = String(clientProfile?.reference_doc_url || '').trim();
+                const memorySummary = String(clientProfile?.ai_memory_summary || '').trim();
+                const clientInsights = String(clientProfile?.client_insights || '').trim();
+                const resolvedVisualIdentity = String(clientProfile?.visual_identity || clientProfile?.identidade_visual || visualIdentity || '').trim();
+                const resolvedClientName = String(clientProfile?.nome_empresa || clientName || '').trim();
+                const resolvedNiche = String(clientProfile?.nicho_atuacao || niche || 'Geral').trim();
+                const includeLinkedin = platforms.some((item) => String(item).toLowerCase() === 'linkedin');
+                const includeTiktok = platforms.some((item) => String(item).toLowerCase() === 'tiktok');
+                const includeMeta = platforms.some((item) => ['instagram', 'facebook'].includes(String(item).toLowerCase()));
 
                 const userPrompt = [
-                    `Cliente: ${clientName || 'Cliente sem nome'}.`,
-                    `Nicho: ${niche}.`,
+                    `Cliente: ${resolvedClientName || 'Cliente sem nome'}.`,
+                    `Nicho: ${resolvedNiche}.`,
                     `Mês: ${month}.`,
                     `Quantidade de posts: ${postsCount}.`,
                     platformsText,
                     seasonalText,
                     contextText,
+                    personaBriefing ? `Persona/Briefing: ${personaBriefing}.` : 'Persona/Briefing não informado.',
+                    brandKitUrl ? `Brand kit (URL): ${brandKitUrl}.` : 'Brand kit não informado.',
+                    referenceDocUrl ? `Documento de referência (URL): ${referenceDocUrl}.` : 'Documento de referência não informado.',
+                    clientInsights ? `Insights do cliente: ${clientInsights}.` : 'Insights do cliente não informados.',
+                    resolvedVisualIdentity ? `Identidade visual: ${resolvedVisualIdentity}.` : 'Identidade visual não informada.',
+                    memorySummary ? `Memória anterior: ${memorySummary}.` : 'Sem memória anterior.',
+                    historySummary ? `Histórico recente: ${historySummary}.` : 'Sem histórico recente.',
+                    includeMeta ? 'Use a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
+                    includeLinkedin ? 'Inclua legenda_linkedin para LinkedIn.' : 'LinkedIn não ativo.',
+                    includeTiktok ? 'Inclua legenda_tiktok para TikTok.' : 'TikTok não ativo.',
+                    'É proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias que não estejam em seasonal_dates.',
+                    'Se seasonal_dates estiver vazio, não mencione nenhuma data/evento.',
                     'Retorne JSON válido seguindo o schema pedido no system prompt.'
                 ].join(' ');
 
@@ -2714,6 +2848,23 @@ const server = http.createServer(async (request, response) => {
                         { role: 'user', content: userPrompt }
                     ]
                 };
+
+                if (supabaseUrl && serviceRoleKey && clientId && historySummary) {
+                    const updateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?id=eq.${clientId}`;
+                    await fetch(updateUrl, {
+                        method: 'PATCH',
+                        headers: {
+                            apikey: serviceRoleKey,
+                            Authorization: `Bearer ${serviceRoleKey}`,
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=representation'
+                        },
+                        body: JSON.stringify({
+                            ai_memory_summary: historySummary,
+                            ai_memory_updated_at: new Date().toISOString()
+                        })
+                    });
+                }
             } else {
                 payload = body;
             }
