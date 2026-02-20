@@ -827,8 +827,14 @@
 
         function closeModalAnim(id) {
             const el = document.getElementById(id);
+            if (!el) return;
             const content = el.firstElementChild;
             el.classList.add('opacity-0');
+            if (!content) {
+                el.classList.remove('flex');
+                el.classList.add('hidden');
+                return;
+            }
             content.classList.remove('scale-100');
             content.classList.add('scale-95');
             setTimeout(() => {
