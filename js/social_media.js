@@ -88,6 +88,28 @@ window.closeGenerationConfigModal = function() {
     }
 }
 
+function showGenerationLog() {
+    const log = document.getElementById('generationLog');
+    if (!log) return;
+    log.innerHTML = '';
+    log.classList.remove('hidden');
+}
+
+function appendGenerationLog(message) {
+    const log = document.getElementById('generationLog');
+    if (!log) return;
+    const line = document.createElement('div');
+    line.textContent = message;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+
+function hideGenerationLog() {
+    const log = document.getElementById('generationLog');
+    if (!log) return;
+    log.classList.add('hidden');
+}
+
 const MEDIA_BUCKET = 'social_media_uploads';
 const mediaUploadState = {
     feed: [],
@@ -1723,6 +1745,8 @@ async function generateCalendar(config = {}) {
     const originalText = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+    showGenerationLog();
+    appendGenerationLog('Iniciando geração do calendário...');
 
     try {
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
@@ -1731,6 +1755,7 @@ async function generateCalendar(config = {}) {
 
         const contextLink = null;
 
+        appendGenerationLog('Enviando dados para a IA...');
         const response = await fetch('/api/openai/proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1750,6 +1775,7 @@ async function generateCalendar(config = {}) {
             })
         });
 
+        appendGenerationLog('Resposta recebida da IA.');
         const responseClone = response.clone();
         let data;
         try {
@@ -1763,6 +1789,7 @@ async function generateCalendar(config = {}) {
             throw new Error(data.message || data.error || 'Erro na comunicação com a OpenAI (Proxy)');
         }
 
+        appendGenerationLog('Validando resposta da IA...');
         let content = data.choices[0].message.content;
 
         let calendarPayload;
@@ -1913,6 +1940,7 @@ async function generateCalendar(config = {}) {
             await window.supabaseClient.from('social_posts').select('id').limit(1);
         } catch (ignore) {}
 
+        appendGenerationLog('Salvando posts no banco...');
         const { error } = await window.supabaseClient
             .from('social_posts')
             .insert(postsToInsert)
@@ -1936,9 +1964,12 @@ async function generateCalendar(config = {}) {
         if (!calendarContainer) {
             console.error('[generateCalendar] container não encontrado');
         }
+        appendGenerationLog('Renderizando calendário...');
         await loadCalendarData();
         
         // Notificação de Sucesso
+        appendGenerationLog('Geração concluída com sucesso.');
+        setTimeout(() => hideGenerationLog(), 5000);
         const successDiv = document.createElement('div');
         successDiv.className = 'fixed top-5 right-5 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[80] animate-bounce-in flex items-center gap-3';
         successDiv.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><div><h4 class="font-bold">Sucesso!</h4><p class="text-sm">Calendário gerado com sucesso.</p></div>';
@@ -1947,6 +1978,7 @@ async function generateCalendar(config = {}) {
 
     } catch (err) {
         console.error('Erro Geral:', err);
+        appendGenerationLog(`Erro: ${err?.message || err}`);
         alert('Erro ao gerar calendário: ' + err.message);
     } finally {
         if(btn) {
