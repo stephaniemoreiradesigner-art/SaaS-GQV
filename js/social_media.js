@@ -1882,6 +1882,29 @@ async function generateCalendar(config = {}) {
             return y === year && m === month;
         };
 
+        const mesReferencia = `${currentMonth}-01`;
+        const clienteIdNum = parseInt(currentClienteId) || currentClienteId;
+        const { data: existingCalendar, error: calendarFetchError } = await window.supabaseClient
+            .from('social_calendars')
+            .select('id')
+            .eq('cliente_id', clienteIdNum)
+            .eq('mes_referencia', mesReferencia)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (calendarFetchError) throw calendarFetchError;
+        let calendar = existingCalendar;
+        if (!calendar) {
+            const { data: createdCalendar, error: calendarInsertError } = await window.supabaseClient
+                .from('social_calendars')
+                .insert({ cliente_id: clienteIdNum, mes_referencia: mesReferencia, status: 'rascunho' })
+                .select('id')
+                .single();
+            if (calendarInsertError) throw calendarInsertError;
+            calendar = createdCalendar;
+        }
+        console.log('[generateCalendar] calendarId:', calendar.id);
+
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
             const rawDate = post.scheduled_date || post.data_agendada || post.data || post.date || '';
@@ -1923,7 +1946,8 @@ async function generateCalendar(config = {}) {
             const estrategiaParts = [post.pillar || '', post.objective || '', post.week || ''].filter(Boolean);
 
             postsToInsert.push({
-                cliente_id: parseInt(currentClienteId) || currentClienteId,
+                cliente_id: clienteIdNum,
+                calendar_id: calendar.id,
                 data_agendada: dataAgendada,
                 hora_agendada: scheduledTime,
                 formato: normalizeFormat(post.format || post.formato),
