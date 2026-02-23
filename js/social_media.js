@@ -1755,25 +1755,35 @@ async function generateCalendar(config = {}) {
 
         const contextLink = null;
 
+        const apiEndpoint = '/api/openai/proxy';
+        console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
         appendGenerationLog('Enviando dados para a IA...');
-        const response = await fetch('/api/openai/proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                mode: 'calendar',
-                model: 'gpt-4-turbo',
-                temperature: 0.7,
-                client_id: currentClienteId,
-                client_name: client.nome_empresa,
-                niche: client.nicho_atuacao || 'Geral',
-                month: currentMonth,
-                platforms,
-                posts_count: postsCount,
-                seasonal_dates: seasonalDates,
-                context_link: contextLink,
-                visual_identity: client.visual_identity || client.identidade_visual || null
-            })
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        let response;
+        try {
+            response = await fetch(apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({
+                    mode: 'calendar',
+                    model: 'gpt-4-turbo',
+                    temperature: 0.7,
+                    client_id: currentClienteId,
+                    client_name: client.nome_empresa,
+                    niche: client.nicho_atuacao || 'Geral',
+                    month: currentMonth,
+                    platforms,
+                    posts_count: postsCount,
+                    seasonal_dates: seasonalDates,
+                    context_link: contextLink,
+                    visual_identity: client.visual_identity || client.identidade_visual || null
+                })
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
 
         appendGenerationLog('Resposta recebida da IA.');
         const responseClone = response.clone();
@@ -1978,8 +1988,16 @@ async function generateCalendar(config = {}) {
 
     } catch (err) {
         console.error('Erro Geral:', err);
-        appendGenerationLog(`Erro: ${err?.message || err}`);
-        alert('Erro ao gerar calendário: ' + err.message);
+        const errorMessage = err?.message || String(err);
+        const isNetworkFailure = err?.name === 'AbortError' || errorMessage.includes('Failed to fetch');
+        if (isNetworkFailure) {
+            const networkMessage = '❌ Falha de rede: API /api não respondeu. Verifique proxy do Coolify para /api e se backend está online.';
+            appendGenerationLog(networkMessage);
+            alert(networkMessage);
+        } else {
+            appendGenerationLog(`Erro: ${errorMessage}`);
+            alert('Erro ao gerar calendário: ' + errorMessage);
+        }
     } finally {
         if(btn) {
             btn.disabled = false;
