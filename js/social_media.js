@@ -110,6 +110,13 @@ function hideGenerationLog() {
     log.classList.add('hidden');
 }
 
+function generateRequestId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+    }
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 const MEDIA_BUCKET = 'social_media_uploads';
 const mediaUploadState = {
     feed: [],
@@ -1748,6 +1755,8 @@ async function generateCalendar(config = {}) {
     showGenerationLog();
     appendGenerationLog('Iniciando geração do calendário...');
 
+    const requestId = generateRequestId();
+    let calendarId = null;
     try {
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
@@ -1757,19 +1766,22 @@ async function generateCalendar(config = {}) {
 
         const apiEndpoint = '/api/openai/proxy';
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
-        appendGenerationLog('Enviando dados para a IA...');
+        console.log('[generateCalendar] request_id', requestId);
+        appendGenerationLog(`request_id: ${requestId}`);
+        appendGenerationLog('Chamando servidor...');
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
         let response;
         try {
             response = await fetch(apiEndpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
                 signal: controller.signal,
                 body: JSON.stringify({
                     mode: 'calendar',
                     model: 'gpt-4-turbo',
                     temperature: 0.7,
+                    request_id: requestId,
                     client_id: currentClienteId,
                     client_name: client.nome_empresa,
                     niche: client.nicho_atuacao || 'Geral',
@@ -1785,7 +1797,7 @@ async function generateCalendar(config = {}) {
             clearTimeout(timeoutId);
         }
 
-        appendGenerationLog('Resposta recebida da IA.');
+        appendGenerationLog(`Resposta recebida: status ${response.status}`);
         const responseClone = response.clone();
         let data;
         try {
@@ -1795,8 +1807,11 @@ async function generateCalendar(config = {}) {
             throw new Error(text || 'Resposta inválida do servidor.');
         }
 
-        if (!response.ok) {
-            throw new Error(data.message || data.error || 'Erro na comunicação com a OpenAI (Proxy)');
+        if (!response.ok || data?.ok === false) {
+            const errorMessage = data?.message || data?.error || 'Erro na comunicação com a OpenAI (Proxy)';
+            const errorRequestId = data?.request_id || requestId;
+            appendGenerationLog(`Erro: ${errorMessage} (request_id: ${errorRequestId})`);
+            throw new Error(`${errorMessage} (request_id: ${errorRequestId})`);
         }
 
         appendGenerationLog('Validando resposta da IA...');
@@ -1903,7 +1918,8 @@ async function generateCalendar(config = {}) {
             if (calendarInsertError) throw calendarInsertError;
             calendar = createdCalendar;
         }
-        console.log('[generateCalendar] calendarId:', calendar.id);
+        calendarId = calendar?.id || null;
+        console.log('[generateCalendar] calendarId:', calendarId);
 
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
@@ -2010,17 +2026,27 @@ async function generateCalendar(config = {}) {
         document.body.appendChild(successDiv);
         setTimeout(() => successDiv.remove(), 4000);
 
-    } catch (err) {
+        } catch (err) {
         console.error('Erro Geral:', err);
         const errorMessage = err?.message || String(err);
         const isNetworkFailure = err?.name === 'AbortError' || errorMessage.includes('Failed to fetch');
+            if (calendarId) {
+                try {
+                    await window.supabaseClient
+                        .from('social_calendars')
+                        .update({ erro_log: `request_id=${requestId} | ${errorMessage}` })
+                        .eq('id', calendarId);
+                } catch (logError) {
+                    console.error('Erro ao salvar erro_log:', logError);
+                }
+            }
         if (isNetworkFailure) {
-            const networkMessage = '❌ Falha de rede: API /api não respondeu. Verifique proxy do Coolify para /api e se backend está online.';
+                const networkMessage = `❌ Falha de rede: API /api não respondeu. request_id: ${requestId}. Verifique proxy do Coolify para /api e se backend está online.`;
             appendGenerationLog(networkMessage);
             alert(networkMessage);
         } else {
-            appendGenerationLog(`Erro: ${errorMessage}`);
-            alert('Erro ao gerar calendário: ' + errorMessage);
+                appendGenerationLog(`Erro: ${errorMessage} (request_id: ${requestId})`);
+                alert('Erro ao gerar calendário: ' + errorMessage + ` (request_id: ${requestId})`);
         }
     } finally {
         if(btn) {

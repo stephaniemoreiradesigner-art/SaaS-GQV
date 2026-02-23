@@ -2669,25 +2669,72 @@ const server = http.createServer(async (request, response) => {
     if (pathname === '/api/openai/proxy' && request.method === 'POST') {
         try {
             const apiKey = envVars['OPENAI_API_KEY'];
-            if (!apiKey) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'OPENAI_API_KEY não configurada no backend (.env)' }));
-                return;
-            }
-
             const rawBody = await readRequestBody(request);
             let body = null;
             try {
                 body = rawBody ? JSON.parse(rawBody) : null;
             } catch (parseError) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                body = null;
+            }
+
+            const headerRequestId = String(request.headers['x-request-id'] || '').trim();
+            const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
+            let errorLogContext = null;
+            const sendError = async (errorCode, message, details) => {
+                console.error(`[openai-proxy][${requestId}]`, { error_code: errorCode, message, details });
+                if (errorLogContext?.supabaseUrl && errorLogContext?.serviceRoleKey && errorLogContext?.clientId && errorLogContext?.mesReferencia) {
+                    try {
+                        const calendarParams = new URLSearchParams();
+                        calendarParams.set('select', 'id');
+                        calendarParams.set('cliente_id', `eq.${errorLogContext.clientId}`);
+                        calendarParams.set('mes_referencia', `eq.${errorLogContext.mesReferencia}`);
+                        calendarParams.set('limit', '1');
+                        const calendarUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
+                        const calendarRes = await fetch(calendarUrl, {
+                            method: 'GET',
+                            headers: {
+                                apikey: errorLogContext.serviceRoleKey,
+                                Authorization: `Bearer ${errorLogContext.serviceRoleKey}`
+                            }
+                        });
+                        const calendarJson = await calendarRes.json().catch(() => null);
+                        const calendar = Array.isArray(calendarJson) ? calendarJson[0] : null;
+                        if (calendar?.id) {
+                            const errorPayload = {
+                                erro_log: `request_id=${requestId} | ${message}`
+                            };
+                            await fetch(`${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?id=eq.${calendar.id}`, {
+                                method: 'PATCH',
+                                headers: {
+                                    apikey: errorLogContext.serviceRoleKey,
+                                    Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                                    'Content-Type': 'application/json',
+                                    Prefer: 'return=representation'
+                                },
+                                body: JSON.stringify(errorPayload)
+                            });
+                        }
+                    } catch (logError) {
+                        console.error(`[openai-proxy][${requestId}] erro_log falhou`, logError);
+                    }
+                }
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    ok: false,
+                    request_id: requestId,
+                    error_code: errorCode,
+                    message,
+                    details
+                }));
+            };
+
+            if (!apiKey) {
+                await sendError('OPENAI_KEY_MISSING', 'OPENAI_API_KEY não configurada no backend (.env)');
                 return;
             }
 
             if (!body) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'invalid_body', message: 'Body obrigatório.' }));
+                await sendError('INVALID_BODY', 'Body inválido. Envie JSON.');
                 return;
             }
 
@@ -2696,6 +2743,11 @@ const server = http.createServer(async (request, response) => {
             const isCalendarMode = body.mode === 'calendar' || body.posts_count !== undefined;
             let calendarContext = null;
             let payload;
+            let pendingMemoryUpdate = null;
+            const tenantId = body?.tenant_id || body?.client_id || null;
+            const clienteId = body?.client_id || null;
+            const mesReferencia = body?.month ? `${body.month}-01` : null;
+            console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
 
             if (isCalendarMode) {
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
@@ -2710,6 +2762,12 @@ const server = http.createServer(async (request, response) => {
                 calendarContext = { postsCount, month, seasonalDates, platforms, visualIdentity };
 
                 const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+                errorLogContext = {
+                    supabaseUrl,
+                    serviceRoleKey,
+                    clientId,
+                    mesReferencia
+                };
                 let clientProfile = null;
                 let historySummary = '';
                 if (supabaseUrl && serviceRoleKey && clientId) {
@@ -2858,49 +2916,75 @@ const server = http.createServer(async (request, response) => {
                 };
 
                 if (supabaseUrl && serviceRoleKey && clientId && historySummary) {
-                    const updateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?id=eq.${clientId}`;
-                    await fetch(updateUrl, {
-                        method: 'PATCH',
-                        headers: {
-                            apikey: serviceRoleKey,
-                            Authorization: `Bearer ${serviceRoleKey}`,
-                            'Content-Type': 'application/json',
-                            Prefer: 'return=representation'
-                        },
-                        body: JSON.stringify({
+                    pendingMemoryUpdate = {
+                        url: `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?id=eq.${clientId}`,
+                        payload: {
                             ai_memory_summary: historySummary,
                             ai_memory_updated_at: new Date().toISOString()
-                        })
-                    });
+                        },
+                        serviceRoleKey,
+                        clientId
+                    };
                 }
             } else {
                 payload = { ...body, model: finalModel };
             }
 
-            const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify(payload)
-            });
+            console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`);
+            const openAiController = new AbortController();
+            const openAiTimeout = setTimeout(() => openAiController.abort(), 60000);
+            let openAiResponse;
+            try {
+                openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    signal: openAiController.signal,
+                    body: JSON.stringify(payload)
+                });
+            } catch (error) {
+                if (error?.name === 'AbortError') {
+                    await sendError('OPENAI_TIMEOUT', 'Tempo limite ao chamar OpenAI.', error?.stack || null);
+                    return;
+                }
+                throw error;
+            } finally {
+                clearTimeout(openAiTimeout);
+            }
 
             const rawText = await openAiResponse.text();
+            console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
             let responseJson = null;
             try {
                 responseJson = JSON.parse(rawText);
             } catch (jsonError) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'openai_proxy_error', message: rawText || 'Resposta inválida da OpenAI.' }));
+                await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida da OpenAI.', rawText || null);
                 return;
             }
 
             if (!openAiResponse.ok) {
                 const message = responseJson?.error?.message || responseJson?.error || 'Erro na OpenAI.';
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'openai_proxy_error', message }));
+                await sendError('OPENAI_ERROR', message, responseJson?.error || null);
                 return;
+            }
+
+            if (isCalendarMode) {
+                console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
+                if (pendingMemoryUpdate?.url && pendingMemoryUpdate?.serviceRoleKey) {
+                    await fetch(pendingMemoryUpdate.url, {
+                        method: 'PATCH',
+                        headers: {
+                            apikey: pendingMemoryUpdate.serviceRoleKey,
+                            Authorization: `Bearer ${pendingMemoryUpdate.serviceRoleKey}`,
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=representation'
+                        },
+                        body: JSON.stringify(pendingMemoryUpdate.payload)
+                    });
+                }
+                console.log(`[openai-proxy][${requestId}] AFTER_SUPABASE`, { client_id: pendingMemoryUpdate?.clientId || null });
             }
 
             if (isCalendarMode && calendarContext) {
@@ -2951,7 +3035,7 @@ const server = http.createServer(async (request, response) => {
                     ].join('\n');
 
                     const convertPayload = {
-                        model: body.model || 'gpt-4-turbo',
+                        model: finalModel,
                         temperature: 0.2,
                         messages: [
                             { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
@@ -2959,22 +3043,40 @@ const server = http.createServer(async (request, response) => {
                         ]
                     };
 
-                    const convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
-                        },
-                        body: JSON.stringify(convertPayload)
-                    });
+                    const convertController = new AbortController();
+                    const convertTimeout = setTimeout(() => convertController.abort(), 60000);
+                    let convertResponse;
+                    try {
+                        convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${apiKey}`
+                            },
+                            signal: convertController.signal,
+                            body: JSON.stringify(convertPayload)
+                        });
+                    } catch (error) {
+                        if (error?.name === 'AbortError') {
+                            await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
+                            return;
+                        }
+                        throw error;
+                    } finally {
+                        clearTimeout(convertTimeout);
+                    }
 
                     const convertText = await convertResponse.text();
                     let convertJson = null;
                     try {
                         convertJson = JSON.parse(convertText);
                     } catch (convertParseError) {
-                        response.writeHead(500, { 'Content-Type': 'application/json' });
-                        response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'Falha ao converter resposta para JSON.' }));
+                        await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
+                        return;
+                    }
+                    if (!convertResponse.ok) {
+                        const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
+                        await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
                         return;
                     }
 
@@ -2983,8 +3085,7 @@ const server = http.createServer(async (request, response) => {
                     try {
                         convertedObject = JSON.parse(convertedContent);
                     } catch (convertedParseError) {
-                        response.writeHead(500, { 'Content-Type': 'application/json' });
-                        response.end(JSON.stringify({ error: 'openai_proxy_error', message: 'Resposta convertida ainda inválida.' }));
+                        await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
                         return;
                     }
 
@@ -3018,7 +3119,7 @@ const server = http.createServer(async (request, response) => {
                             seasonal_dates: calendarContext.seasonalDates || []
                         };
                         const creativePayload = {
-                            model: body.model || 'gpt-4-turbo',
+                            model: finalModel,
                             temperature: 0.5,
                             response_format: { type: 'json_object' },
                             messages: [
@@ -3027,14 +3128,28 @@ const server = http.createServer(async (request, response) => {
                             ]
                         };
                         try {
-                            const creativeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${apiKey}`
-                                },
-                                body: JSON.stringify(creativePayload)
-                            });
+                            const creativeController = new AbortController();
+                            const creativeTimeout = setTimeout(() => creativeController.abort(), 60000);
+                            let creativeResponse;
+                            try {
+                                creativeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${apiKey}`
+                                    },
+                                    signal: creativeController.signal,
+                                    body: JSON.stringify(creativePayload)
+                                });
+                            } catch (error) {
+                                if (error?.name === 'AbortError') {
+                                    post.creative_guide = post.creative_guide || null;
+                                    continue;
+                                }
+                                throw error;
+                            } finally {
+                                clearTimeout(creativeTimeout);
+                            }
                             const creativeText = await creativeResponse.text();
                             let creativeJson = null;
                             try {
@@ -3057,10 +3172,10 @@ const server = http.createServer(async (request, response) => {
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify(responseJson));
+            console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
             return;
         } catch (error) {
-            response.writeHead(500, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify({ error: 'openai_proxy_error', message: error.message }));
+            await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);
             return;
         }
     }
