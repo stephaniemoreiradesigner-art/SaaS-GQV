@@ -2780,6 +2780,13 @@ const server = http.createServer(async (request, response) => {
 
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
             const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
+            let responseSent = false;
+            const sendJson = (status, payload) => {
+                if (responseSent) return;
+                responseSent = true;
+                response.writeHead(status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(payload));
+            };
             let errorLogContext = null;
             const buildLogTimestamp = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             const buildLogLine = (message) => `[${buildLogTimestamp()}] ${message}`;
@@ -2895,14 +2902,13 @@ const server = http.createServer(async (request, response) => {
                         console.error(`[openai-proxy][${requestId}] erro_log falhou`, logError);
                     }
                 }
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({
+                sendJson(500, {
                     ok: false,
                     request_id: requestId,
                     error_code: errorCode,
                     message,
                     details
-                }));
+                });
             };
 
             if (!apiKey) {
@@ -3114,270 +3120,289 @@ const server = http.createServer(async (request, response) => {
                 payload = { ...body, model: finalModel };
             }
 
-            console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`);
-            const openAiController = new AbortController();
-            const openAiTimeout = setTimeout(() => openAiController.abort(), 60000);
-            let openAiResponse;
-            try {
-                openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    signal: openAiController.signal,
-                    body: JSON.stringify(payload)
-                });
-            } catch (error) {
-                if (error?.name === 'AbortError') {
-                    await sendError('OPENAI_TIMEOUT', 'Tempo limite ao chamar OpenAI.', error?.stack || null);
+            const executeProxy = async () => {
+                console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`);
+                const openAiController = new AbortController();
+                const openAiTimeout = setTimeout(() => openAiController.abort(), 60000);
+                let openAiResponse;
+                try {
+                    openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        signal: openAiController.signal,
+                        body: JSON.stringify(payload)
+                    });
+                } catch (error) {
+                    if (error?.name === 'AbortError') {
+                        await sendError('OPENAI_TIMEOUT', 'Tempo limite ao chamar OpenAI.', error?.stack || null);
+                        return;
+                    }
+                    throw error;
+                } finally {
+                    clearTimeout(openAiTimeout);
+                }
+
+                const rawText = await openAiResponse.text();
+                console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
+                if (isCalendarMode && errorLogContext?.supabaseUrl) {
+                    await appendCalendarLog('etapa 3/6 resposta da IA recebida');
+                }
+                let responseJson = null;
+                try {
+                    responseJson = JSON.parse(rawText);
+                } catch (jsonError) {
+                    await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida da OpenAI.', rawText || null);
                     return;
                 }
-                throw error;
-            } finally {
-                clearTimeout(openAiTimeout);
-            }
 
-            const rawText = await openAiResponse.text();
-            console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
-            if (isCalendarMode && errorLogContext?.supabaseUrl) {
-                await appendCalendarLog('etapa 3/6 resposta da IA recebida');
-            }
-            let responseJson = null;
-            try {
-                responseJson = JSON.parse(rawText);
-            } catch (jsonError) {
-                await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida da OpenAI.', rawText || null);
-                return;
-            }
-
-            if (!openAiResponse.ok) {
-                const message = responseJson?.error?.message || responseJson?.error || 'Erro na OpenAI.';
-                await sendError('OPENAI_ERROR', message, responseJson?.error || null);
-                return;
-            }
-
-            if (isCalendarMode) {
-                console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
-                if (pendingMemoryUpdate?.url && pendingMemoryUpdate?.serviceRoleKey) {
-                    await fetch(pendingMemoryUpdate.url, {
-                        method: 'PATCH',
-                        headers: {
-                            apikey: pendingMemoryUpdate.serviceRoleKey,
-                            Authorization: `Bearer ${pendingMemoryUpdate.serviceRoleKey}`,
-                            'Content-Type': 'application/json',
-                            Prefer: 'return=representation'
-                        },
-                        body: JSON.stringify(pendingMemoryUpdate.payload)
-                    });
-                }
-                console.log(`[openai-proxy][${requestId}] AFTER_SUPABASE`, { client_id: pendingMemoryUpdate?.clientId || null });
-            }
-
-            if (isCalendarMode && calendarContext) {
-                const contentRaw = String(responseJson?.choices?.[0]?.message?.content || '').trim();
-                const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
-                let calendarJson = null;
-                try {
-                    calendarJson = JSON.parse(sanitized);
-                } catch (parseError) {
-                    calendarJson = null;
+                if (!openAiResponse.ok) {
+                    const message = responseJson?.error?.message || responseJson?.error || 'Erro na OpenAI.';
+                    await sendError('OPENAI_ERROR', message, responseJson?.error || null);
+                    return;
                 }
 
-                if (Array.isArray(calendarJson)) {
-                    calendarJson = {
-                        month: calendarContext.month,
-                        timezone: 'America/Sao_Paulo',
-                        posts: calendarJson
-                    };
-                    responseJson.choices[0].message.content = JSON.stringify(calendarJson);
-                } else if (!calendarJson || !Array.isArray(calendarJson.posts)) {
-                    const converterPrompt = [
-                        'Converta o texto abaixo em JSON válido no seguinte formato:',
-                        '{',
-                        '  "month": "YYYY-MM",',
-                        '  "timezone": "America/Sao_Paulo",',
-                        '  "posts": [',
-                        '    {',
-                        '      "scheduled_date": "YYYY-MM-DD",',
-                        '      "scheduled_time": "HH:mm",',
-                        '      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",',
-                        '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
-                        '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
-                        '      "format": "Reels|Carrossel|Estático",',
-                        '      "tema": "...",',
-                        '      "hook": "...",',
-                        '      "structure": "...",',
-                        '      "legenda_instagram": "...",',
-                        '      "legenda_linkedin": "...",',
-                        '      "legenda_tiktok": "...",',
-                        '      "cta": "...",',
-                        '      "hashtags": ["...", "..."],',
-                        '      "criativo": {}',
-                        '    }',
-                        '  ]',
-                        '}',
-                        `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
-                        `Retorne EXATAMENTE ${calendarContext.postsCount} itens em posts.`,
-                        'Se algum campo não existir no texto original, preencha com string vazia.',
-                        'Texto para converter:',
-                        contentRaw
-                    ].join('\n');
-
-                    const convertPayload = {
-                        model: finalModel,
-                        temperature: 0.2,
-                        messages: [
-                            { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
-                            { role: 'user', content: converterPrompt }
-                        ]
-                    };
-
-                    const convertController = new AbortController();
-                    const convertTimeout = setTimeout(() => convertController.abort(), 60000);
-                    let convertResponse;
-                    try {
-                        convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                            method: 'POST',
+                if (isCalendarMode) {
+                    console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
+                    if (pendingMemoryUpdate?.url && pendingMemoryUpdate?.serviceRoleKey) {
+                        await fetch(pendingMemoryUpdate.url, {
+                            method: 'PATCH',
                             headers: {
+                                apikey: pendingMemoryUpdate.serviceRoleKey,
+                                Authorization: `Bearer ${pendingMemoryUpdate.serviceRoleKey}`,
                                 'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${apiKey}`
+                                Prefer: 'return=representation'
                             },
-                            signal: convertController.signal,
-                            body: JSON.stringify(convertPayload)
+                            body: JSON.stringify(pendingMemoryUpdate.payload)
                         });
-                    } catch (error) {
-                        if (error?.name === 'AbortError') {
-                            await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
-                            return;
-                        }
-                        throw error;
-                    } finally {
-                        clearTimeout(convertTimeout);
                     }
+                    console.log(`[openai-proxy][${requestId}] AFTER_SUPABASE`, { client_id: pendingMemoryUpdate?.clientId || null });
+                }
 
-                    const convertText = await convertResponse.text();
-                    let convertJson = null;
+                if (isCalendarMode && calendarContext) {
+                    const contentRaw = String(responseJson?.choices?.[0]?.message?.content || '').trim();
+                    const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    let calendarJson = null;
                     try {
-                        convertJson = JSON.parse(convertText);
-                    } catch (convertParseError) {
-                        await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
-                        return;
-                    }
-                    if (!convertResponse.ok) {
-                        const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
-                        await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
-                        return;
+                        calendarJson = JSON.parse(sanitized);
+                    } catch (parseError) {
+                        calendarJson = null;
                     }
 
-                    const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
-                    let convertedObject = null;
-                    try {
-                        convertedObject = JSON.parse(convertedContent);
-                    } catch (convertedParseError) {
-                        await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
-                        return;
-                    }
-
-                    if (Array.isArray(convertedObject)) {
-                        convertedObject = {
+                    if (Array.isArray(calendarJson)) {
+                        calendarJson = {
                             month: calendarContext.month,
                             timezone: 'America/Sao_Paulo',
-                            posts: convertedObject
+                            posts: calendarJson
                         };
-                    }
+                        responseJson.choices[0].message.content = JSON.stringify(calendarJson);
+                    } else if (!calendarJson || !Array.isArray(calendarJson.posts)) {
+                        const converterPrompt = [
+                            'Converta o texto abaixo em JSON válido no seguinte formato:',
+                            '{',
+                            '  "month": "YYYY-MM",',
+                            '  "timezone": "America/Sao_Paulo",',
+                            '  "posts": [',
+                            '    {',
+                            '      "scheduled_date": "YYYY-MM-DD",',
+                            '      "scheduled_time": "HH:mm",',
+                            '      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",',
+                            '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
+                            '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
+                            '      "format": "Reels|Carrossel|Estático",',
+                            '      "tema": "...",',
+                            '      "hook": "...",',
+                            '      "structure": "...",',
+                            '      "legenda_instagram": "...",',
+                            '      "legenda_linkedin": "...",',
+                            '      "legenda_tiktok": "...",',
+                            '      "cta": "...",',
+                            '      "hashtags": ["...", "..."],',
+                            '      "criativo": {}',
+                            '    }',
+                            '  ]',
+                            '}',
+                            `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
+                            `Retorne EXATAMENTE ${calendarContext.postsCount} itens em posts.`,
+                            'Se algum campo não existir no texto original, preencha com string vazia.',
+                            'Texto para converter:',
+                            contentRaw
+                        ].join('\n');
 
-                    responseJson.choices[0].message.content = JSON.stringify(convertedObject);
-                    calendarJson = convertedObject;
-                }
-
-                if (calendarJson && Array.isArray(calendarJson.posts)) {
-                    if (errorLogContext?.supabaseUrl) {
-                        await appendCalendarLog('etapa 4/6 normalizando estrutura');
-                    }
-                    for (const post of calendarJson.posts) {
-                        const format = post.format || post.formato || '';
-                        const theme = post.theme || post.tema || '';
-                        const hookValue = String(post.hook || '').trim();
-                        const structure = String(post.structure || post.conteudo_roteiro || '').trim();
-                        const possibleHook = hookValue || (structure ? structure.split('\n')[0] : '');
-                        const caption = post.caption || post.legenda_instagram || post.legenda || post.legenda_sugestao || '';
-                        if (post.criativo && !post.creative_guide) {
-                            post.creative_guide = post.criativo;
-                        }
-                        if (post.creative_guide) {
-                            continue;
-                        }
-                        const creativeInput = {
-                            platform_targets: calendarContext.platforms || [],
-                            format,
-                            theme,
-                            hook: possibleHook,
-                            caption,
-                            visual_identity: calendarContext.visualIdentity || '',
-                            seasonal_dates: calendarContext.seasonalDates || []
-                        };
-                        const creativePayload = {
+                        const convertPayload = {
                             model: finalModel,
-                            temperature: 0.5,
-                            response_format: { type: 'json_object' },
+                            temperature: 0.2,
                             messages: [
-                                { role: 'system', content: DESIGNER_SENIOR_CREATIVE_PROMPT },
-                                { role: 'user', content: JSON.stringify(creativeInput) }
+                                { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
+                                { role: 'user', content: converterPrompt }
                             ]
                         };
+
+                        const convertController = new AbortController();
+                        const convertTimeout = setTimeout(() => convertController.abort(), 60000);
+                        let convertResponse;
                         try {
-                            const creativeController = new AbortController();
-                            const creativeTimeout = setTimeout(() => creativeController.abort(), 60000);
-                            let creativeResponse;
-                            try {
-                                creativeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${apiKey}`
-                                    },
-                                    signal: creativeController.signal,
-                                    body: JSON.stringify(creativePayload)
-                                });
-                            } catch (error) {
-                                if (error?.name === 'AbortError') {
-                                    post.creative_guide = post.creative_guide || null;
-                                    continue;
-                                }
-                                throw error;
-                            } finally {
-                                clearTimeout(creativeTimeout);
+                            convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${apiKey}`
+                                },
+                                signal: convertController.signal,
+                                body: JSON.stringify(convertPayload)
+                            });
+                        } catch (error) {
+                            if (error?.name === 'AbortError') {
+                                await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
+                                return;
                             }
-                            const creativeText = await creativeResponse.text();
-                            let creativeJson = null;
-                            try {
-                                const parsedCreativeResponse = JSON.parse(creativeText);
-                                const content = String(parsedCreativeResponse?.choices?.[0]?.message?.content || '').trim();
-                                creativeJson = content ? JSON.parse(content) : null;
-                            } catch (parseError) {
-                                creativeJson = null;
-                            }
-                            if (creativeJson && typeof creativeJson === 'object') {
-                                post.creative_guide = creativeJson;
-                            }
-                        } catch (creativeError) {
-                            post.creative_guide = post.creative_guide || null;
+                            throw error;
+                        } finally {
+                            clearTimeout(convertTimeout);
                         }
+
+                        const convertText = await convertResponse.text();
+                        let convertJson = null;
+                        try {
+                            convertJson = JSON.parse(convertText);
+                        } catch (convertParseError) {
+                            await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
+                            return;
+                        }
+                        if (!convertResponse.ok) {
+                            const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
+                            await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
+                            return;
+                        }
+
+                        const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+                        let convertedObject = null;
+                        try {
+                            convertedObject = JSON.parse(convertedContent);
+                        } catch (convertedParseError) {
+                            await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
+                            return;
+                        }
+
+                        if (Array.isArray(convertedObject)) {
+                            convertedObject = {
+                                month: calendarContext.month,
+                                timezone: 'America/Sao_Paulo',
+                                posts: convertedObject
+                            };
+                        }
+
+                        responseJson.choices[0].message.content = JSON.stringify(convertedObject);
+                        calendarJson = convertedObject;
                     }
-                    if (errorLogContext?.supabaseUrl) {
-                        await appendCalendarLog('etapa 5/6 enriquecendo criativos');
+
+                    if (calendarJson && Array.isArray(calendarJson.posts)) {
+                        if (errorLogContext?.supabaseUrl) {
+                            await appendCalendarLog('etapa 4/6 normalizando estrutura');
+                        }
+                        for (const post of calendarJson.posts) {
+                            const format = post.format || post.formato || '';
+                            const theme = post.theme || post.tema || '';
+                            const hookValue = String(post.hook || '').trim();
+                            const structure = String(post.structure || post.conteudo_roteiro || '').trim();
+                            const possibleHook = hookValue || (structure ? structure.split('\n')[0] : '');
+                            const caption = post.caption || post.legenda_instagram || post.legenda || post.legenda_sugestao || '';
+                            if (post.criativo && !post.creative_guide) {
+                                post.creative_guide = post.criativo;
+                            }
+                            if (post.creative_guide) {
+                                continue;
+                            }
+                            const creativeInput = {
+                                platform_targets: calendarContext.platforms || [],
+                                format,
+                                theme,
+                                hook: possibleHook,
+                                caption,
+                                visual_identity: calendarContext.visualIdentity || '',
+                                seasonal_dates: calendarContext.seasonalDates || []
+                            };
+                            const creativePayload = {
+                                model: finalModel,
+                                temperature: 0.5,
+                                response_format: { type: 'json_object' },
+                                messages: [
+                                    { role: 'system', content: DESIGNER_SENIOR_CREATIVE_PROMPT },
+                                    { role: 'user', content: JSON.stringify(creativeInput) }
+                                ]
+                            };
+                            try {
+                                const creativeController = new AbortController();
+                                const creativeTimeout = setTimeout(() => creativeController.abort(), 60000);
+                                let creativeResponse;
+                                try {
+                                    creativeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${apiKey}`
+                                        },
+                                        signal: creativeController.signal,
+                                        body: JSON.stringify(creativePayload)
+                                    });
+                                } catch (error) {
+                                    if (error?.name === 'AbortError') {
+                                        post.creative_guide = post.creative_guide || null;
+                                        continue;
+                                    }
+                                    throw error;
+                                } finally {
+                                    clearTimeout(creativeTimeout);
+                                }
+                                const creativeText = await creativeResponse.text();
+                                let creativeJson = null;
+                                try {
+                                    const parsedCreativeResponse = JSON.parse(creativeText);
+                                    const content = String(parsedCreativeResponse?.choices?.[0]?.message?.content || '').trim();
+                                    creativeJson = content ? JSON.parse(content) : null;
+                                } catch (parseError) {
+                                    creativeJson = null;
+                                }
+                                if (creativeJson && typeof creativeJson === 'object') {
+                                    post.creative_guide = creativeJson;
+                                }
+                            } catch (creativeError) {
+                                post.creative_guide = post.creative_guide || null;
+                            }
+                        }
+                        if (errorLogContext?.supabaseUrl) {
+                            await appendCalendarLog('etapa 5/6 enriquecendo criativos');
+                        }
+                        responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                     }
-                    responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                 }
+
+                if (isCalendarMode && errorLogContext?.supabaseUrl) {
+                    await appendCalendarLog('etapa 6/6 finalizando', { status: 'aguardando_aprovacao' });
+                }
+                sendJson(200, responseJson);
+                console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
+            };
+
+            if (isCalendarMode) {
+                const calendarId = errorLogContext?.calendarId || null;
+                sendJson(200, {
+                    ok: true,
+                    request_id: requestId,
+                    calendar_id: calendarId,
+                    status: 'processing'
+                });
+                setImmediate(() => {
+                    executeProxy().catch(async (error) => {
+                        await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);
+                    });
+                });
+                return;
             }
 
-            if (isCalendarMode && errorLogContext?.supabaseUrl) {
-                await appendCalendarLog('etapa 6/6 finalizando', { status: 'aguardando_aprovacao' });
-            }
-            response.writeHead(200, { 'Content-Type': 'application/json' });
-            response.end(JSON.stringify(responseJson));
-            console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
+            await executeProxy();
             return;
         } catch (error) {
             await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);

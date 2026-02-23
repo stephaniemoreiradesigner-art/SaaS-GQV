@@ -129,6 +129,7 @@ let progressLastToken = '';
 let progressCalendarId = null;
 let lastGenerationConfig = null;
 let progressRequestId = null;
+let progressCompleted = false;
 
 function setGenerationStatusMessage(message) {
     const status = document.getElementById('generation-log-status');
@@ -161,7 +162,7 @@ function setRetryVisible(isVisible, message) {
     if (!actions || !retryButton) return;
     if (isVisible) {
         actions.classList.remove('hidden');
-        setGenerationStatusMessage(message || 'Sem atualização do backend há 20s. Verifique os logs técnicos.');
+        setGenerationStatusMessage(message || 'Sem atualização do backend há 30s. Verifique os logs técnicos.');
         retryButton.onclick = () => {
             actions.classList.add('hidden');
             setGenerationStatusMessage('');
@@ -194,9 +195,15 @@ async function pollCalendarProgress() {
         if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(status)) {
             setRetryVisible(false);
             stopCalendarProgressPolling();
+            if (!progressCompleted) {
+                progressCompleted = true;
+                appendGenerationLog('Geração concluída com sucesso.');
+                await loadCalendarData();
+                setTimeout(() => hideGenerationLog(), 5000);
+            }
         }
-        if (progressLastUpdateAt && Date.now() - progressLastUpdateAt > 20000) {
-            const technicalMessage = progressRequestId ? `Sem atualização do backend há 20s. request_id: ${progressRequestId}` : 'Sem atualização do backend há 20s.';
+        if (progressLastUpdateAt && Date.now() - progressLastUpdateAt > 30000) {
+            const technicalMessage = progressRequestId ? `Sem atualização do backend há 30s. request_id: ${progressRequestId}` : 'Sem atualização do backend há 30s.';
             setRetryVisible(true, technicalMessage);
         }
     } catch {}
@@ -206,6 +213,7 @@ function startCalendarProgressPolling(calendarId) {
     progressCalendarId = calendarId;
     progressLastUpdateAt = Date.now();
     progressLastToken = '';
+    progressCompleted = false;
     setRetryVisible(false);
     setGenerationStatusMessage('');
     renderProgressLog('');
@@ -1914,65 +1922,32 @@ async function generateCalendar(config = {}) {
         lastSeasonalDates = seasonalDates;
 
         const contextLink = null;
-        const mesReferencia = `${currentMonth}-01`;
-        const clienteIdNum = parseInt(currentClienteId) || currentClienteId;
-        const { data: existingCalendar, error: calendarFetchError } = await window.supabaseClient
-            .from('social_calendars')
-            .select('id')
-            .eq('cliente_id', clienteIdNum)
-            .eq('mes_referencia', mesReferencia)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (calendarFetchError) throw calendarFetchError;
-        let calendar = existingCalendar;
-        if (!calendar) {
-            const { data: createdCalendar, error: calendarInsertError } = await window.supabaseClient
-                .from('social_calendars')
-                .insert({ cliente_id: clienteIdNum, mes_referencia: mesReferencia, status: 'rascunho' })
-                .select('id')
-                .single();
-            if (calendarInsertError) throw calendarInsertError;
-            calendar = createdCalendar;
-        }
-        calendarId = calendar?.id || null;
-        console.log('[generateCalendar] calendarId:', calendarId);
-        if (calendarId) {
-            startCalendarProgressPolling(calendarId);
-        }
 
         const apiEndpoint = '/api/openai/proxy';
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
         console.log('[generateCalendar] request_id', requestId);
         appendGenerationLog(`request_id: ${requestId}`);
         appendGenerationLog('Chamando servidor...');
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000);
         let response;
-        try {
-            response = await fetch(apiEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
-                signal: controller.signal,
-                body: JSON.stringify({
-                    mode: 'calendar',
-                    model: 'gpt-4-turbo',
-                    temperature: 0.7,
-                    request_id: requestId,
-                    client_id: currentClienteId,
-                    client_name: client.nome_empresa,
-                    niche: client.nicho_atuacao || 'Geral',
-                    month: currentMonth,
-                    platforms,
-                    posts_count: postsCount,
-                    seasonal_dates: seasonalDates,
-                    context_link: contextLink,
-                    visual_identity: client.visual_identity || client.identidade_visual || null
-                })
-            });
-        } finally {
-            clearTimeout(timeoutId);
-        }
+        response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
+            body: JSON.stringify({
+                mode: 'calendar',
+                model: 'gpt-4-turbo',
+                temperature: 0.7,
+                request_id: requestId,
+                client_id: currentClienteId,
+                client_name: client.nome_empresa,
+                niche: client.nicho_atuacao || 'Geral',
+                month: currentMonth,
+                platforms,
+                posts_count: postsCount,
+                seasonal_dates: seasonalDates,
+                context_link: contextLink,
+                visual_identity: client.visual_identity || client.identidade_visual || null
+            })
+        });
 
         appendGenerationLog(`Resposta recebida: status ${response.status}`);
         const responseClone = response.clone();
@@ -1989,6 +1964,19 @@ async function generateCalendar(config = {}) {
             const errorRequestId = data?.request_id || requestId;
             appendGenerationLog(`Erro: ${errorMessage} (request_id: ${errorRequestId})`);
             throw new Error(`${errorMessage} (request_id: ${errorRequestId})`);
+        }
+
+        if (data?.status === 'processing') {
+            calendarId = data?.calendar_id || null;
+            progressRequestId = data?.request_id || requestId;
+            appendGenerationLog('Geração iniciada no servidor.');
+            if (calendarId) {
+                appendGenerationLog(`calendar_id: ${calendarId}`);
+                startCalendarProgressPolling(calendarId);
+            } else {
+                setGenerationStatusMessage('Aguardando calendário do servidor...');
+            }
+            return;
         }
 
         appendGenerationLog('Validando resposta da IA...');
@@ -2184,25 +2172,13 @@ async function generateCalendar(config = {}) {
         console.error('Erro Geral:', err);
         const errorMessage = err?.message || String(err);
         const isNetworkFailure = err?.name === 'AbortError' || errorMessage.includes('Failed to fetch');
-            if (calendarId) {
-                try {
-                    await window.supabaseClient
-                        .from('social_calendars')
-                        .update({ erro_log: `request_id=${requestId} | ${errorMessage}` })
-                        .eq('id', calendarId);
-                } catch (logError) {
-                    console.error('Erro ao salvar erro_log:', logError);
-                }
-            }
         if (isNetworkFailure) {
                 const networkMessage = `❌ Falha de rede: API /api não respondeu. request_id: ${requestId}. Verifique proxy do Coolify para /api e se backend está online.`;
             appendGenerationLog(networkMessage);
             setRetryVisible(true, networkMessage);
-            alert(networkMessage);
         } else {
                 appendGenerationLog(`Erro: ${errorMessage} (request_id: ${requestId})`);
                 setRetryVisible(true, `Erro: ${errorMessage} (request_id: ${requestId})`);
-                alert('Erro ao gerar calendário: ' + errorMessage + ` (request_id: ${requestId})`);
         }
     } finally {
         if(btn) {
