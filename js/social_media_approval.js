@@ -30,7 +30,7 @@ async function getAuthHeaders() {
     return headers;
 }
 
-const MEDIA_BUCKET = 'social_media_uploads';
+const APPROVAL_MEDIA_BUCKET = 'social_media_uploads';
 let approvalRangeFrom = null;
 let approvalRangeTo = null;
 let approvalCompletePosts = [];
@@ -65,7 +65,7 @@ function getPostMedias(post) {
 
 function getPublicUrlFromPath(path) {
     if (!path || !window.supabaseClient?.storage) return '';
-    const { data } = window.supabaseClient.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    const { data } = window.supabaseClient.storage.from(APPROVAL_MEDIA_BUCKET).getPublicUrl(path);
     return data?.publicUrl || '';
 }
 
@@ -117,6 +117,7 @@ async function sendMonthlyApproval() {
         } else {
             showApprovalFeedback('Calendário enviado para aprovação', 'success');
         }
+        console.log('[sendForApproval] aprovação enviada com sucesso', data);
         if (typeof loadCalendarData === 'function') await loadCalendarData();
     } catch (err) {
         console.error('Erro ao enviar calendário:', err);
