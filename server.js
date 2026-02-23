@@ -125,11 +125,40 @@ PARA CADA POST, ENTREGAR:
 - Formato recomendado (Reels, Carrossel ou Estático)
 - Hook forte
 - Estrutura do conteúdo
-- Legenda completa
+- Legenda principal para Instagram/Facebook (legenda_instagram)
 - Se LinkedIn estiver ativo, incluir legenda_linkedin
 - Se TikTok estiver ativo, incluir legenda_tiktok
 - CTA estratégico variado
 - Hashtags (5 a 12)
+- Criativo obrigatório (conforme formato)
+
+=================================
+FORMATO DO CRIATIVO (OBRIGATÓRIO)
+=================================
+
+- Se format = Estático:
+  "criativo": {
+    "tipo": "Estático",
+    "conceito_visual": "",
+    "composicao": "",
+    "texto_na_arte": "",
+    "banco_imagens_sugerido": "",
+    "checklist_designer": ["..."]
+  }
+- Se format = Carrossel:
+  "criativo": {
+    "tipo": "Carrossel",
+    "slides": [
+      { "titulo_do_slide": "", "copy": "", "visual_sugerido": "" }
+    ]
+  }
+- Se format = Reels:
+  "criativo": {
+    "tipo": "Reels",
+    "roteiro": { "gancho": "", "desenvolvimento": "", "encerramento": "" },
+    "cenas_sugeridas": ["..."],
+    "sugestoes_captacao": ["..."]
+  }
 
 =================================
 DIRETRIZES SOBRE DATA E HORÁRIO
@@ -166,12 +195,15 @@ Formato obrigatório:
       "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",
       "objective": "Autoridade|Engajamento|Conversão|Posicionamento",
       "format": "Reels|Carrossel|Estático",
-      "theme": "...",
+      "tema": "...",
       "hook": "...",
       "structure": "...",
-      "caption": "...",
+      "legenda_instagram": "...",
+      "legenda_linkedin": "...",
+      "legenda_tiktok": "...",
       "cta": "...",
-      "hashtags": ["...", "..."]
+      "hashtags": ["...", "..."],
+      "criativo": {}
     }
   ]
 }`;
@@ -197,36 +229,39 @@ REGRAS ANTI-ALUCINAÇÃO
 - Proibido inventar números/estatísticas/resultados. 
 
 ENTREGA (TEM QUE SER EXECUTÁVEL) 
-1) Direção de arte (estilo visual): composição, clima, referências genéricas (ex: “clean”, “editorial”, “documental”), ritmo. 
-2) Guia passo a passo (como montar no Canva/CapCut): 
-   - o que colocar 
-   - onde colocar 
-   - qual ordem 
-   - tamanho relativo (ex: título grande, texto curto) 
-3) Checklist de assets (o que o time precisa reunir) 
-4) Texto na tela (se vídeo) ou hierarquia por card (se carrossel) 
+Retorne um JSON válido, sem markdown, com o campo "criativo". 
 
 ADAPTAÇÃO POR FORMATO 
-- Se format = Reels/TikTok: 
-  - Roteiro por cenas (Cena 1..N) 
-  - Enquadramento (close, meio corpo, tela de celular, b-roll) 
-  - Texto na tela (curto e forte) 
-  - Ritmo (tempo por cena) 
-  - Sugestão de transições simples 
-- Se format = Carrossel: 
-  - Cards 1..8 com: headline, sub, bullets, prova, CTA 
-  - Diretriz de layout (margens, respiro, contraste) 
-- Se format = Estático: 
-  - Layout (título, apoio, elemento visual, CTA discreto) 
-  - Variação de 2 opções (A/B) se possível 
+- Se format = Estático:
+  "criativo": {
+    "tipo": "Estático",
+    "conceito_visual": "",
+    "composicao": "",
+    "texto_na_arte": "",
+    "banco_imagens_sugerido": "",
+    "checklist_designer": ["..."]
+  }
+- Se format = Carrossel:
+  "criativo": {
+    "tipo": "Carrossel",
+    "slides": [
+      { "titulo_do_slide": "", "copy": "", "visual_sugerido": "" }
+    ],
+    "checklist_designer": ["..."]
+  }
+- Se format = Reels/TikTok:
+  "criativo": {
+    "tipo": "Reels",
+    "roteiro": { "gancho": "", "desenvolvimento": "", "encerramento": "" },
+    "cenas_sugeridas": ["..."],
+    "sugestoes_captacao": ["..."]
+  }
 
 SAÍDA (JSON-ONLY) 
 Retorne SOMENTE um JSON válido, sem markdown: 
 
 { 
-  "creative_guide": "texto em passos curtos e claros", 
-  "assets_checklist": ["...","...","..."], 
-  "layout_or_script": "roteiro por cenas OU cards por slide" 
+  "criativo": {}
 }`;
 
 const IMPROVE_COPY_PROMPT = `Você é um Copywriter Sênior e Estrategista de Conteúdo com 15+ anos de experiência em crescimento orgânico (Instagram/Facebook), retenção e conversão indireta.
@@ -1171,6 +1206,66 @@ const server = http.createServer(async (request, response) => {
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ tenant_id: tenantId, calendar, post: Array.isArray(postsJson) ? postsJson : [] }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const socialCalendarMatch = pathname.match(/^\/api\/social\/calendars\/([^/]+)$/);
+    if (socialCalendarMatch && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const calendarId = socialCalendarMatch[1];
+            if (!calendarId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'calendar_id_invalido' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'supabase_nao_configurado' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,cliente_id,mes_referencia,status,erro_log,updated_at');
+            params.set('id', `eq.${calendarId}`);
+            params.set('limit', '1');
+            const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${params.toString()}`;
+            const calendarRes = await fetch(calendarUrl, {
+                method: 'GET',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`
+                }
+            });
+            const calendarJson = await calendarRes.json().catch(() => null);
+            if (!calendarRes.ok) {
+                response.writeHead(calendarRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(calendarJson || { error: 'erro_ao_listar_calendario' }));
+                return;
+            }
+            const calendar = Array.isArray(calendarJson) ? calendarJson[0] : null;
+            if (!calendar) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'calendario_nao_encontrado' }));
+                return;
+            }
+            if (String(calendar.cliente_id) !== String(authContext.tenantId)) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'acesso_negado' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true, calendar }));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });
@@ -2680,40 +2775,116 @@ const server = http.createServer(async (request, response) => {
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
             const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
             let errorLogContext = null;
+            const buildLogTimestamp = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            const buildLogLine = (message) => `[${buildLogTimestamp()}] ${message}`;
+            const fetchCalendarRow = async () => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !errorLogContext?.clientId || !errorLogContext?.mesReferencia) {
+                    return null;
+                }
+                const params = new URLSearchParams();
+                params.set('select', 'id,erro_log');
+                params.set('cliente_id', `eq.${errorLogContext.clientId}`);
+                params.set('mes_referencia', `eq.${errorLogContext.mesReferencia}`);
+                params.set('order', 'created_at.desc');
+                params.set('limit', '1');
+                const calendarUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${params.toString()}`;
+                const calendarRes = await fetch(calendarUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`
+                    }
+                });
+                const calendarJson = await calendarRes.json().catch(() => null);
+                if (!calendarRes.ok) return null;
+                return Array.isArray(calendarJson) ? calendarJson[0] : null;
+            };
+            const updateCalendarRow = async (calendarId, payload) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return null;
+                const updateRes = await fetch(`${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?id=eq.${calendarId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const updateJson = await updateRes.json().catch(() => null);
+                if (!updateRes.ok) return null;
+                return Array.isArray(updateJson) ? updateJson[0] : null;
+            };
+            const createCalendarRow = async (payload) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey) return null;
+                const createRes = await fetch(`${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars`, {
+                    method: 'POST',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const createJson = await createRes.json().catch(() => null);
+                if (!createRes.ok) return null;
+                return Array.isArray(createJson) ? createJson[0] : null;
+            };
+            const ensureCalendarProgress = async () => {
+                if (!errorLogContext?.clientId || !errorLogContext?.mesReferencia) return null;
+                let calendar = await fetchCalendarRow();
+                if (!calendar) {
+                    calendar = await createCalendarRow({
+                        cliente_id: errorLogContext.clientId,
+                        mes_referencia: errorLogContext.mesReferencia,
+                        status: 'rascunho',
+                        erro_log: null
+                    });
+                } else {
+                    calendar = await updateCalendarRow(calendar.id, { status: 'rascunho', erro_log: null }) || calendar;
+                }
+                if (calendar?.id) {
+                    errorLogContext.calendarId = calendar.id;
+                }
+                return calendar;
+            };
+            const appendCalendarLog = async (message, options = {}) => {
+                if (!errorLogContext?.clientId || !errorLogContext?.mesReferencia) return;
+                let calendar = null;
+                if (errorLogContext?.calendarId) {
+                    calendar = await fetchCalendarRow();
+                    if (!calendar) {
+                        calendar = { id: errorLogContext.calendarId, erro_log: '' };
+                    }
+                } else {
+                    calendar = await fetchCalendarRow();
+                }
+                if (!calendar && options.createIfMissing) {
+                    calendar = await createCalendarRow({
+                        cliente_id: errorLogContext.clientId,
+                        mes_referencia: errorLogContext.mesReferencia,
+                        status: options.status || 'rascunho',
+                        erro_log: null
+                    });
+                }
+                if (!calendar?.id) return;
+                if (!errorLogContext?.calendarId) {
+                    errorLogContext.calendarId = calendar.id;
+                }
+                const existingLog = typeof calendar.erro_log === 'string' ? calendar.erro_log : '';
+                const logLine = buildLogLine(message);
+                const updatedLog = existingLog ? `${existingLog}\n${logLine}` : logLine;
+                const payload = { erro_log: updatedLog };
+                if (options.status) payload.status = options.status;
+                await updateCalendarRow(calendar.id, payload);
+            };
             const sendError = async (errorCode, message, details) => {
                 console.error(`[openai-proxy][${requestId}]`, { error_code: errorCode, message, details });
                 if (errorLogContext?.supabaseUrl && errorLogContext?.serviceRoleKey && errorLogContext?.clientId && errorLogContext?.mesReferencia) {
                     try {
-                        const calendarParams = new URLSearchParams();
-                        calendarParams.set('select', 'id');
-                        calendarParams.set('cliente_id', `eq.${errorLogContext.clientId}`);
-                        calendarParams.set('mes_referencia', `eq.${errorLogContext.mesReferencia}`);
-                        calendarParams.set('limit', '1');
-                        const calendarUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
-                        const calendarRes = await fetch(calendarUrl, {
-                            method: 'GET',
-                            headers: {
-                                apikey: errorLogContext.serviceRoleKey,
-                                Authorization: `Bearer ${errorLogContext.serviceRoleKey}`
-                            }
-                        });
-                        const calendarJson = await calendarRes.json().catch(() => null);
-                        const calendar = Array.isArray(calendarJson) ? calendarJson[0] : null;
-                        if (calendar?.id) {
-                            const errorPayload = {
-                                erro_log: `request_id=${requestId} | ${message}`
-                            };
-                            await fetch(`${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?id=eq.${calendar.id}`, {
-                                method: 'PATCH',
-                                headers: {
-                                    apikey: errorLogContext.serviceRoleKey,
-                                    Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
-                                    'Content-Type': 'application/json',
-                                    Prefer: 'return=representation'
-                                },
-                                body: JSON.stringify(errorPayload)
-                            });
-                        }
+                        const detailsText = details ? ` | ${String(details)}` : '';
+                        await appendCalendarLog(`erro ${errorCode}: ${message}${detailsText}`, { status: 'rascunho', createIfMissing: true });
                     } catch (logError) {
                         console.error(`[openai-proxy][${requestId}] erro_log falhou`, logError);
                     }
@@ -2768,6 +2939,10 @@ const server = http.createServer(async (request, response) => {
                     clientId,
                     mesReferencia
                 };
+                if (supabaseUrl && serviceRoleKey && clientId && mesReferencia) {
+                    await ensureCalendarProgress();
+                    await appendCalendarLog('etapa 1/6 iniciando geração', { createIfMissing: true });
+                }
                 let clientProfile = null;
                 let historySummary = '';
                 if (supabaseUrl && serviceRoleKey && clientId) {
@@ -2898,7 +3073,7 @@ const server = http.createServer(async (request, response) => {
                     resolvedVisualIdentity ? `Identidade visual: ${resolvedVisualIdentity}.` : 'Identidade visual não informada.',
                     memorySummary ? `Memória anterior: ${memorySummary}.` : 'Sem memória anterior.',
                     historySummary ? `Histórico recente: ${historySummary}.` : 'Sem histórico recente.',
-                    includeMeta ? 'Use a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
+                    includeMeta ? 'Use legenda_instagram como legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
                     includeLinkedin ? 'Inclua legenda_linkedin para LinkedIn.' : 'LinkedIn não ativo.',
                     includeTiktok ? 'Inclua legenda_tiktok para TikTok.' : 'TikTok não ativo.',
                     'É proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias que não estejam em seasonal_dates.',
@@ -2914,6 +3089,9 @@ const server = http.createServer(async (request, response) => {
                         { role: 'user', content: userPrompt }
                     ]
                 };
+                if (supabaseUrl && serviceRoleKey && clientId && mesReferencia) {
+                    await appendCalendarLog('etapa 2/6 preparando prompt');
+                }
 
                 if (supabaseUrl && serviceRoleKey && clientId && historySummary) {
                     pendingMemoryUpdate = {
@@ -2956,6 +3134,9 @@ const server = http.createServer(async (request, response) => {
 
             const rawText = await openAiResponse.text();
             console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
+            if (isCalendarMode && errorLogContext?.supabaseUrl) {
+                await appendCalendarLog('etapa 3/6 resposta da IA recebida');
+            }
             let responseJson = null;
             try {
                 responseJson = JSON.parse(rawText);
@@ -3018,12 +3199,15 @@ const server = http.createServer(async (request, response) => {
                         '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
                         '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
                         '      "format": "Reels|Carrossel|Estático",',
-                        '      "theme": "...",',
+                        '      "tema": "...",',
                         '      "hook": "...",',
                         '      "structure": "...",',
-                        '      "caption": "...",',
+                        '      "legenda_instagram": "...",',
+                        '      "legenda_linkedin": "...",',
+                        '      "legenda_tiktok": "...",',
                         '      "cta": "...",',
-                        '      "hashtags": ["...", "..."]',
+                        '      "hashtags": ["...", "..."],',
+                        '      "criativo": {}',
                         '    }',
                         '  ]',
                         '}',
@@ -3102,13 +3286,22 @@ const server = http.createServer(async (request, response) => {
                 }
 
                 if (calendarJson && Array.isArray(calendarJson.posts)) {
+                    if (errorLogContext?.supabaseUrl) {
+                        await appendCalendarLog('etapa 4/6 normalizando estrutura');
+                    }
                     for (const post of calendarJson.posts) {
                         const format = post.format || post.formato || '';
                         const theme = post.theme || post.tema || '';
                         const hookValue = String(post.hook || '').trim();
                         const structure = String(post.structure || post.conteudo_roteiro || '').trim();
                         const possibleHook = hookValue || (structure ? structure.split('\n')[0] : '');
-                        const caption = post.caption || post.legenda || post.legenda_sugestao || '';
+                        const caption = post.caption || post.legenda_instagram || post.legenda || post.legenda_sugestao || '';
+                        if (post.criativo && !post.creative_guide) {
+                            post.creative_guide = post.criativo;
+                        }
+                        if (post.creative_guide) {
+                            continue;
+                        }
                         const creativeInput = {
                             platform_targets: calendarContext.platforms || [],
                             format,
@@ -3166,10 +3359,16 @@ const server = http.createServer(async (request, response) => {
                             post.creative_guide = post.creative_guide || null;
                         }
                     }
+                    if (errorLogContext?.supabaseUrl) {
+                        await appendCalendarLog('etapa 5/6 enriquecendo criativos');
+                    }
                     responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                 }
             }
 
+            if (isCalendarMode && errorLogContext?.supabaseUrl) {
+                await appendCalendarLog('etapa 6/6 finalizando', { status: 'aguardando_aprovacao' });
+            }
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify(responseJson));
             console.log(`[openai-proxy][${requestId}] END_SUCCESS`);

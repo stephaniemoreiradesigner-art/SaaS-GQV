@@ -91,23 +91,135 @@ window.closeGenerationConfigModal = function() {
 function showGenerationLog() {
     const log = document.getElementById('generationLog');
     if (!log) return;
-    log.innerHTML = '';
+    log.innerHTML = `
+        <div id="generation-log-header" class="font-semibold text-gray-800">Gerando conteúdo...</div>
+        <div id="generation-log-content" class="mt-2 space-y-1"></div>
+        <div id="generation-log-status" class="mt-2 text-[11px] text-gray-500"></div>
+        <div id="generation-log-actions" class="mt-3 hidden">
+            <button id="generation-log-retry" class="px-3 py-1 rounded bg-gray-800 text-white text-xs">Tentar novamente</button>
+        </div>
+    `;
     log.classList.remove('hidden');
 }
 
 function appendGenerationLog(message) {
     const log = document.getElementById('generationLog');
     if (!log) return;
+    const content = document.getElementById('generation-log-content');
     const line = document.createElement('div');
     line.textContent = message;
-    log.appendChild(line);
-    log.scrollTop = log.scrollHeight;
+    if (content) {
+        content.appendChild(line);
+        content.scrollTop = content.scrollHeight;
+    } else {
+        log.appendChild(line);
+        log.scrollTop = log.scrollHeight;
+    }
 }
 
 function hideGenerationLog() {
     const log = document.getElementById('generationLog');
     if (!log) return;
     log.classList.add('hidden');
+}
+
+let progressPollInterval = null;
+let progressLastUpdateAt = 0;
+let progressLastToken = '';
+let progressCalendarId = null;
+let lastGenerationConfig = null;
+let progressRequestId = null;
+
+function setGenerationStatusMessage(message) {
+    const status = document.getElementById('generation-log-status');
+    if (!status) return;
+    status.textContent = message || '';
+}
+
+function renderProgressLog(text) {
+    const content = document.getElementById('generation-log-content');
+    if (!content) return;
+    content.innerHTML = '';
+    const lines = String(text || '').split('\n').filter(Boolean);
+    if (!lines.length) {
+        const emptyLine = document.createElement('div');
+        emptyLine.textContent = 'Aguardando atualização do servidor...';
+        content.appendChild(emptyLine);
+        return;
+    }
+    lines.forEach((lineText) => {
+        const line = document.createElement('div');
+        line.textContent = lineText;
+        content.appendChild(line);
+    });
+    content.scrollTop = content.scrollHeight;
+}
+
+function setRetryVisible(isVisible, message) {
+    const actions = document.getElementById('generation-log-actions');
+    const retryButton = document.getElementById('generation-log-retry');
+    if (!actions || !retryButton) return;
+    if (isVisible) {
+        actions.classList.remove('hidden');
+        setGenerationStatusMessage(message || 'Sem atualização do backend há 20s. Verifique os logs técnicos.');
+        retryButton.onclick = () => {
+            actions.classList.add('hidden');
+            setGenerationStatusMessage('');
+            if (lastGenerationConfig) {
+                generateCalendar(lastGenerationConfig);
+            }
+        };
+    } else {
+        actions.classList.add('hidden');
+    }
+}
+
+async function pollCalendarProgress() {
+    if (!progressCalendarId) return;
+    try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/social/calendars/${progressCalendarId}`, { headers });
+        if (!res.ok) return;
+        const data = await res.json();
+        const calendar = data?.calendar || null;
+        if (!calendar) return;
+        const logText = String(calendar.erro_log || '');
+        const token = `${calendar.updated_at || ''}|${logText}`;
+        if (token !== progressLastToken) {
+            progressLastToken = token;
+            progressLastUpdateAt = Date.now();
+            renderProgressLog(logText);
+        }
+        const status = String(calendar.status || '');
+        if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(status)) {
+            setRetryVisible(false);
+            stopCalendarProgressPolling();
+        }
+        if (progressLastUpdateAt && Date.now() - progressLastUpdateAt > 20000) {
+            const technicalMessage = progressRequestId ? `Sem atualização do backend há 20s. request_id: ${progressRequestId}` : 'Sem atualização do backend há 20s.';
+            setRetryVisible(true, technicalMessage);
+        }
+    } catch {}
+}
+
+function startCalendarProgressPolling(calendarId) {
+    progressCalendarId = calendarId;
+    progressLastUpdateAt = Date.now();
+    progressLastToken = '';
+    setRetryVisible(false);
+    setGenerationStatusMessage('');
+    renderProgressLog('');
+    if (progressPollInterval) clearInterval(progressPollInterval);
+    progressPollInterval = setInterval(pollCalendarProgress, 1500);
+    pollCalendarProgress();
+}
+
+function stopCalendarProgressPolling() {
+    if (progressPollInterval) {
+        clearInterval(progressPollInterval);
+        progressPollInterval = null;
+    }
+    progressCalendarId = null;
 }
 
 function generateRequestId() {
@@ -197,6 +309,42 @@ function formatCreativeGuideForTextarea(value) {
     if (!guide) return '';
     if (typeof guide === 'string') return guide;
     const parts = [];
+    const criativo = guide.criativo || null;
+    if (criativo) {
+        const tipo = criativo.tipo || criativo.formato || '';
+        if (tipo) parts.push(`Criativo: ${tipo}`);
+        if (criativo.conceito_visual) parts.push(`Conceito visual:\n${criativo.conceito_visual}`);
+        if (criativo.composicao) parts.push(`Composição:\n${criativo.composicao}`);
+        if (criativo.texto_na_arte) parts.push(`Texto na arte:\n${criativo.texto_na_arte}`);
+        if (criativo.banco_imagens_sugerido) parts.push(`Banco de imagens sugerido:\n${criativo.banco_imagens_sugerido}`);
+        if (Array.isArray(criativo.checklist_designer) && criativo.checklist_designer.length) {
+            parts.push(`Checklist do designer:\n- ${criativo.checklist_designer.join('\n- ')}`);
+        }
+        if (Array.isArray(criativo.slides) && criativo.slides.length) {
+            const slidesText = criativo.slides.map((slide, index) => {
+                const title = slide?.titulo_do_slide || slide?.titulo || `Slide ${index + 1}`;
+                const copy = slide?.copy || '';
+                const visual = slide?.visual_sugerido || '';
+                return [`${title}`, copy ? `Copy: ${copy}` : '', visual ? `Visual: ${visual}` : ''].filter(Boolean).join('\n');
+            }).join('\n\n');
+            parts.push(`Slides:\n${slidesText}`);
+        }
+        if (criativo.roteiro) {
+            const roteiro = criativo.roteiro || {};
+            const roteiroParts = [];
+            if (roteiro.gancho) roteiroParts.push(`Gancho: ${roteiro.gancho}`);
+            if (roteiro.desenvolvimento) roteiroParts.push(`Desenvolvimento: ${roteiro.desenvolvimento}`);
+            if (roteiro.encerramento) roteiroParts.push(`Encerramento: ${roteiro.encerramento}`);
+            if (roteiroParts.length) parts.push(`Roteiro:\n${roteiroParts.join('\n')}`);
+        }
+        if (Array.isArray(criativo.cenas_sugeridas) && criativo.cenas_sugeridas.length) {
+            parts.push(`Cenas sugeridas:\n- ${criativo.cenas_sugeridas.join('\n- ')}`);
+        }
+        if (Array.isArray(criativo.sugestoes_captacao) && criativo.sugestoes_captacao.length) {
+            parts.push(`Sugestões de captação:\n- ${criativo.sugestoes_captacao.join('\n- ')}`);
+        }
+        return parts.filter(Boolean).join('\n\n');
+    }
     if (guide.creative_guide) parts.push(String(guide.creative_guide));
     if (Array.isArray(guide.assets_checklist) && guide.assets_checklist.length) {
         parts.push(`Assets:\n- ${guide.assets_checklist.join('\n- ')}`);
@@ -1756,13 +1904,42 @@ async function generateCalendar(config = {}) {
     appendGenerationLog('Iniciando geração do calendário...');
 
     const requestId = generateRequestId();
+    lastGenerationConfig = config;
+    progressRequestId = requestId;
     let calendarId = null;
+    let generationSucceeded = false;
     try {
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
         lastSeasonalDates = seasonalDates;
 
         const contextLink = null;
+        const mesReferencia = `${currentMonth}-01`;
+        const clienteIdNum = parseInt(currentClienteId) || currentClienteId;
+        const { data: existingCalendar, error: calendarFetchError } = await window.supabaseClient
+            .from('social_calendars')
+            .select('id')
+            .eq('cliente_id', clienteIdNum)
+            .eq('mes_referencia', mesReferencia)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (calendarFetchError) throw calendarFetchError;
+        let calendar = existingCalendar;
+        if (!calendar) {
+            const { data: createdCalendar, error: calendarInsertError } = await window.supabaseClient
+                .from('social_calendars')
+                .insert({ cliente_id: clienteIdNum, mes_referencia: mesReferencia, status: 'rascunho' })
+                .select('id')
+                .single();
+            if (calendarInsertError) throw calendarInsertError;
+            calendar = createdCalendar;
+        }
+        calendarId = calendar?.id || null;
+        console.log('[generateCalendar] calendarId:', calendarId);
+        if (calendarId) {
+            startCalendarProgressPolling(calendarId);
+        }
 
         const apiEndpoint = '/api/openai/proxy';
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
@@ -1897,30 +2074,6 @@ async function generateCalendar(config = {}) {
             return y === year && m === month;
         };
 
-        const mesReferencia = `${currentMonth}-01`;
-        const clienteIdNum = parseInt(currentClienteId) || currentClienteId;
-        const { data: existingCalendar, error: calendarFetchError } = await window.supabaseClient
-            .from('social_calendars')
-            .select('id')
-            .eq('cliente_id', clienteIdNum)
-            .eq('mes_referencia', mesReferencia)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (calendarFetchError) throw calendarFetchError;
-        let calendar = existingCalendar;
-        if (!calendar) {
-            const { data: createdCalendar, error: calendarInsertError } = await window.supabaseClient
-                .from('social_calendars')
-                .insert({ cliente_id: clienteIdNum, mes_referencia: mesReferencia, status: 'rascunho' })
-                .select('id')
-                .single();
-            if (calendarInsertError) throw calendarInsertError;
-            calendar = createdCalendar;
-        }
-        calendarId = calendar?.id || null;
-        console.log('[generateCalendar] calendarId:', calendarId);
-
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
             const rawDate = post.scheduled_date || post.data_agendada || post.data || post.date || '';
@@ -1950,7 +2103,7 @@ async function generateCalendar(config = {}) {
                 console.log('Post corrigido por fallback:', index, dataAgendada);
             }
 
-            const captionBase = post.caption || post.legenda || post.legenda_sugestao || '';
+            const captionBase = post.legenda_instagram || post.caption || post.legenda || post.legenda_sugestao || '';
             const cta = post.cta || '';
             const hashtags = Array.isArray(post.hashtags) ? post.hashtags.filter(Boolean) : [];
             const hashtagsText = hashtags.length
@@ -1967,10 +2120,10 @@ async function generateCalendar(config = {}) {
                 data_agendada: dataAgendada,
                 hora_agendada: scheduledTime,
                 formato: normalizeFormat(post.format || post.formato),
-                tema: post.theme || post.tema || 'Sem título',
+                tema: post.tema || post.theme || 'Sem título',
                 conteudo_roteiro: post.structure || post.conteudo_roteiro || '',
                 descricao_visual: post.descricao_visual || '',
-                creative_guide: post.creative_guide || null,
+                creative_guide: post.creative_guide || post.criativo || null,
                 estrategia: estrategiaParts.join(' | '),
                 legenda: legendaFinal,
                 legenda_linkedin: post.legenda_linkedin || null,
@@ -2016,6 +2169,7 @@ async function generateCalendar(config = {}) {
         }
         appendGenerationLog('Renderizando calendário...');
         await loadCalendarData();
+        generationSucceeded = true;
         
         // Notificação de Sucesso
         appendGenerationLog('Geração concluída com sucesso.');
@@ -2043,15 +2197,20 @@ async function generateCalendar(config = {}) {
         if (isNetworkFailure) {
                 const networkMessage = `❌ Falha de rede: API /api não respondeu. request_id: ${requestId}. Verifique proxy do Coolify para /api e se backend está online.`;
             appendGenerationLog(networkMessage);
+            setRetryVisible(true, networkMessage);
             alert(networkMessage);
         } else {
                 appendGenerationLog(`Erro: ${errorMessage} (request_id: ${requestId})`);
+                setRetryVisible(true, `Erro: ${errorMessage} (request_id: ${requestId})`);
                 alert('Erro ao gerar calendário: ' + errorMessage + ` (request_id: ${requestId})`);
         }
     } finally {
         if(btn) {
             btn.disabled = false;
             btn.innerHTML = originalText;
+        }
+        if (generationSucceeded) {
+            stopCalendarProgressPolling();
         }
     }
 }
@@ -2146,10 +2305,38 @@ async function generateSinglePostAI(date, format) {
             "conteudo_roteiro": "Texto do post, roteiro do vídeo ou slides do carrossel. Detalhado.",
             "descricao_visual": "Descrição da imagem ou cena do vídeo.",
             "estrategia": "Qual o objetivo deste post (Engajamento, Venda, Autoridade).",
-            "legenda_sugestao": "Legenda principal (Instagram/Facebook). ESTILO BÚSSOLA CRIATIVOS: Densa, Persuasiva, Storytelling, AIDA.",
+            "legenda_instagram": "Legenda principal (Instagram/Facebook). ESTILO BÚSSOLA CRIATIVOS: Densa, Persuasiva, Storytelling, AIDA.",
             "legenda_linkedin": "Legenda adaptada para LinkedIn (opcional, preencha se fizer sentido para o nicho).",
-            "legenda_tiktok": "Legenda adaptada para TikTok (opcional, preencha se for vídeo)."
+            "legenda_tiktok": "Legenda adaptada para TikTok (opcional, preencha se for vídeo).",
+            "cta": "Chamada para ação objetiva",
+            "hashtags": ["#tag1", "#tag2"],
+            "criativo": {}
         }
+
+        FORMATO DO CRIATIVO:
+        - Se format = Estático:
+          "criativo": {
+            "tipo": "Estático",
+            "conceito_visual": "",
+            "composicao": "",
+            "texto_na_arte": "",
+            "banco_imagens_sugerido": "",
+            "checklist_designer": ["..."]
+          }
+        - Se format = Carrossel:
+          "criativo": {
+            "tipo": "Carrossel",
+            "slides": [
+              { "titulo_do_slide": "", "copy": "", "visual_sugerido": "" }
+            ]
+          }
+        - Se format = Reels:
+          "criativo": {
+            "tipo": "Reels",
+            "roteiro": { "gancho": "", "desenvolvimento": "", "encerramento": "" },
+            "cenas_sugeridas": ["..."],
+            "sugestoes_captacao": ["..."]
+          }
         
         DIRETRIZES DE COPYWRITING (MODELO BÚSSOLA CRIATIVOS):
         1. HOOK (Gancho): Comece com uma frase impactante, curiosa ou contra-intuitiva.
@@ -2208,9 +2395,10 @@ async function generateSinglePostAI(date, format) {
             conteudo_roteiro: jsonContent.conteudo_roteiro || '',
             descricao_visual: jsonContent.descricao_visual || '',
             estrategia: jsonContent.estrategia || '',
-            legenda: jsonContent.legenda_sugestao || '',
+            legenda: jsonContent.legenda_instagram || jsonContent.legenda_sugestao || '',
             legenda_linkedin: jsonContent.legenda_linkedin || null,
             legenda_tiktok: jsonContent.legenda_tiktok || null,
+            creative_guide: jsonContent.criativo || jsonContent.creative_guide || null,
             status: 'rascunho'
         };
 
