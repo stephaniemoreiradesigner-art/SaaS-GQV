@@ -2691,6 +2691,8 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            const model = body?.model;
+            const finalModel = model || 'gpt-4o-mini';
             const isCalendarMode = body.mode === 'calendar' || body.posts_count !== undefined;
             let calendarContext = null;
             let payload;
@@ -2847,7 +2849,7 @@ const server = http.createServer(async (request, response) => {
                 ].join(' ');
 
                 payload = {
-                    model: body.model || 'gpt-4-turbo',
+                    model: finalModel,
                     temperature: Number.isFinite(Number(body.temperature)) ? Number(body.temperature) : 0.7,
                     messages: [
                         { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
@@ -2872,7 +2874,7 @@ const server = http.createServer(async (request, response) => {
                     });
                 }
             } else {
-                payload = body;
+                payload = { ...body, model: finalModel };
             }
 
             const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
