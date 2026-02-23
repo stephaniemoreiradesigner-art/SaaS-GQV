@@ -380,7 +380,9 @@ const readRequestBody = async (request) => {
     for await (const chunk of request) {
         buffers.push(chunk);
     }
-    return Buffer.concat(buffers).toString();
+    const raw = Buffer.concat(buffers).toString();
+    console.log('RAW_CHUNKS:', raw);
+    return raw;
 };
 
 const getSupabaseConfig = () => {
@@ -2788,6 +2790,8 @@ const server = http.createServer(async (request, response) => {
         try {
             const apiKey = envVars['OPENAI_API_KEY'];
             const rawBody = await readRequestBody(request);
+            console.log('RAW_HEADERS:', request.headers);
+            console.log('CONTENT_TYPE:', request.headers['content-type']);
             let body = null;
             try {
                 body = rawBody ? JSON.parse(rawBody) : null;
@@ -2800,6 +2804,9 @@ const server = http.createServer(async (request, response) => {
                 }));
                 return;
             }
+            console.log('BODY_TYPE:', typeof body);
+            console.log('BODY_VALUE:', body);
+            console.log('PARSED_BODY:', body);
 
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
             const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
