@@ -625,33 +625,33 @@ const resolveTenantIdFromClientId = async (request, clientId) => {
     if (type === 'post') {
         const postRes = await supabaseRest(
             request,
-            `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(cliente_id)&id=eq.${itemId}&limit=1`
+            `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(tenant_id)&id=eq.${itemId}&limit=1`
         );
         const postRow = Array.isArray(postRes.data) ? postRes.data[0] : null;
-        return postRow?.social_calendars?.cliente_id || postRow?.cliente_id || null;
+        return postRow?.social_calendars?.tenant_id || postRow?.tenant_id || null;
     }
     if (type === 'calendar') {
         const calendarRes = await supabaseRest(
             request,
-            `/rest/v1/social_calendars?select=cliente_id&id=eq.${itemId}&limit=1`
+            `/rest/v1/social_calendars?select=tenant_id&id=eq.${itemId}&limit=1`
         );
         const calendarRow = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
-        return calendarRow?.cliente_id || null;
+        return calendarRow?.tenant_id || null;
     }
     const postRes = await supabaseRest(
         request,
-        `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(cliente_id)&id=eq.${itemId}&limit=1`
+        `/rest/v1/social_posts?select=calendar_id,social_calendars!inner(tenant_id)&id=eq.${itemId}&limit=1`
     );
     const postRow = Array.isArray(postRes.data) ? postRes.data[0] : null;
-    if (postRow?.social_calendars?.cliente_id || postRow?.cliente_id) {
-        return postRow?.social_calendars?.cliente_id || postRow?.cliente_id || null;
+    if (postRow?.social_calendars?.tenant_id || postRow?.tenant_id) {
+        return postRow?.social_calendars?.tenant_id || postRow?.tenant_id || null;
     }
     const calendarRes = await supabaseRest(
         request,
-        `/rest/v1/social_calendars?select=cliente_id&id=eq.${itemId}&limit=1`
+        `/rest/v1/social_calendars?select=tenant_id&id=eq.${itemId}&limit=1`
     );
     const calendarRow = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
-    return calendarRow?.cliente_id || null;
+    return calendarRow?.tenant_id || null;
 };
 
 const getAuthContext = async (request, response) => {
@@ -1148,7 +1148,7 @@ const server = http.createServer(async (request, response) => {
 
             const calendarParams = new URLSearchParams();
             calendarParams.set('select', '*');
-            calendarParams.set('cliente_id', `eq.${tenantId}`);
+            calendarParams.set('tenant_id', `eq.${tenantId}`);
             calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
             calendarParams.set('limit', '1');
             const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
@@ -1178,6 +1178,7 @@ const server = http.createServer(async (request, response) => {
                     },
                     body: JSON.stringify({
                         cliente_id: tenantId,
+                        tenant_id: tenantId,
                         mes_referencia: mesReferencia,
                         status: 'rascunho'
                     })
@@ -1225,6 +1226,12 @@ const server = http.createServer(async (request, response) => {
         try {
             const authContext = await getAuthContext(request, response);
             if (!authContext) return;
+            const requestTenantId = authContext?.tenantId || request.tenant_id || null;
+            if (!requestTenantId || !/^\d+$/.test(String(requestTenantId))) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
 
             const calendarId = socialCalendarMatch[1];
             if (!calendarId) {
@@ -1241,8 +1248,9 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,cliente_id,mes_referencia,status,erro_log,updated_at');
+            params.set('select', 'id,cliente_id,tenant_id,mes_referencia,status,erro_log,updated_at');
             params.set('id', `eq.${calendarId}`);
+            params.set('tenant_id', `eq.${requestTenantId}`);
             params.set('limit', '1');
             const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${params.toString()}`;
             const calendarRes = await fetch(calendarUrl, {
@@ -1264,7 +1272,7 @@ const server = http.createServer(async (request, response) => {
                 response.end(JSON.stringify({ error: 'calendario_nao_encontrado' }));
                 return;
             }
-            if (String(calendar.cliente_id) !== String(authContext.tenantId)) {
+            if (String(calendar.tenant_id) !== String(requestTenantId)) {
                 response.writeHead(403, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'acesso_negado' }));
                 return;
@@ -1358,7 +1366,7 @@ const server = http.createServer(async (request, response) => {
 
             const calendarParams = new URLSearchParams();
             calendarParams.set('select', '*');
-            calendarParams.set('cliente_id', `eq.${tenantId}`);
+            calendarParams.set('tenant_id', `eq.${tenantId}`);
             calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
             calendarParams.set('limit', '1');
             const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
@@ -1388,6 +1396,7 @@ const server = http.createServer(async (request, response) => {
                     },
                     body: JSON.stringify({
                         cliente_id: tenantId,
+                        tenant_id: tenantId,
                         mes_referencia: mesReferencia,
                         status: 'rascunho'
                     })
@@ -1481,8 +1490,8 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,legenda_linkedin,legenda_tiktok,link_criativo,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(cliente_id)');
-            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
+            params.set('select', 'id,tema,legenda,legenda_linkedin,legenda_tiktok,link_criativo,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(tenant_id)');
+            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
             params.set('data_agendada', `gte.${from}`);
             params.append('data_agendada', `lte.${to}`);
             params.set('order', 'data_agendada.asc');
@@ -1762,8 +1771,9 @@ const server = http.createServer(async (request, response) => {
             const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id,tenant_id)');
             params.set('social_calendars.cliente_id', `eq.${clientId}`);
+            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
             params.set('data_agendada', `gte.${startDate}`);
             params.append('data_agendada', `lte.${endDate}`);
             params.set('order', 'data_agendada.asc');
@@ -1848,8 +1858,9 @@ const server = http.createServer(async (request, response) => {
             const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id,tenant_id)');
             params.set('social_calendars.cliente_id', `eq.${clientId}`);
+            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
             params.set('data_agendada', `gte.${startDate}`);
             params.append('data_agendada', `lte.${endDate}`);
             params.set('order', 'data_agendada.asc');
@@ -1950,8 +1961,8 @@ const server = http.createServer(async (request, response) => {
             const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id)');
-            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
+            params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(tenant_id)');
+            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
             params.set('data_agendada', `gte.${startDate}`);
             params.append('data_agendada', `lte.${endDate}`);
             params.set('order', 'data_agendada.asc');
@@ -2150,8 +2161,8 @@ const server = http.createServer(async (request, response) => {
             const order = allowedOrderFields.has(orderField) ? `${orderField}.${orderDir}` : 'data_agendada.asc';
 
             const params = new URLSearchParams();
-            params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(cliente_id)');
-            params.set('social_calendars.cliente_id', `eq.${tenantId}`);
+            params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(tenant_id)');
+            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
             params.set('status', 'in.(pendente_aprovação,pendente_aprovacao,aguardando_aprovacao,pending,pending_approval,pendente)');
             params.set('order', order);
             params.set('limit', String(limit));
@@ -2795,8 +2806,11 @@ const server = http.createServer(async (request, response) => {
                     return null;
                 }
                 const params = new URLSearchParams();
-                params.set('select', 'id,erro_log');
+                params.set('select', 'id,erro_log,tenant_id');
                 params.set('cliente_id', `eq.${errorLogContext.clientId}`);
+                if (errorLogContext.tenantId) {
+                    params.set('tenant_id', `eq.${errorLogContext.tenantId}`);
+                }
                 params.set('mes_referencia', `eq.${errorLogContext.mesReferencia}`);
                 params.set('order', 'created_at.desc');
                 params.set('limit', '1');
@@ -2850,12 +2864,17 @@ const server = http.createServer(async (request, response) => {
                 if (!calendar) {
                     calendar = await createCalendarRow({
                         cliente_id: errorLogContext.clientId,
+                        tenant_id: errorLogContext.tenantId,
                         mes_referencia: errorLogContext.mesReferencia,
                         status: 'rascunho',
                         erro_log: null
                     });
                 } else {
-                    calendar = await updateCalendarRow(calendar.id, { status: 'rascunho', erro_log: null }) || calendar;
+                    calendar = await updateCalendarRow(calendar.id, {
+                        status: 'rascunho',
+                        erro_log: null,
+                        tenant_id: errorLogContext.tenantId
+                    }) || calendar;
                 }
                 if (calendar?.id) {
                     errorLogContext.calendarId = calendar.id;
@@ -2876,6 +2895,7 @@ const server = http.createServer(async (request, response) => {
                 if (!calendar && options.createIfMissing) {
                     calendar = await createCalendarRow({
                         cliente_id: errorLogContext.clientId,
+                        tenant_id: errorLogContext.tenantId,
                         mes_referencia: errorLogContext.mesReferencia,
                         status: options.status || 'rascunho',
                         erro_log: null
@@ -2927,7 +2947,8 @@ const server = http.createServer(async (request, response) => {
             let calendarContext = null;
             let payload;
             let pendingMemoryUpdate = null;
-            const tenantId = body?.tenant_id || body?.client_id || null;
+            const rawTenantId = request.tenant_id;
+            const tenantId = rawTenantId && /^\d+$/.test(String(rawTenantId)) ? String(rawTenantId) : null;
             const clienteId = body?.client_id || null;
             const mesReferencia = body?.month ? `${body.month}-01` : null;
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
@@ -2949,7 +2970,8 @@ const server = http.createServer(async (request, response) => {
                     supabaseUrl,
                     serviceRoleKey,
                     clientId,
-                    mesReferencia
+                    mesReferencia,
+                    tenantId
                 };
                 if (supabaseUrl && serviceRoleKey && clientId && mesReferencia) {
                     await ensureCalendarProgress();
