@@ -872,6 +872,12 @@ const server = http.createServer(async (request, response) => {
         return;
     }
 
+    if (pathname === '/api/openai/proxy/health' && request.method === 'GET') {
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ ok: true }));
+        return;
+    }
+
     if (pathname === '/api/__version' && request.method === 'GET') {
         const commit = envVars['GIT_SHA'] || process.env.GIT_SHA || null;
         const nodeEnv = envVars['NODE_ENV'] || process.env.NODE_ENV || null;
@@ -5737,6 +5743,11 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname.startsWith('/api/')) {
+        response.writeHead(404, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'rota_nao_encontrada' }));
+        return;
+    }
 
     // --- ARQUIVOS ESTÁTICOS ---
     
@@ -5783,5 +5794,6 @@ server.listen(PORT, () => {
     console.log(`\n=== SERVIDOR VIBECODE INICIADO ===`);
     console.log(`Local: http://localhost:${PORT}/`);
     console.log(`Backend seguro ativo: API Proxies prontos.`);
+    console.log('OpenAI proxy routes enabled at /api/openai/proxy');
     console.log(`Pressione Ctrl+C para parar.\n`);
 });
