@@ -2792,7 +2792,13 @@ const server = http.createServer(async (request, response) => {
             try {
                 body = rawBody ? JSON.parse(rawBody) : null;
             } catch (parseError) {
-                body = null;
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    ok: false,
+                    error_code: 'INVALID_BODY',
+                    message: 'Body inválido. Envie JSON.'
+                }));
+                return;
             }
 
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
@@ -2949,7 +2955,11 @@ const server = http.createServer(async (request, response) => {
             }
 
             if (!body) {
-                await sendError('INVALID_BODY', 'Body inválido. Envie JSON.');
+                sendJson(400, {
+                    ok: false,
+                    error_code: 'INVALID_BODY',
+                    message: 'Body inválido. Envie JSON.'
+                });
                 return;
             }
 
