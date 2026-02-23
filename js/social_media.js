@@ -130,6 +130,7 @@ let progressCalendarId = null;
 let lastGenerationConfig = null;
 let progressRequestId = null;
 let progressCompleted = false;
+let progressLastLogLength = 0;
 
 function setGenerationStatusMessage(message) {
     const status = document.getElementById('generation-log-status');
@@ -140,38 +141,51 @@ function setGenerationStatusMessage(message) {
 function renderProgressLog(text) {
     const content = document.getElementById('generation-log-content');
     if (!content) return;
-    content.innerHTML = '';
-    const lines = String(text || '').split('\n').filter(Boolean);
-    if (!lines.length) {
+    const fullText = String(text || '');
+    if (fullText.length < progressLastLogLength) {
+        content.innerHTML = '';
+        progressLastLogLength = 0;
+    }
+    const newText = fullText.slice(progressLastLogLength);
+    if (!newText && content.childElementCount === 0) {
         const emptyLine = document.createElement('div');
         emptyLine.textContent = 'Aguardando atualização do servidor...';
         content.appendChild(emptyLine);
         return;
     }
-    lines.forEach((lineText) => {
-        const line = document.createElement('div');
-        line.textContent = lineText;
-        content.appendChild(line);
-    });
-    content.scrollTop = content.scrollHeight;
+    if (newText) {
+        if (content.childElementCount === 1 && content.textContent === 'Aguardando atualização do servidor...') {
+            content.innerHTML = '';
+        }
+        const lines = newText.split('\n').filter(Boolean);
+        lines.forEach((lineText) => {
+            const line = document.createElement('div');
+            line.textContent = lineText;
+            content.appendChild(line);
+        });
+        content.scrollTop = content.scrollHeight;
+    }
+    progressLastLogLength = fullText.length;
 }
 
-function setRetryVisible(isVisible, message) {
+function setRetryVisible(isVisible, message, options = {}) {
     const actions = document.getElementById('generation-log-actions');
     const retryButton = document.getElementById('generation-log-retry');
     if (!actions || !retryButton) return;
     if (isVisible) {
         actions.classList.remove('hidden');
         setGenerationStatusMessage(message || 'Sem atualização do backend há 30s. Verifique os logs técnicos.');
-        retryButton.onclick = () => {
+        retryButton.textContent = options.label || 'Tentar novamente';
+        retryButton.onclick = options.onClick || (() => {
             actions.classList.add('hidden');
             setGenerationStatusMessage('');
             if (lastGenerationConfig) {
                 generateCalendar(lastGenerationConfig);
             }
-        };
+        });
     } else {
         actions.classList.add('hidden');
+        retryButton.onclick = null;
     }
 }
 
@@ -192,14 +206,20 @@ async function pollCalendarProgress() {
             renderProgressLog(logText);
         }
         const status = String(calendar.status || '');
-        if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(status)) {
-            setRetryVisible(false);
+        if (status !== 'processando') {
             stopCalendarProgressPolling();
-            if (!progressCompleted) {
-                progressCompleted = true;
-                appendGenerationLog('Geração concluída com sucesso.');
-                await loadCalendarData();
-                setTimeout(() => hideGenerationLog(), 5000);
+            if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(status)) {
+                setRetryVisible(false);
+                if (!progressCompleted) {
+                    progressCompleted = true;
+                    appendGenerationLog('Geração concluída com sucesso.');
+                    await loadCalendarData();
+                    setTimeout(() => hideGenerationLog(), 5000);
+                }
+            } else if (status === 'erro') {
+                setRetryVisible(true, 'Falha na geração. Veja o log e tente novamente.');
+            } else {
+                setRetryVisible(true, 'Geração interrompida. Veja o log e tente novamente.');
             }
         }
         if (progressLastUpdateAt && Date.now() - progressLastUpdateAt > 30000) {
@@ -213,6 +233,7 @@ function startCalendarProgressPolling(calendarId) {
     progressCalendarId = calendarId;
     progressLastUpdateAt = Date.now();
     progressLastToken = '';
+    progressLastLogLength = 0;
     progressCompleted = false;
     setRetryVisible(false);
     setGenerationStatusMessage('');
@@ -1918,6 +1939,7 @@ async function generateCalendar(config = {}) {
     let generationSucceeded = false;
     try {
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
+        const forceGeneration = Boolean(config.force);
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
         lastSeasonalDates = seasonalDates;
 
@@ -1945,7 +1967,8 @@ async function generateCalendar(config = {}) {
                 posts_count: postsCount,
                 seasonal_dates: seasonalDates,
                 context_link: contextLink,
-                visual_identity: client.visual_identity || client.identidade_visual || null
+                visual_identity: client.visual_identity || client.identidade_visual || null,
+                force: forceGeneration
             })
         });
 
@@ -1976,6 +1999,18 @@ async function generateCalendar(config = {}) {
             } else {
                 setGenerationStatusMessage('Aguardando calendário do servidor...');
             }
+            return;
+        }
+        if (data?.status === 'exists') {
+            calendarId = data?.calendar_id || null;
+            appendGenerationLog(data?.message || 'Já existe um calendário para este mês.');
+            setRetryVisible(true, data?.message || 'Já existe um calendário para este mês.', {
+                label: 'Gerar novamente',
+                onClick: () => {
+                    setRetryVisible(false);
+                    generateCalendar({ ...lastGenerationConfig, force: true });
+                }
+            });
             return;
         }
 

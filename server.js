@@ -2806,13 +2806,31 @@ const server = http.createServer(async (request, response) => {
                     return null;
                 }
                 const params = new URLSearchParams();
-                params.set('select', 'id,erro_log,tenant_id');
+                params.set('select', 'id,erro_log,tenant_id,status');
                 params.set('cliente_id', `eq.${errorLogContext.clientId}`);
                 if (errorLogContext.tenantId) {
                     params.set('tenant_id', `eq.${errorLogContext.tenantId}`);
                 }
                 params.set('mes_referencia', `eq.${errorLogContext.mesReferencia}`);
                 params.set('order', 'created_at.desc');
+                params.set('limit', '1');
+                const calendarUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${params.toString()}`;
+                const calendarRes = await fetch(calendarUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`
+                    }
+                });
+                const calendarJson = await calendarRes.json().catch(() => null);
+                if (!calendarRes.ok) return null;
+                return Array.isArray(calendarJson) ? calendarJson[0] : null;
+            };
+            const fetchCalendarById = async (calendarId) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return null;
+                const params = new URLSearchParams();
+                params.set('select', 'id,erro_log,status');
+                params.set('id', `eq.${calendarId}`);
                 params.set('limit', '1');
                 const calendarUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${params.toString()}`;
                 const calendarRes = await fetch(calendarUrl, {
@@ -2866,12 +2884,12 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: errorLogContext.clientId,
                         tenant_id: errorLogContext.tenantId,
                         mes_referencia: errorLogContext.mesReferencia,
-                        status: 'rascunho',
+                        status: 'processando',
                         erro_log: null
                     });
                 } else {
                     calendar = await updateCalendarRow(calendar.id, {
-                        status: 'rascunho',
+                        status: 'processando',
                         erro_log: null,
                         tenant_id: errorLogContext.tenantId
                     }) || calendar;
@@ -2881,43 +2899,31 @@ const server = http.createServer(async (request, response) => {
                 }
                 return calendar;
             };
-            const appendCalendarLog = async (message, options = {}) => {
-                if (!errorLogContext?.clientId || !errorLogContext?.mesReferencia) return;
-                let calendar = null;
-                if (errorLogContext?.calendarId) {
-                    calendar = await fetchCalendarRow();
-                    if (!calendar) {
-                        calendar = { id: errorLogContext.calendarId, erro_log: '' };
-                    }
-                } else {
-                    calendar = await fetchCalendarRow();
-                }
-                if (!calendar && options.createIfMissing) {
-                    calendar = await createCalendarRow({
-                        cliente_id: errorLogContext.clientId,
-                        tenant_id: errorLogContext.tenantId,
-                        mes_referencia: errorLogContext.mesReferencia,
-                        status: options.status || 'rascunho',
-                        erro_log: null
-                    });
-                }
-                if (!calendar?.id) return;
-                if (!errorLogContext?.calendarId) {
-                    errorLogContext.calendarId = calendar.id;
-                }
-                const existingLog = typeof calendar.erro_log === 'string' ? calendar.erro_log : '';
+            const appendCalendarLog = async (calendarId, message, options = {}) => {
+                if (!calendarId || !message) return;
+                const calendar = await fetchCalendarById(calendarId);
+                const existingLog = typeof calendar?.erro_log === 'string' ? calendar.erro_log : '';
                 const logLine = buildLogLine(message);
-                const updatedLog = existingLog ? `${existingLog}\n${logLine}` : logLine;
+                let updatedLog = existingLog ? `${existingLog}\n${logLine}` : logLine;
+                if (updatedLog.length > 20000) {
+                    updatedLog = updatedLog.slice(updatedLog.length - 20000);
+                }
                 const payload = { erro_log: updatedLog };
                 if (options.status) payload.status = options.status;
-                await updateCalendarRow(calendar.id, payload);
+                await updateCalendarRow(calendarId, payload);
             };
             const sendError = async (errorCode, message, details) => {
                 console.error(`[openai-proxy][${requestId}]`, { error_code: errorCode, message, details });
                 if (errorLogContext?.supabaseUrl && errorLogContext?.serviceRoleKey && errorLogContext?.clientId && errorLogContext?.mesReferencia) {
                     try {
-                        const detailsText = details ? ` | ${String(details)}` : '';
-                        await appendCalendarLog(`erro ${errorCode}: ${message}${detailsText}`, { status: 'rascunho', createIfMissing: true });
+                        const detailLines = details ? String(details).split('\n').filter(Boolean).slice(0, 3) : [];
+                        const detailsText = detailLines.length ? ` | ${detailLines.join(' | ')}` : '';
+                        if (!errorLogContext.calendarId) {
+                            await ensureCalendarProgress();
+                        }
+                        if (errorLogContext?.calendarId) {
+                            await appendCalendarLog(errorLogContext.calendarId, `erro ${errorCode}: ${message}${detailsText}`, { status: 'erro' });
+                        }
                     } catch (logError) {
                         console.error(`[openai-proxy][${requestId}] erro_log falhou`, logError);
                     }
@@ -2954,6 +2960,7 @@ const server = http.createServer(async (request, response) => {
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
 
             if (isCalendarMode) {
+                const forceGeneration = Boolean(body?.force);
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
                 const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
                 const platforms = Array.isArray(body.platforms) ? body.platforms : [];
@@ -2974,12 +2981,41 @@ const server = http.createServer(async (request, response) => {
                     tenantId
                 };
                 if (supabaseUrl && serviceRoleKey && clientId && mesReferencia) {
+                    const existingCalendar = await fetchCalendarRow();
+                    if (existingCalendar?.id) {
+                        const existingStatus = String(existingCalendar.status || '').toLowerCase();
+                        errorLogContext.calendarId = existingCalendar.id;
+                        if (existingStatus === 'processando') {
+                            sendJson(200, {
+                                ok: true,
+                                request_id: requestId,
+                                calendar_id: existingCalendar.id,
+                                status: 'processing'
+                            });
+                            return;
+                        }
+                        if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(existingStatus) && !forceGeneration) {
+                            sendJson(200, {
+                                ok: true,
+                                request_id: requestId,
+                                calendar_id: existingCalendar.id,
+                                status: 'exists',
+                                message: 'Já existe'
+                            });
+                            return;
+                        }
+                    }
                     await ensureCalendarProgress();
-                    await appendCalendarLog('etapa 1/6 iniciando geração', { createIfMissing: true });
+                    if (errorLogContext?.calendarId) {
+                        await appendCalendarLog(errorLogContext.calendarId, 'Iniciando');
+                    }
                 }
                 let clientProfile = null;
                 let historySummary = '';
                 if (supabaseUrl && serviceRoleKey && clientId) {
+                    if (errorLogContext?.calendarId) {
+                        await appendCalendarLog(errorLogContext.calendarId, 'Carregando briefing');
+                    }
                     const clientParams = new URLSearchParams();
                     clientParams.set('select', 'id,persona_briefing,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at,client_insights,visual_identity,identidade_visual,nome_empresa,nicho_atuacao');
                     clientParams.set('id', `eq.${clientId}`);
@@ -2997,6 +3033,9 @@ const server = http.createServer(async (request, response) => {
                         clientProfile = clientJson[0];
                     }
 
+                    if (errorLogContext?.calendarId) {
+                        await appendCalendarLog(errorLogContext.calendarId, 'Carregando histórico');
+                    }
                     const since = new Date();
                     since.setMonth(since.getMonth() - 6);
                     const sinceIso = since.toISOString();
@@ -3123,10 +3162,6 @@ const server = http.createServer(async (request, response) => {
                         { role: 'user', content: userPrompt }
                     ]
                 };
-                if (supabaseUrl && serviceRoleKey && clientId && mesReferencia) {
-                    await appendCalendarLog('etapa 2/6 preparando prompt');
-                }
-
                 if (supabaseUrl && serviceRoleKey && clientId && historySummary) {
                     pendingMemoryUpdate = {
                         url: `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?id=eq.${clientId}`,
@@ -3144,6 +3179,9 @@ const server = http.createServer(async (request, response) => {
 
             const executeProxy = async () => {
                 console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`);
+                if (isCalendarMode && errorLogContext?.calendarId) {
+                    await appendCalendarLog(errorLogContext.calendarId, 'Chamando OpenAI');
+                }
                 const openAiController = new AbortController();
                 const openAiTimeout = setTimeout(() => openAiController.abort(), 60000);
                 let openAiResponse;
@@ -3169,8 +3207,8 @@ const server = http.createServer(async (request, response) => {
 
                 const rawText = await openAiResponse.text();
                 console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
-                if (isCalendarMode && errorLogContext?.supabaseUrl) {
-                    await appendCalendarLog('etapa 3/6 resposta da IA recebida');
+                if (isCalendarMode && errorLogContext?.calendarId) {
+                    await appendCalendarLog(errorLogContext.calendarId, 'Processando resposta');
                 }
                 let responseJson = null;
                 try {
@@ -3321,9 +3359,6 @@ const server = http.createServer(async (request, response) => {
                     }
 
                     if (calendarJson && Array.isArray(calendarJson.posts)) {
-                        if (errorLogContext?.supabaseUrl) {
-                            await appendCalendarLog('etapa 4/6 normalizando estrutura');
-                        }
                         for (const post of calendarJson.posts) {
                             const format = post.format || post.formato || '';
                             const theme = post.theme || post.tema || '';
@@ -3394,15 +3429,15 @@ const server = http.createServer(async (request, response) => {
                                 post.creative_guide = post.creative_guide || null;
                             }
                         }
-                        if (errorLogContext?.supabaseUrl) {
-                            await appendCalendarLog('etapa 5/6 enriquecendo criativos');
+                        if (errorLogContext?.calendarId) {
+                            await appendCalendarLog(errorLogContext.calendarId, 'Salvando posts');
                         }
                         responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                     }
                 }
 
-                if (isCalendarMode && errorLogContext?.supabaseUrl) {
-                    await appendCalendarLog('etapa 6/6 finalizando', { status: 'aguardando_aprovacao' });
+                if (isCalendarMode && errorLogContext?.calendarId) {
+                    await appendCalendarLog(errorLogContext.calendarId, 'Finalizado', { status: 'aguardando_aprovacao' });
                 }
                 sendJson(200, responseJson);
                 console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
