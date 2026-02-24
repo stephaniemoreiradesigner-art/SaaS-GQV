@@ -3007,38 +3007,24 @@ const server = http.createServer(async (request, response) => {
                 });
                 return deleteRes.ok;
             };
-            const insertCalendarPosts = async (calendarId, posts) => {
-                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return [];
+            const insertCalendarPosts = async (calendarId, posts, supabaseAdmin) => {
+                if (!calendarId) throw new Error('calendar_id inválido');
+                if (!supabaseAdmin) throw new Error('Supabase admin não configurado');
                 if (!Array.isArray(posts) || posts.length === 0) return [];
-                const baseUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts`;
-                const headers = {
-                    apikey: errorLogContext.serviceRoleKey,
-                    Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
-                    'Content-Type': 'application/json',
-                    Prefer: 'return=representation, resolution=merge-duplicates'
-                };
-                const upsertUrl = `${baseUrl}?on_conflict=calendar_id,data_agendada,tema`;
-                const upsertRes = await fetch(upsertUrl, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify(posts)
-                });
-                const upsertJson = await upsertRes.json().catch(() => null);
-                if (upsertRes.ok && Array.isArray(upsertJson)) {
-                    return upsertJson;
+                const { data, error } = await supabaseAdmin
+                    .from('social_posts')
+                    .insert(posts)
+                    .select('id');
+                if (error) {
+                    console.error('[openai-proxy][INSERT social_posts ERROR]', error);
+                    if (errorLogContext?.calendarId) {
+                        const readable = error?.message || JSON.stringify(error);
+                        await appendCalendarLog(errorLogContext.calendarId, `INSERT social_posts ERROR: ${readable}`);
+                    }
+                    throw error;
                 }
-                const insertRes = await fetch(baseUrl, {
-                    method: 'POST',
-                    headers: {
-                        apikey: errorLogContext.serviceRoleKey,
-                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
-                        'Content-Type': 'application/json',
-                        Prefer: 'return=representation'
-                    },
-                    body: JSON.stringify(posts)
-                });
-                const insertJson = await insertRes.json().catch(() => null);
-                return Array.isArray(insertJson) ? insertJson : [];
+                console.log('[openai-proxy] INSERTED_POSTS', { count: data?.length || 0 });
+                return Array.isArray(data) ? data : [];
             };
             const sendError = async (errorCode, message, details, extraPayload = null) => {
                 console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
@@ -3072,6 +3058,7 @@ const server = http.createServer(async (request, response) => {
             const clienteId = body?.client_id || null;
             const mesReferencia = body?.month ? `${body.month}-01` : null;
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
+            let supabaseAdmin = null;
 
             if (isCalendarMode) {
                 forceGeneration = Boolean(body?.force);
@@ -3468,6 +3455,55 @@ const server = http.createServer(async (request, response) => {
 
             const executeProxy = async () => {
                 if (isCalendarMode) {
+                    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+                    const rawPostsCount = body?.posts_count;
+                    const validatedPostsCount = Number.isFinite(Number(rawPostsCount)) && Number(rawPostsCount) > 0 ? Number(rawPostsCount) : null;
+                    const clienteIdValue = calendarContext?.clientId || clienteId || null;
+                    const mesReferenciaValue = errorLogContext?.mesReferencia || mesReferencia || null;
+                    console.log('[openai-proxy] REQUIRED_FIELDS', {
+                        SUPABASE_URL: Boolean(supabaseUrl),
+                        SUPABASE_SERVICE_ROLE_KEY: Boolean(serviceRoleKey),
+                        tenant_id: tenantId,
+                        cliente_id: clienteIdValue,
+                        mes_referencia: mesReferenciaValue,
+                        posts_count: validatedPostsCount
+                    });
+                    const missing = [];
+                    if (!supabaseUrl) missing.push('SUPABASE_URL');
+                    if (!serviceRoleKey) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+                    if (!tenantId) missing.push('tenant_id');
+                    if (!clienteIdValue) missing.push('cliente_id');
+                    if (!mesReferenciaValue) missing.push('mes_referencia');
+                    if (!validatedPostsCount) missing.push('posts_count');
+                    if (missing.length) {
+                        if (errorLogContext) {
+                            errorLogContext.supabaseUrl = supabaseUrl;
+                            errorLogContext.serviceRoleKey = serviceRoleKey;
+                        }
+                        if (!errorLogContext?.calendarId && supabaseUrl && serviceRoleKey && clienteIdValue && mesReferenciaValue) {
+                            const existingCalendar = await fetchCalendarRow();
+                            if (existingCalendar?.id) {
+                                errorLogContext.calendarId = existingCalendar.id;
+                            }
+                        }
+                        if (errorLogContext?.calendarId) {
+                            await appendCalendarLog(errorLogContext.calendarId, `Falha validação: faltando ${missing.join(', ')}`);
+                        }
+                        sendJson(400, { error: true, message: 'Campos obrigatórios ausentes', details: { missing } });
+                        return;
+                    }
+                    supabaseAdmin = getSupabaseAdminClient();
+                    if (!supabaseAdmin) {
+                        console.error('[openai-proxy] SUPABASE_CLIENT_MISSING');
+                        if (errorLogContext?.calendarId) {
+                            await appendCalendarLog(errorLogContext.calendarId, 'Supabase admin não configurado.');
+                        }
+                        sendJson(500, { error: true, message: 'Supabase admin não configurado.' });
+                        return;
+                    }
+                    console.log('[openai-proxy] SUPABASE_CLIENT_READY', { ok: true });
+                }
+                if (isCalendarMode) {
                     console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
                     if (pendingMemoryUpdate?.url && pendingMemoryUpdate?.serviceRoleKey) {
                         await fetch(pendingMemoryUpdate.url, {
@@ -3501,9 +3537,17 @@ const server = http.createServer(async (request, response) => {
                 const requiredSlotsText = requiredSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
                 const batchSizeValue = Number(envVars['BATCH_SIZE'] || process.env.BATCH_SIZE);
                 const batchSize = Number.isFinite(batchSizeValue) && batchSizeValue > 0 ? batchSizeValue : 3;
-                const calendarId = errorLogContext?.calendarId || null;
+                let calendarId = errorLogContext?.calendarId || null;
                 const clienteIdValue = calendarContext.clientId || clienteId || null;
                 const mesReferenciaValue = errorLogContext?.mesReferencia || null;
+                if (!calendarId) {
+                    const existingCalendar = await fetchCalendarRow();
+                    if (existingCalendar?.id) {
+                        calendarId = existingCalendar.id;
+                        if (errorLogContext) errorLogContext.calendarId = existingCalendar.id;
+                    }
+                }
+                console.log('[openai-proxy] USING_CALENDAR_ID', { calendar_id: calendarId });
 
                 const normalizeCalendarTime = (value) => {
                     const raw = String(value || '').trim();
@@ -3533,6 +3577,7 @@ const server = http.createServer(async (request, response) => {
                     const estrategiaParts = [post?.pillar || '', post?.objective || '', post?.week || '', post?.estrategia || ''].filter(Boolean);
                     return {
                         cliente_id: clienteIdValue,
+                        tenant_id: tenantId,
                         calendar_id: calendarId,
                         mes_referencia: mesReferenciaValue,
                         data_agendada: dataAgendada,
@@ -3919,7 +3964,19 @@ const server = http.createServer(async (request, response) => {
                         return;
                     }
                     if (calendarId) {
-                        await insertCalendarPosts(calendarId, postsToInsert);
+                        try {
+                            await insertCalendarPosts(calendarId, postsToInsert, supabaseAdmin);
+                        } catch (error) {
+                            const readable = error?.message || String(error);
+                            if (errorLogContext?.calendarId) {
+                                await appendCalendarLog(errorLogContext.calendarId, `Falha ao salvar posts: ${readable}`);
+                            }
+                            sendJson(500, { error: true, message: 'Falha ao salvar posts no banco', details: readable });
+                            return;
+                        }
+                    } else {
+                        await handleBatchFailure('CALENDAR_NOT_FOUND', 'Calendário não encontrado para o mês.', generated, batchIndex);
+                        return;
                     }
 
                     existingPosts = await fetchCalendarPosts(calendarId);
