@@ -123,6 +123,61 @@ function hideGenerationLog() {
     log.classList.add('hidden');
 }
 
+let generationModalLoading = false;
+
+function setGenerationLogContentVisible(isVisible) {
+    const content = document.getElementById('generation-log-content');
+    if (!content) return;
+    if (isVisible) {
+        content.classList.remove('hidden');
+    } else {
+        content.classList.add('hidden');
+    }
+}
+
+function setGenerationLogMessage(message) {
+    showGenerationLog();
+    const header = document.getElementById('generation-log-header');
+    if (header) header.textContent = message || '';
+    setGenerationLogContentVisible(false);
+    setGenerationStatusMessage('');
+    const actions = document.getElementById('generation-log-actions');
+    if (actions) actions.classList.add('hidden');
+}
+
+function setGenerationLoading(isLoading, message) {
+    generationModalLoading = isLoading;
+    const btnConfirm = document.getElementById('btn-generation-confirm');
+    const btnCancel = document.getElementById('btn-generation-cancel');
+    const btnClose = document.getElementById('btn-generation-close');
+    if (btnConfirm) {
+        if (!btnConfirm.dataset.originalHtml) {
+            btnConfirm.dataset.originalHtml = btnConfirm.innerHTML;
+        }
+        btnConfirm.disabled = isLoading;
+        btnConfirm.innerHTML = isLoading
+            ? '<i class="fas fa-spinner fa-spin mr-2"></i> Gerando...'
+            : btnConfirm.dataset.originalHtml;
+        if (isLoading) {
+            btnConfirm.classList.add('loading');
+        } else {
+            btnConfirm.classList.remove('loading');
+        }
+    }
+    [btnCancel, btnClose].forEach((btn) => {
+        if (!btn) return;
+        btn.disabled = isLoading;
+        if (isLoading) {
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    });
+    if (isLoading) {
+        setGenerationLogMessage(message || 'Gerando seu calendário, aguarde...');
+    }
+}
+
 let progressPollInterval = null;
 let progressLastUpdateAt = 0;
 let progressLastToken = '';
@@ -174,7 +229,8 @@ function setRetryVisible(isVisible, message, options = {}) {
     if (!actions || !retryButton) return;
     if (isVisible) {
         actions.classList.remove('hidden');
-        setGenerationStatusMessage(message || 'Sem atualização do backend há 30s. Verifique os logs técnicos.');
+        setGenerationLogContentVisible(false);
+        setGenerationStatusMessage(message || 'Sem atualização do backend há 30s. Clique em "Tentar novamente".');
         retryButton.textContent = options.label || 'Tentar novamente';
         retryButton.onclick = options.onClick || (() => {
             actions.classList.add('hidden');
@@ -212,19 +268,62 @@ async function pollCalendarProgress() {
                 setRetryVisible(false);
                 if (!progressCompleted) {
                     progressCompleted = true;
-                    appendGenerationLog('Geração concluída com sucesso.');
-                    await loadCalendarData();
-                    setTimeout(() => hideGenerationLog(), 5000);
+                    setGenerationLogMessage('Calendário gerado. Atualizando...');
+                    try {
+                        await loadCalendarData();
+                        const updated = await waitForCalendarUpdate({ timeoutMs: 10000 });
+                        if (updated) {
+                            closeGenerationConfigModal();
+                            hideGenerationLog();
+                        } else {
+                            const message = 'Calendário ainda não apareceu. Clique em "Tentar novamente" para atualizar.';
+                            setGenerationStatusMessage(message);
+                            setRetryVisible(true, message);
+                        }
+                    } catch (error) {
+                        const message = 'Erro ao atualizar calendário. Clique em "Tentar novamente".';
+                        setGenerationStatusMessage(message);
+                        setRetryVisible(true, message);
+                    } finally {
+                        setGenerationLoading(false);
+                    }
                 }
+            } else if (status === 'partial') {
+                let generated = 0;
+                let expected = 0;
+                try {
+                    const logJson = JSON.parse(calendar.erro_log || '{}');
+                    generated = Number(logJson?.generation?.generated || 0);
+                    expected = Number(logJson?.generation?.expected || 0);
+                } catch {}
+                const partialMessage = `Geramos ${generated} de ${expected}. Clique em "Tentar novamente" para completar.`;
+                setGenerationLogMessage(partialMessage);
+                setGenerationLoading(false);
+                setRetryVisible(true, partialMessage, {
+                    label: 'Completar geração',
+                    onClick: () => {
+                        setRetryVisible(false);
+                        setGenerationLoading(true, 'Gerando seu calendário, aguarde...');
+                        generateCalendar({ ...lastGenerationConfig, force: false });
+                    }
+                });
             } else if (status === 'erro') {
-                setRetryVisible(true, 'Falha na geração. Veja o log e tente novamente.');
+                const message = 'Falha na geração. Clique em "Tentar novamente".';
+                setGenerationLogMessage(message);
+                setGenerationLoading(false);
+                setRetryVisible(true, message);
             } else {
-                setRetryVisible(true, 'Geração interrompida. Veja o log e tente novamente.');
+                const message = 'Geração interrompida. Clique em "Tentar novamente".';
+                setGenerationLogMessage(message);
+                setGenerationLoading(false);
+                setRetryVisible(true, message);
             }
         }
         if (progressLastUpdateAt && Date.now() - progressLastUpdateAt > 30000) {
-            const technicalMessage = progressRequestId ? `Sem atualização do backend há 30s. request_id: ${progressRequestId}` : 'Sem atualização do backend há 30s.';
-            setRetryVisible(true, technicalMessage);
+            const friendlyMessage = 'Sem atualização do backend. Clique em "Tentar novamente".';
+            setGenerationLogMessage(friendlyMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, friendlyMessage);
         }
     } catch {}
 }
@@ -256,6 +355,29 @@ function generateRequestId() {
         return window.crypto.randomUUID();
     }
     return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function waitForCalendarUpdate(options = {}) {
+    const timeoutMs = Number.isFinite(Number(options.timeoutMs)) ? Number(options.timeoutMs) : 10000;
+    const intervalMs = Number.isFinite(Number(options.intervalMs)) ? Number(options.intervalMs) : 500;
+    return new Promise((resolve) => {
+        const startedAt = Date.now();
+        const timer = setInterval(() => {
+            const hasEvents = window.calendar && typeof window.calendar.getEvents === 'function'
+                ? window.calendar.getEvents().length > 0
+                : false;
+            const hasCache = Array.isArray(socialPostsCache) && socialPostsCache.length > 0;
+            if (hasEvents || hasCache) {
+                clearInterval(timer);
+                resolve(true);
+                return;
+            }
+            if (Date.now() - startedAt >= timeoutMs) {
+                clearInterval(timer);
+                resolve(false);
+            }
+        }, intervalMs);
+    });
 }
 
 const MEDIA_BUCKET = 'social_media_uploads';
@@ -532,15 +654,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modalGeneration = document.getElementById('modal-generation-config');
     if (modalGeneration) {
         modalGeneration.addEventListener('click', (e) => {
+            if (generationModalLoading) return;
             if (e.target === modalGeneration) closeGenerationConfigModal();
         });
     }
 
     const btnGenerationCancel = document.getElementById('btn-generation-cancel');
-    if (btnGenerationCancel) btnGenerationCancel.addEventListener('click', closeGenerationConfigModal);
+    if (btnGenerationCancel) {
+        btnGenerationCancel.addEventListener('click', () => {
+            if (generationModalLoading) return;
+            closeGenerationConfigModal();
+        });
+    }
 
     const btnGenerationClose = document.getElementById('btn-generation-close');
-    if (btnGenerationClose) btnGenerationClose.addEventListener('click', closeGenerationConfigModal);
+    if (btnGenerationClose) {
+        btnGenerationClose.addEventListener('click', () => {
+            if (generationModalLoading) return;
+            closeGenerationConfigModal();
+        });
+    }
 
     const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
     if (btnGenerationConfirm) {
@@ -553,7 +686,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .split('\n')
                 .map(line => line.trim())
                 .filter(Boolean) : [];
-            closeGenerationConfigModal();
             generateCalendar({ postsCount, seasonalDates });
         });
     }
@@ -2034,9 +2166,7 @@ async function generateCalendar(config = {}) {
 
         disableGenerationButtons();
         showGenerationBanner();
-        showGenerationLog();
-        appendGenerationLog('Iniciando geração');
-        appendGenerationLog('Iniciando geração do calendário...');
+        setGenerationLoading(true, 'Gerando seu calendário, aguarde...');
 
         requestId = generateRequestId();
         lastGenerationConfig = config;
@@ -2054,7 +2184,6 @@ async function generateCalendar(config = {}) {
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
         console.log('[generateCalendar] request_id', requestId);
         appendGenerationLog(`request_id: ${requestId}`);
-        appendGenerationLog('Chamando API...');
         let response;
         const calendarPrompt = `
 Crie um calendário editorial para o cliente ${client.nome_empresa}.
@@ -2152,19 +2281,46 @@ Regras obrigatórias:
             summary: buildPayloadSummary(data)
         });
 
+        if (data?.partial === true) {
+            const generated = Number(data?.generated || 0);
+            const expected = Number(data?.expected || postsCount);
+            const partialMessage = `Geramos ${generated} de ${expected}. Clique em "Tentar novamente" para completar.`;
+            setGenerationLogMessage(partialMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, partialMessage, {
+                label: 'Tentar novamente',
+                onClick: () => {
+                    setRetryVisible(false);
+                    setGenerationLoading(true, 'Gerando seu calendário, aguarde...');
+                    generateCalendar({ ...lastGenerationConfig, force: false });
+                }
+            });
+            return;
+        }
+
+        if (data?.error === true) {
+            const errorMessage = data?.message || 'Erro na comunicação com a OpenAI (Proxy)';
+            setGenerationLogMessage(errorMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, errorMessage);
+            return;
+        }
+
         if (!response.ok || data?.ok === false) {
             const errorMessage = data?.message || data?.error || 'Erro na comunicação com a OpenAI (Proxy)';
             const errorRequestId = data?.request_id || requestId;
-            appendGenerationLog(`Erro: ${errorMessage} (request_id: ${errorRequestId})`);
-            throw new Error(`${errorMessage} (request_id: ${errorRequestId})`);
+            console.error('[generateCalendar] request_id', errorRequestId);
+            setGenerationLogMessage(errorMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, errorMessage);
+            return;
         }
 
         if (data?.status === 'processing') {
             calendarId = data?.calendar_id || null;
             progressRequestId = data?.request_id || requestId;
-            appendGenerationLog('Geração iniciada no servidor.');
+            setGenerationStatusMessage('Geração iniciada no servidor.');
             if (calendarId) {
-                appendGenerationLog(`calendar_id: ${calendarId}`);
                 startCalendarProgressPolling(calendarId);
             } else {
                 setGenerationStatusMessage('Aguardando calendário do servidor...');
@@ -2173,18 +2329,20 @@ Regras obrigatórias:
         }
         if (data?.status === 'exists') {
             calendarId = data?.calendar_id || null;
-            appendGenerationLog(data?.message || 'Já existe um calendário para este mês.');
-            setRetryVisible(true, data?.message || 'Já existe um calendário para este mês.', {
+            const existsMessage = data?.message || 'Já existe um calendário para este mês.';
+            setGenerationLogMessage(existsMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, existsMessage, {
                 label: 'Gerar novamente',
                 onClick: () => {
                     setRetryVisible(false);
+                    setGenerationLoading(true, 'Gerando seu calendário, aguarde...');
                     generateCalendar({ ...lastGenerationConfig, force: true });
                 }
             });
             return;
         }
 
-        appendGenerationLog('Validando resposta da IA...');
         let content = data.choices[0].message.content;
 
         let calendarPayload;
@@ -2365,37 +2523,45 @@ Regras obrigatórias:
         appendGenerationLog('Posts salvos');
         console.debug('[generateCalendar] insert_ok', { count: postsToInsert.length });
 
-        if (typeof closeConfigModal === 'function') closeConfigModal();
         const calendarContainer = document.getElementById('calendar');
         if (!calendarContainer) {
             console.error('[generateCalendar] container não encontrado');
         }
-        appendGenerationLog('Atualizando calendário...');
-        appendGenerationLog('Renderizando calendário...');
-        await loadCalendarData();
-        generationSucceeded = true;
-        
-        // Notificação de Sucesso
-        appendGenerationLog('Concluído');
-        appendGenerationLog('Geração concluída com sucesso.');
-        setTimeout(() => hideGenerationLog(), 5000);
-        const successDiv = document.createElement('div');
-        successDiv.className = 'fixed top-5 right-5 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-[80] animate-bounce-in flex items-center gap-3';
-        successDiv.innerHTML = '<i class="fas fa-check-circle text-2xl"></i><div><h4 class="font-bold">Sucesso!</h4><p class="text-sm">Calendário gerado com sucesso.</p></div>';
-        document.body.appendChild(successDiv);
-        setTimeout(() => successDiv.remove(), 4000);
+        setGenerationLogMessage('Calendário gerado. Atualizando...');
+        try {
+            await loadCalendarData();
+            const updated = await waitForCalendarUpdate({ timeoutMs: 10000 });
+            if (updated) {
+                generationSucceeded = true;
+                closeGenerationConfigModal();
+                hideGenerationLog();
+            } else {
+                const message = 'Calendário ainda não apareceu. Clique em "Tentar novamente" para atualizar.';
+                setGenerationStatusMessage(message);
+                setRetryVisible(true, message);
+            }
+        } catch (error) {
+            const message = 'Erro ao atualizar calendário. Clique em "Tentar novamente".';
+            setGenerationStatusMessage(message);
+            setRetryVisible(true, message);
+        } finally {
+            setGenerationLoading(false);
+        }
 
         } catch (err) {
         console.error('Erro Geral:', err);
         const errorMessage = err?.message || String(err);
         const isNetworkFailure = err?.name === 'AbortError' || errorMessage.includes('Failed to fetch');
         if (isNetworkFailure) {
-                const networkMessage = `❌ Falha de rede: API /api não respondeu. request_id: ${requestId}. Verifique proxy do Coolify para /api e se backend está online.`;
-            appendGenerationLog(networkMessage);
+            const networkMessage = 'Falha de rede. Clique em "Tentar novamente".';
+            setGenerationLogMessage(networkMessage);
+            setGenerationLoading(false);
             setRetryVisible(true, networkMessage);
         } else {
-                appendGenerationLog(`Erro: ${errorMessage} (request_id: ${requestId})`);
-                setRetryVisible(true, `Erro: ${errorMessage} (request_id: ${requestId})`);
+            const friendlyMessage = errorMessage || 'Erro ao gerar calendário. Clique em "Tentar novamente".';
+            setGenerationLogMessage(friendlyMessage);
+            setGenerationLoading(false);
+            setRetryVisible(true, friendlyMessage);
         }
     } finally {
         if (bannerEl) bannerEl.remove();
