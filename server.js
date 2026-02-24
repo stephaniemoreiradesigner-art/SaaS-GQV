@@ -2849,6 +2849,20 @@ const server = http.createServer(async (request, response) => {
             const logRequestId = headerRequestId ? ` ${headerRequestId}` : '';
             const timestamp = new Date().toISOString();
             console.log(`[openai/proxy] called${logRequestId} ${timestamp}`);
+            if (!Array.isArray(body?.messages) || body.messages.length === 0) {
+                sendJson(400, { error: 'BAD_REQUEST', message: 'Missing messages', requestId });
+                return;
+            }
+            const openaiAllowedKeys = new Set(['model', 'temperature', 'messages']);
+            const metaPayload = {};
+            if (body && typeof body === 'object') {
+                Object.keys(body).forEach((key) => {
+                    if (!openaiAllowedKeys.has(key)) {
+                        metaPayload[key] = body[key];
+                    }
+                });
+            }
+            console.log(`[openai/proxy][${requestId}] meta`, Object.keys(metaPayload));
             let errorLogContext = null;
             const buildLogTimestamp = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             const buildLogLine = (message) => `[${buildLogTimestamp()}] ${message}`;
@@ -3204,7 +3218,12 @@ const server = http.createServer(async (request, response) => {
                     };
                 }
             } else {
-                payload = body;
+                const temperature = typeof body.temperature === 'number' ? body.temperature : undefined;
+                payload = {
+                    model: finalModel,
+                    messages: body.messages,
+                    ...(temperature === undefined ? {} : { temperature })
+                };
             }
 
             const executeProxy = async () => {
