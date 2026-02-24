@@ -746,26 +746,89 @@ const supabaseServiceRest = async (pathWithQuery, method = 'GET', body = null, e
 };
 
 const seedDemoData = async () => {
-    const existingClientRes = await supabaseServiceRest(
-        `/rest/v1/clientes?select=id,tenant_id&tenant_id=eq.${DEMO_TENANT_ID}&limit=1`
-    );
-    const existingClient = Array.isArray(existingClientRes.data) ? existingClientRes.data[0] : null;
+    const clientColumnChecks = [
+        'tenant_id',
+        'nome_empresa',
+        'nome_fantasia',
+        'segmento',
+        'responsavel_nome',
+        'responsavel_email',
+        'responsavel_whatsapp',
+        'email_contato',
+        'telefone',
+        'status',
+        'time_id',
+        'nome',
+        'empresa',
+        'email'
+    ];
+    const clientColumns = new Set();
+    for (const column of clientColumnChecks) {
+        const columnRes = await supabaseServiceRest(`/rest/v1/clientes?select=${column}&limit=1`);
+        if (columnRes.status < 400) {
+            clientColumns.add(column);
+        }
+    }
+    let supportsTenantId = false;
+    if (clientColumns.has('tenant_id')) {
+        const tenantTypeRes = await supabaseServiceRest(
+            '/rest/v1/information_schema.columns?select=data_type,udt_name&table_name=eq.clientes&column_name=eq.tenant_id&limit=1'
+        );
+        const tenantTypeRow = Array.isArray(tenantTypeRes.data) ? tenantTypeRes.data[0] : null;
+        const tenantTypeRaw = String(tenantTypeRow?.udt_name || tenantTypeRow?.data_type || '').toLowerCase();
+        const allowedTenantTypes = new Set(['uuid', 'text', 'varchar', 'character varying']);
+        supportsTenantId = allowedTenantTypes.has(tenantTypeRaw);
+    }
+    const nameColumn = clientColumns.has('nome_empresa') ? 'nome_empresa' : (clientColumns.has('nome') ? 'nome' : null);
+    const fantasyColumn = clientColumns.has('nome_fantasia') ? 'nome_fantasia' : (clientColumns.has('empresa') ? 'empresa' : null);
+    const emailColumn = clientColumns.has('email_contato') ? 'email_contato' : (clientColumns.has('email') ? 'email' : null);
+    let timeId = null;
+    if (clientColumns.has('time_id')) {
+        const timeRes = await supabaseServiceRest('/rest/v1/times?select=id&limit=1');
+        const timeRow = Array.isArray(timeRes.data) ? timeRes.data[0] : null;
+        if (timeRow?.id) {
+            timeId = timeRow.id;
+        } else if (timeRes.status < 400) {
+            const createTimeRes = await supabaseServiceRest(
+                '/rest/v1/times',
+                'POST',
+                { nome: 'Time Demo' },
+                { Prefer: 'return=representation' }
+            );
+            const createdTime = Array.isArray(createTimeRes.data) ? createTimeRes.data[0] : null;
+            timeId = createdTime?.id || null;
+        }
+    }
+
+    let existingClientRes = null;
+    if (supportsTenantId) {
+        existingClientRes = await supabaseServiceRest(
+            `/rest/v1/clientes?select=id,tenant_id&tenant_id=eq.${DEMO_TENANT_ID}&limit=1`
+        );
+    } else if (nameColumn) {
+        existingClientRes = await supabaseServiceRest(
+            `/rest/v1/clientes?select=id&${nameColumn}=eq.${encodeURIComponent(DEMO_CLIENT_NAME)}&limit=1`
+        );
+    } else {
+        existingClientRes = await supabaseServiceRest(`/rest/v1/clientes?select=id&limit=1`);
+    }
+    const existingClient = Array.isArray(existingClientRes?.data) ? existingClientRes.data[0] : null;
     if (existingClient?.id) {
         return { ok: true, status: 'exists', clienteId: existingClient.id, tenantId: DEMO_TENANT_ID };
     }
 
-    const clientePayload = {
-        nome_empresa: DEMO_CLIENT_NAME,
-        nome_fantasia: DEMO_CLIENT_NAME,
-        segmento: 'Construção Civil',
-        responsavel_nome: 'Carlos Mendes',
-        responsavel_email: 'demo@gqv.com',
-        responsavel_whatsapp: '11999999999',
-        email_contato: 'demo@gqv.com',
-        telefone: '11999999999',
-        status: 'ativo',
-        tenant_id: DEMO_TENANT_ID
-    };
+    const clientePayload = {};
+    if (nameColumn) clientePayload[nameColumn] = DEMO_CLIENT_NAME;
+    if (fantasyColumn && fantasyColumn !== nameColumn) clientePayload[fantasyColumn] = DEMO_CLIENT_NAME;
+    if (clientColumns.has('segmento')) clientePayload.segmento = 'Construção Civil';
+    if (clientColumns.has('responsavel_nome')) clientePayload.responsavel_nome = 'Carlos Mendes';
+    if (clientColumns.has('responsavel_email')) clientePayload.responsavel_email = 'demo@gqv.com';
+    if (clientColumns.has('responsavel_whatsapp')) clientePayload.responsavel_whatsapp = '11999999999';
+    if (emailColumn) clientePayload[emailColumn] = 'demo@gqv.com';
+    if (clientColumns.has('telefone')) clientePayload.telefone = '11999999999';
+    if (clientColumns.has('status')) clientePayload.status = 'ativo';
+    if (supportsTenantId) clientePayload.tenant_id = DEMO_TENANT_ID;
+    if (timeId) clientePayload.time_id = timeId;
     const clientCreateRes = await supabaseServiceRest(
         '/rest/v1/clientes',
         'POST',
@@ -774,7 +837,11 @@ const seedDemoData = async () => {
     );
     const createdClient = Array.isArray(clientCreateRes.data) ? clientCreateRes.data[0] : null;
     if (!createdClient?.id) {
-        return { ok: false, error: 'erro_criar_cliente_demo' };
+        return {
+            ok: false,
+            error: 'erro_criar_cliente_demo',
+            details: clientCreateRes.data || clientCreateRes.text || null
+        };
     }
     const clienteId = createdClient.id;
 
@@ -832,7 +899,7 @@ const seedDemoData = async () => {
         {
             formato: 'reels',
             tema: 'Como reduzir desperdício na construção',
-            status: 'aguardando_aprovacao_post',
+            status: 'aguardando_aprovacao',
             legenda: '3 atitudes simples que diminuem perdas e aumentam a margem da obra.',
             legenda_linkedin: 'Pequenas mudanças geram grande economia no canteiro.',
             sugestao: 'Roteiro com 3 cenas rápidas: estoque, equipe, reaproveitamento.',
@@ -1380,7 +1447,7 @@ const server = http.createServer(async (request, response) => {
             const result = await seedDemoData();
             if (!result.ok) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: result.error || 'erro_seed_demo' }));
+                response.end(JSON.stringify({ error: result.error || 'erro_seed_demo', details: result.details || null }));
                 return;
             }
             response.writeHead(200, { 'Content-Type': 'application/json' });
