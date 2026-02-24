@@ -656,10 +656,7 @@ const getAuthContext = async (request, response) => {
         response.end(JSON.stringify({ error: 'profile_not_found' }));
         return null;
     }
-    let tenantId = profile.tenant_id;
-    if (!tenantId && profile.client_id) {
-        tenantId = await resolveTenantIdFromClientId(request, profile.client_id);
-    }
+    const tenantId = profile.tenant_id;
     if (!tenantId) {
         console.warn('missing_tenant', { userId: user.id, email: user.email });
         response.writeHead(400, { 'Content-Type': 'application/json' });
@@ -667,6 +664,41 @@ const getAuthContext = async (request, response) => {
         return null;
     }
     return { user, profile, tenantId };
+};
+
+const resolveTenantAndClient = async (request, response, clienteId) => {
+    const authContext = await getAuthContext(request, response);
+    if (!authContext) return null;
+    const userId = authContext.user?.id || null;
+    const tenantUuid = authContext.profile?.tenant_id || null;
+    if (!tenantUuid) {
+        console.warn('missing_tenant', { tenantUuid: null, clienteId, userId });
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'missing_tenant' }));
+        return null;
+    }
+
+    const normalizedClienteId = clienteId && /^\d+$/.test(String(clienteId)) ? String(clienteId) : null;
+    if (!normalizedClienteId) {
+        console.warn('cliente_id_invalido', { tenantUuid, clienteId, userId });
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'cliente_id_invalido' }));
+        return null;
+    }
+
+    const clientesRes = await supabaseRest(
+        request,
+        `/rest/v1/clientes?select=id,tenant_id&id=eq.${normalizedClienteId}&tenant_id=eq.${tenantUuid}&limit=1`
+    );
+    const clientesRow = Array.isArray(clientesRes.data) ? clientesRes.data[0] : null;
+    if (!clientesRow) {
+        console.warn('cliente_nao_pertence_ao_tenant', { tenantUuid, clienteId: normalizedClienteId, userId });
+        response.writeHead(403, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'cliente_nao_pertence_ao_tenant' }));
+        return null;
+    }
+
+    return { tenantId: tenantUuid, clienteId: Number(normalizedClienteId) };
 };
 
 const getSupabaseUserIdFromRequest = async (request) => {
@@ -1035,17 +1067,21 @@ const server = http.createServer(async (request, response) => {
 
             const authContext = await getAuthContext(request, response);
             if (!authContext) return;
-            const { profile, tenantId } = authContext;
+            const { profile } = authContext;
             const role = String(profile.role || '').trim().toLowerCase();
             if (!['client', 'admin'].includes(role)) {
                 response.writeHead(403, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'acesso_negado' }));
                 return;
             }
+            const clienteIdValue = profile.client_id || parsedUrl.query.client_id || null;
+            const resolved = await resolveTenantAndClient(request, response, clienteIdValue);
+            if (!resolved) return;
+            const { tenantId, clienteId } = resolved;
 
             const params = new URLSearchParams();
             params.set('select', '*,client_approval_items(*)');
-            params.set('client_id', `eq.${tenantId}`);
+            params.set('client_id', `eq.${clienteId}`);
             params.set('type', `eq.${type}`);
             params.set('order', 'created_at.desc');
 
@@ -1083,58 +1119,12 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const token = getBearerToken(request);
-            if (!token) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-
-            const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
-                method: 'GET',
-                headers: {
-                    apikey: supabaseAnonKey,
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            const userJson = await userRes.json().catch(() => null);
-            if (!userRes.ok) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-            const userId = userJson?.id || userJson?.user?.id || null;
-            if (!userId) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-
-            const profileParams = new URLSearchParams();
-            profileParams.set('select', 'tenant_id');
-            profileParams.set('id', `eq.${userId}`);
-            profileParams.set('limit', '1');
-            const profileUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/profiles?${profileParams.toString()}`;
-            const profileRes = await fetch(profileUrl, {
-                method: 'GET',
-                headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`
-                }
-            });
-            const profileJson = await profileRes.json().catch(() => null);
-            if (!profileRes.ok || !Array.isArray(profileJson) || profileJson.length === 0) {
-                response.writeHead(403, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
-                return;
-            }
-
-            const tenantId = profileJson[0]?.tenant_id;
-            if (!tenantId || !/^\d+$/.test(String(tenantId))) {
-                response.writeHead(403, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
-                return;
-            }
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const clienteIdValue = authContext.profile?.client_id || parsedUrl.query.client_id || null;
+            const resolved = await resolveTenantAndClient(request, response, clienteIdValue);
+            if (!resolved) return;
+            const { tenantId, clienteId } = resolved;
 
             const month = String(parsedUrl.query.month || '').trim();
             if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -1148,6 +1138,7 @@ const server = http.createServer(async (request, response) => {
             const calendarParams = new URLSearchParams();
             calendarParams.set('select', '*');
             calendarParams.set('tenant_id', `eq.${tenantId}`);
+            calendarParams.set('cliente_id', `eq.${clienteId}`);
             calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
             calendarParams.set('limit', '1');
             const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
@@ -1176,7 +1167,7 @@ const server = http.createServer(async (request, response) => {
                         Prefer: 'return=representation'
                     },
                     body: JSON.stringify({
-                        cliente_id: tenantId,
+                        cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
                         status: 'rascunho'
@@ -1225,8 +1216,8 @@ const server = http.createServer(async (request, response) => {
         try {
             const authContext = await getAuthContext(request, response);
             if (!authContext) return;
-            const requestTenantId = authContext?.tenantId || request.tenant_id || null;
-            if (!requestTenantId || !/^\d+$/.test(String(requestTenantId))) {
+            const requestTenantId = authContext?.tenantId || null;
+            if (!requestTenantId) {
                 response.writeHead(403, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
                 return;
@@ -1301,58 +1292,12 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const token = getBearerToken(request);
-            if (!token) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-
-            const userRes = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
-                method: 'GET',
-                headers: {
-                    apikey: supabaseAnonKey,
-                    Authorization: `Bearer ${token}`
-                }
-            });
-            const userJson = await userRes.json().catch(() => null);
-            if (!userRes.ok) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-            const userId = userJson?.id || userJson?.user?.id || null;
-            if (!userId) {
-                response.writeHead(401, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'unauthorized' }));
-                return;
-            }
-
-            const profileParams = new URLSearchParams();
-            profileParams.set('select', 'tenant_id');
-            profileParams.set('id', `eq.${userId}`);
-            profileParams.set('limit', '1');
-            const profileUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/profiles?${profileParams.toString()}`;
-            const profileRes = await fetch(profileUrl, {
-                method: 'GET',
-                headers: {
-                    apikey: serviceRoleKey,
-                    Authorization: `Bearer ${serviceRoleKey}`
-                }
-            });
-            const profileJson = await profileRes.json().catch(() => null);
-            if (!profileRes.ok || !Array.isArray(profileJson) || profileJson.length === 0) {
-                response.writeHead(403, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
-                return;
-            }
-
-            const tenantId = profileJson[0]?.tenant_id;
-            if (!tenantId || !/^\d+$/.test(String(tenantId))) {
-                response.writeHead(403, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
-                return;
-            }
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const clienteIdValue = authContext.profile?.client_id || parsedUrl.query.client_id || null;
+            const resolved = await resolveTenantAndClient(request, response, clienteIdValue);
+            if (!resolved) return;
+            const { tenantId, clienteId } = resolved;
 
             const month = String(parsedUrl.query.month || '').trim();
             if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -1366,6 +1311,7 @@ const server = http.createServer(async (request, response) => {
             const calendarParams = new URLSearchParams();
             calendarParams.set('select', '*');
             calendarParams.set('tenant_id', `eq.${tenantId}`);
+            calendarParams.set('cliente_id', `eq.${clienteId}`);
             calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
             calendarParams.set('limit', '1');
             const calendarUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_calendars?${calendarParams.toString()}`;
@@ -1394,7 +1340,7 @@ const server = http.createServer(async (request, response) => {
                         Prefer: 'return=representation'
                     },
                     body: JSON.stringify({
-                        cliente_id: tenantId,
+                        cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
                         status: 'rascunho'
@@ -1466,7 +1412,10 @@ const server = http.createServer(async (request, response) => {
         try {
             const authContext = await getAuthContext(request, response);
             if (!authContext) return;
-            const { tenantId } = authContext;
+            const clienteIdValue = authContext.profile?.client_id || parsedUrl.query.client_id || null;
+            const resolved = await resolveTenantAndClient(request, response, clienteIdValue);
+            if (!resolved) return;
+            const { tenantId, clienteId } = resolved;
 
             const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
             if (!supabaseUrl || !serviceRoleKey) {
@@ -1491,6 +1440,7 @@ const server = http.createServer(async (request, response) => {
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,legenda_linkedin,legenda_tiktok,link_criativo,data_agendada,formato,medias,imagem_url,video_url,arquivo_url,social_calendars!inner(tenant_id)');
             params.set('social_calendars.tenant_id', `eq.${tenantId}`);
+            params.set('social_calendars.cliente_id', `eq.${clienteId}`);
             params.set('data_agendada', `gte.${from}`);
             params.append('data_agendada', `lte.${to}`);
             params.set('order', 'data_agendada.asc');
@@ -1613,7 +1563,7 @@ const server = http.createServer(async (request, response) => {
 
             const batchParams = new URLSearchParams();
             batchParams.set('select', '*');
-            batchParams.set('client_id', `eq.${tenantId}`);
+            batchParams.set('client_id', `eq.${clienteId}`);
             batchParams.set('kind', 'eq.posts_week');
             batchParams.set('period_start', `eq.${from}`);
             batchParams.set('period_end', `eq.${to}`);
@@ -1639,7 +1589,7 @@ const server = http.createServer(async (request, response) => {
                 const shareToken = crypto.randomUUID();
                 const accessPassword = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
                 const insertBatchPayload = {
-                    client_id: tenantId,
+                    client_id: clienteId,
                     kind: 'posts_week',
                     period_start: from,
                     period_end: to,
@@ -1667,7 +1617,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const approvalsPayload = completePosts.map((post) => ({
-                client_id: tenantId,
+                client_id: clienteId,
                 type: 'post',
                 item_id: post.id,
                 title: post.tema || 'Post',
@@ -3053,14 +3003,17 @@ const server = http.createServer(async (request, response) => {
             let includeTiktok = false;
             let includeMeta = false;
             let forceGeneration = false;
-            const rawTenantId = request.tenant_id;
-            const tenantId = rawTenantId && /^\d+$/.test(String(rawTenantId)) ? String(rawTenantId) : null;
-            const clienteId = body?.client_id || null;
+            let tenantId = null;
+            let clienteId = body?.client_id || null;
             const mesReferencia = body?.month ? `${body.month}-01` : null;
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
             let supabaseAdmin = null;
 
             if (isCalendarMode) {
+                const resolved = await resolveTenantAndClient(request, response, clienteId);
+                if (!resolved) return;
+                tenantId = resolved.tenantId;
+                clienteId = resolved.clienteId;
                 forceGeneration = Boolean(body?.force);
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
                 const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
@@ -3074,7 +3027,7 @@ const server = http.createServer(async (request, response) => {
                 const niche = String(body.niche || 'Geral').trim();
                 const month = String(body.month || '').trim();
                 const contextLink = String(body.context_link || '').trim();
-                const clientId = body.client_id || null;
+                const clientId = clienteId;
                 const weekContext = body?.week_context && typeof body.week_context === 'object' ? body.week_context : null;
                 const weekSlots = Array.isArray(weekContext?.slots) ? weekContext.slots : [];
                 const postsPerWeek = Number.isFinite(Number(body.posts_per_week)) ? Number(body.posts_per_week) : null;
