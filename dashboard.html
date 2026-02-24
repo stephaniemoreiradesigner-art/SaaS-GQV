@@ -83,9 +83,14 @@
             </div>
 
             <div class="flex-1 overflow-y-auto p-6 md:p-8">
-                <div class="flex items-center gap-3 mb-8">
-                    <div class="w-1 h-8 bg-primary rounded-full"></div>
-                    <h2 class="text-2xl font-bold text-gray-800">Home</h2>
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+                    <div class="flex items-center gap-3">
+                        <div class="w-1 h-8 bg-primary rounded-full"></div>
+                        <h2 class="text-2xl font-bold text-gray-800">Home</h2>
+                    </div>
+                    <button id="btn-demo-client-view" class="hidden px-4 py-2 rounded-lg border border-yellow-300 text-yellow-900 bg-yellow-100 hover:bg-yellow-200 transition text-sm font-medium">
+                        Visualizar como Cliente (Demo)
+                    </button>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">

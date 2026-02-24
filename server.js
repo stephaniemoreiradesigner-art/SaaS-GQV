@@ -701,6 +701,382 @@ const resolveTenantAndClient = async (request, response, clienteId) => {
     return { tenantId: tenantUuid, clienteId: Number(normalizedClienteId) };
 };
 
+const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000999';
+const DEMO_CLIENT_NAME = 'Empresa Alpha Engenharia';
+const DEMO_METRICS = {
+    faturamento_estimado: 38500,
+    roi: 4.3,
+    crescimento_mensal: 18
+};
+const DEMO_NOTIFICATIONS = [
+    'Calendário aprovado com sucesso',
+    'Nova campanha iniciada',
+    'Post aguardando aprovação'
+];
+
+const supabaseServiceRest = async (pathWithQuery, method = 'GET', body = null, extraHeaders = {}) => {
+    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+    if (!supabaseUrl || !serviceRoleKey) {
+        return { status: 500, data: { error: 'service_role_nao_configurada' }, text: '' };
+    }
+    const baseUrl = supabaseUrl.replace(/\/$/, '');
+    const normalizedPath = pathWithQuery.startsWith('/') ? pathWithQuery : `/${pathWithQuery}`;
+    const targetUrl = `${baseUrl}${normalizedPath}`;
+    const headers = {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        ...extraHeaders
+    };
+    if (body !== null && body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+    }
+    const response = await fetch(targetUrl, {
+        method,
+        headers,
+        body: body !== null && body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    } catch {
+        data = null;
+    }
+    return { status: response.status, data, text };
+};
+
+const seedDemoData = async () => {
+    const existingClientRes = await supabaseServiceRest(
+        `/rest/v1/clientes?select=id,tenant_id&tenant_id=eq.${DEMO_TENANT_ID}&limit=1`
+    );
+    const existingClient = Array.isArray(existingClientRes.data) ? existingClientRes.data[0] : null;
+    if (existingClient?.id) {
+        return { ok: true, status: 'exists', clienteId: existingClient.id, tenantId: DEMO_TENANT_ID };
+    }
+
+    const clientePayload = {
+        nome_empresa: DEMO_CLIENT_NAME,
+        nome_fantasia: DEMO_CLIENT_NAME,
+        segmento: 'Construção Civil',
+        responsavel_nome: 'Carlos Mendes',
+        responsavel_email: 'demo@gqv.com',
+        responsavel_whatsapp: '11999999999',
+        email_contato: 'demo@gqv.com',
+        telefone: '11999999999',
+        status: 'ativo',
+        tenant_id: DEMO_TENANT_ID
+    };
+    const clientCreateRes = await supabaseServiceRest(
+        '/rest/v1/clientes',
+        'POST',
+        clientePayload,
+        { Prefer: 'return=representation' }
+    );
+    const createdClient = Array.isArray(clientCreateRes.data) ? clientCreateRes.data[0] : null;
+    if (!createdClient?.id) {
+        return { ok: false, error: 'erro_criar_cliente_demo' };
+    }
+    const clienteId = createdClient.id;
+
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const mesReferencia = monthStart.toISOString().slice(0, 10);
+    const calendarPayload = {
+        cliente_id: clienteId,
+        tenant_id: DEMO_TENANT_ID,
+        mes_referencia: mesReferencia,
+        status: 'aprovado',
+        share_token: crypto.randomUUID(),
+        access_password: '123456'
+    };
+    const calendarRes = await supabaseServiceRest(
+        '/rest/v1/social_calendars',
+        'POST',
+        calendarPayload,
+        { Prefer: 'return=representation' }
+    );
+    const createdCalendar = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
+    const calendarId = createdCalendar?.id || null;
+
+    if (calendarId) {
+        await supabaseServiceRest(
+            `/rest/v1/social_calendars?id=eq.${calendarId}`,
+            'PATCH',
+            { aprovado_por: 'Carlos Mendes', data_aprovacao: new Date().toISOString(), status: 'aprovado' }
+        );
+    }
+
+    const mockMedia = (seed) => ([
+        { public_url: `https://picsum.photos/seed/${seed}/1080/1080` }
+    ]);
+
+    const postsSeed = [
+        {
+            formato: 'estatico',
+            tema: '3 erros que fazem sua obra perder dinheiro',
+            status: 'aprovado',
+            legenda: 'Evite desperdícios: alinhamento de equipe, orçamento atualizado e cronograma realista fazem toda diferença.',
+            legenda_linkedin: 'Quando o planejamento é claro, a obra rende mais e o custo fica sob controle.',
+            sugestao: 'Crie uma arte com 3 cards numerados e ícones simples de alerta/erro.',
+            data: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 5))
+        },
+        {
+            formato: 'carrossel',
+            tema: 'Checklist de segurança para obras',
+            status: 'aprovado',
+            legenda: 'Checklist rápido para manter sua equipe segura e evitar paradas inesperadas.',
+            legenda_linkedin: 'Segurança não é custo, é continuidade da obra.',
+            sugestao: 'Carrossel com 5 etapas e fundo neutro para fácil leitura.',
+            data: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 12))
+        },
+        {
+            formato: 'reels',
+            tema: 'Como reduzir desperdício na construção',
+            status: 'aguardando_aprovacao_post',
+            legenda: '3 atitudes simples que diminuem perdas e aumentam a margem da obra.',
+            legenda_linkedin: 'Pequenas mudanças geram grande economia no canteiro.',
+            sugestao: 'Roteiro com 3 cenas rápidas: estoque, equipe, reaproveitamento.',
+            data: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 19))
+        },
+        {
+            formato: 'estatico',
+            tema: 'Planejamento evita retrabalho',
+            status: 'concluido',
+            legenda: 'Planejar antes de executar evita retrabalho e traz previsibilidade.',
+            legenda_linkedin: 'Planejamento é o melhor seguro contra custos extras.',
+            sugestao: 'Arte simples com frase central e fundo com textura de obra.',
+            data: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 26))
+        }
+    ];
+
+    const postResults = [];
+    if (calendarId) {
+        for (const item of postsSeed) {
+            const postPayload = {
+                calendar_id: calendarId,
+                cliente_id: clienteId,
+                tenant_id: DEMO_TENANT_ID,
+                data_agendada: item.data.toISOString().slice(0, 10),
+                tema: item.tema,
+                formato: item.formato,
+                status: item.status,
+                legenda: item.legenda,
+                legenda_linkedin: item.legenda_linkedin,
+                legenda_tiktok: item.legenda,
+                descricao_visual: item.sugestao,
+                conteudo_roteiro: item.sugestao,
+                estrategia: 'Demonstração',
+                medias: mockMedia(`${item.formato}-${item.tema}`),
+                imagem_url: item.formato === 'reels' ? null : `https://picsum.photos/seed/${encodeURIComponent(item.tema)}/1200/1200`,
+                video_url: item.formato === 'reels' ? 'https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4' : null
+            };
+            const postRes = await supabaseServiceRest(
+                '/rest/v1/social_posts',
+                'POST',
+                postPayload,
+                { Prefer: 'return=representation' }
+            );
+            const createdPost = Array.isArray(postRes.data) ? postRes.data[0] : null;
+            if (createdPost?.id) {
+                postResults.push(createdPost.id);
+                if (item.status === 'aprovado' || item.status === 'concluido') {
+                    await supabaseServiceRest(
+                        `/rest/v1/social_posts?id=eq.${createdPost.id}`,
+                        'PATCH',
+                        {
+                            aprovado_por_post: 'Carlos Mendes',
+                            data_aprovacao_post: new Date().toISOString()
+                        }
+                    );
+                }
+            }
+        }
+    }
+
+    const campaignsSeed = [
+        {
+            nome: 'Geração de Leads Engenharia',
+            plataforma: 'facebook',
+            orcamento_diario: 2500,
+            objetivo: 'conversao',
+            metricas: { impressoes: '54000', clicks: '1728', custo: '2500', conversoes: '87', ctr: 3.2, cpc: 1.45 }
+        },
+        {
+            nome: 'Remarketing Visitantes',
+            plataforma: 'google',
+            orcamento_diario: 1200,
+            objetivo: 'trafego',
+            metricas: { impressoes: '28000', clicks: '1428', custo: '1200', conversoes: '32', ctr: 5.1, cpc: 0.89 }
+        }
+    ];
+
+    const campaignIds = [];
+    for (const campaign of campaignsSeed) {
+        const campaignRes = await supabaseServiceRest(
+            '/rest/v1/traffic_campaigns',
+            'POST',
+            {
+                cliente_id: clienteId,
+                nome: campaign.nome,
+                plataforma: campaign.plataforma,
+                status: 'ativa',
+                orcamento_diario: campaign.orcamento_diario,
+                objetivo: campaign.objetivo
+            },
+            { Prefer: 'return=representation' }
+        );
+        const createdCampaign = Array.isArray(campaignRes.data) ? campaignRes.data[0] : null;
+        if (createdCampaign?.id) {
+            campaignIds.push(createdCampaign.id);
+            const metricRes = await supabaseServiceRest(
+                '/rest/v1/traffic_metrics',
+                'POST',
+                {
+                    campaign_id: createdCampaign.id,
+                    cliente_id: clienteId,
+                    data_metric: mesReferencia,
+                    impressoes: campaign.metricas.impressoes,
+                    clicks: campaign.metricas.clicks,
+                    custo: campaign.metricas.custo,
+                    conversoes: campaign.metricas.conversoes
+                },
+                { Prefer: 'return=representation' }
+            );
+            const createdMetric = Array.isArray(metricRes.data) ? metricRes.data[0] : null;
+            if (createdMetric?.id) {
+                await supabaseServiceRest(
+                    `/rest/v1/traffic_metrics?id=eq.${createdMetric.id}`,
+                    'PATCH',
+                    { ctr: campaign.metricas.ctr, cpc: campaign.metricas.cpc, conversions: campaign.metricas.conversoes }
+                );
+            }
+        }
+    }
+
+    return {
+        ok: true,
+        status: 'seeded',
+        tenantId: DEMO_TENANT_ID,
+        clienteId,
+        calendarId,
+        postIds: postResults,
+        campaignIds
+    };
+};
+
+const resetDemoData = async () => {
+    const demoClientRes = await supabaseServiceRest(
+        `/rest/v1/clientes?select=id&tenant_id=eq.${DEMO_TENANT_ID}&limit=1`
+    );
+    const demoClient = Array.isArray(demoClientRes.data) ? demoClientRes.data[0] : null;
+    const clienteId = demoClient?.id || null;
+    if (!clienteId) {
+        console.log('DADOS DEMO REMOVIDOS COM SUCESSO');
+        return { ok: true, status: 'no_data' };
+    }
+
+    const calendarsRes = await supabaseServiceRest(
+        `/rest/v1/social_calendars?select=id&cliente_id=eq.${clienteId}`
+    );
+    const calendarIds = Array.isArray(calendarsRes.data) ? calendarsRes.data.map((row) => row.id).filter(Boolean) : [];
+    if (calendarIds.length) {
+        const calendarIdsQuery = calendarIds.join(',');
+        await supabaseServiceRest(`/rest/v1/social_posts?calendar_id=in.(${calendarIdsQuery})`, 'DELETE');
+    }
+    await supabaseServiceRest(`/rest/v1/social_calendars?cliente_id=eq.${clienteId}`, 'DELETE');
+    await supabaseServiceRest(`/rest/v1/traffic_metrics?cliente_id=eq.${clienteId}`, 'DELETE');
+    await supabaseServiceRest(`/rest/v1/traffic_campaigns?cliente_id=eq.${clienteId}`, 'DELETE');
+    await supabaseServiceRest(`/rest/v1/clientes?id=eq.${clienteId}`, 'DELETE');
+    console.log('DADOS DEMO REMOVIDOS COM SUCESSO');
+    return { ok: true, status: 'deleted' };
+};
+
+const formatDateBr = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleDateString('pt-BR');
+};
+
+const buildDemoClientViewHtml = ({ clientName, metrics, notifications, calendar, posts, campaigns }) => {
+    const postsHtml = posts.map((post) => `
+        <li>
+            <strong>${post.formato || '-'}</strong> — ${post.tema || '-'}<br>
+            <small>Status: ${post.status || '-'}</small><br>
+            <small>Data: ${formatDateBr(post.data_agendada)}</small>
+        </li>
+    `).join('');
+
+    const campaignsHtml = campaigns.map((campaign) => `
+        <li>
+            <strong>${campaign.nome || '-'}</strong><br>
+            <small>Orçamento: R$ ${campaign.orcamento || '-'}</small><br>
+            <small>CTR: ${campaign.ctr || '-'}%</small><br>
+            <small>CPC: R$ ${campaign.cpc || '-'}</small><br>
+            <small>${campaign.tipoConversao}: ${campaign.conversoes || '-'}</small>
+        </li>
+    `).join('');
+
+    const notificationsHtml = notifications.map((item) => `<li>${item}</li>`).join('');
+
+    return `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Demo - Visualização Cliente</title>
+            <style>
+                body { font-family: Inter, Arial, sans-serif; background: #f9fafb; margin: 0; padding: 24px; color: #1f2937; }
+                .container { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+                .card { background: #fff; border-radius: 16px; padding: 20px; border: 1px solid #e5e7eb; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06); }
+                h1 { margin: 0 0 12px 0; font-size: 24px; }
+                h2 { margin: 0 0 12px 0; font-size: 18px; }
+                ul { padding-left: 18px; margin: 0; display: grid; gap: 8px; }
+                .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+                .metric { background: #f9fafb; border-radius: 12px; padding: 12px; border: 1px solid #e5e7eb; }
+            </style>
+        </head>
+        <body>
+            <script>
+                if (localStorage.getItem('demo_mode') !== 'true') {
+                    document.body.innerHTML = '<div style="max-width:640px;margin:40px auto;font-family:Inter,Arial,sans-serif;text-align:center;">Acesso restrito. Ative o Modo Demonstração para visualizar.</div>';
+                }
+            </script>
+            <div class="container">
+                <div class="card">
+                    <h1>Cliente Demo: ${clientName || 'Demo GQV'}</h1>
+                    <p>Visão simples para apresentação ao cliente.</p>
+                </div>
+                <div class="card">
+                    <h2>SEÇÃO 1 – MÉTRICAS</h2>
+                    <div class="metrics">
+                        <div class="metric"><strong>Faturamento estimado</strong><br>R$ ${metrics.faturamento_estimado}</div>
+                        <div class="metric"><strong>ROI</strong><br>${metrics.roi}</div>
+                        <div class="metric"><strong>Crescimento mensal</strong><br>${metrics.crescimento_mensal}%</div>
+                    </div>
+                    <h3 style="margin-top:16px;">Notificações</h3>
+                    <ul>${notificationsHtml}</ul>
+                </div>
+                <div class="card">
+                    <h2>SEÇÃO 2 – CALENDÁRIO</h2>
+                    <p>Mês atual: ${calendar?.mes_referencia || '-'} | Status: ${calendar?.status || '-'}</p>
+                    <ul>${postsHtml || '<li>Nenhum post encontrado.</li>'}</ul>
+                </div>
+                <div class="card">
+                    <h2>SEÇÃO 3 – POSTS</h2>
+                    <ul>${postsHtml || '<li>Nenhum post encontrado.</li>'}</ul>
+                </div>
+                <div class="card">
+                    <h2>SEÇÃO 4 – TRÁFEGO PAGO</h2>
+                    <ul>${campaignsHtml || '<li>Nenhuma campanha encontrada.</li>'}</ul>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+};
+
 const getSupabaseUserIdFromRequest = async (request) => {
     const token = getBearerToken(request);
     if (!token) return null;
@@ -835,6 +1211,79 @@ const server = http.createServer(async (request, response) => {
         return;
     }
 
+    if (pathname === '/demo/cliente-view' && request.method === 'GET') {
+        try {
+            const clientRes = await supabaseServiceRest(
+                `/rest/v1/clientes?select=id,nome_empresa,nome_fantasia&tenant_id=eq.${DEMO_TENANT_ID}&limit=1`
+            );
+            const client = Array.isArray(clientRes.data) ? clientRes.data[0] : null;
+            const clienteId = client?.id || null;
+            let calendar = null;
+            let posts = [];
+            let campaigns = [];
+
+            if (clienteId) {
+                const calendarRes = await supabaseServiceRest(
+                    `/rest/v1/social_calendars?select=id,mes_referencia,status&tenant_id=eq.${DEMO_TENANT_ID}&order=created_at.desc&limit=1`
+                );
+                calendar = Array.isArray(calendarRes.data) ? calendarRes.data[0] : null;
+
+                if (calendar?.id) {
+                    const postsRes = await supabaseServiceRest(
+                        `/rest/v1/social_posts?select=formato,tema,status,data_agendada&calendar_id=eq.${calendar.id}&order=data_agendada.asc`
+                    );
+                    posts = Array.isArray(postsRes.data) ? postsRes.data : [];
+                }
+
+                const campaignsRes = await supabaseServiceRest(
+                    `/rest/v1/traffic_campaigns?select=id,nome,orcamento_diario,status,plataforma&cliente_id=eq.${clienteId}&order=created_at.desc`
+                );
+                const rawCampaigns = Array.isArray(campaignsRes.data) ? campaignsRes.data : [];
+
+                const metricsRes = await supabaseServiceRest(
+                    `/rest/v1/traffic_metrics?select=campaign_id,impressoes,clicks,custo,conversoes,ctr,cpc&cliente_id=eq.${clienteId}`
+                );
+                const metricsList = Array.isArray(metricsRes.data) ? metricsRes.data : [];
+                const metricsMap = new Map(metricsList.map((item) => [item.campaign_id, item]));
+
+                campaigns = rawCampaigns.map((campaign) => {
+                    const metric = metricsMap.get(campaign.id) || {};
+                    const impressoes = Number(String(metric.impressoes || '').replace(',', '.')) || 0;
+                    const clicks = Number(String(metric.clicks || '').replace(',', '.')) || 0;
+                    const custo = Number(String(metric.custo || '').replace(',', '.')) || 0;
+                    const conversoes = Number(String(metric.conversoes || '').replace(',', '.')) || 0;
+                    const ctr = metric.ctr ?? (impressoes > 0 ? (clicks / impressoes) * 100 : 0);
+                    const cpc = metric.cpc ?? (clicks > 0 ? custo / clicks : 0);
+                    const tipoConversao = String(campaign.nome || '').toLowerCase().includes('lead') ? 'Leads' : 'Conversões';
+                    return {
+                        nome: campaign.nome,
+                        orcamento: Number(campaign.orcamento_diario || 0).toFixed(2),
+                        ctr: Number(ctr || 0).toFixed(1),
+                        cpc: Number(cpc || 0).toFixed(2),
+                        conversoes: conversoes || 0,
+                        tipoConversao
+                    };
+                });
+            }
+
+            const html = buildDemoClientViewHtml({
+                clientName: client?.nome_fantasia || client?.nome_empresa || DEMO_CLIENT_NAME,
+                metrics: DEMO_METRICS,
+                notifications: DEMO_NOTIFICATIONS,
+                calendar,
+                posts,
+                campaigns
+            });
+            response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            response.end(html);
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_demo_view' }));
+            return;
+        }
+    }
+
     if (pathname === '/api/me/context' && request.method === 'GET') {
         try {
             const authContext = await getAuthContext(request, response);
@@ -924,6 +1373,24 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
+    }
+
+    if (pathname === '/api/demo/seed' && request.method === 'POST') {
+        try {
+            const result = await seedDemoData();
+            if (!result.ok) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: result.error || 'erro_seed_demo' }));
+                return;
+            }
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(result));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_seed_demo' }));
+            return;
+        }
     }
 
     if (pathname === '/api/auth/register-invite' && request.method === 'POST') {

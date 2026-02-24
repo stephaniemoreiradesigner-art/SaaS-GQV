@@ -173,6 +173,27 @@ window.renderPlatformNotConnectedCTA = function(clientId, platform) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Sistema GQV Iniciado - v2.0 (Resiliente)');
+
+    const demoModeEnabled = String(localStorage.getItem('demo_mode')) === 'true';
+    if (demoModeEnabled && !document.getElementById('demo-mode-badge')) {
+        const badge = document.createElement('div');
+        badge.id = 'demo-mode-badge';
+        badge.textContent = 'AMBIENTE DEMO';
+        badge.className = 'fixed top-4 right-4 z-50 bg-yellow-400 text-yellow-900 font-semibold text-xs md:text-sm px-3 py-2 rounded-full shadow-lg';
+        document.body.appendChild(badge);
+    }
+
+    const demoViewButton = document.getElementById('btn-demo-client-view');
+    if (demoViewButton) {
+        if (demoModeEnabled) {
+            demoViewButton.classList.remove('hidden');
+            demoViewButton.addEventListener('click', () => {
+                window.location.href = '/demo/cliente-view';
+            });
+        } else {
+            demoViewButton.classList.add('hidden');
+        }
+    }
     
     // REDE DE SEGURANÇA: Timeout Global
     // Se em 4 segundos a tela de loading ainda estiver lá, força a abertura
