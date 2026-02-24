@@ -2001,6 +2001,22 @@ async function generateCalendar(config = {}) {
         generationButtons.length = 0;
     };
 
+    const buildPayloadSummary = (payload) => {
+        try {
+            if (!payload || typeof payload !== 'object') return { type: typeof payload };
+            const summary = { keys: Object.keys(payload) };
+            Object.keys(payload).forEach((k) => {
+                if (Array.isArray(payload[k])) summary[`${k}_length`] = payload[k].length;
+            });
+            if (payload?.choices?.[0]?.message?.content) {
+                summary.content_length = String(payload.choices[0].message.content).length;
+            }
+            return summary;
+        } catch {
+            return { type: typeof payload };
+        }
+    };
+
     let requestId = null;
     let generationSucceeded = false;
     try {
@@ -2019,6 +2035,7 @@ async function generateCalendar(config = {}) {
         disableGenerationButtons();
         showGenerationBanner();
         showGenerationLog();
+        appendGenerationLog('Iniciando geração');
         appendGenerationLog('Iniciando geração do calendário...');
 
         requestId = generateRequestId();
@@ -2033,10 +2050,11 @@ async function generateCalendar(config = {}) {
         const contextLink = null;
 
         const apiEndpoint = '/api/openai/proxy';
+        const apiEndpointUrl = new URL(apiEndpoint, window.location.origin).toString();
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
         console.log('[generateCalendar] request_id', requestId);
         appendGenerationLog(`request_id: ${requestId}`);
-        appendGenerationLog('Chamando servidor...');
+        appendGenerationLog('Chamando API...');
         let response;
         const calendarPrompt = `
 Crie um calendário editorial para o cliente ${client.nome_empresa}.
@@ -2080,10 +2098,7 @@ Regras obrigatórias:
           { role: "system", content: "Você é um estrategista sênior de social media e copywriter. Retorne sempre JSON válido e completo, sem texto extra." },
           { role: "user", content: calendarPrompt }
         ];
-        response = await fetch(apiEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
-            body: JSON.stringify({
+        const requestPayload = {
                 mode: 'calendar',
                 model: 'gpt-4-turbo',
                 temperature: 0.7,
@@ -2099,10 +2114,31 @@ Regras obrigatórias:
                 visual_identity: client.visual_identity || client.identidade_visual || null,
                 force: forceGeneration,
                 messages
-            })
+            };
+        console.debug('[generateCalendar] request', {
+            url: apiEndpointUrl,
+            method: 'POST',
+            body: {
+                request_id: requestId,
+                client_id: currentClienteId,
+                month: currentMonth,
+                posts_count: postsCount,
+                platforms,
+                seasonal_dates_count: seasonalDates.length,
+                force: forceGeneration,
+                model: 'gpt-4-turbo'
+            }
+        });
+        response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
+            body: JSON.stringify(requestPayload)
         });
 
         appendGenerationLog(`Resposta recebida: status ${response.status}`);
+        if (response.ok) {
+            appendGenerationLog('API OK (200)');
+        }
         const responseClone = response.clone();
         let data;
         try {
@@ -2111,6 +2147,10 @@ Regras obrigatórias:
             const text = await responseClone.text();
             throw new Error(text || 'Resposta inválida do servidor.');
         }
+        console.debug('[generateCalendar] response', {
+            status: response.status,
+            summary: buildPayloadSummary(data)
+        });
 
         if (!response.ok || data?.ok === false) {
             const errorMessage = data?.message || data?.error || 'Erro na comunicação com a OpenAI (Proxy)';
@@ -2290,6 +2330,8 @@ Regras obrigatórias:
         });
 
         console.log('Posts válidos para insert:', postsToInsert.length);
+        appendGenerationLog('Salvando posts...');
+        console.debug('[generateCalendar] preparing_insert', { count: postsToInsert.length });
         if (postsToInsert.length === 0) {
             throw new Error('Nenhum post válido para inserir.');
         }
@@ -2307,6 +2349,7 @@ Regras obrigatórias:
 
         if (error) {
             console.error('Erro Supabase Insert:', error);
+            console.debug('[generateCalendar] insert_error', { message: error?.message || String(error) });
             if (error.message && (error.message.includes('schema cache') || error.message.includes('Could not find'))) {
                  console.warn('Erro de Schema Cache. Limpando e tentando reload...');
                  Object.keys(localStorage).forEach(key => {
@@ -2317,17 +2360,21 @@ Regras obrigatórias:
             }
             throw error;
         }
+        appendGenerationLog('Posts salvos');
+        console.debug('[generateCalendar] insert_ok', { count: postsToInsert.length });
 
         if (typeof closeConfigModal === 'function') closeConfigModal();
         const calendarContainer = document.getElementById('calendar');
         if (!calendarContainer) {
             console.error('[generateCalendar] container não encontrado');
         }
+        appendGenerationLog('Atualizando calendário...');
         appendGenerationLog('Renderizando calendário...');
         await loadCalendarData();
         generationSucceeded = true;
         
         // Notificação de Sucesso
+        appendGenerationLog('Concluído');
         appendGenerationLog('Geração concluída com sucesso.');
         setTimeout(() => hideGenerationLog(), 5000);
         const successDiv = document.createElement('div');
