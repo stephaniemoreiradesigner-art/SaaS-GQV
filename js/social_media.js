@@ -1911,33 +1911,120 @@ async function generateCalendar(config = {}) {
         return;
     }
 
-    const connections = calendarConnectionsCache[currentClienteId] || await window.getConnectedPlatforms(currentClienteId);
-    calendarConnectionsCache[currentClienteId] = connections;
-    const platforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
-    if (platforms.length === 0) {
-        const container = ensureCalendarCTAContainer();
-        if (container) {
-            container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
-            container.classList.remove('hidden');
+    if (window.__calendarGenerating === true) {
+        if (typeof appendGenerationLog === 'function') {
+            appendGenerationLog('Já estou gerando...');
+        } else {
+            alert('Já estou gerando...');
         }
         return;
     }
+    window.__calendarGenerating = true;
 
-    const btn = document.getElementById('btn-generation-confirm') || document.getElementById('btn-header-generate');
-    if (!btn) return;
-    
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
-    showGenerationLog();
-    appendGenerationLog('Iniciando geração do calendário...');
+    const generationButtons = [];
+    const originalButtonTexts = new Map();
+    let bannerEl = null;
 
-    const requestId = generateRequestId();
-    lastGenerationConfig = config;
-    progressRequestId = requestId;
-    let calendarId = null;
+    const ensureBannerStyle = () => {
+        if (document.getElementById('calendar-generation-banner-style')) return;
+        const style = document.createElement('style');
+        style.id = 'calendar-generation-banner-style';
+        style.textContent = `
+.calendar-generation-spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 999px;
+    animation: calendarGenerationSpin 1s linear infinite;
+}
+@keyframes calendarGenerationSpin {
+    to { transform: rotate(360deg); }
+}
+        `.trim();
+        document.head.appendChild(style);
+    };
+
+    const showGenerationBanner = () => {
+        ensureBannerStyle();
+        const existing = document.getElementById('calendar-generation-banner');
+        if (existing) existing.remove();
+        bannerEl = document.createElement('div');
+        bannerEl.id = 'calendar-generation-banner';
+        bannerEl.style.position = 'fixed';
+        bannerEl.style.top = '16px';
+        bannerEl.style.right = '16px';
+        bannerEl.style.zIndex = '90';
+        bannerEl.style.background = '#111827';
+        bannerEl.style.color = '#fff';
+        bannerEl.style.padding = '12px 16px';
+        bannerEl.style.borderRadius = '12px';
+        bannerEl.style.boxShadow = '0 12px 24px rgba(0,0,0,0.2)';
+        bannerEl.style.display = 'flex';
+        bannerEl.style.alignItems = 'center';
+        bannerEl.style.gap = '12px';
+        bannerEl.innerHTML = `
+            <div class="calendar-generation-spinner"></div>
+            <div>
+                <div style="font-weight:700;">Gerando calendário... não feche esta tela.</div>
+                <div style="font-size:12px; opacity:0.85;">Isso pode levar alguns segundos.</div>
+            </div>
+        `;
+        document.body.appendChild(bannerEl);
+    };
+
+    const disableGenerationButtons = () => {
+        const selectors = ['#btn-modal-generate', '#btn-generate-calendar', '[data-action="generate-calendar"]', '#btn-generation-confirm', '#btn-header-generate'];
+        selectors.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((el) => {
+                if (!generationButtons.includes(el)) {
+                    generationButtons.push(el);
+                }
+            });
+        });
+        generationButtons.forEach((btn) => {
+            originalButtonTexts.set(btn, btn.innerHTML);
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+        });
+    };
+
+    const restoreGenerationButtons = () => {
+        generationButtons.forEach((btn) => {
+            btn.disabled = false;
+            const original = originalButtonTexts.get(btn);
+            if (original !== undefined) {
+                btn.innerHTML = original;
+            }
+        });
+        originalButtonTexts.clear();
+        generationButtons.length = 0;
+    };
+
+    let requestId = null;
     let generationSucceeded = false;
     try {
+        const connections = calendarConnectionsCache[currentClienteId] || await window.getConnectedPlatforms(currentClienteId);
+        calendarConnectionsCache[currentClienteId] = connections;
+        const platforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+        if (platforms.length === 0) {
+            const container = ensureCalendarCTAContainer();
+            if (container) {
+                container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
+                container.classList.remove('hidden');
+            }
+            return;
+        }
+
+        disableGenerationButtons();
+        showGenerationBanner();
+        showGenerationLog();
+        appendGenerationLog('Iniciando geração do calendário...');
+
+        requestId = generateRequestId();
+        lastGenerationConfig = config;
+        progressRequestId = requestId;
+        let calendarId = null;
         const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
         const forceGeneration = Boolean(config.force);
         const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
@@ -2140,6 +2227,9 @@ Regras obrigatórias:
             return y === year && m === month;
         };
 
+        const clienteIdNum = Number(currentClienteId);
+        const clienteIdValue = Number.isFinite(clienteIdNum) ? clienteIdNum : currentClienteId;
+
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
             const rawDate = post.scheduled_date || post.data_agendada || post.data || post.date || '';
@@ -2181,7 +2271,7 @@ Regras obrigatórias:
             const estrategiaParts = [post.pillar || '', post.objective || '', post.week || ''].filter(Boolean);
 
             postsToInsert.push({
-                cliente_id: clienteIdNum,
+                cliente_id: clienteIdValue,
                 calendar_id: calendar.id,
                 data_agendada: dataAgendada,
                 hora_agendada: scheduledTime,
@@ -2259,10 +2349,9 @@ Regras obrigatórias:
                 setRetryVisible(true, `Erro: ${errorMessage} (request_id: ${requestId})`);
         }
     } finally {
-        if(btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
+        if (bannerEl) bannerEl.remove();
+        restoreGenerationButtons();
+        window.__calendarGenerating = false;
         if (generationSucceeded) {
             stopCalendarProgressPolling();
         }
