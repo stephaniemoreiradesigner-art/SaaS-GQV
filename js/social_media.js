@@ -1951,6 +1951,48 @@ async function generateCalendar(config = {}) {
         appendGenerationLog(`request_id: ${requestId}`);
         appendGenerationLog('Chamando servidor...');
         let response;
+        const calendarPrompt = `
+Crie um calendário editorial para o cliente ${client.nome_empresa}.
+Mês de referência: ${currentMonth}
+Nicho: ${client.nicho_atuacao || 'Geral'}
+Plataformas ativas: ${platforms.join(', ')}
+Quantidade de posts: ${postsCount}
+Datas sazonais (se houver): ${seasonalDates && seasonalDates.length ? JSON.stringify(seasonalDates) : 'nenhuma'}
+Identidade visual (se houver): ${client.visual_identity || client.identidade_visual || 'não informada'}
+
+Regras obrigatórias:
+- Responda APENAS com JSON válido.
+- Retorne um OBJETO no formato:
+{
+  "month": "${currentMonth}",
+  "timezone": "America/Sao_Paulo",
+  "posts": [
+    {
+      "date": "YYYY-MM-DD",
+      "format": "estatico|carrossel|reels",
+      "tema": "título curto",
+      "conteudo_roteiro": "conteúdo/roteiro/slides detalhado",
+      "descricao_visual": "descrição visual",
+      "estrategia": "objetivo do post",
+      "legenda_instagram": "legenda para Instagram/Facebook",
+      "legenda_linkedin": "legenda para LinkedIn (se plataforma ativa)",
+      "legenda_tiktok": "legenda para TikTok (se plataforma ativa)",
+      "cta": "chamada para ação",
+      "hashtags": ["#..."],
+      "criativo": {}
+    }
+  ]
+}
+- Se a plataforma LinkedIn NÃO estiver ativa, deixe legenda_linkedin como "".
+- Se a plataforma TikTok NÃO estiver ativa, deixe legenda_tiktok como "".
+- Distribua os posts ao longo do mês, evitando concentrar todos na mesma semana.
+- Mantenha consistência com um tom profissional e consultivo.
+`;
+
+        const messages = [
+          { role: "system", content: "Você é um estrategista sênior de social media e copywriter. Retorne sempre JSON válido e completo, sem texto extra." },
+          { role: "user", content: calendarPrompt }
+        ];
         response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
@@ -1968,7 +2010,8 @@ async function generateCalendar(config = {}) {
                 seasonal_dates: seasonalDates,
                 context_link: contextLink,
                 visual_identity: client.visual_identity || client.identidade_visual || null,
-                force: forceGeneration
+                force: forceGeneration,
+                messages
             })
         });
 
