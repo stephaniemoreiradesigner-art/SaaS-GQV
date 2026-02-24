@@ -2940,20 +2940,113 @@ const server = http.createServer(async (request, response) => {
                 const calendar = await fetchCalendarById(calendarId);
                 const existingLog = typeof calendar?.erro_log === 'string' ? calendar.erro_log : '';
                 const logLine = buildLogLine(message);
-                let updatedLog = existingLog ? `${existingLog}\n${logLine}` : logLine;
-                if (updatedLog.length > 20000) {
-                    updatedLog = updatedLog.slice(updatedLog.length - 20000);
+                let updatedLog = logLine;
+                let parsedLog = null;
+                if (existingLog) {
+                    try {
+                        parsedLog = JSON.parse(existingLog);
+                    } catch {
+                        parsedLog = null;
+                    }
+                }
+                if (parsedLog && typeof parsedLog === 'object' && parsedLog.generation) {
+                    const mergedLog = typeof parsedLog.log === 'string' ? parsedLog.log : '';
+                    const nextLog = mergedLog ? `${mergedLog}\n${logLine}` : logLine;
+                    parsedLog.log = nextLog.length > 20000 ? nextLog.slice(nextLog.length - 20000) : nextLog;
+                    updatedLog = JSON.stringify(parsedLog);
+                } else {
+                    updatedLog = existingLog ? `${existingLog}\n${logLine}` : logLine;
+                    if (updatedLog.length > 20000) {
+                        updatedLog = updatedLog.slice(updatedLog.length - 20000);
+                    }
                 }
                 const payload = { erro_log: updatedLog };
                 if (options.status) payload.status = options.status;
                 await updateCalendarRow(calendarId, payload);
             };
-            const sendError = async (errorCode, message, details) => {
+            const updateCalendarProgress = async (calendarId, progressPayload, statusValue = null) => {
+                if (!calendarId || !progressPayload) return;
+                const payload = {
+                    erro_log: JSON.stringify(progressPayload)
+                };
+                if (statusValue) {
+                    payload.status = statusValue;
+                }
+                await updateCalendarRow(calendarId, payload);
+            };
+            const fetchCalendarPosts = async (calendarId) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return [];
+                const params = new URLSearchParams();
+                params.set('select', 'id,data_agendada,formato,tema');
+                params.set('calendar_id', `eq.${calendarId}`);
+                params.set('limit', '1000');
+                const postsUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?${params.toString()}`;
+                const postsRes = await fetch(postsUrl, {
+                    method: 'GET',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`
+                    }
+                });
+                const postsJson = await postsRes.json().catch(() => null);
+                if (!postsRes.ok || !Array.isArray(postsJson)) {
+                    return [];
+                }
+                return postsJson;
+            };
+            const deleteCalendarPosts = async (calendarId) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return false;
+                const deleteUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts?calendar_id=eq.${calendarId}`;
+                const deleteRes = await fetch(deleteUrl, {
+                    method: 'DELETE',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                        Prefer: 'return=minimal'
+                    }
+                });
+                return deleteRes.ok;
+            };
+            const insertCalendarPosts = async (calendarId, posts) => {
+                if (!errorLogContext?.supabaseUrl || !errorLogContext?.serviceRoleKey || !calendarId) return [];
+                if (!Array.isArray(posts) || posts.length === 0) return [];
+                const baseUrl = `${errorLogContext.supabaseUrl.replace(/\/$/, '')}/rest/v1/social_posts`;
+                const headers = {
+                    apikey: errorLogContext.serviceRoleKey,
+                    Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation, resolution=merge-duplicates'
+                };
+                const upsertUrl = `${baseUrl}?on_conflict=calendar_id,data_agendada,tema`;
+                const upsertRes = await fetch(upsertUrl, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(posts)
+                });
+                const upsertJson = await upsertRes.json().catch(() => null);
+                if (upsertRes.ok && Array.isArray(upsertJson)) {
+                    return upsertJson;
+                }
+                const insertRes = await fetch(baseUrl, {
+                    method: 'POST',
+                    headers: {
+                        apikey: errorLogContext.serviceRoleKey,
+                        Authorization: `Bearer ${errorLogContext.serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify(posts)
+                });
+                const insertJson = await insertRes.json().catch(() => null);
+                return Array.isArray(insertJson) ? insertJson : [];
+            };
+            const sendError = async (errorCode, message, details, extraPayload = null) => {
                 console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
                 sendJson(500, {
                     error: true,
                     message: message || 'Erro no proxy OpenAI.',
-                    requestId
+                    requestId,
+                    ...(extraPayload && typeof extraPayload === 'object' ? extraPayload : {})
                 });
             };
 
@@ -2973,6 +3066,7 @@ const server = http.createServer(async (request, response) => {
             let includeLinkedin = false;
             let includeTiktok = false;
             let includeMeta = false;
+            let forceGeneration = false;
             const rawTenantId = request.tenant_id;
             const tenantId = rawTenantId && /^\d+$/.test(String(rawTenantId)) ? String(rawTenantId) : null;
             const clienteId = body?.client_id || null;
@@ -2980,7 +3074,7 @@ const server = http.createServer(async (request, response) => {
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
 
             if (isCalendarMode) {
-                const forceGeneration = Boolean(body?.force);
+                forceGeneration = Boolean(body?.force);
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
                 const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
                 const platforms = Array.isArray(body.platforms) ? body.platforms : [];
@@ -3328,7 +3422,7 @@ const server = http.createServer(async (request, response) => {
                     await appendCalendarLog(errorLogContext.calendarId, 'Chamando OpenAI');
                 }
                 const openAiController = new AbortController();
-                const openAiTimeout = setTimeout(() => openAiController.abort(), 60000);
+                const openAiTimeout = setTimeout(() => openAiController.abort(), 120000);
                 let openAiResponse;
                 try {
                     openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -3342,7 +3436,7 @@ const server = http.createServer(async (request, response) => {
                     });
                 } catch (error) {
                     if (error?.name === 'AbortError') {
-                        await sendError('OPENAI_TIMEOUT', 'Tempo limite ao chamar OpenAI.', error?.stack || null);
+                        await sendError('OPENAI_TIMEOUT', 'Tempo limite de 120s ao chamar OpenAI.', error?.stack || null);
                         return null;
                     }
                     throw error;
@@ -3373,12 +3467,6 @@ const server = http.createServer(async (request, response) => {
             };
 
             const executeProxy = async () => {
-                const initialResponse = await callOpenAi(payload, 'INITIAL');
-                if (!initialResponse) {
-                    return;
-                }
-                let responseJson = initialResponse.responseJson;
-
                 if (isCalendarMode) {
                     console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
                     if (pendingMemoryUpdate?.url && pendingMemoryUpdate?.serviceRoleKey) {
@@ -3396,225 +3484,325 @@ const server = http.createServer(async (request, response) => {
                     console.log(`[openai-proxy][${requestId}] AFTER_SUPABASE`, { client_id: pendingMemoryUpdate?.clientId || null });
                 }
 
-                if (isCalendarMode && calendarContext) {
-                    const expectedTotal = calendarContext.expectedTotalOverride
-                        ?? (calendarContext.postsPerWeek && calendarContext.totalWeeks ? calendarContext.postsPerWeek * calendarContext.totalWeeks : calendarContext.postsCount);
-                    const requiredSlots = Array.isArray(calendarContext.weekSlots) ? calendarContext.weekSlots : [];
-                    const expectedCount = requiredSlots.length || expectedTotal;
-                    const requiredSlotsText = requiredSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
-                    const convertCalendarTextToJson = async (textToConvert, expectedCountOverride) => {
-                        const converterPrompt = [
-                            'Converta o texto abaixo em JSON válido no seguinte formato:',
-                            '{',
-                            '  "month": "YYYY-MM",',
-                            '  "timezone": "America/Sao_Paulo",',
-                            '  "posts": [',
-                            '    {',
-                            '      "scheduled_date": "YYYY-MM-DD",',
-                            '      "scheduled_time": "HH:mm",',
-                            '      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",',
-                            '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
-                            '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
-                            '      "format": "Reels|Carrossel|Estático",',
-                            '      "tema": "...",',
-                            '      "hook": "...",',
-                            '      "structure": "...",',
-                            '      "legenda_instagram": "...",',
-                            '      "legenda_linkedin": "...",',
-                            '      "legenda_tiktok": "...",',
-                            '      "cta": "...",',
-                            '      "hashtags": ["...", "..."],',
-                            '      "criativo": {}',
-                            '    }',
-                            '  ]',
-                            '}',
-                            `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
-                            `Retorne EXATAMENTE ${expectedCountOverride} itens em posts.`,
-                            'Se algum campo não existir no texto original, preencha com string vazia.',
-                            'Texto para converter:',
-                            textToConvert
-                        ].join('\n');
+                if (!isCalendarMode || !calendarContext) {
+                    const initialResponse = await callOpenAi(payload, 'INITIAL');
+                    if (!initialResponse) {
+                        return;
+                    }
+                    const responseJson = initialResponse.responseJson;
+                    sendJson(200, responseJson);
+                    console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
+                    return;
+                }
 
-                        const convertPayload = {
-                            model: finalModel,
-                            temperature: 0.2,
-                            messages: [
-                                { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
-                                { role: 'user', content: converterPrompt }
-                            ]
+                const expectedTotal = calendarContext.expectedTotalOverride
+                    ?? (calendarContext.postsPerWeek && calendarContext.totalWeeks ? calendarContext.postsPerWeek * calendarContext.totalWeeks : calendarContext.postsCount);
+                const requiredSlots = Array.isArray(calendarContext.weekSlots) ? calendarContext.weekSlots : [];
+                const requiredSlotsText = requiredSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
+                const batchSizeValue = Number(envVars['BATCH_SIZE'] || process.env.BATCH_SIZE);
+                const batchSize = Number.isFinite(batchSizeValue) && batchSizeValue > 0 ? batchSizeValue : 3;
+                const calendarId = errorLogContext?.calendarId || null;
+                const clienteIdValue = calendarContext.clientId || clienteId || null;
+                const mesReferenciaValue = errorLogContext?.mesReferencia || null;
+
+                const normalizeCalendarTime = (value) => {
+                    const raw = String(value || '').trim();
+                    if (/^\d{2}:\d{2}$/.test(raw)) return raw;
+                    if (/^\d{1}:\d{2}$/.test(raw)) return `0${raw}`;
+                    return '10:00';
+                };
+
+                const mapFormatToDb = (value) => {
+                    const raw = String(value || '').toLowerCase();
+                    if (raw.includes('reels')) return 'reels';
+                    if (raw.includes('carrossel') || raw.includes('carousel')) return 'carrossel';
+                    if (raw.includes('static') || raw.includes('estatic')) return 'estatico';
+                    return 'estatico';
+                };
+
+                const mapPostToInsert = (post) => {
+                    const rawDate = post?.scheduled_date || post?.data || post?.date || post?.scheduledDate || '';
+                    const rawTime = post?.scheduled_time || post?.hora || post?.hora_agendada || post?.scheduledTime || '';
+                    const scheduledDate = normalizeCalendarDate(rawDate);
+                    const scheduledTime = normalizeCalendarTime(rawTime);
+                    if (!scheduledDate) {
+                        return null;
+                    }
+                    const dataAgendada = `${scheduledDate}T${scheduledTime}:00`;
+                    const captions = extractCalendarCaptions(post);
+                    const estrategiaParts = [post?.pillar || '', post?.objective || '', post?.week || '', post?.estrategia || ''].filter(Boolean);
+                    return {
+                        cliente_id: clienteIdValue,
+                        calendar_id: calendarId,
+                        mes_referencia: mesReferenciaValue,
+                        data_agendada: dataAgendada,
+                        hora_agendada: scheduledTime,
+                        formato: mapFormatToDb(post?.format || post?.formato || ''),
+                        tema: post?.tema || post?.theme || 'Sem título',
+                        conteudo_roteiro: post?.structure || post?.conteudo_roteiro || post?.detailed_content || '',
+                        detailed_content: post?.detailed_content || post?.structure || post?.conteudo_roteiro || '',
+                        descricao_visual: post?.descricao_visual || '',
+                        creative_suggestion: post?.creative_suggestion || post?.creative_guide?.conceito_visual || post?.descricao_visual || '',
+                        creative_guide: post?.creative_guide || post?.criativo || null,
+                        estrategia: estrategiaParts.join(' | '),
+                        legenda: captions.meta || '',
+                        legenda_linkedin: captions.linkedin || null,
+                        legenda_tiktok: captions.tiktok || null,
+                        status: 'rascunho'
+                    };
+                };
+
+                const buildSlotKeysFromPosts = (posts) => {
+                    const usedKeys = new Set();
+                    for (const post of posts) {
+                        const dateValue = normalizeCalendarDate(post?.data_agendada || post?.scheduled_date || post?.data || post?.date || '');
+                        const formatValue = normalizeCalendarFormat(post?.formato || post?.format || '');
+                        if (dateValue && formatValue) {
+                            usedKeys.add(`${dateValue}|${formatValue}`);
+                        }
+                    }
+                    return usedKeys;
+                };
+
+                const convertCalendarTextToJson = async (textToConvert, expectedCountOverride) => {
+                    const converterPrompt = [
+                        'Converta o texto abaixo em JSON válido no seguinte formato:',
+                        '{',
+                        '  "month": "YYYY-MM",',
+                        '  "timezone": "America/Sao_Paulo",',
+                        '  "posts": [',
+                        '    {',
+                        '      "scheduled_date": "YYYY-MM-DD",',
+                        '      "scheduled_time": "HH:mm",',
+                        '      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",',
+                        '      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",',
+                        '      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",',
+                        '      "format": "Reels|Carrossel|Estático",',
+                        '      "tema": "...",',
+                        '      "hook": "...",',
+                        '      "structure": "...",',
+                        '      "legenda_instagram": "...",',
+                        '      "legenda_linkedin": "...",',
+                        '      "legenda_tiktok": "...",',
+                        '      "cta": "...",',
+                        '      "hashtags": ["...", "..."],',
+                        '      "criativo": {}',
+                        '    }',
+                        '  ]',
+                        '}',
+                        `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
+                        `Retorne EXATAMENTE ${expectedCountOverride} itens em posts.`,
+                        'Se algum campo não existir no texto original, preencha com string vazia.',
+                        'Texto para converter:',
+                        textToConvert
+                    ].join('\n');
+
+                    const convertPayload = {
+                        model: finalModel,
+                        temperature: 0.2,
+                        messages: [
+                            { role: 'system', content: 'Você converte conteúdo textual em JSON válido, sem explicações.' },
+                            { role: 'user', content: converterPrompt }
+                        ]
+                    };
+
+                    const convertController = new AbortController();
+                    const convertTimeout = setTimeout(() => convertController.abort(), 60000);
+                    let convertResponse;
+                    try {
+                        convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${apiKey}`
+                            },
+                            signal: convertController.signal,
+                            body: JSON.stringify(convertPayload)
+                        });
+                    } catch (error) {
+                        if (error?.name === 'AbortError') {
+                            await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
+                            return null;
+                        }
+                        throw error;
+                    } finally {
+                        clearTimeout(convertTimeout);
+                    }
+
+                    const convertText = await convertResponse.text();
+                    let convertJson = null;
+                    try {
+                        convertJson = JSON.parse(convertText);
+                    } catch (convertParseError) {
+                        await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
+                        return null;
+                    }
+                    if (!convertResponse.ok) {
+                        const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
+                        await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
+                        return null;
+                    }
+
+                    const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+                    let convertedObject = null;
+                    try {
+                        convertedObject = JSON.parse(convertedContent);
+                    } catch (convertedParseError) {
+                        await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
+                        return null;
+                    }
+
+                    if (Array.isArray(convertedObject)) {
+                        convertedObject = {
+                            month: calendarContext.month,
+                            timezone: 'America/Sao_Paulo',
+                            posts: convertedObject
                         };
+                    }
 
-                        const convertController = new AbortController();
-                        const convertTimeout = setTimeout(() => convertController.abort(), 60000);
-                        let convertResponse;
-                        try {
-                            convertResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${apiKey}`
-                                },
-                                signal: convertController.signal,
-                                body: JSON.stringify(convertPayload)
-                            });
-                        } catch (error) {
-                            if (error?.name === 'AbortError') {
-                                await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
-                                return null;
-                            }
-                            throw error;
-                        } finally {
-                            clearTimeout(convertTimeout);
-                        }
+                    return convertedObject;
+                };
 
-                        const convertText = await convertResponse.text();
-                        let convertJson = null;
-                        try {
-                            convertJson = JSON.parse(convertText);
-                        } catch (convertParseError) {
-                            await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
+                const parseCalendarJsonFromResponse = async (responseValue, expectedCountOverride) => {
+                    const contentRaw = String(responseValue?.choices?.[0]?.message?.content || '').trim();
+                    const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    let parsedJson = null;
+                    try {
+                        parsedJson = JSON.parse(sanitized);
+                    } catch (parseError) {
+                        parsedJson = null;
+                    }
+                    if (Array.isArray(parsedJson)) {
+                        const wrappedJson = {
+                            month: calendarContext.month,
+                            timezone: 'America/Sao_Paulo',
+                            posts: parsedJson
+                        };
+                        responseValue.choices[0].message.content = JSON.stringify(wrappedJson);
+                        return wrappedJson;
+                    }
+                    if (!parsedJson || !Array.isArray(parsedJson.posts)) {
+                        const convertedObject = await convertCalendarTextToJson(contentRaw, expectedCountOverride);
+                        if (!convertedObject) {
                             return null;
                         }
-                        if (!convertResponse.ok) {
-                            const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
-                            await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
-                            return null;
-                        }
-
-                        const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
-                        let convertedObject = null;
-                        try {
-                            convertedObject = JSON.parse(convertedContent);
-                        } catch (convertedParseError) {
-                            await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
-                            return null;
-                        }
-
-                        if (Array.isArray(convertedObject)) {
-                            convertedObject = {
-                                month: calendarContext.month,
-                                timezone: 'America/Sao_Paulo',
-                                posts: convertedObject
-                            };
-                        }
-
+                        responseValue.choices[0].message.content = JSON.stringify(convertedObject);
                         return convertedObject;
-                    };
-                    const parseCalendarJsonFromResponse = async (responseValue, expectedCountOverride) => {
-                        const contentRaw = String(responseValue?.choices?.[0]?.message?.content || '').trim();
-                        const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
-                        let parsedJson = null;
-                        try {
-                            parsedJson = JSON.parse(sanitized);
-                        } catch (parseError) {
-                            parsedJson = null;
+                    }
+                    return parsedJson;
+                };
+
+                const buildRetryInstruction = (reason, expectedCountOverride, slotsTextOverride) => {
+                    const baseInstruction = `Refaça a resposta em JSON válido. Retorne exatamente ${expectedCountOverride} posts.`;
+                    const slotInstruction = slotsTextOverride ? `Use exatamente os slots (datas + formatos): ${slotsTextOverride}.` : '';
+                    const reasonInstruction = (() => {
+                        if (reason === 'missing_fields') return 'Preencha tema, creative_suggestion e detailed_content para todos os posts.';
+                        if (reason === 'missing_meta_caption') return 'Preencha captions.meta para todos os posts.';
+                        if (reason === 'missing_linkedin_caption') return 'Preencha captions.linkedin para todos os posts.';
+                        if (reason === 'missing_tiktok_caption') return 'Preencha captions.tiktok para todos os posts.';
+                        if (reason === 'carousel_structure') return 'Se format=carousel, detalhe Slides 1..N com título, subtítulo, bullets e sugestão visual.';
+                        if (reason === 'reels_structure') return 'Se format=reels, detalhe Cena 1..N com narração, texto na tela e instruções de gravação.';
+                        if (reason === 'static_structure') return 'Se format=static, inclua título, subtítulo, texto curto da arte e composição visual.';
+                        return 'Garanta o schema completo e campos obrigatórios.';
+                    })();
+                    return [baseInstruction, slotInstruction, reasonInstruction].filter(Boolean).join(' ');
+                };
+
+                const updateProgress = async (generatedCount, lastBatch, statusValue, lastError) => {
+                    if (!calendarId) return;
+                    await updateCalendarProgress(calendarId, {
+                        generation: {
+                            expected: expectedTotal,
+                            generated: generatedCount,
+                            last_batch: lastBatch,
+                            status: statusValue,
+                            last_error: lastError || null
                         }
-                        if (Array.isArray(parsedJson)) {
-                            const wrappedJson = {
-                                month: calendarContext.month,
-                                timezone: 'America/Sao_Paulo',
-                                posts: parsedJson
-                            };
-                            responseValue.choices[0].message.content = JSON.stringify(wrappedJson);
-                            return wrappedJson;
-                        }
-                        if (!parsedJson || !Array.isArray(parsedJson.posts)) {
-                            const convertedObject = await convertCalendarTextToJson(contentRaw, expectedCountOverride);
-                            if (!convertedObject) {
-                                return null;
-                            }
-                            responseValue.choices[0].message.content = JSON.stringify(convertedObject);
-                            return convertedObject;
-                        }
-                        return parsedJson;
+                    }, statusValue === 'done' ? 'aguardando_aprovacao' : statusValue === 'partial' ? 'partial' : 'processando');
+                };
+
+                const handleBatchFailure = async (code, message, generatedCount, batchIndex) => {
+                    console.log(`[openai-proxy][${requestId}] BATCH_ERROR`, { code, message, expected: expectedTotal, generated: generatedCount, batch: batchIndex });
+                    await updateProgress(generatedCount, batchIndex, 'partial', { code, message });
+                    await sendError(code, message, null, { code, partial: true, generated: generatedCount, expected: expectedTotal });
+                };
+
+                let existingPosts = await fetchCalendarPosts(calendarId);
+                if (forceGeneration && existingPosts.length) {
+                    await deleteCalendarPosts(calendarId);
+                    existingPosts = [];
+                }
+                let generated = existingPosts.length;
+                if (generated >= expectedTotal) {
+                    await updateProgress(generated, 0, 'done', null);
+                    sendJson(200, { ok: true, request_id: requestId, calendar_id: calendarId, status: 'done', generated, expected: expectedTotal });
+                    console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
+                    return;
+                }
+
+                let missingSlots = requiredSlots;
+                if (requiredSlots.length && existingPosts.length) {
+                    const usedSlotKeys = buildSlotKeysFromPosts(existingPosts);
+                    missingSlots = requiredSlots.filter((slot) => {
+                        const slotKey = buildCalendarSlotKey(slot);
+                        return slotKey && !usedSlotKeys.has(slotKey);
+                    });
+                }
+
+                let responseJson = null;
+                let batchIndex = 0;
+                while (generated < expectedTotal) {
+                    batchIndex += 1;
+                    const remaining = expectedTotal - generated;
+                    const batchSlots = missingSlots.length ? missingSlots.slice(0, batchSize) : [];
+                    if (batchSlots.length) {
+                        missingSlots = missingSlots.slice(batchSlots.length);
+                    }
+                    const batchExpected = batchSlots.length ? batchSlots.length : Math.min(batchSize, remaining);
+                    if (!batchExpected) {
+                        await handleBatchFailure('BATCH_EMPTY', 'Nenhum lote válido para gerar.', generated, batchIndex);
+                        return;
+                    }
+                    console.log(`[openai-proxy][${requestId}] BATCH_START`, { expected: expectedTotal, generated, batch: batchIndex, batch_size: batchExpected });
+                    await updateProgress(generated, batchIndex, 'running', null);
+
+                    const batchSlotsText = batchSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
+                    const batchPrompt = [
+                        calendarPromptBase,
+                        `Gere SOMENTE ${batchExpected} posts.`,
+                        batchSlotsText ? `Use exatamente os slots (datas + formatos): ${batchSlotsText}.` : ''
+                    ].filter(Boolean).join(' ');
+
+                    const batchPayload = {
+                        ...payload,
+                        messages: [
+                            { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
+                            { role: 'user', content: batchPrompt }
+                        ]
                     };
 
-                    let calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
-                    if (!calendarJson) {
+                    const batchResponse = await callOpenAi(batchPayload, `BATCH_${batchIndex}`);
+                    if (!batchResponse) {
+                        await handleBatchFailure('OPENAI_ERROR', 'Falha ao gerar lote.', generated, batchIndex);
                         return;
                     }
 
-                    const buildRetryInstruction = (reason) => {
-                        const baseInstruction = `Refaça a resposta em JSON válido. Retorne exatamente ${expectedCount} posts.`;
-                        const slotInstruction = requiredSlotsText ? `Use exatamente os slots (datas + formatos): ${requiredSlotsText}.` : '';
-                        const reasonInstruction = (() => {
-                            if (reason === 'missing_fields') return 'Preencha tema, creative_suggestion e detailed_content para todos os posts.';
-                            if (reason === 'missing_meta_caption') return 'Preencha captions.meta para todos os posts.';
-                            if (reason === 'missing_linkedin_caption') return 'Preencha captions.linkedin para todos os posts.';
-                            if (reason === 'missing_tiktok_caption') return 'Preencha captions.tiktok para todos os posts.';
-                            if (reason === 'carousel_structure') return 'Se format=carousel, detalhe Slides 1..N com título, subtítulo, bullets e sugestão visual.';
-                            if (reason === 'reels_structure') return 'Se format=reels, detalhe Cena 1..N com narração, texto na tela e instruções de gravação.';
-                            if (reason === 'static_structure') return 'Se format=static, inclua título, subtítulo, texto curto da arte e composição visual.';
-                            return 'Garanta o schema completo e campos obrigatórios.';
-                        })();
-                        return [baseInstruction, slotInstruction, reasonInstruction].filter(Boolean).join(' ');
-                    };
-
-                    const buildSlotKeysFromPosts = (posts) => {
-                        const usedKeys = new Set();
-                        for (const post of posts) {
-                            const dateValue = normalizeCalendarDate(post?.scheduled_date || post?.data || post?.date || post?.scheduledDate || '');
-                            const formatValue = normalizeCalendarFormat(post?.format || post?.formato || '');
-                            if (dateValue && formatValue) {
-                                usedKeys.add(`${dateValue}|${formatValue}`);
-                            }
-                        }
-                        return usedKeys;
-                    };
+                    responseJson = batchResponse.responseJson;
+                    let calendarJson = await parseCalendarJsonFromResponse(responseJson, batchExpected);
+                    if (!calendarJson) {
+                        await handleBatchFailure('OPENAI_RESPONSE_INVALID', 'Resposta inválida da OpenAI.', generated, batchIndex);
+                        return;
+                    }
 
                     try {
                         let validationResult = validateCalendarPosts(calendarJson?.posts, {
-                            expectedCount,
-                            requiredSlots,
+                            expectedCount: batchExpected,
+                            requiredSlots: batchSlots,
                             requireLinkedin: includeLinkedin,
                             requireTiktok: includeTiktok
                         });
-
-                        if (!validationResult.ok && asyncCalendarMode && requiredSlots.length && calendarPromptBase) {
-                            const usedSlotKeys = buildSlotKeysFromPosts(calendarJson?.posts || []);
-                            const missingSlots = requiredSlots.filter((slot) => {
-                                const slotKey = buildCalendarSlotKey(slot);
-                                return slotKey && !usedSlotKeys.has(slotKey);
-                            });
-                            if (missingSlots.length) {
-                                const missingSlotsText = missingSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
-                                const missingPrompt = [
-                                    calendarPromptBase,
-                                    `Gere SOMENTE ${missingSlots.length} posts faltantes.`,
-                                    `Use exatamente os slots faltantes: ${missingSlotsText}.`,
-                                    'Retorne JSON válido no mesmo schema com apenas esses posts.'
-                                ].filter(Boolean).join(' ');
-                                const missingPayload = {
-                                    ...payload,
-                                    messages: [
-                                        { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
-                                        { role: 'user', content: missingPrompt }
-                                    ]
-                                };
-                                const missingResponse = await callOpenAi(missingPayload, 'MISSING');
-                                if (!missingResponse) {
-                                    return;
-                                }
-                                const missingCalendar = await parseCalendarJsonFromResponse(missingResponse.responseJson, missingSlots.length);
-                                if (!missingCalendar || !Array.isArray(missingCalendar.posts)) {
-                                    return;
-                                }
-                                calendarJson = {
-                                    ...calendarJson,
-                                    posts: [...calendarJson.posts, ...missingCalendar.posts]
-                                };
-                                responseJson.choices[0].message.content = JSON.stringify(calendarJson);
-                                validationResult = validateCalendarPosts(calendarJson.posts, {
-                                    expectedCount,
-                                    requiredSlots,
-                                    requireLinkedin: includeLinkedin,
-                                    requireTiktok: includeTiktok
-                                });
-                            }
-                        }
-
                         if (!validationResult.ok && calendarPromptBase) {
-                            const retryPrompt = [calendarPromptBase, buildRetryInstruction(validationResult.reason)].filter(Boolean).join(' ');
+                            const retryPrompt = [calendarPromptBase, buildRetryInstruction(validationResult.reason, batchExpected, batchSlotsText || requiredSlotsText)].filter(Boolean).join(' ');
                             const retryPayload = {
                                 ...payload,
                                 messages: [
@@ -3622,30 +3810,31 @@ const server = http.createServer(async (request, response) => {
                                     { role: 'user', content: retryPrompt }
                                 ]
                             };
-                            const retryResponse = await callOpenAi(retryPayload, 'RETRY');
+                            const retryResponse = await callOpenAi(retryPayload, `RETRY_${batchIndex}`);
                             if (!retryResponse) {
+                                await handleBatchFailure('OPENAI_ERROR', 'Falha ao refazer lote.', generated, batchIndex);
                                 return;
                             }
                             responseJson = retryResponse.responseJson;
-                            calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
+                            calendarJson = await parseCalendarJsonFromResponse(responseJson, batchExpected);
                             if (!calendarJson) {
+                                await handleBatchFailure('OPENAI_RESPONSE_INVALID', 'Resposta inválida após retry.', generated, batchIndex);
                                 return;
                             }
                             validationResult = validateCalendarPosts(calendarJson.posts, {
-                                expectedCount,
-                                requiredSlots,
+                                expectedCount: batchExpected,
+                                requiredSlots: batchSlots,
                                 requireLinkedin: includeLinkedin,
                                 requireTiktok: includeTiktok
                             });
                         }
-
                         if (!validationResult.ok) {
-                            await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida após validação.', { reason: validationResult.reason });
+                            await handleBatchFailure('OPENAI_RESPONSE_INVALID', `Resposta inválida após validação: ${validationResult.reason}`, generated, batchIndex);
                             return;
                         }
                     } catch (error) {
                         console.error('[generateCalendar][validation_error]', error);
-                        await sendError('OPENAI_RESPONSE_INVALID', error?.message || 'Erro na validação do calendário.', error?.stack || null);
+                        await handleBatchFailure('OPENAI_RESPONSE_INVALID', error?.message || 'Erro na validação do calendário.', generated, batchIndex);
                         return;
                     }
 
@@ -3720,17 +3909,39 @@ const server = http.createServer(async (request, response) => {
                                 post.creative_guide = post.creative_guide || null;
                             }
                         }
-                        if (errorLogContext?.calendarId) {
-                            await appendCalendarLog(errorLogContext.calendarId, 'Salvando posts');
-                        }
-                        responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                     }
+
+                    const postsToInsert = Array.isArray(calendarJson?.posts)
+                        ? calendarJson.posts.map(mapPostToInsert).filter(Boolean)
+                        : [];
+                    if (!postsToInsert.length) {
+                        await handleBatchFailure('BATCH_EMPTY', 'Nenhum post válido para inserir.', generated, batchIndex);
+                        return;
+                    }
+                    if (calendarId) {
+                        await insertCalendarPosts(calendarId, postsToInsert);
+                    }
+
+                    existingPosts = await fetchCalendarPosts(calendarId);
+                    generated = existingPosts.length;
+                    if (requiredSlots.length) {
+                        const usedSlotKeys = buildSlotKeysFromPosts(existingPosts);
+                        missingSlots = requiredSlots.filter((slot) => {
+                            const slotKey = buildCalendarSlotKey(slot);
+                            return slotKey && !usedSlotKeys.has(slotKey);
+                        });
+                    }
+
+                    console.log(`[openai-proxy][${requestId}] BATCH_OK`, { expected: expectedTotal, generated, batch: batchIndex, batch_size: batchExpected });
+                    await updateProgress(generated, batchIndex, generated >= expectedTotal ? 'done' : 'running', null);
                 }
 
-                if (isCalendarMode && errorLogContext?.calendarId) {
-                    await appendCalendarLog(errorLogContext.calendarId, 'Finalizado', { status: 'aguardando_aprovacao' });
+                if (generated < expectedTotal) {
+                    await handleBatchFailure('BATCH_INCOMPLETE', 'Geração incompleta.', generated, batchIndex);
+                    return;
                 }
-                sendJson(200, responseJson);
+
+                sendJson(200, { ok: true, request_id: requestId, calendar_id: calendarId, status: 'done', generated, expected: expectedTotal });
                 console.log(`[openai-proxy][${requestId}] END_SUCCESS`);
             };
 
