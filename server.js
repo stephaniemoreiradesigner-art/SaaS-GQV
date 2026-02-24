@@ -385,6 +385,23 @@ const readRequestBody = async (request) => {
     return raw;
 };
 
+const readRawBody = async (request, options = {}) => {
+    const maxBytes = Number.isFinite(options.maxBytes) ? options.maxBytes : 2 * 1024 * 1024;
+    const chunks = [];
+    let total = 0;
+    for await (const chunk of request) {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += buf.length;
+        if (total > maxBytes) {
+            request.destroy();
+            throw new Error('BODY_TOO_LARGE');
+        }
+        chunks.push(buf);
+    }
+    const raw = Buffer.concat(chunks).toString('utf8');
+    return raw.replace(/^\uFEFF/, '');
+};
+
 const getSupabaseConfig = () => {
     const supabaseUrl = envVars['SUPABASE_URL'] || process.env.SUPABASE_URL || '';
     const supabaseAnonKey = envVars['SUPABASE_ANON_KEY'] || process.env.SUPABASE_ANON_KEY || '';
@@ -2789,12 +2806,30 @@ const server = http.createServer(async (request, response) => {
     if (pathname === '/api/openai/proxy' && request.method === 'POST') {
         try {
             const apiKey = envVars['OPENAI_API_KEY'];
-            const rawBody = await readRequestBody(request);
-            console.log('RAW_HEADERS:', request.headers);
-            console.log('CONTENT_TYPE:', request.headers['content-type']);
+            let rawBody = '';
+            try {
+                rawBody = await readRawBody(request, { maxBytes: 2 * 1024 * 1024 });
+            } catch (error) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    ok: false,
+                    error_code: 'INVALID_BODY',
+                    message: 'Body inválido. Envie JSON.'
+                }));
+                return;
+            }
+            if (!rawBody || rawBody.trim().length === 0) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    ok: false,
+                    error_code: 'INVALID_BODY',
+                    message: 'Body inválido. Envie JSON.'
+                }));
+                return;
+            }
             let body = null;
             try {
-                body = rawBody ? JSON.parse(rawBody) : null;
+                body = JSON.parse(rawBody);
             } catch (parseError) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({
@@ -2804,9 +2839,6 @@ const server = http.createServer(async (request, response) => {
                 }));
                 return;
             }
-            console.log('BODY_TYPE:', typeof body);
-            console.log('BODY_VALUE:', body);
-            console.log('PARSED_BODY:', body);
 
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
             const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
@@ -2818,6 +2850,14 @@ const server = http.createServer(async (request, response) => {
                 response.end(JSON.stringify(payload));
             };
             let errorLogContext = null;
+            if (!Array.isArray(body?.messages) || body.messages.length === 0) {
+                sendJson(400, {
+                    ok: false,
+                    error_code: 'BAD_REQUEST',
+                    message: 'Missing messages'
+                });
+                return;
+            }
             const buildLogTimestamp = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             const buildLogLine = (message) => `[${buildLogTimestamp()}] ${message}`;
             const fetchCalendarRow = async () => {
@@ -2958,15 +2998,6 @@ const server = http.createServer(async (request, response) => {
 
             if (!apiKey) {
                 await sendError('OPENAI_KEY_MISSING', 'OPENAI_API_KEY não configurada no backend (.env)');
-                return;
-            }
-
-            if (!body) {
-                sendJson(400, {
-                    ok: false,
-                    error_code: 'INVALID_BODY',
-                    message: 'Body inválido. Envie JSON.'
-                });
                 return;
             }
 
