@@ -115,50 +115,26 @@ REGRAS OBRIGATÓRIAS
 PARA CADA POST, ENTREGAR:
 =================================
 
-- Data sugerida (DD/MM/AAAA)
-- Dia da semana
-- Horário sugerido (formato 24h)
-- Semana estratégica
-- Pilar estratégico
-- Objetivo do post
-- Tema central
-- Formato recomendado (Reels, Carrossel ou Estático)
-- Hook forte
-- Estrutura do conteúdo
-- Legenda principal para Instagram/Facebook (legenda_instagram)
-- Se LinkedIn estiver ativo, incluir legenda_linkedin
-- Se TikTok estiver ativo, incluir legenda_tiktok
-- CTA estratégico variado
-- Hashtags (5 a 12)
-- Criativo obrigatório (conforme formato)
+- Date no formato YYYY-MM-DD
+- Format no formato static|carousel|reels
+- Theme com título curto e claro
+- Creative_suggestion com descrição visual obrigatória
+- Detailed_content obrigatório com roteiro completo
+- Captions com:
+  - meta (Instagram/Facebook)
+  - linkedin (se LinkedIn estiver ativo)
+  - tiktok (se TikTok estiver ativo)
 
 =================================
-FORMATO DO CRIATIVO (OBRIGATÓRIO)
+REGRAS DO CONTEÚDO DETALHADO (OBRIGATÓRIO)
 =================================
 
-- Se format = Estático:
-  "criativo": {
-    "tipo": "Estático",
-    "conceito_visual": "",
-    "composicao": "",
-    "texto_na_arte": "",
-    "banco_imagens_sugerido": "",
-    "checklist_designer": ["..."]
-  }
-- Se format = Carrossel:
-  "criativo": {
-    "tipo": "Carrossel",
-    "slides": [
-      { "titulo_do_slide": "", "copy": "", "visual_sugerido": "" }
-    ]
-  }
-- Se format = Reels:
-  "criativo": {
-    "tipo": "Reels",
-    "roteiro": { "gancho": "", "desenvolvimento": "", "encerramento": "" },
-    "cenas_sugeridas": ["..."],
-    "sugestoes_captacao": ["..."]
-  }
+- Se format = carousel:
+  - detailed_content deve conter Slides 1..N com título, subtítulo, bullets e sugestão visual por slide
+- Se format = reels:
+  - detailed_content deve conter roteiro com Cena 1..N, narração por cena, texto na tela e instruções de gravação/edição
+- Se format = static:
+  - detailed_content deve conter título, subtítulo, texto da arte (curto) e composição visual
 
 =================================
 DIRETRIZES SOBRE DATA E HORÁRIO
@@ -189,21 +165,16 @@ Formato obrigatório:
   "timezone": "America/Sao_Paulo",
   "posts": [
     {
-      "scheduled_date": "YYYY-MM-DD",
-      "scheduled_time": "HH:mm",
-      "week": "Semana 1|Semana 2|Semana 3|Semana 4|Semana 5",
-      "pillar": "Autoridade Técnica|Posicionamento & Diferenciação|Prova & Credibilidade|Conversão Estratégica",
-      "objective": "Autoridade|Engajamento|Conversão|Posicionamento",
-      "format": "Reels|Carrossel|Estático",
-      "tema": "...",
-      "hook": "...",
-      "structure": "...",
-      "legenda_instagram": "...",
-      "legenda_linkedin": "...",
-      "legenda_tiktok": "...",
-      "cta": "...",
-      "hashtags": ["...", "..."],
-      "criativo": {}
+      "date": "YYYY-MM-DD",
+      "format": "static|carousel|reels",
+      "theme": "string",
+      "creative_suggestion": "string",
+      "detailed_content": "string",
+      "captions": {
+        "meta": "string",
+        "linkedin": "string",
+        "tiktok": "string"
+      }
     }
   ]
 }`;
@@ -2993,10 +2964,12 @@ const server = http.createServer(async (request, response) => {
 
             const model = body?.model;
             const finalModel = model || 'gpt-4o-mini';
-            const isCalendarMode = Boolean(body?.__legacy_calendar_mode);
+            const isCalendarMode = Boolean(body?.mode === 'calendar' || body?.__legacy_calendar_mode);
+            const asyncCalendarMode = Boolean(body?.__legacy_calendar_mode);
             let calendarContext = null;
             let payload;
             let pendingMemoryUpdate = null;
+            let calendarPromptBase = null;
             const rawTenantId = request.tenant_id;
             const tenantId = rawTenantId && /^\d+$/.test(String(rawTenantId)) ? String(rawTenantId) : null;
             const clienteId = body?.client_id || null;
@@ -3014,7 +2987,12 @@ const server = http.createServer(async (request, response) => {
                 const month = String(body.month || '').trim();
                 const contextLink = String(body.context_link || '').trim();
                 const clientId = body.client_id || null;
-                calendarContext = { postsCount, month, seasonalDates, platforms, visualIdentity };
+                const weekContext = body?.week_context && typeof body.week_context === 'object' ? body.week_context : null;
+                const weekSlots = Array.isArray(weekContext?.slots) ? weekContext.slots : [];
+                const postsPerWeek = Number.isFinite(Number(body.posts_per_week)) ? Number(body.posts_per_week) : null;
+                const totalWeeks = Number.isFinite(Number(body.total_weeks)) ? Number(body.total_weeks) : null;
+                const expectedTotalOverride = Number.isFinite(Number(body.expected_total)) ? Number(body.expected_total) : null;
+                calendarContext = { postsCount, month, seasonalDates, platforms, visualIdentity, weekContext, weekSlots, postsPerWeek, totalWeeks, expectedTotalOverride };
 
                 const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
                 errorLogContext = {
@@ -3175,11 +3153,20 @@ const server = http.createServer(async (request, response) => {
                 const includeTiktok = platforms.some((item) => String(item).toLowerCase() === 'tiktok');
                 const includeMeta = platforms.some((item) => ['instagram', 'facebook'].includes(String(item).toLowerCase()));
 
+                const weekInfo = weekContext
+                    ? `Semana ${weekContext.week_index || ''} (${weekContext.start_date || ''} a ${weekContext.end_date || ''}).`
+                    : '';
+                const slotsInfo = weekSlots.length
+                    ? `Slots obrigatórios (use exatamente datas e formatos): ${weekSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ')}.`
+                    : '';
+                const expectedCount = weekSlots.length || postsCount;
                 const userPrompt = [
                     `Cliente: ${resolvedClientName || 'Cliente sem nome'}.`,
                     `Nicho: ${resolvedNiche}.`,
                     `Mês: ${month}.`,
-                    `Quantidade de posts: ${postsCount}.`,
+                    `Quantidade de posts: ${expectedCount}.`,
+                    weekInfo,
+                    slotsInfo,
                     platformsText,
                     seasonalText,
                     contextText,
@@ -3190,14 +3177,20 @@ const server = http.createServer(async (request, response) => {
                     resolvedVisualIdentity ? `Identidade visual: ${resolvedVisualIdentity}.` : 'Identidade visual não informada.',
                     memorySummary ? `Memória anterior: ${memorySummary}.` : 'Sem memória anterior.',
                     historySummary ? `Histórico recente: ${historySummary}.` : 'Sem histórico recente.',
-                    includeMeta ? 'Use legenda_instagram como legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
-                    includeLinkedin ? 'Inclua legenda_linkedin para LinkedIn.' : 'LinkedIn não ativo.',
-                    includeTiktok ? 'Inclua legenda_tiktok para TikTok.' : 'TikTok não ativo.',
+                    includeMeta ? 'Captions.meta é a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
+                    includeLinkedin ? 'Captions.linkedin deve existir para LinkedIn (string).' : 'LinkedIn não ativo.',
+                    includeTiktok ? 'Captions.tiktok deve existir para TikTok (string).' : 'TikTok não ativo.',
                     'É proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias que não estejam em seasonal_dates.',
                     'Se seasonal_dates estiver vazio, não mencione nenhuma data/evento.',
-                    'Retorne JSON válido seguindo o schema pedido no system prompt.'
-                ].join(' ');
+                    'Retorne JSON válido seguindo o schema do system prompt.',
+                    'Creative_suggestion e detailed_content não podem ser vazios.',
+                    'Se format=carousel, detailed_content deve conter Slides 1..N com título, subtítulo, bullets e sugestão visual por slide.',
+                    'Se format=reels, detailed_content deve conter Cena 1..N, narração por cena, texto na tela e instruções de gravação/edição.',
+                    'Se format=static, detailed_content deve conter título, subtítulo, texto da arte (curto) e composição visual.',
+                    'Use exatamente as datas e formatos dos slots quando fornecidos.'
+                ].filter(Boolean).join(' ');
 
+                calendarPromptBase = userPrompt;
                 payload = {
                     model: finalModel,
                     temperature: Number.isFinite(Number(body.temperature)) ? Number(body.temperature) : 0.7,
@@ -3226,8 +3219,104 @@ const server = http.createServer(async (request, response) => {
                 };
             }
 
-            const executeProxy = async () => {
-                console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`);
+            const normalizeCalendarFormat = (value) => {
+                const raw = String(value || '').toLowerCase();
+                if (raw.includes('carrossel') || raw.includes('carousel')) {
+                    return 'carousel';
+                }
+                if (raw.includes('reels')) {
+                    return 'reels';
+                }
+                if (raw.includes('static') || raw.includes('estatic')) {
+                    return 'static';
+                }
+                return '';
+            };
+
+            const normalizeCalendarDate = (value) => {
+                const raw = String(value || '').trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                    return raw;
+                }
+                if (raw.includes('T')) {
+                    const [datePart] = raw.split('T');
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+                        return datePart;
+                    }
+                }
+                return '';
+            };
+
+            const buildCalendarSlotKey = (slot) => {
+                const dateKey = normalizeCalendarDate(slot?.date || slot?.scheduled_date || '');
+                const formatKey = normalizeCalendarFormat(slot?.format || slot?.formato || '');
+                if (!dateKey || !formatKey) {
+                    return '';
+                }
+                return `${dateKey}|${formatKey}`;
+            };
+
+            const extractCalendarCaptions = (post) => ({
+                meta: post?.captions?.meta || post?.legenda_instagram || post?.caption || post?.legenda || post?.legenda_sugestao || '',
+                linkedin: post?.captions?.linkedin || post?.legenda_linkedin || '',
+                tiktok: post?.captions?.tiktok || post?.legenda_tiktok || ''
+            });
+
+            const validateCalendarPosts = (posts, options = {}) => {
+                if (!Array.isArray(posts)) {
+                    return { ok: false, reason: 'posts' };
+                }
+                const expectedCount = Number.isFinite(Number(options.expectedCount)) ? Number(options.expectedCount) : null;
+                if (expectedCount !== null && posts.length !== expectedCount) {
+                    return { ok: false, reason: 'count', expectedCount, actualCount: posts.length };
+                }
+                const requiredSlots = Array.isArray(options.requiredSlots) ? options.requiredSlots : [];
+                const requiredSlotKeys = new Set(requiredSlots.map(buildCalendarSlotKey).filter(Boolean));
+                const usedSlotKeys = new Set();
+                for (const post of posts) {
+                    const dateValue = normalizeCalendarDate(post?.scheduled_date || post?.data || post?.date || post?.scheduledDate || '');
+                    const formatValue = normalizeCalendarFormat(post?.format || post?.formato || '');
+                    if (requiredSlotKeys.size) {
+                        const slotKey = `${dateValue}|${formatValue}`;
+                        if (!requiredSlotKeys.has(slotKey)) {
+                            return { ok: false, reason: 'slot_mismatch', slotKey };
+                        }
+                        usedSlotKeys.add(slotKey);
+                    }
+                    const tema = String(post?.tema || post?.theme || '').trim();
+                    const creativeSuggestion = String(post?.creative_suggestion || post?.creative_guide?.conceito_visual || '').trim();
+                    const detailedContent = String(post?.detailed_content || post?.structure || post?.conteudo_roteiro || '').trim();
+                    if (!tema || !creativeSuggestion || !detailedContent) {
+                        return { ok: false, reason: 'missing_fields' };
+                    }
+                    const captions = extractCalendarCaptions(post);
+                    if (!String(captions.meta || '').trim()) {
+                        return { ok: false, reason: 'missing_meta_caption' };
+                    }
+                    if (options.requireLinkedin && !String(captions.linkedin || '').trim()) {
+                        return { ok: false, reason: 'missing_linkedin_caption' };
+                    }
+                    if (options.requireTiktok && !String(captions.tiktok || '').trim()) {
+                        return { ok: false, reason: 'missing_tiktok_caption' };
+                    }
+                    if (formatValue === 'carousel' && !/slides?\s*1/i.test(detailedContent)) {
+                        return { ok: false, reason: 'carousel_structure' };
+                    }
+                    if (formatValue === 'reels' && !/cena\s*1/i.test(detailedContent)) {
+                        return { ok: false, reason: 'reels_structure' };
+                    }
+                    if (formatValue === 'static' && (!/t[ií]tulo/i.test(detailedContent) || !/subt[ií]tulo/i.test(detailedContent))) {
+                        return { ok: false, reason: 'static_structure' };
+                    }
+                }
+                if (requiredSlotKeys.size && usedSlotKeys.size !== requiredSlotKeys.size) {
+                    return { ok: false, reason: 'missing_slots' };
+                }
+                return { ok: true };
+            };
+
+            const callOpenAi = async (payloadOverride, label) => {
+                console.log(`[openai-proxy][${requestId}] BEFORE_OPENAI`, { label });
                 if (isCalendarMode && errorLogContext?.calendarId) {
                     await appendCalendarLog(errorLogContext.calendarId, 'Chamando OpenAI');
                 }
@@ -3242,12 +3331,12 @@ const server = http.createServer(async (request, response) => {
                             'Authorization': `Bearer ${apiKey}`
                         },
                         signal: openAiController.signal,
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(payloadOverride)
                     });
                 } catch (error) {
                     if (error?.name === 'AbortError') {
                         await sendError('OPENAI_TIMEOUT', 'Tempo limite ao chamar OpenAI.', error?.stack || null);
-                        return;
+                        return null;
                     }
                     throw error;
                 } finally {
@@ -3255,7 +3344,7 @@ const server = http.createServer(async (request, response) => {
                 }
 
                 const rawText = await openAiResponse.text();
-                console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length });
+                console.log(`[openai-proxy][${requestId}] AFTER_OPENAI`, { size: rawText.length, label });
                 if (isCalendarMode && errorLogContext?.calendarId) {
                     await appendCalendarLog(errorLogContext.calendarId, 'Processando resposta');
                 }
@@ -3264,14 +3353,24 @@ const server = http.createServer(async (request, response) => {
                     responseJson = JSON.parse(rawText);
                 } catch (jsonError) {
                     await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida da OpenAI.', rawText || null);
-                    return;
+                    return null;
                 }
 
                 if (!openAiResponse.ok) {
                     const message = responseJson?.error?.message || responseJson?.error || 'Erro na OpenAI.';
                     await sendError('OPENAI_ERROR', message, responseJson?.error || null);
+                    return null;
+                }
+
+                return { responseJson, rawText };
+            };
+
+            const executeProxy = async () => {
+                const initialResponse = await callOpenAi(payload, 'INITIAL');
+                if (!initialResponse) {
                     return;
                 }
+                let responseJson = initialResponse.responseJson;
 
                 if (isCalendarMode) {
                     console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
@@ -3291,23 +3390,12 @@ const server = http.createServer(async (request, response) => {
                 }
 
                 if (isCalendarMode && calendarContext) {
-                    const contentRaw = String(responseJson?.choices?.[0]?.message?.content || '').trim();
-                    const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
-                    let calendarJson = null;
-                    try {
-                        calendarJson = JSON.parse(sanitized);
-                    } catch (parseError) {
-                        calendarJson = null;
-                    }
-
-                    if (Array.isArray(calendarJson)) {
-                        calendarJson = {
-                            month: calendarContext.month,
-                            timezone: 'America/Sao_Paulo',
-                            posts: calendarJson
-                        };
-                        responseJson.choices[0].message.content = JSON.stringify(calendarJson);
-                    } else if (!calendarJson || !Array.isArray(calendarJson.posts)) {
+                    const expectedTotal = calendarContext.expectedTotalOverride
+                        ?? (calendarContext.postsPerWeek && calendarContext.totalWeeks ? calendarContext.postsPerWeek * calendarContext.totalWeeks : calendarContext.postsCount);
+                    const requiredSlots = Array.isArray(calendarContext.weekSlots) ? calendarContext.weekSlots : [];
+                    const expectedCount = requiredSlots.length || expectedTotal;
+                    const requiredSlotsText = requiredSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
+                    const convertCalendarTextToJson = async (textToConvert, expectedCountOverride) => {
                         const converterPrompt = [
                             'Converta o texto abaixo em JSON válido no seguinte formato:',
                             '{',
@@ -3334,10 +3422,10 @@ const server = http.createServer(async (request, response) => {
                             '  ]',
                             '}',
                             `Use o mês informado para converter datas DD/MM/AAAA ou DD/MM. Mês atual: ${calendarContext.month}.`,
-                            `Retorne EXATAMENTE ${calendarContext.postsCount} itens em posts.`,
+                            `Retorne EXATAMENTE ${expectedCountOverride} itens em posts.`,
                             'Se algum campo não existir no texto original, preencha com string vazia.',
                             'Texto para converter:',
-                            contentRaw
+                            textToConvert
                         ].join('\n');
 
                         const convertPayload = {
@@ -3365,7 +3453,7 @@ const server = http.createServer(async (request, response) => {
                         } catch (error) {
                             if (error?.name === 'AbortError') {
                                 await sendError('OPENAI_TIMEOUT', 'Tempo limite ao converter resposta em JSON.', error?.stack || null);
-                                return;
+                                return null;
                             }
                             throw error;
                         } finally {
@@ -3378,12 +3466,12 @@ const server = http.createServer(async (request, response) => {
                             convertJson = JSON.parse(convertText);
                         } catch (convertParseError) {
                             await sendError('OPENAI_RESPONSE_INVALID', 'Falha ao converter resposta para JSON.', convertText || null);
-                            return;
+                            return null;
                         }
                         if (!convertResponse.ok) {
                             const convertMessage = convertJson?.error?.message || convertJson?.error || 'Erro na OpenAI ao converter resposta.';
                             await sendError('OPENAI_ERROR', convertMessage, convertJson?.error || null);
-                            return;
+                            return null;
                         }
 
                         const convertedContent = String(convertJson?.choices?.[0]?.message?.content || '').replace(/```json/gi, '').replace(/```/g, '').trim();
@@ -3392,7 +3480,7 @@ const server = http.createServer(async (request, response) => {
                             convertedObject = JSON.parse(convertedContent);
                         } catch (convertedParseError) {
                             await sendError('OPENAI_RESPONSE_INVALID', 'Resposta convertida ainda inválida.', convertedContent || null);
-                            return;
+                            return null;
                         }
 
                         if (Array.isArray(convertedObject)) {
@@ -3403,8 +3491,149 @@ const server = http.createServer(async (request, response) => {
                             };
                         }
 
-                        responseJson.choices[0].message.content = JSON.stringify(convertedObject);
-                        calendarJson = convertedObject;
+                        return convertedObject;
+                    };
+                    const parseCalendarJsonFromResponse = async (responseValue, expectedCountOverride) => {
+                        const contentRaw = String(responseValue?.choices?.[0]?.message?.content || '').trim();
+                        const sanitized = contentRaw.replace(/```json/gi, '').replace(/```/g, '').trim();
+                        let parsedJson = null;
+                        try {
+                            parsedJson = JSON.parse(sanitized);
+                        } catch (parseError) {
+                            parsedJson = null;
+                        }
+                        if (Array.isArray(parsedJson)) {
+                            const wrappedJson = {
+                                month: calendarContext.month,
+                                timezone: 'America/Sao_Paulo',
+                                posts: parsedJson
+                            };
+                            responseValue.choices[0].message.content = JSON.stringify(wrappedJson);
+                            return wrappedJson;
+                        }
+                        if (!parsedJson || !Array.isArray(parsedJson.posts)) {
+                            const convertedObject = await convertCalendarTextToJson(contentRaw, expectedCountOverride);
+                            if (!convertedObject) {
+                                return null;
+                            }
+                            responseValue.choices[0].message.content = JSON.stringify(convertedObject);
+                            return convertedObject;
+                        }
+                        return parsedJson;
+                    };
+
+                    let calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
+                    if (!calendarJson) {
+                        return;
+                    }
+
+                    const buildRetryInstruction = (reason) => {
+                        const baseInstruction = `Refaça a resposta em JSON válido. Retorne exatamente ${expectedCount} posts.`;
+                        const slotInstruction = requiredSlotsText ? `Use exatamente os slots (datas + formatos): ${requiredSlotsText}.` : '';
+                        const reasonInstruction = (() => {
+                            if (reason === 'missing_fields') return 'Preencha tema, creative_suggestion e detailed_content para todos os posts.';
+                            if (reason === 'missing_meta_caption') return 'Preencha captions.meta para todos os posts.';
+                            if (reason === 'missing_linkedin_caption') return 'Preencha captions.linkedin para todos os posts.';
+                            if (reason === 'missing_tiktok_caption') return 'Preencha captions.tiktok para todos os posts.';
+                            if (reason === 'carousel_structure') return 'Se format=carousel, detalhe Slides 1..N com título, subtítulo, bullets e sugestão visual.';
+                            if (reason === 'reels_structure') return 'Se format=reels, detalhe Cena 1..N com narração, texto na tela e instruções de gravação.';
+                            if (reason === 'static_structure') return 'Se format=static, inclua título, subtítulo, texto curto da arte e composição visual.';
+                            return 'Garanta o schema completo e campos obrigatórios.';
+                        })();
+                        return [baseInstruction, slotInstruction, reasonInstruction].filter(Boolean).join(' ');
+                    };
+
+                    const buildSlotKeysFromPosts = (posts) => {
+                        const usedKeys = new Set();
+                        for (const post of posts) {
+                            const dateValue = normalizeCalendarDate(post?.scheduled_date || post?.data || post?.date || post?.scheduledDate || '');
+                            const formatValue = normalizeCalendarFormat(post?.format || post?.formato || '');
+                            if (dateValue && formatValue) {
+                                usedKeys.add(`${dateValue}|${formatValue}`);
+                            }
+                        }
+                        return usedKeys;
+                    };
+
+                    let validationResult = validateCalendarPosts(calendarJson?.posts, {
+                        expectedCount,
+                        requiredSlots,
+                        requireLinkedin: includeLinkedin,
+                        requireTiktok: includeTiktok
+                    });
+
+                    if (!validationResult.ok && asyncCalendarMode && requiredSlots.length && calendarPromptBase) {
+                        const usedSlotKeys = buildSlotKeysFromPosts(calendarJson?.posts || []);
+                        const missingSlots = requiredSlots.filter((slot) => {
+                            const slotKey = buildCalendarSlotKey(slot);
+                            return slotKey && !usedSlotKeys.has(slotKey);
+                        });
+                        if (missingSlots.length) {
+                            const missingSlotsText = missingSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
+                            const missingPrompt = [
+                                calendarPromptBase,
+                                `Gere SOMENTE ${missingSlots.length} posts faltantes.`,
+                                `Use exatamente os slots faltantes: ${missingSlotsText}.`,
+                                'Retorne JSON válido no mesmo schema com apenas esses posts.'
+                            ].filter(Boolean).join(' ');
+                            const missingPayload = {
+                                ...payload,
+                                messages: [
+                                    { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
+                                    { role: 'user', content: missingPrompt }
+                                ]
+                            };
+                            const missingResponse = await callOpenAi(missingPayload, 'MISSING');
+                            if (!missingResponse) {
+                                return;
+                            }
+                            const missingCalendar = await parseCalendarJsonFromResponse(missingResponse.responseJson, missingSlots.length);
+                            if (!missingCalendar || !Array.isArray(missingCalendar.posts)) {
+                                return;
+                            }
+                            calendarJson = {
+                                ...calendarJson,
+                                posts: [...calendarJson.posts, ...missingCalendar.posts]
+                            };
+                            responseJson.choices[0].message.content = JSON.stringify(calendarJson);
+                            validationResult = validateCalendarPosts(calendarJson.posts, {
+                                expectedCount,
+                                requiredSlots,
+                                requireLinkedin: includeLinkedin,
+                                requireTiktok: includeTiktok
+                            });
+                        }
+                    }
+
+                    if (!validationResult.ok && calendarPromptBase) {
+                        const retryPrompt = [calendarPromptBase, buildRetryInstruction(validationResult.reason)].filter(Boolean).join(' ');
+                        const retryPayload = {
+                            ...payload,
+                            messages: [
+                                { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
+                                { role: 'user', content: retryPrompt }
+                            ]
+                        };
+                        const retryResponse = await callOpenAi(retryPayload, 'RETRY');
+                        if (!retryResponse) {
+                            return;
+                        }
+                        responseJson = retryResponse.responseJson;
+                        calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
+                        if (!calendarJson) {
+                            return;
+                        }
+                        validationResult = validateCalendarPosts(calendarJson.posts, {
+                            expectedCount,
+                            requiredSlots,
+                            requireLinkedin: includeLinkedin,
+                            requireTiktok: includeTiktok
+                        });
+                    }
+
+                    if (!validationResult.ok) {
+                        await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida após validação.', { reason: validationResult.reason });
+                        return;
                     }
 
                     if (calendarJson && Array.isArray(calendarJson.posts)) {
