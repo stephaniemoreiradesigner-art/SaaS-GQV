@@ -145,6 +145,18 @@ function setGenerationLogMessage(message) {
     if (actions) actions.classList.add('hidden');
 }
 
+function updateRetryButtonState() {
+    const retryButton = document.getElementById('generation-log-retry');
+    if (!retryButton) return;
+    const isLocked = window.__calendarGenerationInProgress === true;
+    retryButton.disabled = isLocked;
+    if (isLocked) {
+        retryButton.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+        retryButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
 function setGenerationLoading(isLoading, message) {
     generationModalLoading = isLoading;
     const btnConfirm = document.getElementById('btn-generation-confirm');
@@ -176,6 +188,7 @@ function setGenerationLoading(isLoading, message) {
     if (isLoading) {
         setGenerationLogMessage(message || 'Gerando seu calendário, aguarde...');
     }
+    updateRetryButtonState();
 }
 
 let progressPollInterval = null;
@@ -239,6 +252,7 @@ function setRetryVisible(isVisible, message, options = {}) {
                 generateCalendar(lastGenerationConfig);
             }
         });
+        updateRetryButtonState();
     } else {
         actions.classList.add('hidden');
         retryButton.onclick = null;
@@ -677,7 +691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
     if (btnGenerationConfirm) {
-        btnGenerationConfirm.addEventListener('click', () => {
+        btnGenerationConfirm.onclick = () => {
             const postsCountInput = document.getElementById('postsCount');
             const seasonalDatesInput = document.getElementById('seasonalDates');
             const rawCount = postsCountInput ? parseInt(postsCountInput.value, 10) : 12;
@@ -687,7 +701,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map(line => line.trim())
                 .filter(Boolean) : [];
             generateCalendar({ postsCount, seasonalDates });
-        });
+        };
     }
 
     const modalPost = document.getElementById('modal-post');
@@ -2043,7 +2057,7 @@ async function generateCalendar(config = {}) {
         return;
     }
 
-    if (window.__calendarGenerating === true) {
+    if (window.__calendarGenerationInProgress === true) {
         if (typeof appendGenerationLog === 'function') {
             appendGenerationLog('Já estou gerando...');
         } else {
@@ -2051,6 +2065,7 @@ async function generateCalendar(config = {}) {
         }
         return;
     }
+    window.__calendarGenerationInProgress = true;
     window.__calendarGenerating = true;
 
     const generationButtons = [];
@@ -2567,6 +2582,8 @@ Regras obrigatórias:
         if (bannerEl) bannerEl.remove();
         restoreGenerationButtons();
         window.__calendarGenerating = false;
+        window.__calendarGenerationInProgress = false;
+        updateRetryButtonState();
         if (generationSucceeded) {
             stopCalendarProgressPolling();
         }
