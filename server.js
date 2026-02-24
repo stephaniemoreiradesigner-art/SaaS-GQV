@@ -2799,18 +2799,18 @@ const server = http.createServer(async (request, response) => {
             try {
                 rawBody = await readRawBody(request);
             } catch (error) {
-                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
+                sendJson(500, { error: true, message: 'Body inválido. Envie JSON.', requestId });
                 return;
             }
             if (!rawBody || rawBody.trim().length === 0) {
-                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
+                sendJson(500, { error: true, message: 'Body inválido. Envie JSON.', requestId });
                 return;
             }
             let body = null;
             try {
                 body = JSON.parse(rawBody);
             } catch (parseError) {
-                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
+                sendJson(500, { error: true, message: 'Body inválido. Envie JSON.', requestId });
                 return;
             }
             const bodyRequestId = String(body?.request_id || '').trim();
@@ -2821,7 +2821,7 @@ const server = http.createServer(async (request, response) => {
             const timestamp = new Date().toISOString();
             console.log(`[openai/proxy] called${logRequestId} ${timestamp}`);
             if (!Array.isArray(body?.messages) || body.messages.length === 0) {
-                sendJson(400, { error: 'BAD_REQUEST', message: 'Missing messages', requestId });
+                sendJson(400, { error: true, message: 'Missing messages', requestId });
                 return;
             }
             const openaiAllowedKeys = new Set(['model', 'temperature', 'messages']);
@@ -2951,7 +2951,7 @@ const server = http.createServer(async (request, response) => {
             const sendError = async (errorCode, message, details) => {
                 console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
                 sendJson(500, {
-                    error: 'OPENAI_PROXY_ERROR',
+                    error: true,
                     message: message || 'Erro no proxy OpenAI.',
                     requestId
                 });
@@ -2970,6 +2970,9 @@ const server = http.createServer(async (request, response) => {
             let payload;
             let pendingMemoryUpdate = null;
             let calendarPromptBase = null;
+            let includeLinkedin = false;
+            let includeTiktok = false;
+            let includeMeta = false;
             const rawTenantId = request.tenant_id;
             const tenantId = rawTenantId && /^\d+$/.test(String(rawTenantId)) ? String(rawTenantId) : null;
             const clienteId = body?.client_id || null;
@@ -2981,6 +2984,10 @@ const server = http.createServer(async (request, response) => {
                 const postsCount = Number.isFinite(Number(body.posts_count)) && Number(body.posts_count) > 0 ? Number(body.posts_count) : 12;
                 const seasonalDates = Array.isArray(body.seasonal_dates) ? body.seasonal_dates : [];
                 const platforms = Array.isArray(body.platforms) ? body.platforms : [];
+                const normalizedPlatforms = platforms.map((item) => String(item || '').toLowerCase());
+                includeLinkedin = normalizedPlatforms.includes('linkedin');
+                includeTiktok = normalizedPlatforms.includes('tiktok');
+                includeMeta = normalizedPlatforms.includes('meta') || normalizedPlatforms.includes('instagram') || normalizedPlatforms.includes('facebook');
                 const visualIdentity = String(body.visual_identity || '').trim();
                 const clientName = String(body.client_name || '').trim();
                 const niche = String(body.niche || 'Geral').trim();
@@ -3149,9 +3156,9 @@ const server = http.createServer(async (request, response) => {
                 const resolvedVisualIdentity = String(clientProfile?.visual_identity || clientProfile?.identidade_visual || visualIdentity || '').trim();
                 const resolvedClientName = String(clientProfile?.nome_empresa || clientName || '').trim();
                 const resolvedNiche = String(clientProfile?.nicho_atuacao || niche || 'Geral').trim();
-                const includeLinkedin = platforms.some((item) => String(item).toLowerCase() === 'linkedin');
-                const includeTiktok = platforms.some((item) => String(item).toLowerCase() === 'tiktok');
-                const includeMeta = platforms.some((item) => ['instagram', 'facebook'].includes(String(item).toLowerCase()));
+                const includeLinkedinValue = includeLinkedin;
+                const includeTiktokValue = includeTiktok;
+                const includeMetaValue = includeMeta;
 
                 const weekInfo = weekContext
                     ? `Semana ${weekContext.week_index || ''} (${weekContext.start_date || ''} a ${weekContext.end_date || ''}).`
@@ -3177,9 +3184,9 @@ const server = http.createServer(async (request, response) => {
                     resolvedVisualIdentity ? `Identidade visual: ${resolvedVisualIdentity}.` : 'Identidade visual não informada.',
                     memorySummary ? `Memória anterior: ${memorySummary}.` : 'Sem memória anterior.',
                     historySummary ? `Histórico recente: ${historySummary}.` : 'Sem histórico recente.',
-                    includeMeta ? 'Captions.meta é a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
-                    includeLinkedin ? 'Captions.linkedin deve existir para LinkedIn (string).' : 'LinkedIn não ativo.',
-                    includeTiktok ? 'Captions.tiktok deve existir para TikTok (string).' : 'TikTok não ativo.',
+                    includeMetaValue ? 'Captions.meta é a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
+                    includeLinkedinValue ? 'Captions.linkedin deve existir para LinkedIn (string).' : 'LinkedIn não ativo.',
+                    includeTiktokValue ? 'Captions.tiktok deve existir para TikTok (string).' : 'TikTok não ativo.',
                     'É proibido inventar eventos, feiras, webinars, workshops, palestras, datas comemorativas ou notícias que não estejam em seasonal_dates.',
                     'Se seasonal_dates estiver vazio, não mencione nenhuma data/evento.',
                     'Retorne JSON válido seguindo o schema do system prompt.',
@@ -3555,47 +3562,75 @@ const server = http.createServer(async (request, response) => {
                         return usedKeys;
                     };
 
-                    let validationResult = validateCalendarPosts(calendarJson?.posts, {
-                        expectedCount,
-                        requiredSlots,
-                        requireLinkedin: includeLinkedin,
-                        requireTiktok: includeTiktok
-                    });
-
-                    if (!validationResult.ok && asyncCalendarMode && requiredSlots.length && calendarPromptBase) {
-                        const usedSlotKeys = buildSlotKeysFromPosts(calendarJson?.posts || []);
-                        const missingSlots = requiredSlots.filter((slot) => {
-                            const slotKey = buildCalendarSlotKey(slot);
-                            return slotKey && !usedSlotKeys.has(slotKey);
+                    try {
+                        let validationResult = validateCalendarPosts(calendarJson?.posts, {
+                            expectedCount,
+                            requiredSlots,
+                            requireLinkedin: includeLinkedin,
+                            requireTiktok: includeTiktok
                         });
-                        if (missingSlots.length) {
-                            const missingSlotsText = missingSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
-                            const missingPrompt = [
-                                calendarPromptBase,
-                                `Gere SOMENTE ${missingSlots.length} posts faltantes.`,
-                                `Use exatamente os slots faltantes: ${missingSlotsText}.`,
-                                'Retorne JSON válido no mesmo schema com apenas esses posts.'
-                            ].filter(Boolean).join(' ');
-                            const missingPayload = {
+
+                        if (!validationResult.ok && asyncCalendarMode && requiredSlots.length && calendarPromptBase) {
+                            const usedSlotKeys = buildSlotKeysFromPosts(calendarJson?.posts || []);
+                            const missingSlots = requiredSlots.filter((slot) => {
+                                const slotKey = buildCalendarSlotKey(slot);
+                                return slotKey && !usedSlotKeys.has(slotKey);
+                            });
+                            if (missingSlots.length) {
+                                const missingSlotsText = missingSlots.map((slot) => `${slot.date} ${slot.format}`).join(', ');
+                                const missingPrompt = [
+                                    calendarPromptBase,
+                                    `Gere SOMENTE ${missingSlots.length} posts faltantes.`,
+                                    `Use exatamente os slots faltantes: ${missingSlotsText}.`,
+                                    'Retorne JSON válido no mesmo schema com apenas esses posts.'
+                                ].filter(Boolean).join(' ');
+                                const missingPayload = {
+                                    ...payload,
+                                    messages: [
+                                        { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
+                                        { role: 'user', content: missingPrompt }
+                                    ]
+                                };
+                                const missingResponse = await callOpenAi(missingPayload, 'MISSING');
+                                if (!missingResponse) {
+                                    return;
+                                }
+                                const missingCalendar = await parseCalendarJsonFromResponse(missingResponse.responseJson, missingSlots.length);
+                                if (!missingCalendar || !Array.isArray(missingCalendar.posts)) {
+                                    return;
+                                }
+                                calendarJson = {
+                                    ...calendarJson,
+                                    posts: [...calendarJson.posts, ...missingCalendar.posts]
+                                };
+                                responseJson.choices[0].message.content = JSON.stringify(calendarJson);
+                                validationResult = validateCalendarPosts(calendarJson.posts, {
+                                    expectedCount,
+                                    requiredSlots,
+                                    requireLinkedin: includeLinkedin,
+                                    requireTiktok: includeTiktok
+                                });
+                            }
+                        }
+
+                        if (!validationResult.ok && calendarPromptBase) {
+                            const retryPrompt = [calendarPromptBase, buildRetryInstruction(validationResult.reason)].filter(Boolean).join(' ');
+                            const retryPayload = {
                                 ...payload,
                                 messages: [
                                     { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
-                                    { role: 'user', content: missingPrompt }
+                                    { role: 'user', content: retryPrompt }
                                 ]
                             };
-                            const missingResponse = await callOpenAi(missingPayload, 'MISSING');
-                            if (!missingResponse) {
+                            const retryResponse = await callOpenAi(retryPayload, 'RETRY');
+                            if (!retryResponse) {
                                 return;
                             }
-                            const missingCalendar = await parseCalendarJsonFromResponse(missingResponse.responseJson, missingSlots.length);
-                            if (!missingCalendar || !Array.isArray(missingCalendar.posts)) {
+                            responseJson = retryResponse.responseJson;
+                            calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
+                            if (!calendarJson) {
                                 return;
                             }
-                            calendarJson = {
-                                ...calendarJson,
-                                posts: [...calendarJson.posts, ...missingCalendar.posts]
-                            };
-                            responseJson.choices[0].message.content = JSON.stringify(calendarJson);
                             validationResult = validateCalendarPosts(calendarJson.posts, {
                                 expectedCount,
                                 requiredSlots,
@@ -3603,36 +3638,14 @@ const server = http.createServer(async (request, response) => {
                                 requireTiktok: includeTiktok
                             });
                         }
-                    }
 
-                    if (!validationResult.ok && calendarPromptBase) {
-                        const retryPrompt = [calendarPromptBase, buildRetryInstruction(validationResult.reason)].filter(Boolean).join(' ');
-                        const retryPayload = {
-                            ...payload,
-                            messages: [
-                                { role: 'system', content: SOCIAL_MEDIA_EXPERT_SYSTEM_PROMPT },
-                                { role: 'user', content: retryPrompt }
-                            ]
-                        };
-                        const retryResponse = await callOpenAi(retryPayload, 'RETRY');
-                        if (!retryResponse) {
+                        if (!validationResult.ok) {
+                            await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida após validação.', { reason: validationResult.reason });
                             return;
                         }
-                        responseJson = retryResponse.responseJson;
-                        calendarJson = await parseCalendarJsonFromResponse(responseJson, expectedCount);
-                        if (!calendarJson) {
-                            return;
-                        }
-                        validationResult = validateCalendarPosts(calendarJson.posts, {
-                            expectedCount,
-                            requiredSlots,
-                            requireLinkedin: includeLinkedin,
-                            requireTiktok: includeTiktok
-                        });
-                    }
-
-                    if (!validationResult.ok) {
-                        await sendError('OPENAI_RESPONSE_INVALID', 'Resposta inválida após validação.', { reason: validationResult.reason });
+                    } catch (error) {
+                        console.error('[generateCalendar][validation_error]', error);
+                        await sendError('OPENAI_RESPONSE_INVALID', error?.message || 'Erro na validação do calendário.', error?.stack || null);
                         return;
                     }
 
@@ -3731,6 +3744,7 @@ const server = http.createServer(async (request, response) => {
                 });
                 setImmediate(() => {
                     executeProxy().catch(async (error) => {
+                        console.error('[generateCalendar][fatal_error]', error);
                         await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);
                     });
                 });
@@ -3740,6 +3754,7 @@ const server = http.createServer(async (request, response) => {
             await executeProxy();
             return;
         } catch (error) {
+            console.error('[generateCalendar][fatal_error]', error);
             await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);
             return;
         }
