@@ -2806,45 +2806,17 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/openai/health' && request.method === 'GET') {
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ ok: true }));
+        return;
+    }
+
     if (pathname === '/api/openai/proxy' && request.method === 'POST') {
         try {
             const apiKey = envVars['OPENAI_API_KEY'];
-            let rawBody = '';
-            try {
-                rawBody = await readRawBody(request);
-            } catch (error) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({
-                    ok: false,
-                    error_code: 'INVALID_BODY',
-                    message: 'Body inválido. Envie JSON.'
-                }));
-                return;
-            }
-            if (!rawBody || rawBody.trim().length === 0) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({
-                    ok: false,
-                    error_code: 'INVALID_BODY',
-                    message: 'Body inválido. Envie JSON.'
-                }));
-                return;
-            }
-            let body = null;
-            try {
-                body = JSON.parse(rawBody);
-            } catch (parseError) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({
-                    ok: false,
-                    error_code: 'INVALID_BODY',
-                    message: 'Body inválido. Envie JSON.'
-                }));
-                return;
-            }
-
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
-            const requestId = headerRequestId || String(body?.request_id || '').trim() || crypto.randomUUID();
+            let requestId = headerRequestId || crypto.randomUUID();
             let responseSent = false;
             const sendJson = (status, payload) => {
                 if (responseSent) return;
@@ -2852,15 +2824,32 @@ const server = http.createServer(async (request, response) => {
                 response.writeHead(status, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify(payload));
             };
-            let errorLogContext = null;
-            if (!Array.isArray(body?.messages) || body.messages.length === 0) {
-                sendJson(400, {
-                    ok: false,
-                    error_code: 'BAD_REQUEST',
-                    message: 'Missing messages'
-                });
+            let rawBody = '';
+            try {
+                rawBody = await readRawBody(request);
+            } catch (error) {
+                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
                 return;
             }
+            if (!rawBody || rawBody.trim().length === 0) {
+                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
+                return;
+            }
+            let body = null;
+            try {
+                body = JSON.parse(rawBody);
+            } catch (parseError) {
+                sendJson(500, { error: 'OPENAI_PROXY_ERROR', message: 'Body inválido. Envie JSON.', requestId });
+                return;
+            }
+            const bodyRequestId = String(body?.request_id || '').trim();
+            if (!headerRequestId && bodyRequestId) {
+                requestId = bodyRequestId;
+            }
+            const logRequestId = headerRequestId ? ` ${headerRequestId}` : '';
+            const timestamp = new Date().toISOString();
+            console.log(`[openai/proxy] called${logRequestId} ${timestamp}`);
+            let errorLogContext = null;
             const buildLogTimestamp = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             const buildLogLine = (message) => `[${buildLogTimestamp()}] ${message}`;
             const fetchCalendarRow = async () => {
@@ -2975,27 +2964,11 @@ const server = http.createServer(async (request, response) => {
                 await updateCalendarRow(calendarId, payload);
             };
             const sendError = async (errorCode, message, details) => {
-                console.error(`[openai-proxy][${requestId}]`, { error_code: errorCode, message, details });
-                if (errorLogContext?.supabaseUrl && errorLogContext?.serviceRoleKey && errorLogContext?.clientId && errorLogContext?.mesReferencia) {
-                    try {
-                        const detailLines = details ? String(details).split('\n').filter(Boolean).slice(0, 3) : [];
-                        const detailsText = detailLines.length ? ` | ${detailLines.join(' | ')}` : '';
-                        if (!errorLogContext.calendarId) {
-                            await ensureCalendarProgress();
-                        }
-                        if (errorLogContext?.calendarId) {
-                            await appendCalendarLog(errorLogContext.calendarId, `erro ${errorCode}: ${message}${detailsText}`, { status: 'erro' });
-                        }
-                    } catch (logError) {
-                        console.error(`[openai-proxy][${requestId}] erro_log falhou`, logError);
-                    }
-                }
+                console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
                 sendJson(500, {
-                    ok: false,
-                    request_id: requestId,
-                    error_code: errorCode,
-                    message,
-                    details
+                    error: 'OPENAI_PROXY_ERROR',
+                    message: message || 'Erro no proxy OpenAI.',
+                    requestId
                 });
             };
 
@@ -3006,7 +2979,7 @@ const server = http.createServer(async (request, response) => {
 
             const model = body?.model;
             const finalModel = model || 'gpt-4o-mini';
-            const isCalendarMode = body.mode === 'calendar' || body.posts_count !== undefined;
+            const isCalendarMode = Boolean(body?.__legacy_calendar_mode);
             let calendarContext = null;
             let payload;
             let pendingMemoryUpdate = null;
@@ -3231,7 +3204,7 @@ const server = http.createServer(async (request, response) => {
                     };
                 }
             } else {
-                payload = { ...body, model: finalModel };
+                payload = body;
             }
 
             const executeProxy = async () => {
