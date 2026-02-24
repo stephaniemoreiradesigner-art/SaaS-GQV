@@ -385,22 +385,25 @@ const readRequestBody = async (request) => {
     return raw;
 };
 
-const readRawBody = async (request, options = {}) => {
-    const maxBytes = Number.isFinite(options.maxBytes) ? options.maxBytes : 2 * 1024 * 1024;
-    const chunks = [];
-    let total = 0;
-    for await (const chunk of request) {
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += buf.length;
-        if (total > maxBytes) {
-            request.destroy();
-            throw new Error('BODY_TOO_LARGE');
-        }
-        chunks.push(buf);
-    }
-    const raw = Buffer.concat(chunks).toString('utf8');
-    return raw.replace(/^\uFEFF/, '');
-};
+function readRawBody(req) {
+    return new Promise((resolve, reject) => {
+        let data = '';
+
+        req.setEncoding('utf8');
+
+        req.on('data', chunk => {
+            data += chunk;
+        });
+
+        req.on('end', () => {
+            resolve(data);
+        });
+
+        req.on('error', err => {
+            reject(err);
+        });
+    });
+}
 
 const getSupabaseConfig = () => {
     const supabaseUrl = envVars['SUPABASE_URL'] || process.env.SUPABASE_URL || '';
@@ -2808,7 +2811,7 @@ const server = http.createServer(async (request, response) => {
             const apiKey = envVars['OPENAI_API_KEY'];
             let rawBody = '';
             try {
-                rawBody = await readRawBody(request, { maxBytes: 2 * 1024 * 1024 });
+                rawBody = await readRawBody(request);
             } catch (error) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({
