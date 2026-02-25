@@ -50,7 +50,7 @@ const Sidebar = {
             match: ['financeiro.html'],
             restricted: true,
             roles: ['super_admin', 'financeiro'],
-            moduleId: 'financeiro'
+            moduleId: 'financeiro.view'
         },
         { 
             name: 'Automações', 

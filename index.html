@@ -20,6 +20,9 @@
             <p class="mt-2 text-sm text-gray-500">
                 Entre para gerenciar seu negócio
             </p>
+            <div id="demo-login-badge" class="hidden mt-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-900 border border-yellow-200">
+                AMBIENTE DEMO
+            </div>
         </div>
         
         <form class="mt-8 space-y-6" id="loginForm">
@@ -112,10 +115,32 @@
                 console.error('Erro init supabase', e);
             }
 
+            const demoBadge = document.getElementById('demo-login-badge');
+            const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+            const isDemoEmail = (value) => normalizeEmail(value) === 'demo@gqv.com';
+            const updateDemoBadge = () => {
+                if (!demoBadge) return;
+                const isDemo = localStorage.getItem('is_demo') === '1';
+                demoBadge.classList.toggle('hidden', !isDemo);
+            };
+            const setDemoState = (enabled) => {
+                if (enabled) {
+                    localStorage.setItem('is_demo', '1');
+                    localStorage.setItem('demo_mode', 'true');
+                } else {
+                    localStorage.removeItem('is_demo');
+                    localStorage.removeItem('demo_mode');
+                }
+                updateDemoBadge();
+            };
+
+            updateDemoBadge();
+
             // Verificar sessão existente
             try {
                 const { data } = await supabase.auth.getSession();
                 if (data.session) {
+                    setDemoState(isDemoEmail(data.session?.user?.email));
                     console.log('Sessão ativa, redirecionando...');
                     window.location.href = 'dashboard.html';
                     return;
@@ -150,16 +175,19 @@
                         console.log('Login Sucesso:', data);
                         
                         if (data.session) {
+                            setDemoState(isDemoEmail(email));
                             const params = new URLSearchParams();
                             params.append('access_token', data.session.access_token);
                             params.append('refresh_token', data.session.refresh_token);
                             window.location.href = 'dashboard.html?' + params.toString();
                         } else {
+                            setDemoState(isDemoEmail(email));
                             window.location.href = 'dashboard.html';
                         }
 
                     } catch (error) {
                         console.error('Erro Login:', error);
+                        setDemoState(false);
                         if (error.message.includes('Email not confirmed')) {
                             alert('Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada (e spam).');
                         } else if (error.message.includes('Invalid login credentials')) {
@@ -181,6 +209,7 @@
                     const originalText = demoButton.textContent;
                     demoButton.disabled = true;
                     demoButton.textContent = 'Ativando demo...';
+                    setDemoState(true);
                     try {
                         const response = await fetch('/api/demo/seed', { method: 'POST' });
                         let payload = null;
@@ -193,10 +222,11 @@
                             const reason = payload?.details?.error || payload?.error || 'Não foi possível ativar o modo demo.';
                             console.error('Erro demo seed:', payload || reason);
                             alert('Erro ao ativar o modo demo: ' + reason);
+                            setDemoState(false);
                             return;
                         }
                         localStorage.setItem('tenant_id', '00000000-0000-0000-0000-000000000999');
-                        localStorage.setItem('demo_mode', 'true');
+                        setDemoState(true);
                         const { data, error } = await supabase.auth.signInWithPassword({
                             email: 'demo@gqv.com',
                             password: 'Demo@123456'
@@ -204,16 +234,19 @@
                         if (error) {
                             console.error('Erro login demo:', error);
                             alert('Erro ao entrar no modo demo: ' + error.message);
+                            setDemoState(false);
                             return;
                         }
                         if (data?.session) {
                             window.location.href = 'dashboard.html';
                         } else {
+                            setDemoState(false);
                             alert('Não foi possível iniciar a sessão demo.');
                         }
                     } catch (error) {
                         console.error('Erro ao ativar demo:', error);
                         alert('Erro ao ativar o modo demo: ' + error.message);
+                        setDemoState(false);
                     } finally {
                         demoButton.disabled = false;
                         demoButton.textContent = originalText;
