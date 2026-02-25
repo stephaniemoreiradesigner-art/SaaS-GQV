@@ -293,6 +293,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } else {
                 console.log('👤 Usuário NÃO logado');
+                if (demoModeEnabled && sessionStorage.getItem('demo_login_attempted') !== 'true') {
+                    sessionStorage.setItem('demo_login_attempted', 'true');
+                    try {
+                        const { data: demoData, error: demoError } = await window.supabaseClient.auth.signInWithPassword({
+                            email: 'demo@gqv.com',
+                            password: 'Demo@123456'
+                        });
+                        if (!demoError && demoData?.session) {
+                            if (isLoginPage) {
+                                window.location.href = 'dashboard.html';
+                                return;
+                            }
+                            window.showContent();
+                            if (typeof loadUserProfile === 'function') loadUserProfile(demoData.session);
+                            return;
+                        }
+                        if (demoError) {
+                            console.warn('Erro ao autenticar demo:', demoError);
+                        }
+                    } catch (error) {
+                        console.warn('Erro ao autenticar demo:', error);
+                    }
+                }
                 
                 if (isRestrictedPage) {
                     // Se estiver em página restrita, tenta mais uma vez antes de expulsar

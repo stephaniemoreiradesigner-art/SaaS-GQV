@@ -183,15 +183,37 @@
                     demoButton.textContent = 'Ativando demo...';
                     try {
                         const response = await fetch('/api/demo/seed', { method: 'POST' });
-                        if (!response.ok) {
-                            alert('Não foi possível ativar o modo demo.');
+                        let payload = null;
+                        try {
+                            payload = await response.json();
+                        } catch {
+                            payload = null;
+                        }
+                        if (!response.ok || payload?.error) {
+                            const reason = payload?.details?.error || payload?.error || 'Não foi possível ativar o modo demo.';
+                            console.error('Erro demo seed:', payload || reason);
+                            alert('Erro ao ativar o modo demo: ' + reason);
                             return;
                         }
                         localStorage.setItem('tenant_id', '00000000-0000-0000-0000-000000000999');
                         localStorage.setItem('demo_mode', 'true');
-                        window.location.href = 'dashboard.html';
+                        const { data, error } = await supabase.auth.signInWithPassword({
+                            email: 'demo@gqv.com',
+                            password: 'Demo@123456'
+                        });
+                        if (error) {
+                            console.error('Erro login demo:', error);
+                            alert('Erro ao entrar no modo demo: ' + error.message);
+                            return;
+                        }
+                        if (data?.session) {
+                            window.location.href = 'dashboard.html';
+                        } else {
+                            alert('Não foi possível iniciar a sessão demo.');
+                        }
                     } catch (error) {
-                        alert('Erro ao ativar o modo demo.');
+                        console.error('Erro ao ativar demo:', error);
+                        alert('Erro ao ativar o modo demo: ' + error.message);
                     } finally {
                         demoButton.disabled = false;
                         demoButton.textContent = originalText;

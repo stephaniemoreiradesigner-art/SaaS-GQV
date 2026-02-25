@@ -703,6 +703,8 @@ const resolveTenantAndClient = async (request, response, clienteId) => {
 
 const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000999';
 const DEMO_CLIENT_NAME = 'Empresa Alpha Engenharia';
+const DEMO_USER_EMAIL = 'demo@gqv.com';
+const DEMO_USER_PASSWORD = 'Demo@123456';
 const DEMO_METRICS = {
     faturamento_estimado: 38500,
     roi: 4.3,
@@ -745,7 +747,101 @@ const supabaseServiceRest = async (pathWithQuery, method = 'GET', body = null, e
     return { status: response.status, data, text };
 };
 
+const supabaseAdminAuthRest = async (pathWithQuery, method = 'GET', body = null) => {
+    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+    if (!supabaseUrl || !serviceRoleKey) {
+        return { status: 500, data: { error: 'service_role_nao_configurada' }, text: '' };
+    }
+    const baseUrl = supabaseUrl.replace(/\/$/, '');
+    const normalizedPath = pathWithQuery.startsWith('/') ? pathWithQuery : `/${pathWithQuery}`;
+    const targetUrl = `${baseUrl}/auth/v1${normalizedPath}`;
+    const headers = {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`
+    };
+    if (body !== null && body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+    }
+    const response = await fetch(targetUrl, {
+        method,
+        headers,
+        body: body !== null && body !== undefined ? JSON.stringify(body) : undefined
+    });
+    const text = await response.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    } catch {
+        data = null;
+    }
+    return { status: response.status, data, text };
+};
+
+const ensureDemoUser = async () => {
+    const listRes = await supabaseAdminAuthRest(`/admin/users?email=${encodeURIComponent(DEMO_USER_EMAIL)}`);
+    if (listRes.status >= 400) {
+        return { ok: false, error: 'erro_listar_usuario_demo', details: listRes.data || listRes.text || null };
+    }
+    const listUsers = Array.isArray(listRes.data?.users) ? listRes.data.users : (Array.isArray(listRes.data) ? listRes.data : []);
+    let demoUser = listUsers.find((user) => String(user?.email || '').toLowerCase() === DEMO_USER_EMAIL) || listUsers[0] || null;
+
+    if (!demoUser) {
+        const createRes = await supabaseAdminAuthRest('/admin/users', 'POST', {
+            email: DEMO_USER_EMAIL,
+            password: DEMO_USER_PASSWORD,
+            email_confirm: true,
+            user_metadata: { demo: true, tenant_id: DEMO_TENANT_ID }
+        });
+        demoUser = createRes.data || null;
+        if (!demoUser?.id) {
+            return { ok: false, error: 'erro_criar_usuario_demo', details: createRes.data || createRes.text || null };
+        }
+    }
+
+    const profileColumnChecks = ['id', 'email', 'full_name', 'nome', 'role', 'tenant_id'];
+    const profileColumns = new Set();
+    for (const column of profileColumnChecks) {
+        const columnRes = await supabaseServiceRest(`/rest/v1/profiles?select=${column}&limit=1`);
+        if (columnRes.status < 400) {
+            profileColumns.add(column);
+        }
+    }
+    const profileNameColumn = profileColumns.has('full_name') ? 'full_name' : (profileColumns.has('nome') ? 'nome' : null);
+    let supportsProfileTenantId = false;
+    if (profileColumns.has('tenant_id')) {
+        const tenantTypeRes = await supabaseServiceRest(
+            '/rest/v1/information_schema.columns?select=data_type,udt_name&table_name=eq.profiles&column_name=eq.tenant_id&limit=1'
+        );
+        const tenantTypeRow = Array.isArray(tenantTypeRes.data) ? tenantTypeRes.data[0] : null;
+        const tenantTypeRaw = String(tenantTypeRow?.udt_name || tenantTypeRow?.data_type || '').toLowerCase();
+        const allowedTenantTypes = new Set(['uuid', 'text', 'varchar', 'character varying']);
+        supportsProfileTenantId = allowedTenantTypes.has(tenantTypeRaw);
+    }
+
+    const profilePayload = { id: demoUser.id };
+    if (profileColumns.has('email')) profilePayload.email = DEMO_USER_EMAIL;
+    if (profileNameColumn) profilePayload[profileNameColumn] = 'Demo GQV';
+    if (profileColumns.has('role')) profilePayload.role = 'colaborador';
+    if (supportsProfileTenantId) profilePayload.tenant_id = DEMO_TENANT_ID;
+
+    const profileRes = await supabaseServiceRest(
+        '/rest/v1/profiles',
+        'POST',
+        profilePayload,
+        { Prefer: 'resolution=merge-duplicates,return=representation' }
+    );
+    if (profileRes.status >= 400) {
+        return { ok: false, error: 'erro_criar_profile_demo', details: profileRes.data || profileRes.text || null };
+    }
+
+    return { ok: true, user: demoUser };
+};
+
 const seedDemoData = async () => {
+    const demoUserRes = await ensureDemoUser();
+    if (!demoUserRes.ok) {
+        return { ok: false, error: demoUserRes.error, details: demoUserRes.details || null };
+    }
     const clientColumnChecks = [
         'tenant_id',
         'nome_empresa',
