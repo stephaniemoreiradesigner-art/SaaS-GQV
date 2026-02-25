@@ -528,11 +528,34 @@ DROP POLICY IF EXISTS "Lembretes Pessoais" ON public.lembretes;
 DROP POLICY IF EXISTS "Lembretes Select OwnOrSystem" ON public.lembretes;
 DROP POLICY IF EXISTS "Lembretes Manage Own" ON public.lembretes;
 
-CREATE POLICY "Lembretes Select OwnOrSystem" ON public.lembretes
-FOR SELECT TO authenticated USING (user_id = auth.uid() OR user_id IS NULL);
+CREATE POLICY "Lembretes Select Manual" ON public.lembretes
+FOR SELECT TO authenticated
+USING (tipo = 'manual' AND created_by = auth.uid());
 
-CREATE POLICY "Lembretes Manage Own" ON public.lembretes
-FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Lembretes Select Birthday" ON public.lembretes
+FOR SELECT TO authenticated
+USING (tipo = 'birthday' AND public.is_tenant_match(tenant_id));
+
+CREATE POLICY "Lembretes Insert Manual" ON public.lembretes
+FOR INSERT TO authenticated
+WITH CHECK (
+  tipo = 'manual'
+  AND (created_by = auth.uid() OR created_by IS NULL)
+  AND (tenant_id IS NULL OR public.is_tenant_match(tenant_id))
+);
+
+CREATE POLICY "Lembretes Insert Birthday" ON public.lembretes
+FOR INSERT TO authenticated
+WITH CHECK (tipo = 'birthday' AND public.is_tenant_match(tenant_id));
+
+CREATE POLICY "Lembretes Update Manual" ON public.lembretes
+FOR UPDATE TO authenticated
+USING (tipo = 'manual' AND created_by = auth.uid())
+WITH CHECK (tipo = 'manual' AND created_by = auth.uid());
+
+CREATE POLICY "Lembretes Delete Manual" ON public.lembretes
+FOR DELETE TO authenticated
+USING (tipo = 'manual' AND created_by = auth.uid());
 
 CREATE OR REPLACE FUNCTION public.can_notify_task_creator(p_task_id UUID, p_target_user UUID)
 RETURNS BOOLEAN

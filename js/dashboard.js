@@ -52,13 +52,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Funções Globais para Lembretes Manuais
-    async function getAuthHeaders() {
-        const headers = { 'Content-Type': 'application/json' };
-        const sessionResult = await window.supabaseClient?.auth?.getSession();
-        const token = sessionResult?.data?.session?.access_token;
-        if (token) headers.Authorization = `Bearer ${token}`;
-        return headers;
+    async function getCurrentSessionUser() {
+        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        return session?.user || null;
+    }
+
+    async function getCurrentTenantId(user) {
+        if (!user) return null;
+        const metaTenant = Number(user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id);
+        if (Number.isFinite(metaTenant)) return metaTenant;
+
+        const { data: profile } = await window.supabaseClient
+            .from('profiles')
+            .select('tenant_id')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        const profileTenant = Number(profile?.tenant_id);
+        return Number.isFinite(profileTenant) ? profileTenant : null;
     }
 
     window.addTodo = async function() {
@@ -67,16 +78,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!titulo) return;
 
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch('/api/reminders/manual', {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({ titulo })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(data?.error || 'Erro ao adicionar lembrete');
+            const user = await getCurrentSessionUser();
+            if (!user) throw new Error('Usuário não autenticado');
+
+            const tenantId = await getCurrentTenantId(user);
+            const payload = {
+                titulo,
+                tipo: 'manual',
+                created_by: user.id,
+                concluido: false
+            };
+
+            if (Number.isFinite(tenantId)) {
+                payload.tenant_id = tenantId;
             }
+
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .insert(payload);
+
+            if (error) throw error;
             input.value = '';
             loadLembretes(); // Recarrega a lista
         } catch (e) {
@@ -88,15 +109,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.deleteTodo = async function(id) {
         if(!confirm('Excluir este lembrete?')) return;
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch(`/api/reminders/manual/${encodeURIComponent(id)}`, {
-                method: 'DELETE',
-                headers
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(data?.error || 'Erro ao excluir lembrete');
-            }
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .delete()
+                .eq('id', id)
+                .eq('tipo', 'manual');
+
+            if (error) throw error;
             loadLembretes();
         } catch (e) {
             console.error('Erro ao excluir:', e);
@@ -105,16 +124,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.toggleTodo = async function(id, checked) {
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch(`/api/reminders/manual/${encodeURIComponent(id)}`, {
-                method: 'PATCH',
-                headers,
-                body: JSON.stringify({ concluido: checked })
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(data?.error || 'Erro ao atualizar lembrete');
-            }
+            const { error } = await window.supabaseClient
+                .from('lembretes')
+                .update({ concluido: checked })
+                .eq('id', id)
+                .eq('tipo', 'manual');
+
+            if (error) throw error;
             loadLembretes();
         } catch (e) {
             console.error('Erro ao atualizar:', e);
@@ -127,13 +143,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!list) return;
 
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch('/api/reminders/manual', { headers });
-            const json = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(json?.error || 'Erro ao carregar lembretes');
+            list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>';
+            const user = await getCurrentSessionUser();
+            if (!user) throw new Error('Usuário não autenticado');
+
+            const tenantId = await getCurrentTenantId(user);
+
+            const manualQuery = window.supabaseClient
+                .from('lembretes')
+                .select('id, titulo, concluido, tipo, created_at')
+                .eq('tipo', 'manual')
+                .eq('created_by', user.id)
+                .order('created_at', { ascending: false });
+
+            let birthdayQuery = window.supabaseClient
+                .from('lembretes')
+                .select('id, titulo, concluido, tipo, created_at, tenant_id')
+                .eq('tipo', 'birthday')
+                .order('created_at', { ascending: false });
+
+            if (Number.isFinite(tenantId)) {
+                birthdayQuery = birthdayQuery.eq('tenant_id', tenantId);
             }
-            const todos = Array.isArray(json?.data) ? json.data : [];
+
+            const [{ data: manual, error: manualError }, { data: birthdays, error: birthdayError }] = await Promise.all([
+                manualQuery,
+                birthdayQuery
+            ]);
+
+            if (manualError) throw manualError;
+            if (birthdayError) throw birthdayError;
+
+            const todos = [...(birthdays || []), ...(manual || [])];
 
             list.innerHTML = '';
             if (!todos || todos.length === 0) {
@@ -143,19 +184,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             todos.forEach(todo => {
                 const li = document.createElement('li');
-                // Estilo condicional para concluído
-                const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
-                
-                li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
-                li.innerHTML = `
-                    <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
-                           ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
-                    <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
-                    <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
-                            onclick="deleteTodo('${todo.id}')" title="Excluir">
-                        <i class="fas fa-trash-alt text-xs"></i>
-                    </button>
-                `;
+                if (todo.tipo === 'birthday') {
+                    li.className = 'flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors text-gray-700 hover:bg-gray-50';
+                    li.innerHTML = `
+                        <div class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
+                            <i class="fas fa-birthday-cake text-xs"></i>
+                        </div>
+                        <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
+                    `;
+                } else {
+                    const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
+                    li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
+                    li.innerHTML = `
+                        <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
+                               ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
+                        <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
+                        <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
+                                onclick="deleteTodo('${todo.id}')" title="Excluir">
+                            <i class="fas fa-trash-alt text-xs"></i>
+                        </button>
+                    `;
+                }
                 list.appendChild(li);
             });
         } catch (e) {
