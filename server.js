@@ -1497,6 +1497,197 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/reminders/manual' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const userId = authContext.user?.id;
+            const tenantId = authContext.tenantId;
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,titulo,data,created_at,concluido,tipo');
+            params.set('tenant_id', `eq.${tenantId}`);
+            params.set('created_by', `eq.${userId}`);
+            params.set('tipo', 'eq.manual');
+            params.set('order', 'created_at.desc');
+
+            const remindersRes = await supabaseServiceRest(`/rest/v1/lembretes?${params.toString()}`);
+            if (remindersRes.status >= 400) {
+                response.writeHead(remindersRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_buscar_lembretes', details: remindersRes.data || remindersRes.text || null }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: Array.isArray(remindersRes.data) ? remindersRes.data : [] }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_buscar_lembretes' }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/reminders/manual' && request.method === 'POST') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const userId = authContext.user?.id;
+            const tenantId = authContext.tenantId;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const titulo = String(body?.titulo || '').trim();
+            const data = body?.data ? String(body.data).trim() : null;
+            if (!titulo) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'titulo_obrigatorio' }));
+                return;
+            }
+
+            const payload = {
+                titulo,
+                data: data || null,
+                tipo: 'manual',
+                tenant_id: tenantId,
+                created_by: userId,
+                concluido: false
+            };
+
+            const createRes = await supabaseServiceRest('/rest/v1/lembretes', 'POST', payload, {
+                Prefer: 'return=representation'
+            });
+            if (createRes.status >= 400) {
+                response.writeHead(createRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_criar_lembrete', details: createRes.data || createRes.text || null }));
+                return;
+            }
+
+            const row = Array.isArray(createRes.data) ? createRes.data[0] : createRes.data;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: row || null }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_criar_lembrete' }));
+            return;
+        }
+    }
+
+    if (pathname.startsWith('/api/reminders/manual/') && request.method === 'PATCH') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const userId = authContext.user?.id;
+            const tenantId = authContext.tenantId;
+            const reminderId = pathname.split('/').pop();
+
+            if (!reminderId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'lembrete_id_invalido' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const concluido = Boolean(body?.concluido);
+
+            const updatePath = `/rest/v1/lembretes?id=eq.${reminderId}&tenant_id=eq.${tenantId}&created_by=eq.${userId}&tipo=eq.manual`;
+            const updateRes = await supabaseServiceRest(updatePath, 'PATCH', { concluido }, {
+                Prefer: 'return=representation'
+            });
+            if (updateRes.status >= 400) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_atualizar_lembrete', details: updateRes.data || updateRes.text || null }));
+                return;
+            }
+
+            const row = Array.isArray(updateRes.data) ? updateRes.data[0] : updateRes.data;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: row || null }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_atualizar_lembrete' }));
+            return;
+        }
+    }
+
+    if (pathname.startsWith('/api/reminders/manual/') && request.method === 'DELETE') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const userId = authContext.user?.id;
+            const tenantId = authContext.tenantId;
+            const reminderId = pathname.split('/').pop();
+
+            if (!reminderId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'lembrete_id_invalido' }));
+                return;
+            }
+
+            const deletePath = `/rest/v1/lembretes?id=eq.${reminderId}&tenant_id=eq.${tenantId}&created_by=eq.${userId}&tipo=eq.manual`;
+            const deleteRes = await supabaseServiceRest(deletePath, 'DELETE');
+            if (deleteRes.status >= 400) {
+                response.writeHead(deleteRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_excluir_lembrete', details: deleteRes.data || deleteRes.text || null }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_excluir_lembrete' }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/reminders/birthdays' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const params = new URLSearchParams();
+            params.set('select', 'id,titulo,data,created_at,tipo');
+            params.set('tipo', 'eq.birthday');
+            params.set('order', 'data.asc');
+
+            const remindersRes = await supabaseServiceRest(`/rest/v1/lembretes?${params.toString()}`);
+            if (remindersRes.status >= 400) {
+                response.writeHead(remindersRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_buscar_aniversarios', details: remindersRes.data || remindersRes.text || null }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: Array.isArray(remindersRes.data) ? remindersRes.data : [] }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: 'erro_buscar_aniversarios' }));
+            return;
+        }
+    }
+
     if (pathname === '/health' && request.method === 'GET') {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ status: 'ok' }));

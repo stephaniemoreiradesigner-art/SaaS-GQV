@@ -53,26 +53,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Funções Globais para Lembretes Manuais
+    async function getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        const sessionResult = await window.supabaseClient?.auth?.getSession();
+        const token = sessionResult?.data?.session?.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+        return headers;
+    }
+
     window.addTodo = async function() {
         const input = document.getElementById('new-todo');
         const titulo = input.value.trim();
         if (!titulo) return;
 
         try {
-            const { data: { user } } = await window.supabaseClient.auth.getUser();
-            if (!user) {
-                alert('Você precisa estar logado.');
-                return;
+            const headers = await getAuthHeaders();
+            const res = await fetch('/api/reminders/manual', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ titulo })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.error || 'Erro ao adicionar lembrete');
             }
-
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .insert([{ 
-                    titulo: titulo,
-                    user_id: user.id 
-                }]);
-
-            if (error) throw error;
             input.value = '';
             loadLembretes(); // Recarrega a lista
         } catch (e) {
@@ -84,12 +88,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.deleteTodo = async function(id) {
         if(!confirm('Excluir este lembrete?')) return;
         try {
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .delete()
-                .eq('id', id);
-            
-            if (error) throw error;
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/reminders/manual/${encodeURIComponent(id)}`, {
+                method: 'DELETE',
+                headers
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.error || 'Erro ao excluir lembrete');
+            }
             loadLembretes();
         } catch (e) {
             console.error('Erro ao excluir:', e);
@@ -98,12 +105,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.toggleTodo = async function(id, checked) {
         try {
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .update({ concluido: checked })
-                .eq('id', id);
-
-            if (error) throw error;
+            const headers = await getAuthHeaders();
+            const res = await fetch(`/api/reminders/manual/${encodeURIComponent(id)}`, {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({ concluido: checked })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.error || 'Erro ao atualizar lembrete');
+            }
             loadLembretes();
         } catch (e) {
             console.error('Erro ao atualizar:', e);
@@ -116,12 +127,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!list) return;
 
         try {
-            const { data: todos, error } = await window.supabaseClient
-                .from('lembretes')
-                .select('*')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
+            const headers = await getAuthHeaders();
+            const res = await fetch('/api/reminders/manual', { headers });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(json?.error || 'Erro ao carregar lembretes');
+            }
+            const todos = Array.isArray(json?.data) ? json.data : [];
 
             list.innerHTML = '';
             if (!todos || todos.length === 0) {
