@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.supabaseClient) {
             clearInterval(checkConnection);
             console.log('Conexão Supabase estabelecida!');
-            initFinanceiro();
+            startFinanceiro();
         } else {
             attempts++;
             if (attempts % 5 === 0) console.warn(`Aguardando conexão... (${attempts}/${maxAttempts})`);
@@ -52,6 +52,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     }, 200); // Tenta a cada 200ms
+
+    async function startFinanceiro() {
+        const allowed = await ensureFinanceAccess();
+        if (!allowed) return;
+        initFinanceiro();
+    }
+
+    async function ensureFinanceAccess() {
+        const maxWaits = 30;
+        let waits = 0;
+
+        while (!window.currentUserData && waits < maxWaits) {
+            await new Promise(r => setTimeout(r, 100));
+            waits++;
+        }
+
+        const userRole = window.currentUserData?.perfil_acesso || 'usuario';
+        const permissoes = Array.isArray(window.currentUserData?.permissoes) ? window.currentUserData.permissoes : [];
+        const hasPermission = ['super_admin', 'admin', 'financeiro'].includes(userRole) || permissoes.includes('financeiro');
+
+        if (!hasPermission) {
+            alert('Você não tem permissão para acessar o módulo Financeiro.');
+            window.location.href = 'dashboard.html';
+            return false;
+        }
+
+        return true;
+    }
 
     // Função global para mudar abas
     window.switchFinanceTab = (tabName) => {

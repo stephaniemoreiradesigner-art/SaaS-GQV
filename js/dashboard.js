@@ -234,31 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // 2. Buscar Financeiro (Mensalidades e Faturas)
-            // Apenas para Admin, SuperAdmin e Financeiro
-            if (['admin', 'super_admin', 'financeiro'].includes(currentUserRole)) {
-                const { data: fins, error: errFin } = await window.supabaseClient
-                    .from('financeiro')
-                    .select('id, descricao, valor, tipo, status')
-                    .eq('data_transacao', todayDateStr)
-                    .eq('status', 'a_vencer'); // Apenas pendentes
-
-                if (!errFin && fins) {
-                    fins.forEach(f => {
-                        const isReceita = f.tipo === 'entrada';
-                        items.push({
-                            type: 'financeiro',
-                            title: f.descricao,
-                            desc: `${isReceita ? 'Receber' : 'Pagar'}: ${parseFloat(f.valor).toLocaleString('pt-br',{style:'currency', currency:'BRL'})}`,
-                            link: 'financeiro.html',
-                            icon: isReceita ? 'fa-hand-holding-usd' : 'fa-file-invoice-dollar',
-                            colorClass: isReceita ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                        });
-                    });
-                }
-            }
-
-            // 3. Buscar Aniversariantes do Dia
+            // 2. Buscar Aniversariantes do Dia
             const { data: colaboradores, error: errColab } = await window.supabaseClient
                 .from('colaboradores')
                 .select('nome, data_nascimento, times_acesso')
@@ -278,41 +254,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const diffDays = Math.floor(diffMs / 86400000);
 
                         if (diffDays >= 0 && diffDays <= 15) {
-                            
-                            // Filtro de Permissão (Time)
-                            let isVisible = false;
-                            if (['admin', 'super_admin'].includes(currentUserRole)) {
-                                isVisible = true;
-                            } else {
-                                // Verifica interseção de times
-                                let userTimes = currentUserData?.times_acesso || [];
-                                let colabTimes = c.times_acesso || [];
-                                
-                                // Normalizar arrays (podem vir como string JSON do banco)
-                                if (typeof userTimes === 'string') { try { userTimes = JSON.parse(userTimes); } catch(e) { userTimes = []; } }
-                                if (typeof colabTimes === 'string') { try { colabTimes = JSON.parse(colabTimes); } catch(e) { colabTimes = []; } }
-                                
-                                if (!Array.isArray(userTimes)) userTimes = [];
-                                if (!Array.isArray(colabTimes)) colabTimes = [];
-
-                                // Normalizar para strings para comparação segura
-                                const userTimesStr = userTimes.map(String);
-                                const colabTimesStr = colabTimes.map(String);
-
-                                const intersection = userTimesStr.filter(t => colabTimesStr.includes(t));
-                                if (intersection.length > 0) isVisible = true;
-                            }
-
-                            if (isVisible) {
-                                items.push({
-                                    type: 'aniversario',
-                                    title: `🎉 Parabéns, ${c.nome}!`,
-                                    desc: diffDays === 0 ? 'Aniversariante do dia' : `Aniversário em ${diffDays} dias`,
-                                    link: null, // Não clicável
-                                    icon: 'fa-birthday-cake',
-                                    colorClass: 'bg-pink-100 text-pink-600' // Pink festivo
-                                });
-                            }
+                            items.push({
+                                type: 'aniversario',
+                                title: `🎉 Parabéns, ${c.nome}!`,
+                                desc: diffDays === 0 ? 'Aniversariante do dia' : `Aniversário em ${diffDays} dias`,
+                                link: null,
+                                icon: 'fa-birthday-cake',
+                                colorClass: 'bg-pink-100 text-pink-600'
+                            });
                         }
                     }
                 });
@@ -349,95 +298,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             `;
             list.appendChild(li);
         });
-    }
-
-    function parseDateOnly(dateStr) {
-        if (!dateStr || typeof dateStr !== 'string') return null;
-        const parts = dateStr.split('-');
-        if (parts.length !== 3) return null;
-        const year = Number(parts[0]);
-        const monthIndex = Number(parts[1]) - 1;
-        const day = Number(parts[2]);
-        const d = new Date(year, monthIndex, day);
-        if (Number.isNaN(d.getTime())) return null;
-        d.setHours(0, 0, 0, 0);
-        return d;
-    }
-
-    function getCurrentWeekRange() {
-        const now = new Date();
-        const start = new Date(now);
-        start.setHours(0,0,0,0);
-        const day = start.getDay(); // 0 (Sun) - 6 (Sat)
-        const diff = start.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-        start.setDate(diff); // Monday
-
-        const end = new Date(start);
-        end.setDate(start.getDate() + 7); // Next Monday
-        return { start, end };
-    }
-
-    async function loadFinanceiroSummary() {
-        if (!['admin', 'super_admin', 'financeiro'].includes(currentUserRole)) {
-            updateMetric('fin-contas-pagar', 'R$ 0,00');
-            updateMetric('fin-mensalidades-vencer', 'R$ 0,00');
-            updateMetric('fin-saldo', 'R$ 0,00');
-            return;
-        }
-
-        try {
-            const { data: transacoes, error } = await window.supabaseClient
-                .from('financeiro')
-                .select('valor, tipo, status, data_transacao');
-
-            if (error) throw error;
-
-            const { start, end } = getCurrentWeekRange();
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            let contasPagar = 0;
-            let mensalidadesVencer = 0;
-            let saldo = 0;
-
-            (transacoes || []).forEach((t) => {
-                const valor = Number(t.valor) || 0;
-
-                if (t.status === 'recebido') {
-                    if (t.tipo === 'entrada') saldo += valor;
-                    if (t.tipo === 'saida') saldo -= valor;
-                }
-
-                if (t.status !== 'a_vencer') return;
-
-                const vencimento = parseDateOnly(t.data_transacao);
-                if (!vencimento) return;
-
-                const isOverdue = vencimento < today;
-                const isInWeek = vencimento >= start && vencimento < end;
-                const showPending = isInWeek || isOverdue;
-
-                if (!showPending) return;
-
-                if (t.tipo === 'saida') contasPagar += valor;
-                if (t.tipo === 'entrada') mensalidadesVencer += valor;
-            });
-
-            const elPagar = document.getElementById('fin-contas-pagar');
-            const elVencer = document.getElementById('fin-mensalidades-vencer');
-            const elSaldo = document.getElementById('fin-saldo');
-
-            if (elPagar) elPagar.innerText = contasPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            if (elVencer) elVencer.innerText = mensalidadesVencer.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-            if (elSaldo) {
-                elSaldo.innerText = saldo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                // Usando classes Tailwind para cor
-                elSaldo.className = `text-2xl font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`;
-            }
-        } catch (e) {
-            console.error('Erro ao carregar financeiro:', e);
-        }
     }
 
     async function loadCampanhasEmAndamento() {
@@ -552,7 +412,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadDashboardMetrics() {
         await Promise.all([
             loadCampanhasEmAndamento(),
-            loadFinanceiroSummary(),
             loadSystemAgenda(),
             loadLembretes(),
             loadAniversariantesMes()
