@@ -3,6 +3,16 @@ DECLARE
     v_updated integer;
     r record;
 BEGIN
+    FOR r IN
+        SELECT conname
+        FROM pg_constraint
+        WHERE conrelid = 'public.social_calendars'::regclass
+          AND contype = 'c'
+          AND pg_get_constraintdef(oid) ILIKE '%status%'
+    LOOP
+        EXECUTE format('ALTER TABLE public.social_calendars DROP CONSTRAINT IF EXISTS %I', r.conname);
+    END LOOP;
+
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'social_calendars' AND column_name = 'status'
@@ -50,11 +60,11 @@ BEGIN
     FOR r IN
         SELECT conname
         FROM pg_constraint
-        WHERE conrelid = 'public.social_calendars'::regclass
+        WHERE conrelid = 'public.social_posts'::regclass
           AND contype = 'c'
           AND pg_get_constraintdef(oid) ILIKE '%status%'
     LOOP
-        EXECUTE format('ALTER TABLE public.social_calendars DROP CONSTRAINT IF EXISTS %I', r.conname);
+        EXECUTE format('ALTER TABLE public.social_posts DROP CONSTRAINT IF EXISTS %I', r.conname);
     END LOOP;
 
     IF NOT EXISTS (
@@ -103,16 +113,6 @@ BEGIN
       AND status NOT IN ('draft','briefing_sent','design_in_progress','ready_for_approval','approved','rejected','scheduled','published');
     GET DIAGNOSTICS v_updated = ROW_COUNT;
     RAISE NOTICE 'social_posts forced->draft: %', v_updated;
-
-    FOR r IN
-        SELECT conname
-        FROM pg_constraint
-        WHERE conrelid = 'public.social_posts'::regclass
-          AND contype = 'c'
-          AND pg_get_constraintdef(oid) ILIKE '%status%'
-    LOOP
-        EXECUTE format('ALTER TABLE public.social_posts DROP CONSTRAINT IF EXISTS %I', r.conname);
-    END LOOP;
 END $$;
 
 ALTER TABLE public.social_calendars DROP CONSTRAINT IF EXISTS social_calendars_status_check;
