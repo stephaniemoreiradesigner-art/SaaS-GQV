@@ -13,6 +13,11 @@ var socialPostsCache = [];
 var lastSeasonalDates = [];
 var currentPostProps = null;
 
+const CALENDAR_STATUS = window.CALENDAR_STATUS || {};
+const POST_STATUS = window.POST_STATUS || {};
+const CALENDAR_STATUS_LABEL = window.CALENDAR_STATUS_LABEL || {};
+const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
+
 function ensureCalendarCTAContainer() {
     let container = document.getElementById('calendar-connection-cta');
     if (container) return container;
@@ -276,9 +281,23 @@ async function pollCalendarProgress() {
             renderProgressLog(logText);
         }
         const status = String(calendar.status || '');
-        if (status !== 'processando') {
+        let progressMeta = null;
+        try {
+            progressMeta = JSON.parse(calendar.erro_log || '{}');
+        } catch {
+            progressMeta = null;
+        }
+        const generationMeta = progressMeta?.generation || null;
+        const progressStatus = String(generationMeta?.status || '');
+        const isInProduction = status === CALENDAR_STATUS.IN_PRODUCTION;
+        const isReady = [
+            CALENDAR_STATUS.AWAITING_APPROVAL,
+            CALENDAR_STATUS.APPROVED,
+            CALENDAR_STATUS.PUBLISHED
+        ].includes(status);
+        if (!isInProduction || progressStatus === 'partial' || generationMeta?.last_error) {
             stopCalendarProgressPolling();
-            if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(status)) {
+            if (isReady) {
                 setRetryVisible(false);
                 if (!progressCompleted) {
                     progressCompleted = true;
@@ -302,13 +321,12 @@ async function pollCalendarProgress() {
                         setGenerationLoading(false);
                     }
                 }
-            } else if (status === 'partial') {
+            } else if (progressStatus === 'partial') {
                 let generated = 0;
                 let expected = 0;
                 try {
-                    const logJson = JSON.parse(calendar.erro_log || '{}');
-                    generated = Number(logJson?.generation?.generated || 0);
-                    expected = Number(logJson?.generation?.expected || 0);
+                    generated = Number(generationMeta?.generated || 0);
+                    expected = Number(generationMeta?.expected || 0);
                 } catch {}
                 const partialMessage = `Geramos ${generated} de ${expected}. Clique em "Tentar novamente" para completar.`;
                 setGenerationLogMessage(partialMessage);
@@ -321,7 +339,7 @@ async function pollCalendarProgress() {
                         generateCalendar({ ...lastGenerationConfig, force: false });
                     }
                 });
-            } else if (status === 'erro') {
+            } else if (generationMeta?.last_error) {
                 const message = 'Falha na geração. Clique em "Tentar novamente".';
                 setGenerationLogMessage(message);
                 setGenerationLoading(false);
@@ -788,23 +806,27 @@ function initCalendar() {
             let statusIcon = '';
             let statusClass = '';
             
-            if (props.status === 'aprovado') {
-                statusIcon = '<i class="fas fa-check-circle text-green-500 ml-1" title="Aprovado"></i>';
+            if (props.status === POST_STATUS.APPROVED) {
+                const approvedLabel = POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado';
+                statusIcon = `<i class="fas fa-check-circle text-green-500 ml-1" title="${approvedLabel}"></i>`;
                 borderColorClass = 'border-green-500';
                 bgColorClass = 'bg-green-50';
                 textColorClass = 'text-green-700';
-            } else if (props.status === 'ajuste_solicitado') {
-                statusIcon = '<i class="fas fa-exclamation-circle text-red-500 ml-1" title="Ajuste Solicitado"></i>';
+            } else if (props.status === POST_STATUS.REJECTED) {
+                const rejectedLabel = POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajustes Solicitados';
+                statusIcon = `<i class="fas fa-exclamation-circle text-red-500 ml-1" title="${rejectedLabel}"></i>`;
                 borderColorClass = 'border-red-500';
                 bgColorClass = 'bg-red-50';
                 textColorClass = 'text-red-700';
-            } else if (props.status === 'ajuste_em_andamento') {
-                statusIcon = '<i class="fas fa-pencil-alt text-orange-500 ml-1" title="Ajustes em Andamento"></i>';
+            } else if (props.status === POST_STATUS.DESIGN_IN_PROGRESS) {
+                const inProgressLabel = POST_STATUS_LABEL?.[POST_STATUS.DESIGN_IN_PROGRESS] || 'Em Produção';
+                statusIcon = `<i class="fas fa-pencil-alt text-orange-500 ml-1" title="${inProgressLabel}"></i>`;
                 borderColorClass = 'border-orange-500';
                 bgColorClass = 'bg-orange-50';
                 textColorClass = 'text-orange-700';
-            } else if (props.status === 'pendente' || props.status === 'pendente_aprovação') {
-                statusIcon = '<i class="fas fa-clock text-yellow-500 ml-1" title="Pendente Aprovação"></i>';
+            } else if (props.status === POST_STATUS.READY_FOR_APPROVAL) {
+                const pendingLabel = POST_STATUS_LABEL?.[POST_STATUS.READY_FOR_APPROVAL] || 'Pendente Aprovação';
+                statusIcon = `<i class="fas fa-clock text-yellow-500 ml-1" title="${pendingLabel}"></i>`;
                 borderColorClass = 'border-yellow-500';
                 bgColorClass = 'bg-yellow-50';
                 textColorClass = 'text-yellow-700';
@@ -964,24 +986,24 @@ function openPostModal(event) {
     // Configurar Badge de Status
     const statusBadge = document.getElementById('post-status-badge');
     if (statusBadge) {
-        if (props.status === 'aprovado') {
-            statusBadge.textContent = 'Aprovado';
+        if (props.status === POST_STATUS.APPROVED) {
+            statusBadge.textContent = POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado';
             statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200';
-        } else if (props.status === 'ajuste_solicitado') {
-            statusBadge.textContent = 'Ajuste Solicitado';
+        } else if (props.status === POST_STATUS.REJECTED) {
+            statusBadge.textContent = POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajustes Solicitados';
             statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200';
-        } else if (props.status === 'pendente_aprovação') {
-            statusBadge.textContent = 'Pendente Aprovação';
+        } else if (props.status === POST_STATUS.READY_FOR_APPROVAL) {
+            statusBadge.textContent = POST_STATUS_LABEL?.[POST_STATUS.READY_FOR_APPROVAL] || 'Pendente Aprovação';
             statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200';
         } else {
-            statusBadge.textContent = 'Rascunho';
+            statusBadge.textContent = POST_STATUS_LABEL?.[POST_STATUS.DRAFT] || 'Rascunho';
             statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800';
         }
     }
 
     // Resetar estado de readonly e feedback
     const formInputs = modal.querySelectorAll('input, textarea, select');
-    const isApproved = props.status === 'aprovado';
+    const isApproved = props.status === POST_STATUS.APPROVED;
     
     formInputs.forEach(input => {
         if (input.tagName === 'SELECT' || input.type === 'file' || input.type === 'date' || input.type === 'time') {
@@ -1290,15 +1312,10 @@ async function savePost() {
         const currentStatus = modal.dataset.currentStatus;
 
         if (eventId) {
-            // Se estava em ajuste, volta para pendente ao salvar. 
-            // REGRA: Ao salvar, sempre volta para 'pendente' (amarelo) e atualiza a tarefa.
-            if (currentStatus !== 'rascunho') {
-                postData.status = 'pendente';
+            if (currentStatus !== POST_STATUS.DRAFT) {
+                postData.status = POST_STATUS.READY_FOR_APPROVAL;
             }
-            // Se for rascunho, o usuário pode estar apenas salvando o rascunho. 
-            // Mas o usuário disse "ao clicar em salvar... muda para pendente".
-            // Vou assumir que salvar edição = pronto para revisão/envio = pendente.
-            postData.status = 'pendente';
+            postData.status = POST_STATUS.READY_FOR_APPROVAL;
 
             const { error } = await window.supabaseClient
                 .from('social_posts')
@@ -1338,7 +1355,7 @@ async function savePost() {
             // Geralmente rascunho, mas se o usuário quer o fluxo...
             // Vou manter 'rascunho' na criação para não poluir com pendências incompletas, 
             // a menos que o usuário edite depois.
-            postData.status = 'rascunho'; 
+            postData.status = POST_STATUS.DRAFT;
             if (!postData.medias && selectedFiles.length) {
                 const uploadedMedias = await uploadMediaFiles(selectedFiles, {
                     clientId: currentClienteId,
@@ -1910,7 +1927,7 @@ async function loadCalendarData() {
                 btnApprove.dataset.approvalSent = 'false';
             } else {
                 const approvalStatus = await fetchApprovalBatchStatus(currentClienteId, currentMonth);
-                if (approvalStatus?.status && approvalStatus.status !== 'rascunho') {
+                if (approvalStatus?.status && approvalStatus.status !== CALENDAR_STATUS.DRAFT) {
                     setApproveButtonLabel(btnApprove, 'Reenviar calendário para aprovação');
                     btnApprove.dataset.approvalSent = 'true';
                     btnApprove.dataset.approvalStatus = approvalStatus.status;
@@ -2499,7 +2516,7 @@ Regras obrigatórias:
                 legenda: legendaFinal,
                 legenda_linkedin: post.legenda_linkedin || null,
                 legenda_tiktok: post.legenda_tiktok || null,
-                status: 'rascunho',
+                status: POST_STATUS.DRAFT,
                 medias: generalMedias
             });
         });
@@ -2630,7 +2647,7 @@ window.handleManualCreation = function() {
             id: '',
             title: '',
             startStr: tempSelectedDate,
-            extendedProps: { formato: tempSelectedFormat, status: 'rascunho' }
+            extendedProps: { formato: tempSelectedFormat, status: POST_STATUS.DRAFT }
         };
         openPostModal(fakeEvent);
     }, 300);
@@ -2776,7 +2793,7 @@ async function generateSinglePostAI(date, format) {
             legenda_linkedin: jsonContent.legenda_linkedin || null,
             legenda_tiktok: jsonContent.legenda_tiktok || null,
             creative_guide: jsonContent.criativo || jsonContent.creative_guide || null,
-            status: 'rascunho'
+            status: POST_STATUS.DRAFT
         };
 
         console.log('Enviando post para Supabase:', newPost);

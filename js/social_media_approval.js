@@ -1,5 +1,6 @@
 
-// --- Funções de Fluxo de Aprovação ---
+const POST_STATUS = window.POST_STATUS || {};
+const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
 async function loadApprovalClients() {
     const select = document.getElementById('approval-client-select');
@@ -195,10 +196,20 @@ async function handleApprovalDateSelection() {
 
         if (error) throw error;
 
-        const postsParaEnvio = posts.filter(p => ['pendente', 'rascunho'].includes(p.status));
+        const pendingStatuses = [
+            POST_STATUS.READY_FOR_APPROVAL,
+            POST_STATUS.DRAFT,
+            'pendente',
+            'rascunho',
+            'pendente_aprovação',
+            'pendente_aprovacao'
+        ].filter(Boolean);
+        const postsParaEnvio = posts.filter(p => pendingStatuses.includes(p.status));
 
         if (!postsParaEnvio || postsParaEnvio.length === 0) {
-            alert('Nenhum post disponível para envio neste período.\n(Apenas posts com status "Pendente" ou "Rascunho" são listados. Posts já aprovados ou em aprovação não aparecem aqui.)');
+            const pendingLabel = POST_STATUS_LABEL?.[POST_STATUS.READY_FOR_APPROVAL] || 'Pendente Aprovação';
+            const draftLabel = POST_STATUS_LABEL?.[POST_STATUS.DRAFT] || 'Rascunho';
+            alert(`Nenhum post disponível para envio neste período.\n(Apenas posts com status "${pendingLabel}" ou "${draftLabel}" são listados. Posts já aprovados ou em aprovação não aparecem aqui.)`);
             return;
         }
 

@@ -7,6 +7,24 @@ const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 
 const PORT = process.env.PORT || 3000;
+const CALENDAR_STATUS = {
+    DRAFT: 'draft',
+    IN_PRODUCTION: 'in_production',
+    AWAITING_APPROVAL: 'awaiting_approval',
+    APPROVED: 'approved',
+    PUBLISHED: 'published',
+    ARCHIVED: 'archived'
+};
+const POST_STATUS = {
+    DRAFT: 'draft',
+    BRIEFING_SENT: 'briefing_sent',
+    DESIGN_IN_PROGRESS: 'design_in_progress',
+    READY_FOR_APPROVAL: 'ready_for_approval',
+    APPROVED: 'approved',
+    REJECTED: 'rejected',
+    SCHEDULED: 'scheduled',
+    PUBLISHED: 'published'
+};
 
 // Carregar variáveis de ambiente do arquivo .env manualmente
 const envPath = path.join(__dirname, '.env');
@@ -948,7 +966,7 @@ const seedDemoData = async () => {
         cliente_id: clienteId,
         tenant_id: DEMO_TENANT_ID,
         mes_referencia: mesReferencia,
-        status: 'aprovado',
+        status: CALENDAR_STATUS.APPROVED,
         share_token: crypto.randomUUID(),
         access_password: '123456'
     };
@@ -965,7 +983,7 @@ const seedDemoData = async () => {
         await supabaseServiceRest(
             `/rest/v1/social_calendars?id=eq.${calendarId}`,
             'PATCH',
-            { aprovado_por: 'Carlos Mendes', data_aprovacao: new Date().toISOString(), status: 'aprovado' }
+            { aprovado_por: 'Carlos Mendes', data_aprovacao: new Date().toISOString(), status: CALENDAR_STATUS.APPROVED }
         );
     }
 
@@ -977,7 +995,7 @@ const seedDemoData = async () => {
         {
             formato: 'estatico',
             tema: '3 erros que fazem sua obra perder dinheiro',
-            status: 'aprovado',
+            status: POST_STATUS.APPROVED,
             legenda: 'Evite desperdícios: alinhamento de equipe, orçamento atualizado e cronograma realista fazem toda diferença.',
             legenda_linkedin: 'Quando o planejamento é claro, a obra rende mais e o custo fica sob controle.',
             sugestao: 'Crie uma arte com 3 cards numerados e ícones simples de alerta/erro.',
@@ -986,7 +1004,7 @@ const seedDemoData = async () => {
         {
             formato: 'carrossel',
             tema: 'Checklist de segurança para obras',
-            status: 'aprovado',
+            status: POST_STATUS.APPROVED,
             legenda: 'Checklist rápido para manter sua equipe segura e evitar paradas inesperadas.',
             legenda_linkedin: 'Segurança não é custo, é continuidade da obra.',
             sugestao: 'Carrossel com 5 etapas e fundo neutro para fácil leitura.',
@@ -995,7 +1013,7 @@ const seedDemoData = async () => {
         {
             formato: 'reels',
             tema: 'Como reduzir desperdício na construção',
-            status: 'aguardando_aprovacao',
+            status: POST_STATUS.READY_FOR_APPROVAL,
             legenda: '3 atitudes simples que diminuem perdas e aumentam a margem da obra.',
             legenda_linkedin: 'Pequenas mudanças geram grande economia no canteiro.',
             sugestao: 'Roteiro com 3 cenas rápidas: estoque, equipe, reaproveitamento.',
@@ -1004,7 +1022,7 @@ const seedDemoData = async () => {
         {
             formato: 'estatico',
             tema: 'Planejamento evita retrabalho',
-            status: 'concluido',
+            status: POST_STATUS.PUBLISHED,
             legenda: 'Planejar antes de executar evita retrabalho e traz previsibilidade.',
             legenda_linkedin: 'Planejamento é o melhor seguro contra custos extras.',
             sugestao: 'Arte simples com frase central e fundo com textura de obra.',
@@ -1042,7 +1060,7 @@ const seedDemoData = async () => {
             const createdPost = Array.isArray(postRes.data) ? postRes.data[0] : null;
             if (createdPost?.id) {
                 postResults.push(createdPost.id);
-                if (item.status === 'aprovado' || item.status === 'concluido') {
+                if (item.status === POST_STATUS.APPROVED || item.status === POST_STATUS.PUBLISHED) {
                     await supabaseServiceRest(
                         `/rest/v1/social_posts?id=eq.${createdPost.id}`,
                         'PATCH',
@@ -1991,7 +2009,7 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: 'rascunho'
+                        status: CALENDAR_STATUS.DRAFT
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
@@ -2164,7 +2182,7 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: 'rascunho'
+                        status: CALENDAR_STATUS.DRAFT
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
@@ -2179,12 +2197,12 @@ const server = http.createServer(async (request, response) => {
             const currentStatus = String(calendar?.status || '').trim();
             const shareToken = calendar.share_token || crypto.randomUUID();
             const accessPassword = calendar.access_password || crypto.randomUUID().replace(/-/g, '').slice(0, 8);
-            const shouldUpdateStatus = currentStatus === 'rascunho';
+            const shouldUpdateStatus = [CALENDAR_STATUS.DRAFT, 'rascunho'].includes(currentStatus);
             const shouldUpdateTokens = !calendar.share_token || !calendar.access_password;
 
             if (shouldUpdateStatus || shouldUpdateTokens) {
                 const updatePayload = {
-                    status: shouldUpdateStatus ? 'aguardando_aprovacao' : currentStatus || 'aguardando_aprovacao',
+                    status: shouldUpdateStatus ? CALENDAR_STATUS.AWAITING_APPROVAL : currentStatus || CALENDAR_STATUS.AWAITING_APPROVAL,
                     share_token: shareToken,
                     access_password: accessPassword,
                     updated_at: new Date().toISOString()
@@ -2674,7 +2692,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const updatePayload = {
-                status: 'pendente_aprovação',
+                status: POST_STATUS.READY_FOR_APPROVAL,
                 approval_group_id: approvalId,
                 data_envio_aprovacao: new Date().toISOString()
             };
@@ -2698,7 +2716,7 @@ const server = http.createServer(async (request, response) => {
                 data_agendada: item.data_agendada || null,
                 plataforma: item.plataformas || null,
                 formato: item.formato || null,
-                status: 'pendente_aprovação',
+                status: POST_STATUS.READY_FOR_APPROVAL,
                 feedback_ajuste: item.feedback_ajuste || null
             }));
 
@@ -2803,14 +2821,14 @@ const server = http.createServer(async (request, response) => {
             const statusRaw = String(body?.status || '').trim().toLowerCase();
             const reason = String(body?.reason || '').trim();
             let nextStatus = null;
-            if (statusRaw === 'approved') nextStatus = 'aprovado';
-            if (statusRaw === 'needs_adjustment') nextStatus = 'ajuste_solicitado';
+            if (statusRaw === 'approved') nextStatus = POST_STATUS.APPROVED;
+            if (statusRaw === 'needs_adjustment') nextStatus = POST_STATUS.REJECTED;
             if (!nextStatus) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'status_invalido' }));
                 return;
             }
-            if (nextStatus === 'ajuste_solicitado' && !reason) {
+            if (nextStatus === POST_STATUS.REJECTED && !reason) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'motivo_obrigatorio' }));
                 return;
@@ -2879,7 +2897,7 @@ const server = http.createServer(async (request, response) => {
                 status: nextStatus,
                 updated_at: new Date().toISOString()
             };
-            if (nextStatus === 'ajuste_solicitado') {
+            if (nextStatus === POST_STATUS.REJECTED) {
                 updatePayload.feedback_ajuste = reason;
             }
 
@@ -2930,10 +2948,19 @@ const server = http.createServer(async (request, response) => {
             const allowedOrderFields = new Set(['data_agendada', 'created_at']);
             const order = allowedOrderFields.has(orderField) ? `${orderField}.${orderDir}` : 'data_agendada.asc';
 
+            const pendingStatuses = [
+                POST_STATUS.READY_FOR_APPROVAL,
+                'pendente_aprovação',
+                'pendente_aprovacao',
+                'aguardando_aprovacao',
+                'pending',
+                'pending_approval',
+                'pendente'
+            ].filter(Boolean);
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,data_agendada,hora_agendada,plataformas,status,imagem_url,calendar_id,social_calendars!inner(tenant_id)');
             params.set('social_calendars.tenant_id', `eq.${tenantId}`);
-            params.set('status', 'in.(pendente_aprovação,pendente_aprovacao,aguardando_aprovacao,pending,pending_approval,pendente)');
+            params.set('status', `in.(${pendingStatuses.join(',')})`);
             params.set('order', order);
             params.set('limit', String(limit));
             if (from) params.set('data_agendada', `gte.${from}`);
@@ -3691,12 +3718,12 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: errorLogContext.clientId,
                         tenant_id: errorLogContext.tenantId,
                         mes_referencia: errorLogContext.mesReferencia,
-                        status: 'processando',
+                        status: CALENDAR_STATUS.IN_PRODUCTION,
                         erro_log: null
                     });
                 } else {
                     calendar = await updateCalendarRow(calendar.id, {
-                        status: 'processando',
+                        status: CALENDAR_STATUS.IN_PRODUCTION,
                         erro_log: null,
                         tenant_id: errorLogContext.tenantId
                     }) || calendar;
@@ -3869,7 +3896,7 @@ const server = http.createServer(async (request, response) => {
                     if (existingCalendar?.id) {
                         const existingStatus = String(existingCalendar.status || '').toLowerCase();
                         errorLogContext.calendarId = existingCalendar.id;
-                        if (existingStatus === 'processando') {
+                        if ([CALENDAR_STATUS.IN_PRODUCTION, 'processando'].includes(existingStatus)) {
                             sendJson(200, {
                                 ok: true,
                                 request_id: requestId,
@@ -3878,7 +3905,7 @@ const server = http.createServer(async (request, response) => {
                             });
                             return;
                         }
-                        if (['aguardando_aprovacao', 'aprovado', 'concluido'].includes(existingStatus) && !forceGeneration) {
+                        if ([CALENDAR_STATUS.AWAITING_APPROVAL, CALENDAR_STATUS.APPROVED, CALENDAR_STATUS.PUBLISHED, 'aguardando_aprovacao', 'aprovado', 'concluido'].includes(existingStatus) && !forceGeneration) {
                             sendJson(200, {
                                 ok: true,
                                 request_id: requestId,
@@ -4367,7 +4394,7 @@ const server = http.createServer(async (request, response) => {
                         legenda: captions.meta || '',
                         legenda_linkedin: captions.linkedin || null,
                         legenda_tiktok: captions.tiktok || null,
-                        status: 'rascunho'
+                        status: POST_STATUS.DRAFT
                     };
                 };
 
@@ -4529,6 +4556,9 @@ const server = http.createServer(async (request, response) => {
 
                 const updateProgress = async (generatedCount, lastBatch, statusValue, lastError) => {
                     if (!calendarId) return;
+                    const nextCalendarStatus = statusValue === 'done'
+                        ? CALENDAR_STATUS.AWAITING_APPROVAL
+                        : CALENDAR_STATUS.IN_PRODUCTION;
                     await updateCalendarProgress(calendarId, {
                         generation: {
                             expected: expectedTotal,
@@ -4537,7 +4567,7 @@ const server = http.createServer(async (request, response) => {
                             status: statusValue,
                             last_error: lastError || null
                         }
-                    }, statusValue === 'done' ? 'aguardando_aprovacao' : statusValue === 'partial' ? 'partial' : 'processando');
+                    }, nextCalendarStatus);
                 };
 
                 const handleBatchFailure = async (code, message, generatedCount, batchIndex) => {

@@ -116,6 +116,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/constants/socialStatus.js"></script>
+    <script src="js/constants/socialStatusLabels.js"></script>
     <script>
         // Configuração inline caso supabaseClient.js falhe ou não seja carregado corretamente neste contexto isolado
         const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
@@ -127,6 +129,9 @@
                  window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             } catch(e) { console.error(e); }
         }
+
+        const POST_STATUS = window.POST_STATUS || {};
+        const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
@@ -212,8 +217,8 @@
                 const dateFmt = dateObj.toLocaleDateString('pt-BR', {timeZone: 'UTC'});
                 const weekday = dateObj.toLocaleDateString('pt-BR', {weekday: 'short', timeZone: 'UTC'});
                 
-                const isApproved = post.status === 'aprovado';
-                const isAdjust = post.status === 'ajuste_solicitado';
+                const isApproved = post.status === POST_STATUS.APPROVED;
+                const isAdjust = post.status === POST_STATUS.REJECTED;
                 
                 // Cores por formato
                 let typeColor = 'bg-gray-100 text-gray-600';
@@ -244,9 +249,11 @@
                 // Status Badge se aprovado
                 let statusOverlay = '';
                 if(isApproved) {
-                    statusOverlay = `<div class="absolute top-3 right-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm z-10 flex items-center gap-1"><i class="fas fa-check"></i> APROVADO</div>`;
+                    const approvedText = (POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado').toUpperCase();
+                    statusOverlay = `<div class="absolute top-3 right-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm z-10 flex items-center gap-1"><i class="fas fa-check"></i> ${approvedText}</div>`;
                 } else if(isAdjust) {
-                    statusOverlay = `<div class="absolute top-3 right-3 bg-warning-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm z-10 flex items-center gap-1"><i class="fas fa-tools"></i> AJUSTE</div>`;
+                    const adjustText = (POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajustes Solicitados').toUpperCase();
+                    statusOverlay = `<div class="absolute top-3 right-3 bg-warning-500 text-white text-xs font-bold px-2 py-1 rounded shadow-sm z-10 flex items-center gap-1"><i class="fas fa-tools"></i> ${adjustText}</div>`;
                 }
 
                 card.innerHTML = `
@@ -309,14 +316,14 @@
             // UI Otimista
             const post = postsData.find(p => p.id === id);
             if(post) {
-                post.status = 'aprovado';
+                post.status = POST_STATUS.APPROVED;
                 renderPosts();
             }
             
             try {
                 await window.supabaseClient
                     .from('social_posts')
-                    .update({ status: 'aprovado' })
+                    .update({ status: POST_STATUS.APPROVED })
                     .eq('id', id);
             } catch(e) {
                 console.error(e);
@@ -347,7 +354,7 @@
             // UI Otimista
             const post = postsData.find(p => p.id === currentPostIdAdjust);
             if(post) {
-                post.status = 'ajuste_solicitado';
+                post.status = POST_STATUS.REJECTED;
                 post.feedback_ajuste = reason;
                 renderPosts();
             }
@@ -356,7 +363,7 @@
                 await window.supabaseClient
                     .from('social_posts')
                     .update({ 
-                        status: 'ajuste_solicitado',
+                        status: POST_STATUS.REJECTED,
                         feedback_ajuste: reason 
                     })
                     .eq('id', currentPostIdAdjust);

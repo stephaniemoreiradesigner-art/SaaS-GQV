@@ -1,4 +1,4 @@
-export const CALENDAR_STATUS = {
+const CALENDAR_STATUS = {
   DRAFT: 'draft',
   IN_PRODUCTION: 'in_production',
   AWAITING_APPROVAL: 'awaiting_approval',
@@ -7,7 +7,7 @@ export const CALENDAR_STATUS = {
   ARCHIVED: 'archived'
 };
 
-export const POST_STATUS = {
+const POST_STATUS = {
   DRAFT: 'draft',
   BRIEFING_SENT: 'briefing_sent',
   DESIGN_IN_PROGRESS: 'design_in_progress',
@@ -17,3 +17,8 @@ export const POST_STATUS = {
   SCHEDULED: 'scheduled',
   PUBLISHED: 'published'
 };
+
+if (typeof window !== 'undefined') {
+  window.CALENDAR_STATUS = CALENDAR_STATUS;
+  window.POST_STATUS = POST_STATUS;
+}

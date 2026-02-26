@@ -4,6 +4,9 @@
         current: null
     };
 
+    const POST_STATUS = window.POST_STATUS || {};
+    const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
+
     const setEmptyState = (visible) => {
         const emptyEl = document.getElementById('calendar-empty-state');
         const container = document.getElementById('calendar-container');
@@ -102,15 +105,19 @@
 
     const getStatusConfig = (status) => {
         const normalized = String(status || '').trim().toLowerCase();
-        if (['aprovado', 'approved'].includes(normalized)) {
+        const approvedValues = [POST_STATUS.APPROVED, 'aprovado', 'approved'].filter(Boolean);
+        const rejectedValues = [POST_STATUS.REJECTED, 'ajuste_solicitado', 'needs_adjustment'].filter(Boolean);
+        if (approvedValues.includes(normalized)) {
+            const label = (POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado').toUpperCase();
             return {
-                label: 'APROVADO',
+                label,
                 className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700'
             };
         }
-        if (['ajuste_solicitado', 'needs_adjustment'].includes(normalized)) {
+        if (rejectedValues.includes(normalized)) {
+            const label = (POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajustes Solicitados').toUpperCase();
             return {
-                label: 'AJUSTE SOLICITADO',
+                label,
                 className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700'
             };
         }

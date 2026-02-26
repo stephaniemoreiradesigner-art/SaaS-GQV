@@ -1,6 +1,7 @@
-import { CALENDAR_STATUS, POST_STATUS } from './socialStatus.js';
+const CALENDAR_STATUS = window.CALENDAR_STATUS || {};
+const POST_STATUS = window.POST_STATUS || {};
 
-export const CALENDAR_STATUS_LABEL = {
+const CALENDAR_STATUS_LABEL = {
   [CALENDAR_STATUS.DRAFT]: 'Rascunho',
   [CALENDAR_STATUS.IN_PRODUCTION]: 'Em Produção',
   [CALENDAR_STATUS.AWAITING_APPROVAL]: 'Aguardando Aprovação',
@@ -9,7 +10,7 @@ export const CALENDAR_STATUS_LABEL = {
   [CALENDAR_STATUS.ARCHIVED]: 'Arquivado'
 };
 
-export const POST_STATUS_LABEL = {
+const POST_STATUS_LABEL = {
   [POST_STATUS.DRAFT]: 'Rascunho',
   [POST_STATUS.BRIEFING_SENT]: 'Briefing Enviado',
   [POST_STATUS.DESIGN_IN_PROGRESS]: 'Em Produção',
@@ -19,3 +20,8 @@ export const POST_STATUS_LABEL = {
   [POST_STATUS.SCHEDULED]: 'Agendado',
   [POST_STATUS.PUBLISHED]: 'Publicado'
 };
+
+if (typeof window !== 'undefined') {
+  window.CALENDAR_STATUS_LABEL = CALENDAR_STATUS_LABEL;
+  window.POST_STATUS_LABEL = POST_STATUS_LABEL;
+}

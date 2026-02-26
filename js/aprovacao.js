@@ -5,6 +5,8 @@ let currentPosts = [];
 let currentPostId = null;
 const urlParams = new URLSearchParams(window.location.search);
 const approvalGroupId = urlParams.get('id');
+const POST_STATUS = window.POST_STATUS || {};
+const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
 document.addEventListener('DOMContentLoaded', () => {
     if (!approvalGroupId) {
@@ -100,12 +102,15 @@ function applyBranding(config) {
 
 async function loadPosts() {
     try {
+        const approvedStatuses = [POST_STATUS.APPROVED, 'aprovado'].filter(Boolean);
         let query = window.supabaseClient
             .from('social_posts')
             .select('*')
-            .eq('approval_group_id', approvalGroupId)
-            .neq('status', 'aprovado') // Não mostrar posts já aprovados
-            .order('data_agendada', { ascending: true });
+            .eq('approval_group_id', approvalGroupId);
+        if (approvedStatuses.length) {
+            query = query.not('status', 'in', `(${approvedStatuses.join(',')})`);
+        }
+        query = query.order('data_agendada', { ascending: true });
 
         const { data, error } = await query;
 
@@ -197,7 +202,8 @@ function renderPosts(posts) {
         }
 
         const card = document.createElement('div');
-        card.className = `bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all cursor-pointer group ${post.status === 'aprovado' ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`;
+        const approvedStatuses = [POST_STATUS.APPROVED, 'aprovado'].filter(Boolean);
+        card.className = `bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all cursor-pointer group ${approvedStatuses.includes(post.status) ? 'ring-2 ring-green-500 ring-opacity-50' : ''}`;
         card.onclick = () => openPostDetails(post.id);
         
         card.innerHTML = `
@@ -278,7 +284,7 @@ function openPostDetails(postId) {
     
     statusBadge.innerHTML = `<span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${statusConfig.badgeClass}">${statusConfig.label}</span>`;
 
-    if (post.status === 'aprovado' || post.status === 'ajuste_solicitado') {
+    if ([POST_STATUS.APPROVED, POST_STATUS.REJECTED, 'aprovado', 'ajuste_solicitado'].includes(post.status)) {
         actionsFooter.classList.add('hidden');
     } else {
         actionsFooter.classList.remove('hidden');
@@ -310,14 +316,14 @@ async function approvePost() {
     try {
         const { error } = await window.supabaseClient
             .from('social_posts')
-            .update({ status: 'aprovado' })
+            .update({ status: POST_STATUS.APPROVED || 'aprovado' })
             .eq('id', currentPostId);
 
         if (error) throw error;
 
         // Atualizar local
         const post = currentPosts.find(p => p.id === currentPostId);
-        if (post) post.status = 'aprovado';
+        if (post) post.status = POST_STATUS.APPROVED || 'aprovado';
 
         closeModalDetalhes();
         renderPosts(currentPosts);
@@ -358,7 +364,7 @@ async function sendAdjustment() {
         const { error } = await window.supabaseClient
             .from('social_posts')
             .update({ 
-                status: 'ajuste_solicitado',
+                status: POST_STATUS.REJECTED || 'ajuste_solicitado',
                 feedback_cliente: feedback
             })
             .eq('id', currentPostId);
@@ -367,7 +373,7 @@ async function sendAdjustment() {
 
         // Atualizar local
         const post = currentPosts.find(p => p.id === currentPostId);
-        if (post) post.status = 'ajuste_solicitado';
+        if (post) post.status = POST_STATUS.REJECTED || 'ajuste_solicitado';
 
         closeAdjustModal();
         closeModalDetalhes();
@@ -387,16 +393,17 @@ async function sendAdjustment() {
 }
 
 function getStatusConfig(status) {
-    switch (status) {
-        case 'aprovado':
-            return { label: 'Aprovado', badgeClass: 'bg-green-100 text-green-700 border border-green-200' };
-        case 'ajuste_solicitado':
-            return { label: 'Ajuste Solicitado', badgeClass: 'bg-orange-100 text-orange-700 border border-orange-200' };
-        case 'pendente_aprovação':
-            return { label: 'Pendente', badgeClass: 'bg-yellow-100 text-yellow-700 border border-yellow-200' };
-        default:
-            return { label: 'Rascunho', badgeClass: 'bg-gray-100 text-gray-600' };
+    const value = String(status || '').trim().toLowerCase();
+    if ([POST_STATUS.APPROVED, 'aprovado'].includes(value)) {
+        return { label: POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado', badgeClass: 'bg-green-100 text-green-700 border border-green-200' };
     }
+    if ([POST_STATUS.REJECTED, 'ajuste_solicitado'].includes(value)) {
+        return { label: POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajuste Solicitado', badgeClass: 'bg-orange-100 text-orange-700 border border-orange-200' };
+    }
+    if ([POST_STATUS.READY_FOR_APPROVAL, 'pendente_aprovação', 'pendente_aprovacao', 'aguardando_aprovacao', 'pendente'].includes(value)) {
+        return { label: POST_STATUS_LABEL?.[POST_STATUS.READY_FOR_APPROVAL] || 'Pendente', badgeClass: 'bg-yellow-100 text-yellow-700 border border-yellow-200' };
+    }
+    return { label: POST_STATUS_LABEL?.[POST_STATUS.DRAFT] || 'Rascunho', badgeClass: 'bg-gray-100 text-gray-600' };
 }
 
 function formatDate(dateString) {
@@ -408,8 +415,10 @@ function formatDate(dateString) {
 
 function updateHeaderStatus(posts) {
     const total = posts.length;
-    const pendentes = posts.filter(p => p.status === 'pendente_aprovação').length;
-    const aprovados = posts.filter(p => p.status === 'aprovado').length;
+    const pendingStatuses = [POST_STATUS.READY_FOR_APPROVAL, 'pendente_aprovação', 'pendente_aprovacao', 'aguardando_aprovacao', 'pendente'].filter(Boolean);
+    const approvedStatuses = [POST_STATUS.APPROVED, 'aprovado'].filter(Boolean);
+    const pendentes = posts.filter(p => pendingStatuses.includes(p.status)).length;
+    const aprovados = posts.filter(p => approvedStatuses.includes(p.status)).length;
     
     const statusEl = document.getElementById('status-geral');
     if (pendentes === 0 && total > 0) {
@@ -420,8 +429,10 @@ function updateHeaderStatus(posts) {
 }
 
 function checkCompletion() {
-    const pendentes = currentPosts.filter(p => p.status === 'pendente_aprovação').length;
-    const ajustes = currentPosts.filter(p => p.status === 'ajuste_solicitado').length;
+    const pendingStatuses = [POST_STATUS.READY_FOR_APPROVAL, 'pendente_aprovação', 'pendente_aprovacao', 'aguardando_aprovacao', 'pendente'].filter(Boolean);
+    const rejectedStatuses = [POST_STATUS.REJECTED, 'ajuste_solicitado'].filter(Boolean);
+    const pendentes = currentPosts.filter(p => pendingStatuses.includes(p.status)).length;
+    const ajustes = currentPosts.filter(p => rejectedStatuses.includes(p.status)).length;
     
     if (pendentes === 0 && currentPosts.length > 0) {
         // Todos respondidos
