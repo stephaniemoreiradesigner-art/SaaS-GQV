@@ -2943,6 +2943,29 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            if (nextStatus === POST_STATUS.APPROVED) {
+                const creativeUpdateUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/social_creatives?post_id=eq.${itemId}`;
+                const creativeUpdateRes = await fetch(creativeUpdateUrl, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=representation'
+                    },
+                    body: JSON.stringify({
+                        status: 'approved',
+                        updated_at: new Date().toISOString()
+                    })
+                });
+                const creativeUpdateJson = await creativeUpdateRes.json().catch(() => null);
+                if (!creativeUpdateRes.ok) {
+                    response.writeHead(creativeUpdateRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(creativeUpdateJson || { error: 'erro_ao_atualizar_creative' }));
+                    return;
+                }
+            }
+
             const updated = Array.isArray(updateJson) ? updateJson[0] : updateJson;
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify(updated || null));
