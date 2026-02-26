@@ -1,27 +1,3 @@
-const loadClientSupabaseConfig = async () => {
-    if (window.clientSupabaseConfig) return window.clientSupabaseConfig;
-    try {
-        const response = await fetch('/config');
-        if (!response.ok) return null;
-        const data = await response.json();
-        if (!data?.supabaseUrl || !data?.supabaseAnonKey || data?.missing) return null;
-        window.clientSupabaseConfig = { supabaseUrl: data.supabaseUrl, supabaseAnonKey: data.supabaseAnonKey };
-        return window.clientSupabaseConfig;
-    } catch (error) {
-        console.error('Erro ao carregar /config', error);
-        return null;
-    }
-};
-
-const initClientSupabase = async () => {
-    if (window.supabaseClient) return window.supabaseClient;
-    if (!window.supabase) return null;
-    const config = await loadClientSupabaseConfig();
-    if (!config) return null;
-    window.supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-    return window.supabaseClient;
-};
-
 const normalizeRole = (value) => String(value || '').trim().toLowerCase();
 
 const setClientName = (value) => {
@@ -61,8 +37,11 @@ const setupClientLogout = () => {
 };
 
 const ensureClientAccess = async () => {
-    const client = await initClientSupabase();
-    if (!client) return;
+    const client = window.supabaseClient;
+    if (!client) {
+        setTimeout(ensureClientAccess, 300);
+        return;
+    }
     const { data } = await client.auth.getSession();
     const session = data?.session || null;
     if (!session) {

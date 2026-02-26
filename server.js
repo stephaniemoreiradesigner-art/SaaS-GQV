@@ -4,10 +4,9 @@ const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
 const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
 
 const PORT = process.env.PORT || 3000;
-const CALENDAR_STATUS = {
+const CALENDAR_STATUS_VALUES = {
     DRAFT: 'draft',
     IN_PRODUCTION: 'in_production',
     AWAITING_APPROVAL: 'awaiting_approval',
@@ -399,14 +398,6 @@ const getSupabaseConfig = () => {
     const supabaseAnonKey = envVars['SUPABASE_ANON_KEY'] || process.env.SUPABASE_ANON_KEY || '';
     const serviceRoleKey = envVars['SUPABASE_SERVICE_ROLE_KEY'] || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
     return { supabaseUrl, supabaseAnonKey, serviceRoleKey };
-};
-
-const getSupabaseAdminClient = () => {
-    const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-    if (!supabaseUrl || !serviceRoleKey) return null;
-    return createClient(supabaseUrl, serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-    });
 };
 
 const buildAppUrl = (request) => {
@@ -966,7 +957,7 @@ const seedDemoData = async () => {
         cliente_id: clienteId,
         tenant_id: DEMO_TENANT_ID,
         mes_referencia: mesReferencia,
-        status: CALENDAR_STATUS.APPROVED,
+        status: CALENDAR_STATUS_VALUES.APPROVED,
         share_token: crypto.randomUUID(),
         access_password: '123456'
     };
@@ -983,7 +974,7 @@ const seedDemoData = async () => {
         await supabaseServiceRest(
             `/rest/v1/social_calendars?id=eq.${calendarId}`,
             'PATCH',
-            { aprovado_por: 'Carlos Mendes', data_aprovacao: new Date().toISOString(), status: CALENDAR_STATUS.APPROVED }
+            { aprovado_por: 'Carlos Mendes', data_aprovacao: new Date().toISOString(), status: CALENDAR_STATUS_VALUES.APPROVED }
         );
     }
 
@@ -1837,22 +1828,15 @@ const server = http.createServer(async (request, response) => {
                 }
             }
 
-            const supabaseAdmin = getSupabaseAdminClient();
-            if (!supabaseAdmin) {
-                response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
-                return;
-            }
-
-            const { data, error } = await supabaseAdmin.auth.admin.createUser({
+            const createRes = await supabaseAdminAuthRest('/admin/users', 'POST', {
                 email,
                 password,
                 email_confirm: true
             });
 
-            if (error) {
-                const message = String(error.message || '').toLowerCase();
-                if (error.status === 422 || message.includes('already') || message.includes('existe')) {
+            if (createRes.status >= 400) {
+                const message = String(createRes.data?.msg || createRes.data?.message || createRes.data?.error || '').toLowerCase();
+                if (createRes.status === 422 || message.includes('already') || message.includes('existe')) {
                     response.writeHead(409, { 'Content-Type': 'application/json' });
                     response.end(JSON.stringify({ error: 'user_exists' }));
                     return;
@@ -1862,7 +1846,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const userId = data?.user?.id || null;
+            const userId = createRes.data?.user?.id || createRes.data?.id || null;
             if (!userId) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'usuario_nao_criado' }));
@@ -1875,13 +1859,16 @@ const server = http.createServer(async (request, response) => {
                 profilePayload.client_id = inviteRow.client_id;
             }
 
-            const profileUpdate = await supabaseAdmin
-                .from('profiles')
-                .upsert(profilePayload, { onConflict: 'id' });
+            const profileRes = await supabaseServiceRest(
+                '/rest/v1/profiles?on_conflict=id',
+                'POST',
+                profilePayload,
+                { Prefer: 'resolution=merge-duplicates,return=representation' }
+            );
 
-            if (profileUpdate.error) {
+            if (profileRes.status >= 400) {
                 response.writeHead(500, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil', message: profileUpdate.error.message }));
+                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil', message: profileRes.data?.message || profileRes.data?.error || profileRes.text }));
                 return;
             }
 
@@ -2009,7 +1996,7 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: CALENDAR_STATUS.DRAFT
+                        status: CALENDAR_STATUS_VALUES.DRAFT
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
@@ -2182,7 +2169,7 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: clienteId,
                         tenant_id: tenantId,
                         mes_referencia: mesReferencia,
-                        status: CALENDAR_STATUS.DRAFT
+                        status: CALENDAR_STATUS_VALUES.DRAFT
                     })
                 });
                 const insertJson = await insertRes.json().catch(() => null);
@@ -2197,12 +2184,12 @@ const server = http.createServer(async (request, response) => {
             const currentStatus = String(calendar?.status || '').trim();
             const shareToken = calendar.share_token || crypto.randomUUID();
             const accessPassword = calendar.access_password || crypto.randomUUID().replace(/-/g, '').slice(0, 8);
-            const shouldUpdateStatus = [CALENDAR_STATUS.DRAFT, 'rascunho'].includes(currentStatus);
+            const shouldUpdateStatus = [CALENDAR_STATUS_VALUES.DRAFT, 'rascunho'].includes(currentStatus);
             const shouldUpdateTokens = !calendar.share_token || !calendar.access_password;
 
             if (shouldUpdateStatus || shouldUpdateTokens) {
                 const updatePayload = {
-                    status: shouldUpdateStatus ? CALENDAR_STATUS.AWAITING_APPROVAL : currentStatus || CALENDAR_STATUS.AWAITING_APPROVAL,
+                    status: shouldUpdateStatus ? CALENDAR_STATUS_VALUES.AWAITING_APPROVAL : currentStatus || CALENDAR_STATUS_VALUES.AWAITING_APPROVAL,
                     share_token: shareToken,
                     access_password: accessPassword,
                     updated_at: new Date().toISOString()
@@ -4407,12 +4394,12 @@ const server = http.createServer(async (request, response) => {
                         cliente_id: errorLogContext.clientId,
                         tenant_id: errorLogContext.tenantId,
                         mes_referencia: errorLogContext.mesReferencia,
-                        status: CALENDAR_STATUS.IN_PRODUCTION,
+                        status: CALENDAR_STATUS_VALUES.IN_PRODUCTION,
                         erro_log: null
                     });
                 } else {
                     calendar = await updateCalendarRow(calendar.id, {
-                        status: CALENDAR_STATUS.IN_PRODUCTION,
+                        status: CALENDAR_STATUS_VALUES.IN_PRODUCTION,
                         erro_log: null,
                         tenant_id: errorLogContext.tenantId
                     }) || calendar;
@@ -4494,24 +4481,26 @@ const server = http.createServer(async (request, response) => {
                 });
                 return deleteRes.ok;
             };
-            const insertCalendarPosts = async (calendarId, posts, supabaseAdmin) => {
+            const insertCalendarPosts = async (calendarId, posts) => {
                 if (!calendarId) throw new Error('calendar_id inválido');
-                if (!supabaseAdmin) throw new Error('Supabase admin não configurado');
                 if (!Array.isArray(posts) || posts.length === 0) return [];
-                const { data, error } = await supabaseAdmin
-                    .from('social_posts')
-                    .insert(posts)
-                    .select('id');
-                if (error) {
-                    console.error('[openai-proxy][INSERT social_posts ERROR]', error);
+                const insertRes = await supabaseServiceRest(
+                    '/rest/v1/social_posts',
+                    'POST',
+                    posts,
+                    { Prefer: 'return=representation' }
+                );
+                if (insertRes.status >= 400) {
+                    console.error('[openai-proxy][INSERT social_posts ERROR]', insertRes.data || insertRes.text);
                     if (errorLogContext?.calendarId) {
-                        const readable = error?.message || JSON.stringify(error);
+                        const readable = insertRes.data?.message || insertRes.data?.error || insertRes.text || 'erro_inserir_posts';
                         await appendCalendarLog(errorLogContext.calendarId, `INSERT social_posts ERROR: ${readable}`);
                     }
-                    throw error;
+                    throw new Error(readable);
                 }
-                console.log('[openai-proxy] INSERTED_POSTS', { count: data?.length || 0 });
-                return Array.isArray(data) ? data : [];
+                const inserted = Array.isArray(insertRes.data) ? insertRes.data : [];
+                console.log('[openai-proxy] INSERTED_POSTS', { count: inserted.length || 0 });
+                return inserted;
             };
             const sendError = async (errorCode, message, details, extraPayload = null) => {
                 console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
@@ -4544,8 +4533,6 @@ const server = http.createServer(async (request, response) => {
             let clienteId = body?.client_id || null;
             const mesReferencia = body?.month ? `${body.month}-01` : null;
             console.log(`[openai-proxy][${requestId}] START`, { tenant_id: tenantId, cliente_id: clienteId, mes_referencia: mesReferencia });
-            let supabaseAdmin = null;
-
             if (isCalendarMode) {
                 const resolved = await resolveTenantAndClient(request, response, clienteId);
                 if (!resolved) return;
@@ -4585,7 +4572,7 @@ const server = http.createServer(async (request, response) => {
                     if (existingCalendar?.id) {
                         const existingStatus = String(existingCalendar.status || '').toLowerCase();
                         errorLogContext.calendarId = existingCalendar.id;
-                        if ([CALENDAR_STATUS.IN_PRODUCTION, 'processando'].includes(existingStatus)) {
+                        if ([CALENDAR_STATUS_VALUES.IN_PRODUCTION, 'processando'].includes(existingStatus)) {
                             sendJson(200, {
                                 ok: true,
                                 request_id: requestId,
@@ -4594,7 +4581,7 @@ const server = http.createServer(async (request, response) => {
                             });
                             return;
                         }
-                        if ([CALENDAR_STATUS.AWAITING_APPROVAL, CALENDAR_STATUS.APPROVED, CALENDAR_STATUS.PUBLISHED, 'aguardando_aprovacao', 'aprovado', 'concluido'].includes(existingStatus) && !forceGeneration) {
+                        if ([CALENDAR_STATUS_VALUES.AWAITING_APPROVAL, CALENDAR_STATUS_VALUES.APPROVED, CALENDAR_STATUS_VALUES.PUBLISHED, 'aguardando_aprovacao', 'aprovado', 'concluido'].includes(existingStatus) && !forceGeneration) {
                             sendJson(200, {
                                 ok: true,
                                 request_id: requestId,
@@ -4965,7 +4952,7 @@ const server = http.createServer(async (request, response) => {
                     if (!clienteIdValue) missing.push('cliente_id');
                     if (!mesReferenciaValue) missing.push('mes_referencia');
                     if (!validatedPostsCount) missing.push('posts_count');
-                    if (missing.length) {
+                if (missing.length) {
                         if (errorLogContext) {
                             errorLogContext.supabaseUrl = supabaseUrl;
                             errorLogContext.serviceRoleKey = serviceRoleKey;
@@ -4982,16 +4969,6 @@ const server = http.createServer(async (request, response) => {
                         sendJson(400, { error: true, message: 'Campos obrigatórios ausentes', details: { missing } });
                         return;
                     }
-                    supabaseAdmin = getSupabaseAdminClient();
-                    if (!supabaseAdmin) {
-                        console.error('[openai-proxy] SUPABASE_CLIENT_MISSING');
-                        if (errorLogContext?.calendarId) {
-                            await appendCalendarLog(errorLogContext.calendarId, 'Supabase admin não configurado.');
-                        }
-                        sendJson(500, { error: true, message: 'Supabase admin não configurado.' });
-                        return;
-                    }
-                    console.log('[openai-proxy] SUPABASE_CLIENT_READY', { ok: true });
                 }
                 if (isCalendarMode) {
                     console.log(`[openai-proxy][${requestId}] BEFORE_SUPABASE`);
@@ -5246,8 +5223,8 @@ const server = http.createServer(async (request, response) => {
                 const updateProgress = async (generatedCount, lastBatch, statusValue, lastError) => {
                     if (!calendarId) return;
                     const nextCalendarStatus = statusValue === 'done'
-                        ? CALENDAR_STATUS.AWAITING_APPROVAL
-                        : CALENDAR_STATUS.IN_PRODUCTION;
+                        ? CALENDAR_STATUS_VALUES.AWAITING_APPROVAL
+                        : CALENDAR_STATUS_VALUES.IN_PRODUCTION;
                     await updateCalendarProgress(calendarId, {
                         generation: {
                             expected: expectedTotal,
@@ -5458,7 +5435,7 @@ const server = http.createServer(async (request, response) => {
                     }
                     if (calendarId) {
                         try {
-                            await insertCalendarPosts(calendarId, postsToInsert, supabaseAdmin);
+                            await insertCalendarPosts(calendarId, postsToInsert);
                         } catch (error) {
                             const readable = error?.message || String(error);
                             if (errorLogContext?.calendarId) {

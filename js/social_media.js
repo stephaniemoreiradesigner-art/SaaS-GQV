@@ -13,7 +13,7 @@ var socialPostsCache = [];
 var lastSeasonalDates = [];
 var currentPostProps = null;
 
-const CALENDAR_STATUS = window.CALENDAR_STATUS || {};
+const CALENDAR_STATUS = window.CALENDAR_STATUS;
 const POST_STATUS = window.POST_STATUS;
 const CALENDAR_STATUS_LABEL = window.CALENDAR_STATUS_LABEL || {};
 const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};

@@ -17,19 +17,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let attempts = 0;
     const maxAttempts = 50; 
     
-    // Credenciais de Backup (caso app.js falhe)
-    const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicWtubWVqc21uaXpqZG5vcG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMjkyOTMsImV4cCI6MjA3ODgwNTI5M30.w-v_CW3X5DF9x_nnFe3Lhvw_JyrXxfXKv7tPIZAjGaU';
-
     const checkConnection = setInterval(() => {
-        // Tenta recuperar ou inicializar o cliente
-        if (!window.supabaseClient && window.supabase) {
-            console.log('Tentando inicializar Supabase via financeiro.js...');
-            try {
-                window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            } catch (e) {
-                console.error('Falha ao inicializar Supabase localmente:', e);
-            }
+        if (!window.supabaseClient && typeof window.initSupabase === 'function') {
+            window.initSupabase();
         }
 
         if (window.supabaseClient) {
