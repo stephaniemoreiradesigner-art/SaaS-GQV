@@ -3052,6 +3052,642 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    const getPostByIdForTenant = async (postId, tenantId) => {
+        const params = new URLSearchParams();
+        params.set('select', '*,social_calendars!inner(tenant_id)');
+        params.set('id', `eq.${postId}`);
+        params.set('social_calendars.tenant_id', `eq.${tenantId}`);
+        params.set('limit', '1');
+        const postRes = await supabaseRest(
+            request,
+            `/rest/v1/social_posts?${params.toString()}`
+        );
+        if (postRes.status < 200 || postRes.status >= 300) {
+            return { error: { status: postRes.status, data: postRes.data || { error: 'erro_ao_buscar_post' } } };
+        }
+        const postRow = Array.isArray(postRes.data) ? postRes.data[0] : postRes.data;
+        if (!postRow) {
+            return { error: { status: 404, data: { error: 'post_nao_encontrado' } } };
+        }
+        return { post: postRow };
+    };
+
+    const submitForApprovalMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/submit-for-approval$/);
+    if (submitForApprovalMatch && request.method === 'POST') {
+        try {
+            const postId = submitForApprovalMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId, user } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const creativesParams = new URLSearchParams();
+            creativesParams.set('select', 'id');
+            creativesParams.set('post_id', `eq.${postId}`);
+            creativesParams.set('status', 'eq.uploaded');
+            creativesParams.set('limit', '1');
+            const creativesRes = await supabaseRest(
+                request,
+                `/rest/v1/social_creatives?${creativesParams.toString()}`
+            );
+            if (creativesRes.status < 200 || creativesRes.status >= 300) {
+                response.writeHead(creativesRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativesRes.data || { error: 'erro_ao_listar_creatives' }));
+                return;
+            }
+            const creatives = Array.isArray(creativesRes.data) ? creativesRes.data : [];
+            if (!creatives.length) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'Post cannot move to ready_for_approval without uploaded creative.' }));
+                return;
+            }
+
+            const versionsParams = new URLSearchParams();
+            versionsParams.set('select', 'version_number');
+            versionsParams.set('tenant_id', `eq.${tenantId}`);
+            versionsParams.set('post_id', `eq.${postId}`);
+            versionsParams.set('order', 'version_number.desc');
+            versionsParams.set('limit', '1');
+            const versionsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionsParams.toString()}`
+            );
+            if (versionsRes.status < 200 || versionsRes.status >= 300) {
+                response.writeHead(versionsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionsRes.data || { error: 'erro_ao_listar_versoes' }));
+                return;
+            }
+            const versionRow = Array.isArray(versionsRes.data) ? versionsRes.data[0] : versionsRes.data;
+            const nextVersion = (versionRow?.version_number || 0) + 1;
+
+            const creativesSnapshotParams = new URLSearchParams();
+            creativesSnapshotParams.set('select', '*');
+            creativesSnapshotParams.set('post_id', `eq.${postId}`);
+            const creativesSnapshotRes = await supabaseRest(
+                request,
+                `/rest/v1/social_creatives?${creativesSnapshotParams.toString()}`
+            );
+            if (creativesSnapshotRes.status < 200 || creativesSnapshotRes.status >= 300) {
+                response.writeHead(creativesSnapshotRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativesSnapshotRes.data || { error: 'erro_ao_listar_creatives' }));
+                return;
+            }
+            const creativesSnapshot = Array.isArray(creativesSnapshotRes.data) ? creativesSnapshotRes.data : [];
+            const snapshot = {
+                post: postResult.post,
+                creatives: creativesSnapshot
+            };
+
+            const insertPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                version_number: nextVersion,
+                snapshot,
+                created_by: user.id
+            };
+            const insertVersionRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions`,
+                'POST',
+                insertPayload
+            );
+            if (insertVersionRes.status < 200 || insertVersionRes.status >= 300) {
+                response.writeHead(insertVersionRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(insertVersionRes.data || { error: 'erro_ao_criar_versao' }));
+                return;
+            }
+
+            const updatePayload = {
+                status: POST_STATUS.READY_FOR_APPROVAL
+            };
+            const updateParams = new URLSearchParams();
+            updateParams.set('id', `eq.${postId}`);
+            const updateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${updateParams.toString()}`,
+                'PATCH',
+                updatePayload
+            );
+            if (updateRes.status < 200 || updateRes.status >= 300) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(updateRes.data || { error: 'erro_ao_atualizar_post' }));
+                return;
+            }
+
+            const versionFetchParams = new URLSearchParams();
+            versionFetchParams.set('select', '*');
+            versionFetchParams.set('tenant_id', `eq.${tenantId}`);
+            versionFetchParams.set('post_id', `eq.${postId}`);
+            versionFetchParams.set('version_number', `eq.${nextVersion}`);
+            versionFetchParams.set('limit', '1');
+            const versionFetchRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionFetchParams.toString()}`
+            );
+            if (versionFetchRes.status < 200 || versionFetchRes.status >= 300) {
+                response.writeHead(versionFetchRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionFetchRes.data || { error: 'erro_ao_buscar_versao' }));
+                return;
+            }
+            const version = Array.isArray(versionFetchRes.data) ? versionFetchRes.data[0] : versionFetchRes.data;
+
+            const postRefresh = await getPostByIdForTenant(postId, tenantId);
+            if (postRefresh.error) {
+                response.writeHead(postRefresh.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postRefresh.error.data));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ post: postRefresh.post, version }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const approvePostMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/approve$/);
+    if (approvePostMatch && request.method === 'POST') {
+        try {
+            const postId = approvePostMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId, user } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const versionId = String(body?.version_id || '').trim();
+            if (!versionId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'version_id_obrigatorio' }));
+                return;
+            }
+
+            const versionParams = new URLSearchParams();
+            versionParams.set('select', 'id,version_number');
+            versionParams.set('id', `eq.${versionId}`);
+            versionParams.set('post_id', `eq.${postId}`);
+            versionParams.set('tenant_id', `eq.${tenantId}`);
+            versionParams.set('limit', '1');
+            const versionRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionParams.toString()}`
+            );
+            if (versionRes.status < 200 || versionRes.status >= 300) {
+                response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
+                return;
+            }
+            const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
+            if (!versionRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
+                return;
+            }
+
+            const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
+            const meta = body?.meta && typeof body.meta === 'object' ? body.meta : null;
+            const approvalPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                version_id: versionRow.id,
+                decision: 'approved',
+                decided_by: user.id,
+                decided_at: new Date().toISOString(),
+                comment: comment || null,
+                meta
+            };
+            const approvalRes = await supabaseRest(
+                request,
+                `/rest/v1/social_approvals`,
+                'POST',
+                approvalPayload
+            );
+            if (approvalRes.status < 200 || approvalRes.status >= 300) {
+                response.writeHead(approvalRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(approvalRes.data || { error: 'erro_ao_registrar_aprovacao' }));
+                return;
+            }
+
+            const postUpdateParams = new URLSearchParams();
+            postUpdateParams.set('id', `eq.${postId}`);
+            const postUpdateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${postUpdateParams.toString()}`,
+                'PATCH',
+                { status: POST_STATUS.APPROVED }
+            );
+            if (postUpdateRes.status < 200 || postUpdateRes.status >= 300) {
+                response.writeHead(postUpdateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postUpdateRes.data || { error: 'erro_ao_atualizar_post' }));
+                return;
+            }
+
+            const creativeUpdateParams = new URLSearchParams();
+            creativeUpdateParams.set('post_id', `eq.${postId}`);
+            const creativeUpdateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_creatives?${creativeUpdateParams.toString()}`,
+                'PATCH',
+                { status: 'approved', updated_at: new Date().toISOString() }
+            );
+            if (creativeUpdateRes.status < 200 || creativeUpdateRes.status >= 300) {
+                response.writeHead(creativeUpdateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativeUpdateRes.data || { error: 'erro_ao_atualizar_creative' }));
+                return;
+            }
+
+            if (comment) {
+                const commentPayload = {
+                    tenant_id: tenantId,
+                    post_id: postId,
+                    version_id: versionRow.id,
+                    author_id: user.id,
+                    type: 'approval_note',
+                    payload: { text: comment }
+                };
+                const commentRes = await supabaseRest(
+                    request,
+                    `/rest/v1/social_post_comments`,
+                    'POST',
+                    commentPayload
+                );
+                if (commentRes.status < 200 || commentRes.status >= 300) {
+                    response.writeHead(commentRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(commentRes.data || { error: 'erro_ao_registrar_comentario' }));
+                    return;
+                }
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const rejectPostMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/reject$/);
+    if (rejectPostMatch && request.method === 'POST') {
+        try {
+            const postId = rejectPostMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId, user } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const versionId = String(body?.version_id || '').trim();
+            const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
+            if (!versionId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'version_id_obrigatorio' }));
+                return;
+            }
+            if (!comment) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'comentario_obrigatorio' }));
+                return;
+            }
+
+            const versionParams = new URLSearchParams();
+            versionParams.set('select', 'id,version_number');
+            versionParams.set('id', `eq.${versionId}`);
+            versionParams.set('post_id', `eq.${postId}`);
+            versionParams.set('tenant_id', `eq.${tenantId}`);
+            versionParams.set('limit', '1');
+            const versionRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionParams.toString()}`
+            );
+            if (versionRes.status < 200 || versionRes.status >= 300) {
+                response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
+                return;
+            }
+            const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
+            if (!versionRow) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
+                return;
+            }
+
+            const reasonCode = typeof body?.reason_code === 'string' ? body.reason_code.trim() : null;
+            const requestedChanges = Array.isArray(body?.requested_changes) ? body.requested_changes : [];
+            const meta = body?.meta && typeof body.meta === 'object' ? body.meta : null;
+            const approvalPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                version_id: versionRow.id,
+                decision: 'rejected',
+                decided_by: user.id,
+                decided_at: new Date().toISOString(),
+                reason_code: reasonCode || null,
+                comment,
+                meta
+            };
+            const approvalRes = await supabaseRest(
+                request,
+                `/rest/v1/social_approvals`,
+                'POST',
+                approvalPayload
+            );
+            if (approvalRes.status < 200 || approvalRes.status >= 300) {
+                response.writeHead(approvalRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(approvalRes.data || { error: 'erro_ao_registrar_reprovacao' }));
+                return;
+            }
+
+            const postUpdateParams = new URLSearchParams();
+            postUpdateParams.set('id', `eq.${postId}`);
+            const postUpdateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_posts?${postUpdateParams.toString()}`,
+                'PATCH',
+                { status: POST_STATUS.REJECTED }
+            );
+            if (postUpdateRes.status < 200 || postUpdateRes.status >= 300) {
+                response.writeHead(postUpdateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postUpdateRes.data || { error: 'erro_ao_atualizar_post' }));
+                return;
+            }
+
+            const creativeUpdateParams = new URLSearchParams();
+            creativeUpdateParams.set('post_id', `eq.${postId}`);
+            const creativeUpdateRes = await supabaseRest(
+                request,
+                `/rest/v1/social_creatives?${creativeUpdateParams.toString()}`,
+                'PATCH',
+                { status: 'needs_revision', updated_at: new Date().toISOString() }
+            );
+            if (creativeUpdateRes.status < 200 || creativeUpdateRes.status >= 300) {
+                response.writeHead(creativeUpdateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativeUpdateRes.data || { error: 'erro_ao_atualizar_creative' }));
+                return;
+            }
+
+            const commentPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                version_id: versionRow.id,
+                author_id: user.id,
+                type: 'change_request',
+                thread_key: null,
+                payload: {
+                    text: comment,
+                    reason_code: reasonCode || null,
+                    requested_changes: requestedChanges
+                }
+            };
+            const commentRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments`,
+                'POST',
+                commentPayload
+            );
+            if (commentRes.status < 200 || commentRes.status >= 300) {
+                response.writeHead(commentRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentRes.data || { error: 'erro_ao_registrar_comentario' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const postCommentMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/comments$/);
+    if (postCommentMatch && request.method === 'POST') {
+        try {
+            const postId = postCommentMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId, user } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const type = String(body?.type || '').trim() || 'general';
+            const allowedTypes = new Set(['general', 'change_request', 'approval_note']);
+            if (!allowedTypes.has(type)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tipo_invalido' }));
+                return;
+            }
+
+            const payload = body?.payload && typeof body.payload === 'object' ? body.payload : null;
+            if (!payload) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_obrigatorio' }));
+                return;
+            }
+
+            const versionId = body?.version_id ? String(body.version_id).trim() : null;
+            if (versionId) {
+                const versionParams = new URLSearchParams();
+                versionParams.set('select', 'id');
+                versionParams.set('id', `eq.${versionId}`);
+                versionParams.set('post_id', `eq.${postId}`);
+                versionParams.set('tenant_id', `eq.${tenantId}`);
+                versionParams.set('limit', '1');
+                const versionRes = await supabaseRest(
+                    request,
+                    `/rest/v1/social_post_versions?${versionParams.toString()}`
+                );
+                if (versionRes.status < 200 || versionRes.status >= 300) {
+                    response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
+                    return;
+                }
+                const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
+                if (!versionRow) {
+                    response.writeHead(404, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
+                    return;
+                }
+            }
+
+            const threadKey = typeof body?.thread_key === 'string' ? body.thread_key.trim() : null;
+            const commentPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                version_id: versionId || null,
+                author_id: user.id,
+                type,
+                thread_key: threadKey || null,
+                payload
+            };
+            const commentRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments`,
+                'POST',
+                commentPayload
+            );
+            if (commentRes.status < 200 || commentRes.status >= 300) {
+                response.writeHead(commentRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentRes.data || { error: 'erro_ao_registrar_comentario' }));
+                return;
+            }
+
+            const commentFetchParams = new URLSearchParams();
+            commentFetchParams.set('select', '*');
+            commentFetchParams.set('tenant_id', `eq.${tenantId}`);
+            commentFetchParams.set('post_id', `eq.${postId}`);
+            commentFetchParams.set('order', 'created_at.desc');
+            commentFetchParams.set('limit', '1');
+            const commentFetchRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments?${commentFetchParams.toString()}`
+            );
+            if (commentFetchRes.status < 200 || commentFetchRes.status >= 300) {
+                response.writeHead(commentFetchRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentFetchRes.data || { error: 'erro_ao_buscar_comentario' }));
+                return;
+            }
+            const commentItem = Array.isArray(commentFetchRes.data) ? commentFetchRes.data[0] : commentFetchRes.data;
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(commentItem || null));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const postHistoryMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/history$/);
+    if (postHistoryMatch && request.method === 'GET') {
+        try {
+            const postId = postHistoryMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const versionsParams = new URLSearchParams();
+            versionsParams.set('select', '*');
+            versionsParams.set('tenant_id', `eq.${tenantId}`);
+            versionsParams.set('post_id', `eq.${postId}`);
+            versionsParams.set('order', 'version_number.desc');
+            const versionsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionsParams.toString()}`
+            );
+            if (versionsRes.status < 200 || versionsRes.status >= 300) {
+                response.writeHead(versionsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionsRes.data || { error: 'erro_ao_listar_versoes' }));
+                return;
+            }
+            const versions = Array.isArray(versionsRes.data) ? versionsRes.data : [];
+
+            const approvalsParams = new URLSearchParams();
+            approvalsParams.set('select', '*');
+            approvalsParams.set('tenant_id', `eq.${tenantId}`);
+            approvalsParams.set('post_id', `eq.${postId}`);
+            approvalsParams.set('order', 'decided_at.desc');
+            const approvalsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_approvals?${approvalsParams.toString()}`
+            );
+            if (approvalsRes.status < 200 || approvalsRes.status >= 300) {
+                response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(approvalsRes.data || { error: 'erro_ao_listar_aprovacoes' }));
+                return;
+            }
+            const approvals = Array.isArray(approvalsRes.data) ? approvalsRes.data : [];
+
+            const commentsParams = new URLSearchParams();
+            commentsParams.set('select', '*');
+            commentsParams.set('tenant_id', `eq.${tenantId}`);
+            commentsParams.set('post_id', `eq.${postId}`);
+            commentsParams.set('order', 'created_at.desc');
+            const commentsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments?${commentsParams.toString()}`
+            );
+            if (commentsRes.status < 200 || commentsRes.status >= 300) {
+                response.writeHead(commentsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentsRes.data || { error: 'erro_ao_listar_comentarios' }));
+                return;
+            }
+            const comments = Array.isArray(commentsRes.data) ? commentsRes.data : [];
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ versions, approvals, comments }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     const clientApprovalMatch = pathname.match(/^\/api\/client\/approvals\/([0-9a-fA-F-]{36})$/);
     if (clientApprovalMatch && request.method === 'GET') {
         try {

@@ -1,26 +1,31 @@
 (() => {
     const statusLabels = {
-        pending: 'Pendente',
+        draft: 'Rascunho',
+        briefing_sent: 'Briefing enviado',
+        design_in_progress: 'Em criação',
+        ready_for_approval: 'Pendente',
         approved: 'Aprovado',
-        changes_requested: 'Ajustes solicitados'
+        rejected: 'Reprovado',
+        scheduled: 'Agendado',
+        published: 'Publicado'
     };
 
     const statusClasses = {
-        pending: 'bg-yellow-100 text-yellow-700',
+        draft: 'bg-gray-100 text-gray-600',
+        briefing_sent: 'bg-blue-100 text-blue-700',
+        design_in_progress: 'bg-purple-100 text-purple-700',
+        ready_for_approval: 'bg-yellow-100 text-yellow-700',
         approved: 'bg-green-100 text-green-700',
-        changes_requested: 'bg-orange-100 text-orange-700'
+        rejected: 'bg-orange-100 text-orange-700',
+        scheduled: 'bg-indigo-100 text-indigo-700',
+        published: 'bg-emerald-100 text-emerald-700'
     };
 
     const state = {
-        approvals: [],
-        current: null
-    };
-
-    const getTypeFromPage = () => {
-        const path = (window.location.pathname || '').toLowerCase();
-        if (path.includes('posts')) return 'post';
-        if (path.includes('calendar')) return 'calendar';
-        return null;
+        posts: [],
+        current: null,
+        history: null,
+        currentVersion: null
     };
 
     const getSessionOrRedirect = async () => {
@@ -70,58 +75,11 @@
         el.textContent = label;
     };
 
-    const normalizeMedias = (raw) => {
-        if (Array.isArray(raw)) return raw;
-        if (typeof raw === 'string' && raw.trim()) {
-            try {
-                const parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch {
-                return [];
-            }
-        }
-        return [];
-    };
-
-    const resolvePreviewUrl = (post, supabase) => {
-        const medias = normalizeMedias(post?.medias);
-        const primary = medias.find((item) => item && (item.public_url || item.path)) || null;
-        if (primary?.public_url) return primary.public_url;
-        if (primary?.path && supabase?.storage) {
-            const { data } = supabase.storage.from('social_media_uploads').getPublicUrl(primary.path);
-            if (data?.publicUrl) return data.publicUrl;
-        }
-        return post?.imagem_url || post?.video_url || post?.arquivo_url || '';
-    };
-
-    const buildSnapshot = (post, previewUrl) => ({
-        data_agendada: post?.data_agendada || null,
-        tema: post?.tema || null,
-        legenda: post?.legenda || null,
-        legenda_linkedin: post?.legenda_linkedin || null,
-        legenda_tiktok: post?.legenda_tiktok || null,
-        formato: post?.formato || null,
-        imagem_url: post?.imagem_url || null,
-        video_url: post?.video_url || null,
-        arquivo_url: post?.arquivo_url || null,
-        link_criativo: post?.link_criativo || null,
-        preview_url: previewUrl || null
+    const getDisplayData = (post) => ({
+        title: post?.tema || post?.titulo || 'Sem título',
+        caption: post?.legenda || 'Sem legenda',
+        previewUrl: post?.media_url || ''
     });
-
-    const extractSnapshot = (approval) => {
-        const items = approval?.client_approval_items;
-        if (!Array.isArray(items) || items.length === 0) return null;
-        return items[0]?.snapshot || null;
-    };
-
-    const getDisplayData = (approval) => {
-        const snapshot = approval?.snapshot || null;
-        return {
-            title: snapshot?.tema || approval?.title || 'Sem título',
-            caption: snapshot?.legenda || approval?.caption || 'Sem legenda',
-            previewUrl: snapshot?.preview_url || approval?.preview_url || ''
-        };
-    };
 
     const renderEmpty = (visible) => {
         const emptyEl = document.getElementById('client-approvals-empty');
@@ -134,17 +92,17 @@
         const listEl = document.getElementById('client-approvals-list');
         if (!listEl) return;
         listEl.innerHTML = '';
-        if (!state.approvals.length) {
+        if (!state.posts.length) {
             renderEmpty(true);
             return;
         }
         renderEmpty(false);
-        state.approvals.forEach((approval) => {
-            const display = getDisplayData(approval);
+        state.posts.forEach((post) => {
+            const display = getDisplayData(post);
             const card = document.createElement('button');
             card.type = 'button';
             card.className = 'bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition cursor-pointer text-left';
-            card.addEventListener('click', () => openModal(approval));
+            card.addEventListener('click', () => openModal(post));
 
             const preview = display.previewUrl
                 ? `<img src="${display.previewUrl}" class="w-20 h-20 rounded-lg object-cover border border-gray-200" alt="Preview">`
@@ -164,29 +122,33 @@
                 </div>
             `;
             const badge = card.querySelector('.approval-status-badge');
-            if (badge) setBadge(badge, approval.status);
+            if (badge) setBadge(badge, post.status);
             listEl.appendChild(card);
         });
     };
 
-    const openModal = async (approval) => {
+    const openModal = async (post) => {
         const modal = document.getElementById('client-approval-modal');
         if (!modal) return;
-        state.current = approval;
-        const display = getDisplayData(approval);
+        state.current = post;
+        state.history = null;
+        state.currentVersion = null;
+        const display = getDisplayData(post);
 
         const titleEl = document.getElementById('client-approval-title');
         const statusEl = document.getElementById('client-approval-status');
         const previewEl = document.getElementById('client-approval-preview');
         const mediaEl = document.getElementById('client-approval-media');
         const captionEl = document.getElementById('client-approval-caption');
-        const commentsEl = document.getElementById('client-approval-comments');
+        const historyEl = document.getElementById('client-approval-history');
         const commentInput = document.getElementById('client-approval-comment-input');
         const approveBtn = document.getElementById('client-approval-approve');
         const changesBtn = document.getElementById('client-approval-changes');
+        const versionEl = document.getElementById('client-approval-version');
+        const submitBtn = document.getElementById('client-approval-submit');
 
         if (titleEl) titleEl.textContent = display.title;
-        if (statusEl) setBadge(statusEl, approval.status);
+        if (statusEl) setBadge(statusEl, post.status);
         if (previewEl) {
             if (display.previewUrl) {
                 previewEl.href = display.previewUrl;
@@ -209,22 +171,16 @@
         }
         if (captionEl) captionEl.textContent = display.caption;
         if (commentInput) commentInput.value = '';
-        if (commentsEl) commentsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando comentários...</div>';
-        if (approveBtn) approveBtn.disabled = approval.status !== 'pending';
-        if (changesBtn) changesBtn.disabled = approval.status !== 'pending';
+        if (historyEl) historyEl.innerHTML = '<div class="text-sm text-gray-400">Carregando histórico...</div>';
+        if (versionEl) versionEl.textContent = '-';
+        if (approveBtn) approveBtn.disabled = post.status !== 'ready_for_approval';
+        if (changesBtn) changesBtn.disabled = post.status !== 'ready_for_approval';
+        if (submitBtn) submitBtn.disabled = false;
 
         modal.classList.remove('hidden');
         modal.classList.add('flex');
 
-        try {
-            const headers = await getAuthHeaders();
-            if (!headers) return;
-            const data = await fetchJson(`/api/client/approvals/${approval.id}`, { headers });
-            const comments = Array.isArray(data?.comments) ? data.comments : [];
-            renderComments(comments);
-        } catch (error) {
-            renderComments([]);
-        }
+        await loadHistory();
     };
 
     const closeModal = () => {
@@ -233,66 +189,175 @@
         modal.classList.add('hidden');
         modal.classList.remove('flex');
         state.current = null;
+        state.history = null;
+        state.currentVersion = null;
     };
 
-    const renderComments = (comments) => {
-        const commentsEl = document.getElementById('client-approval-comments');
-        if (!commentsEl) return;
-        commentsEl.innerHTML = '';
-        if (!comments.length) {
+    const renderHistory = () => {
+        const historyEl = document.getElementById('client-approval-history');
+        if (!historyEl) return;
+        historyEl.innerHTML = '';
+        const approvals = Array.isArray(state.history?.approvals) ? state.history.approvals : [];
+        const comments = Array.isArray(state.history?.comments) ? state.history.comments : [];
+        const entries = [
+            ...approvals.map((item) => ({
+                kind: 'approval',
+                created_at: item.decided_at,
+                decision: item.decision,
+                comment: item.comment,
+                reason_code: item.reason_code
+            })),
+            ...comments.map((item) => ({
+                kind: 'comment',
+                created_at: item.created_at,
+                type: item.type,
+                payload: item.payload
+            }))
+        ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        if (!entries.length) {
             const empty = document.createElement('div');
             empty.className = 'text-sm text-gray-400';
-            empty.textContent = 'Nenhum comentário ainda.';
-            commentsEl.appendChild(empty);
+            empty.textContent = 'Nenhum histórico ainda.';
+            historyEl.appendChild(empty);
             return;
         }
-        comments.forEach((comment) => {
+        entries.forEach((entry) => {
             const wrap = document.createElement('div');
             wrap.className = 'border border-gray-100 rounded-lg p-3';
 
             const meta = document.createElement('div');
             meta.className = 'text-xs text-gray-400 mb-1';
-            const role = comment.author_role === 'team' ? 'Equipe' : 'Cliente';
-            const createdAt = comment.created_at ? new Date(comment.created_at).toLocaleString('pt-BR') : '';
-            meta.textContent = `${role}${createdAt ? ` • ${createdAt}` : ''}`;
+            const createdAt = entry.created_at ? new Date(entry.created_at).toLocaleString('pt-BR') : '';
+            const label = entry.kind === 'approval'
+                ? entry.decision === 'approved'
+                    ? 'Aprovado'
+                    : 'Reprovado'
+                : entry.type === 'change_request'
+                    ? 'Pedido de ajuste'
+                    : entry.type === 'approval_note'
+                        ? 'Nota de aprovação'
+                        : 'Comentário';
+            meta.textContent = `${label}${createdAt ? ` • ${createdAt}` : ''}`;
 
             const body = document.createElement('div');
             body.className = 'text-sm text-gray-700 whitespace-pre-wrap';
-            body.textContent = comment.comment || '';
+            const payloadText = entry.kind === 'comment' ? entry.payload?.text : entry.comment;
+            const reason = entry.kind === 'approval' ? entry.reason_code : entry.payload?.reason_code;
+            const requested = entry.kind === 'comment' ? entry.payload?.requested_changes : null;
+            const details = [
+                payloadText || '',
+                reason ? `Motivo: ${reason}` : '',
+                Array.isArray(requested) && requested.length ? `Ajustes: ${requested.join(', ')}` : ''
+            ].filter(Boolean);
+            body.textContent = details.join('\n');
 
             wrap.appendChild(meta);
             wrap.appendChild(body);
-            commentsEl.appendChild(wrap);
+            historyEl.appendChild(wrap);
         });
     };
 
-    const updateApprovalInState = (updated) => {
-        state.approvals = state.approvals.map((item) => (item.id === updated.id ? updated : item));
+    const updatePostInState = (updated) => {
+        state.posts = state.posts.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
         if (state.current && state.current.id === updated.id) {
-            state.current = updated;
+            state.current = { ...state.current, ...updated };
+        }
+    };
+
+    const loadHistory = async () => {
+        if (!state.current) return null;
+        try {
+            const headers = await getAuthHeaders();
+            if (!headers) return null;
+            const data = await fetchJson(`/api/social/posts/${state.current.id}/history`, { headers });
+            state.history = data || null;
+            const versions = Array.isArray(data?.versions) ? data.versions : [];
+            state.currentVersion = versions.length ? versions[0] : null;
+            const versionEl = document.getElementById('client-approval-version');
+            if (versionEl) {
+                const versionNumber = state.currentVersion?.version_number;
+                versionEl.textContent = versionNumber ? `#${versionNumber}` : 'Nenhuma versão';
+            }
+            renderHistory();
+            return data;
+        } catch (error) {
+            renderHistory();
+            return null;
         }
     };
 
     const handleStatusChange = async (status) => {
         if (!state.current) return;
+        if (!state.currentVersion?.id) {
+            alert('Envie para aprovação antes de aprovar ou reprovar.');
+            return;
+        }
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const data = await fetchJson(`/api/client/approvals/${state.current.id}/status`, {
+            const commentInput = document.getElementById('client-approval-comment-input');
+            const comment = commentInput?.value.trim() || '';
+            const endpoint = status === 'approved'
+                ? `/api/social/posts/${state.current.id}/approve`
+                : `/api/social/posts/${state.current.id}/reject`;
+            const body = status === 'approved'
+                ? { version_id: state.currentVersion.id, comment: comment || null }
+                : { version_id: state.currentVersion.id, comment, requested_changes: [] };
+            if (status === 'rejected' && !comment) {
+                alert('Escreva um comentário para solicitar ajustes.');
+                return;
+            }
+            await fetchJson(endpoint, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ status })
+                body: JSON.stringify(body)
             });
-            updateApprovalInState(data);
+            if (commentInput) commentInput.value = '';
+            updatePostInState({ id: state.current.id, status });
             const statusEl = document.getElementById('client-approval-status');
-            if (statusEl) setBadge(statusEl, data.status);
+            if (statusEl) setBadge(statusEl, status);
             const approveBtn = document.getElementById('client-approval-approve');
             const changesBtn = document.getElementById('client-approval-changes');
-            if (approveBtn) approveBtn.disabled = data.status !== 'pending';
-            if (changesBtn) changesBtn.disabled = data.status !== 'pending';
+            if (approveBtn) approveBtn.disabled = status !== 'ready_for_approval';
+            if (changesBtn) changesBtn.disabled = status !== 'ready_for_approval';
+            if (status !== 'ready_for_approval') {
+                state.posts = state.posts.filter((item) => item.id !== state.current.id);
+            }
+            await loadHistory();
             renderList();
         } catch (error) {
             alert('Não foi possível atualizar o status.');
+        }
+    };
+
+    const handleSubmitForApproval = async () => {
+        if (!state.current) return;
+        try {
+            const headers = await getAuthHeaders();
+            if (!headers) return;
+            const data = await fetchJson(`/api/social/posts/${state.current.id}/submit-for-approval`, {
+                method: 'POST',
+                headers
+            });
+            const post = data?.post || null;
+            const version = data?.version || null;
+            if (post) updatePostInState(post);
+            state.currentVersion = version || state.currentVersion;
+            const versionEl = document.getElementById('client-approval-version');
+            if (versionEl) {
+                const versionNumber = state.currentVersion?.version_number;
+                versionEl.textContent = versionNumber ? `#${versionNumber}` : 'Nenhuma versão';
+            }
+            const statusEl = document.getElementById('client-approval-status');
+            if (statusEl && post?.status) setBadge(statusEl, post.status);
+            const approveBtn = document.getElementById('client-approval-approve');
+            const changesBtn = document.getElementById('client-approval-changes');
+            if (approveBtn) approveBtn.disabled = post?.status !== 'ready_for_approval';
+            if (changesBtn) changesBtn.disabled = post?.status !== 'ready_for_approval';
+            await loadHistory();
+            renderList();
+        } catch (error) {
+            alert('Não foi possível enviar para aprovação.');
         }
     };
 
@@ -305,39 +370,23 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const data = await fetchJson(`/api/client/approvals/${state.current.id}/comment`, {
+            const payload = {
+                version_id: state.currentVersion?.id || null,
+                type: 'general',
+                payload: { text: comment }
+            };
+            const data = await fetchJson(`/api/social/posts/${state.current.id}/comments`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ comment })
+                body: JSON.stringify(payload)
             });
             input.value = '';
-            const commentsEl = document.getElementById('client-approval-comments');
-            if (commentsEl && commentsEl.firstChild && commentsEl.firstChild.textContent === 'Nenhum comentário ainda.') {
-                commentsEl.innerHTML = '';
+            if (data) {
+                const existing = Array.isArray(state.history?.comments) ? state.history.comments : [];
+                const updated = [data, ...existing];
+                state.history = { ...(state.history || {}), comments: updated };
+                renderHistory();
             }
-            const list = Array.isArray(data) ? data : [data];
-            list.forEach((commentItem) => {
-                const current = Array.from(commentsEl?.children || []);
-                if (!current.length) {
-                    renderComments([commentItem]);
-                } else {
-                    const wrap = document.createElement('div');
-                    wrap.className = 'border border-gray-100 rounded-lg p-3';
-
-                    const meta = document.createElement('div');
-                    meta.className = 'text-xs text-gray-400 mb-1';
-                    const createdAt = commentItem.created_at ? new Date(commentItem.created_at).toLocaleString('pt-BR') : '';
-                    meta.textContent = `Cliente${createdAt ? ` • ${createdAt}` : ''}`;
-
-                    const body = document.createElement('div');
-                    body.className = 'text-sm text-gray-700 whitespace-pre-wrap';
-                    body.textContent = commentItem.comment || comment;
-
-                    wrap.appendChild(meta);
-                    wrap.appendChild(body);
-                    commentsEl?.appendChild(wrap);
-                }
-            });
         } catch (error) {
             alert('Não foi possível enviar o comentário.');
         }
@@ -349,54 +398,27 @@
         const approveBtn = document.getElementById('client-approval-approve');
         const changesBtn = document.getElementById('client-approval-changes');
         const commentBtn = document.getElementById('client-approval-comment-btn');
+        const submitBtn = document.getElementById('client-approval-submit');
 
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
         if (modal) modal.addEventListener('click', (event) => {
             if (event.target === modal) closeModal();
         });
         if (approveBtn) approveBtn.addEventListener('click', () => handleStatusChange('approved'));
-        if (changesBtn) changesBtn.addEventListener('click', () => handleStatusChange('changes_requested'));
+        if (changesBtn) changesBtn.addEventListener('click', () => handleStatusChange('rejected'));
         if (commentBtn) commentBtn.addEventListener('click', handleComment);
-    };
-
-    const enrichApprovalsWithSnapshots = async (approvals) => {
-        const enriched = approvals.map((approval) => ({
-            ...approval,
-            snapshot: extractSnapshot(approval)
-        }));
-        const missing = enriched.filter((approval) => !approval.snapshot && approval.item_id);
-        if (!missing.length) return enriched;
-        const supabase = await window.clientApp?.getSupabaseClient?.();
-        if (!supabase) return enriched;
-        const ids = Array.from(new Set(missing.map((item) => item.item_id).filter(Boolean)));
-        if (!ids.length) return enriched;
-        const { data, error } = await supabase
-            .from('social_posts')
-            .select('id,tema,legenda,legenda_linkedin,legenda_tiktok,formato,imagem_url,video_url,arquivo_url,link_criativo,data_agendada,medias')
-            .in('id', ids);
-        if (error || !Array.isArray(data)) return enriched;
-        const fallbackMap = {};
-        data.forEach((post) => {
-            const previewUrl = resolvePreviewUrl(post, supabase);
-            fallbackMap[post.id] = buildSnapshot(post, previewUrl);
-        });
-        return enriched.map((approval) => ({
-            ...approval,
-            snapshot: approval.snapshot || fallbackMap[approval.item_id] || null
-        }));
+        if (submitBtn) submitBtn.addEventListener('click', handleSubmitForApproval);
     };
 
     const loadApprovals = async () => {
-        const type = getTypeFromPage();
-        if (!type) return;
         const listEl = document.getElementById('client-approvals-list');
         if (listEl) listEl.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">Carregando aprovações...</div>';
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const data = await fetchJson(`/api/client/approvals?type=${encodeURIComponent(type)}`, { headers });
-            const approvals = Array.isArray(data) ? data : [];
-            state.approvals = await enrichApprovalsWithSnapshots(approvals);
+            const data = await fetchJson('/api/client/social/pending-posts', { headers });
+            const posts = Array.isArray(data?.items) ? data.items : [];
+            state.posts = posts;
             renderList();
         } catch (error) {
             if (listEl) listEl.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">Erro ao carregar aprovações.</div>';
