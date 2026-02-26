@@ -2691,6 +2691,30 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            const creativesParams = new URLSearchParams();
+            creativesParams.set('select', 'id,post_id');
+            creativesParams.set('post_id', `in.(${ids.join(',')})`);
+            creativesParams.set('status', 'eq.uploaded');
+            const creativesRes = await supabaseRest(
+                request,
+                `/rest/v1/social_creatives?${creativesParams.toString()}`
+            );
+            if (creativesRes.status < 200 || creativesRes.status >= 300) {
+                response.writeHead(creativesRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativesRes.data || { error: 'erro_ao_listar_creatives' }));
+                return;
+            }
+            const creatives = Array.isArray(creativesRes.data) ? creativesRes.data : [];
+            const uploadedPostIds = new Set(creatives.map((creative) => String(creative.post_id)));
+            const missingUploaded = ids.filter((id) => !uploadedPostIds.has(String(id)));
+            if (missingUploaded.length) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({
+                    error: 'Post cannot move to ready_for_approval without uploaded creative.'
+                }));
+                return;
+            }
+
             const updatePayload = {
                 status: POST_STATUS.READY_FOR_APPROVAL,
                 approval_group_id: approvalId,
