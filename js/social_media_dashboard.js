@@ -41,7 +41,7 @@ window.openSocialMediaTab = function(tabName) {
             setTimeout(() => {
                 window.initCalendar();
             }, 100);
-        } else if (window.calendar) {
+        } else if (window.calendar && typeof window.calendar.render === 'function') {
             setTimeout(() => window.calendar.render(), 100);
         }
     } else if (tabName === 'insights') {

@@ -7,18 +7,12 @@ const CALENDAR_STATUS = {
   ARCHIVED: 'archived'
 };
 
-const POST_STATUS = {
-  DRAFT: 'draft',
-  BRIEFING_SENT: 'briefing_sent',
-  DESIGN_IN_PROGRESS: 'design_in_progress',
-  READY_FOR_APPROVAL: 'ready_for_approval',
-  APPROVED: 'approved',
-  REJECTED: 'rejected',
-  SCHEDULED: 'scheduled',
-  PUBLISHED: 'published'
-};
-
 if (typeof window !== 'undefined') {
   window.CALENDAR_STATUS = CALENDAR_STATUS;
-  window.POST_STATUS = POST_STATUS;
+  window.POST_STATUS = window.POST_STATUS || Object.freeze({
+    DRAFT: 'draft',
+    READY_FOR_APPROVAL: 'ready_for_approval',
+    APPROVED: 'approved',
+    REJECTED: 'rejected'
+  });
 }

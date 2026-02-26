@@ -15,7 +15,7 @@ const CALENDAR_STATUS = {
     PUBLISHED: 'published',
     ARCHIVED: 'archived'
 };
-const POST_STATUS = {
+const POST_STATUS_VALUES = {
     DRAFT: 'draft',
     BRIEFING_SENT: 'briefing_sent',
     DESIGN_IN_PROGRESS: 'design_in_progress',
@@ -995,7 +995,7 @@ const seedDemoData = async () => {
         {
             formato: 'estatico',
             tema: '3 erros que fazem sua obra perder dinheiro',
-            status: POST_STATUS.APPROVED,
+            status: POST_STATUS_VALUES.APPROVED,
             legenda: 'Evite desperdícios: alinhamento de equipe, orçamento atualizado e cronograma realista fazem toda diferença.',
             legenda_linkedin: 'Quando o planejamento é claro, a obra rende mais e o custo fica sob controle.',
             sugestao: 'Crie uma arte com 3 cards numerados e ícones simples de alerta/erro.',
@@ -1004,7 +1004,7 @@ const seedDemoData = async () => {
         {
             formato: 'carrossel',
             tema: 'Checklist de segurança para obras',
-            status: POST_STATUS.APPROVED,
+            status: POST_STATUS_VALUES.APPROVED,
             legenda: 'Checklist rápido para manter sua equipe segura e evitar paradas inesperadas.',
             legenda_linkedin: 'Segurança não é custo, é continuidade da obra.',
             sugestao: 'Carrossel com 5 etapas e fundo neutro para fácil leitura.',
@@ -1013,7 +1013,7 @@ const seedDemoData = async () => {
         {
             formato: 'reels',
             tema: 'Como reduzir desperdício na construção',
-            status: POST_STATUS.READY_FOR_APPROVAL,
+            status: POST_STATUS_VALUES.READY_FOR_APPROVAL,
             legenda: '3 atitudes simples que diminuem perdas e aumentam a margem da obra.',
             legenda_linkedin: 'Pequenas mudanças geram grande economia no canteiro.',
             sugestao: 'Roteiro com 3 cenas rápidas: estoque, equipe, reaproveitamento.',
@@ -1022,7 +1022,7 @@ const seedDemoData = async () => {
         {
             formato: 'estatico',
             tema: 'Planejamento evita retrabalho',
-            status: POST_STATUS.PUBLISHED,
+            status: POST_STATUS_VALUES.PUBLISHED,
             legenda: 'Planejar antes de executar evita retrabalho e traz previsibilidade.',
             legenda_linkedin: 'Planejamento é o melhor seguro contra custos extras.',
             sugestao: 'Arte simples com frase central e fundo com textura de obra.',
@@ -1060,7 +1060,7 @@ const seedDemoData = async () => {
             const createdPost = Array.isArray(postRes.data) ? postRes.data[0] : null;
             if (createdPost?.id) {
                 postResults.push(createdPost.id);
-                if (item.status === POST_STATUS.APPROVED || item.status === POST_STATUS.PUBLISHED) {
+                if (item.status === POST_STATUS_VALUES.APPROVED || item.status === POST_STATUS_VALUES.PUBLISHED) {
                     await supabaseServiceRest(
                         `/rest/v1/social_posts?id=eq.${createdPost.id}`,
                         'PATCH',
@@ -2716,7 +2716,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const updatePayload = {
-                status: POST_STATUS.READY_FOR_APPROVAL,
+                status: POST_STATUS_VALUES.READY_FOR_APPROVAL,
                 approval_group_id: approvalId,
                 data_envio_aprovacao: new Date().toISOString()
             };
@@ -2740,7 +2740,7 @@ const server = http.createServer(async (request, response) => {
                 data_agendada: item.data_agendada || null,
                 plataforma: item.plataformas || null,
                 formato: item.formato || null,
-                status: POST_STATUS.READY_FOR_APPROVAL,
+                status: POST_STATUS_VALUES.READY_FOR_APPROVAL,
                 feedback_ajuste: item.feedback_ajuste || null
             }));
 
@@ -2845,14 +2845,14 @@ const server = http.createServer(async (request, response) => {
             const statusRaw = String(body?.status || '').trim().toLowerCase();
             const reason = String(body?.reason || '').trim();
             let nextStatus = null;
-            if (statusRaw === 'approved') nextStatus = POST_STATUS.APPROVED;
-            if (statusRaw === 'needs_adjustment') nextStatus = POST_STATUS.REJECTED;
+            if (statusRaw === 'approved') nextStatus = POST_STATUS_VALUES.APPROVED;
+            if (statusRaw === 'needs_adjustment') nextStatus = POST_STATUS_VALUES.REJECTED;
             if (!nextStatus) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'status_invalido' }));
                 return;
             }
-            if (nextStatus === POST_STATUS.REJECTED && !reason) {
+            if (nextStatus === POST_STATUS_VALUES.REJECTED && !reason) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'motivo_obrigatorio' }));
                 return;
@@ -2921,7 +2921,7 @@ const server = http.createServer(async (request, response) => {
                 status: nextStatus,
                 updated_at: new Date().toISOString()
             };
-            if (nextStatus === POST_STATUS.REJECTED) {
+            if (nextStatus === POST_STATUS_VALUES.REJECTED) {
                 updatePayload.feedback_ajuste = reason;
             }
 
@@ -2944,9 +2944,9 @@ const server = http.createServer(async (request, response) => {
             }
 
             const creativeStatus =
-                nextStatus === POST_STATUS.APPROVED
+                nextStatus === POST_STATUS_VALUES.APPROVED
                     ? 'approved'
-                    : nextStatus === POST_STATUS.REJECTED
+                    : nextStatus === POST_STATUS_VALUES.REJECTED
                         ? 'needs_revision'
                         : null;
             if (creativeStatus) {
@@ -3002,7 +3002,7 @@ const server = http.createServer(async (request, response) => {
             const order = allowedOrderFields.has(orderField) ? `${orderField}.${orderDir}` : 'data_agendada.asc';
 
             const pendingStatuses = [
-                POST_STATUS.READY_FOR_APPROVAL,
+                POST_STATUS_VALUES.READY_FOR_APPROVAL,
                 'pendente_aprovação',
                 'pendente_aprovacao',
                 'aguardando_aprovacao',
@@ -3164,7 +3164,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const updatePayload = {
-                status: POST_STATUS.READY_FOR_APPROVAL
+                status: POST_STATUS_VALUES.READY_FOR_APPROVAL
             };
             const updateParams = new URLSearchParams();
             updateParams.set('id', `eq.${postId}`);
@@ -3298,7 +3298,7 @@ const server = http.createServer(async (request, response) => {
                 request,
                 `/rest/v1/social_posts?${postUpdateParams.toString()}`,
                 'PATCH',
-                { status: POST_STATUS.APPROVED }
+                { status: POST_STATUS_VALUES.APPROVED }
             );
             if (postUpdateRes.status < 200 || postUpdateRes.status >= 300) {
                 response.writeHead(postUpdateRes.status, { 'Content-Type': 'application/json' });
@@ -3444,7 +3444,7 @@ const server = http.createServer(async (request, response) => {
                 request,
                 `/rest/v1/social_posts?${postUpdateParams.toString()}`,
                 'PATCH',
-                { status: POST_STATUS.REJECTED }
+                { status: POST_STATUS_VALUES.REJECTED }
             );
             if (postUpdateRes.status < 200 || postUpdateRes.status >= 300) {
                 response.writeHead(postUpdateRes.status, { 'Content-Type': 'application/json' });
@@ -5083,7 +5083,7 @@ const server = http.createServer(async (request, response) => {
                         legenda: captions.meta || '',
                         legenda_linkedin: captions.linkedin || null,
                         legenda_tiktok: captions.tiktok || null,
-                        status: POST_STATUS.DRAFT
+                        status: POST_STATUS_VALUES.DRAFT
                     };
                 };
 

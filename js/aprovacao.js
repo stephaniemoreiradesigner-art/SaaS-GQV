@@ -5,7 +5,7 @@ let currentPosts = [];
 let currentPostId = null;
 const urlParams = new URLSearchParams(window.location.search);
 const approvalGroupId = urlParams.get('id');
-const POST_STATUS = window.POST_STATUS || {};
+const POST_STATUS = window.POST_STATUS;
 const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
 document.addEventListener('DOMContentLoaded', () => {

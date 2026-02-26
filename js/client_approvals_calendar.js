@@ -4,7 +4,7 @@
         current: null
     };
 
-    const POST_STATUS = window.POST_STATUS || {};
+    const POST_STATUS = window.POST_STATUS;
     const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
     const setEmptyState = (visible) => {

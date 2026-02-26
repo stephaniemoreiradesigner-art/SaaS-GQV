@@ -1,5 +1,5 @@
 const CALENDAR_STATUS = window.CALENDAR_STATUS || {};
-const POST_STATUS = window.POST_STATUS || {};
+const POST_STATUS = window.POST_STATUS;
 
 const CALENDAR_STATUS_LABEL = {
   [CALENDAR_STATUS.DRAFT]: 'Rascunho',
