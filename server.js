@@ -5918,7 +5918,7 @@ const server = http.createServer(async (request, response) => {
                     }
                     if (!isSuperAdmin && String(tenantParam) !== String(tenantId)) {
                         response.writeHead(403, { 'Content-Type': 'application/json' });
-                        response.end(JSON.stringify({ error: 'tenant_sem_permissao' }));
+                        response.end(JSON.stringify({ error: 'tenant_sem_permissao', message: 'Sem permissão para acessar este tenant.' }));
                         return;
                     }
                     tenantId = tenantParam;

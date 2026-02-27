@@ -760,6 +760,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // Expor initCalendar globalmente
 window.initCalendar = initCalendar;
+window.closePostModal = closePostModal;
 
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -1293,6 +1294,40 @@ function handleFileSelect(event, type, maxFiles, acceptType) {
 function closePostModal() {
     const modal = document.getElementById('modal-post');
     const content = document.getElementById('modal-post-content');
+    if (!modal || !content) return;
+    currentPostProps = null;
+    modal.dataset.eventId = '';
+    if (modal.dataset.currentStatus) {
+        delete modal.dataset.currentStatus;
+    }
+    const feedbackArea = document.getElementById('feedback-area');
+    const feedbackText = document.getElementById('post-feedback-text');
+    if (feedbackText) feedbackText.innerHTML = '';
+    if (feedbackArea) feedbackArea.classList.add('hidden');
+    const statusBadge = document.getElementById('post-status-badge');
+    if (statusBadge) {
+        statusBadge.textContent = '';
+        statusBadge.className = '';
+    }
+    const approvedBanner = document.getElementById('approved-banner');
+    if (approvedBanner) approvedBanner.remove();
+    const inputs = modal.querySelectorAll('input, textarea, select');
+    inputs.forEach((input) => {
+        if (input.tagName === 'SELECT') {
+            input.value = '';
+            return;
+        }
+        if (input.type === 'file') {
+            input.value = '';
+            return;
+        }
+        input.value = '';
+    });
+    const previewFeed = document.getElementById('preview-feed');
+    if (previewFeed) previewFeed.innerHTML = '';
+    const previewStory = document.getElementById('preview-story');
+    if (previewStory) previewStory.innerHTML = '';
+    resetMediaUploadState();
     modal.classList.add('opacity-0');
     content.classList.add('scale-95');
     setTimeout(() => {

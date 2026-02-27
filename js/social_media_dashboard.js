@@ -108,12 +108,26 @@ const operationalHubState = {
 };
 const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 
+async function waitForSupabaseReady() {
+    if (window.supabaseClient) return true;
+    await new Promise((resolve) => {
+        window.addEventListener('supabaseReady', resolve, { once: true });
+    });
+    return !!window.supabaseClient;
+}
+
+async function getDashboardAccessToken() {
+    const ready = await waitForSupabaseReady();
+    if (!ready) return '';
+    const sessionResult = await window.supabaseClient?.auth?.getSession?.();
+    return sessionResult?.data?.session?.access_token || '';
+}
+
 async function getDashboardAuthHeaders() {
     const headers = { 'Content-Type': 'application/json' };
-    const sessionResult = await window.supabaseClient?.auth?.getSession();
-    const token = sessionResult?.data?.session?.access_token;
+    const token = await getDashboardAccessToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    return headers;
+    return { headers, token };
 }
 
 function getOperationalTenantId() {
@@ -176,9 +190,14 @@ async function loadOperationalDashboard() {
     }
 
     try {
+        const auth = await getDashboardAuthHeaders();
+        if (!auth.token) {
+            statusEl.textContent = 'Sessão não encontrada. Faça login novamente.';
+            return;
+        }
         const res = await fetch(`/api/social/dashboard?${params.toString()}`, {
             method: 'GET',
-            headers: await getDashboardAuthHeaders()
+            headers: auth.headers
         });
         const data = await res.json().catch(() => null);
         if (!res.ok) {
