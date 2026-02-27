@@ -4,19 +4,29 @@
     <meta charset="UTF-8">
     <title>Debug DB</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
 </head>
 <body>
     <h1>Debugging Social Posts Schema</h1>
     <pre id="output">Running...</pre>
 
     <script>
-        const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicWtubWVqc21uaXpqZG5vcG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMjkyOTMsImV4cCI6MjA3ODgwNTI5M30.w-v_CW3X5DF9x_nnFe3Lhvw_JyrXxfXKv7tPIZAjGaU';
-
-        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const getSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            return null;
+        };
 
         async function debug() {
             const out = document.getElementById('output');
+            const client = await getSupabaseClient();
+            if (!client) {
+                out.textContent = 'Erro: Supabase não disponível.';
+                return;
+            }
             
             // Fetch 1 row to see columns
             const { data, error } = await client

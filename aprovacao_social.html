@@ -116,19 +116,18 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
     <script src="js/constants/socialStatus.js"></script>
     <script src="js/constants/socialStatusLabels.js"></script>
     <script>
-        // Configuração inline caso supabaseClient.js falhe ou não seja carregado corretamente neste contexto isolado
-        const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicWtubWVqc21uaXpqZG5vcG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMjkyOTMsImV4cCI6MjA3ODgwNTI5M30.w-v_CW3X5DF9x_nnFe3Lhvw_JyrXxfXKv7tPIZAjGaU';
-        
-        // Garante cliente
-        if (!window.supabaseClient) {
-            try {
-                 window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            } catch(e) { console.error(e); }
-        }
+        const getSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            return null;
+        };
 
         const POST_STATUS = window.POST_STATUS || {};
         const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
@@ -161,8 +160,16 @@
             btn.disabled = true;
             
             try {
+                const supabaseClient = await getSupabaseClient();
+                if (!supabaseClient) {
+                    errorMsg.classList.remove('hidden');
+                    errorMsg.innerText = 'Erro de conexão.';
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
                 // Busca calendário pelo Token e Senha
-                const { data, error } = await window.supabaseClient
+                const { data, error } = await supabaseClient
                     .from('social_calendars')
                     .select('*')
                     .eq('share_token', token)
@@ -193,7 +200,9 @@
         }
 
         async function loadPosts(calendarId) {
-            const { data: posts } = await window.supabaseClient
+            const supabaseClient = await getSupabaseClient();
+            if (!supabaseClient) return;
+            const { data: posts } = await supabaseClient
                 .from('social_posts')
                 .select('*')
                 .eq('calendar_id', calendarId)
@@ -321,7 +330,12 @@
             }
             
             try {
-                await window.supabaseClient
+                const supabaseClient = await getSupabaseClient();
+                if (!supabaseClient) {
+                    alert('Erro de conexão.');
+                    return;
+                }
+                await supabaseClient
                     .from('social_posts')
                     .update({ status: POST_STATUS.APPROVED })
                     .eq('id', id);
@@ -360,7 +374,12 @@
             }
             
             try {
-                await window.supabaseClient
+                const supabaseClient = await getSupabaseClient();
+                if (!supabaseClient) {
+                    alert('Erro de conexão.');
+                    return;
+                }
+                await supabaseClient
                     .from('social_posts')
                     .update({ 
                         status: POST_STATUS.REJECTED,

@@ -1,3 +1,7 @@
+(function () {
+    if (window.__socialMediaLoaded) return;
+    window.__socialMediaLoaded = true;
+
 // social_media.js - Lógica do Calendário Editorial com FullCalendar e Tailwind CSS
 
 // Variáveis Globais
@@ -2861,3 +2865,4 @@ async function generateSinglePostAI(date, format) {
         loadingDiv.remove();
     }
 }
+})();

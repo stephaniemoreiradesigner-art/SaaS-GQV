@@ -87,9 +87,16 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
     <script>
-        const SUPABASE_URL = 'https://gbqknmejsmnizjdnopnq.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdicWtubWVqc21uaXpqZG5vcG5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyMjkyOTMsImV4cCI6MjA3ODgwNTI5M30.w-v_CW3X5DF9x_nnFe3Lhvw_JyrXxfXKv7tPIZAjGaU';
+        const getSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            return null;
+        };
 
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('Login Script Iniciado');
@@ -102,17 +109,11 @@
                 return;
             }
             
-            let supabase;
-            try {
-                if (window.supabase) {
-                    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                } else {
-                    console.error('Supabase lib não carregada');
-                    alert('Erro de carregamento. Verifique sua conexão.');
-                    return;
-                }
-            } catch (e) {
-                console.error('Erro init supabase', e);
+            const supabase = await getSupabaseClient();
+            if (!supabase) {
+                console.error('Supabase não carregado');
+                alert('Erro de carregamento. Verifique sua conexão.');
+                return;
             }
 
             const demoBadge = document.getElementById('demo-login-badge');
