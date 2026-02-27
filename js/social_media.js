@@ -2331,9 +2331,11 @@ Regras obrigatórias:
                 model: 'gpt-4-turbo'
             }
         });
+        const headers = await getAuthHeaders();
+        headers['x-request-id'] = requestId;
         response = await fetch(apiEndpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-request-id': requestId },
+            headers,
             body: JSON.stringify(requestPayload)
         });
 
@@ -2782,11 +2784,10 @@ async function generateSinglePostAI(date, format) {
         `;
 
         // VIBECODE: Usando Proxy Backend
+        const headers = await getAuthHeaders();
         const response = await fetch('/api/openai/proxy', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers,
             body: JSON.stringify({
                 model: "gpt-4-turbo",
                 messages: [

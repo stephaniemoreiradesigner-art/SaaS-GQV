@@ -4261,6 +4261,8 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/openai/proxy' && request.method === 'POST') {
         try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
             const apiKey = envVars['OPENAI_API_KEY'];
             const headerRequestId = String(request.headers['x-request-id'] || '').trim();
             let requestId = headerRequestId || crypto.randomUUID();
