@@ -1250,12 +1250,26 @@ window.generatePDFReport = function() {
     const contentBody = document.getElementById('report-content-body');
     contentBody.innerHTML = '';
 
+    const normalizeValue = (value, fallback) => {
+        if (value === undefined || value === null || value === '') return fallback;
+        return value;
+    };
+
     // Generate Sections for each Platform
     const platforms = ['instagram', 'facebook']; // Order matters
 
     platforms.forEach(platform => {
         if (data.platforms[platform]) {
-            const pData = data.platforms[platform];
+            const rawData = data.platforms[platform] || {};
+            const pData = {
+                followers: normalizeValue(rawData.followers, '0'),
+                newFollowers: normalizeValue(rawData.newFollowers, '0'),
+                reach: normalizeValue(rawData.reach, '0'),
+                postsCount: normalizeValue(rawData.postsCount, '0'),
+                engagement: normalizeValue(rawData.engagement, '-'),
+                growth: normalizeValue(rawData.growth, '-'),
+                topPosts: Array.isArray(rawData.topPosts) ? rawData.topPosts : []
+            };
             const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
             const colorClass = platform === 'instagram' ? 'text-pink-600' : 'text-blue-600';
             const bgClass = platform === 'instagram' ? 'bg-pink-50' : 'bg-blue-50';
@@ -1265,20 +1279,25 @@ window.generatePDFReport = function() {
             let postsHtml = '';
             if (pData.topPosts && pData.topPosts.length > 0) {
                 pData.topPosts.forEach((post, index) => {
+                    const postEngagement = normalizeValue(post?.totalEngagement, 0);
+                    const postCaption = normalizeValue(post?.caption, 'Sem legenda...');
+                    const postImage = normalizeValue(post?.imageUrl, 'https://via.placeholder.com/150?text=No+Image');
+                    const postLikes = normalizeValue(post?.likes, 0);
+                    const postComments = normalizeValue(post?.comments, 0);
                     postsHtml += `
                         <div class="flex items-start gap-4 p-4 border border-gray-100 rounded-lg bg-gray-50 break-inside-avoid">
                             <div class="w-20 h-20 flex-shrink-0 bg-gray-200 rounded-md overflow-hidden">
-                                <img src="${post.imageUrl || 'https://via.placeholder.com/150?text=No+Image'}" alt="Post Image" class="w-full h-full object-cover">
+                                <img src="${postImage}" alt="Post Image" class="w-full h-full object-cover">
                             </div>
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-start mb-1">
                                     <h4 class="font-bold text-gray-800 text-xs">Top #${index + 1}</h4>
-                                    <span class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">${post.totalEngagement} Interações</span>
+                                    <span class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium whitespace-nowrap">${postEngagement} Interações</span>
                                 </div>
-                                <p class="text-gray-600 text-[10px] line-clamp-2 mb-1 leading-tight">${post.caption || 'Sem legenda...'}</p>
+                                <p class="text-gray-600 text-[10px] line-clamp-2 mb-1 leading-tight">${postCaption}</p>
                                 <div class="flex gap-3 text-[10px] text-gray-500">
-                                    <span><i class="fas fa-heart text-red-400 mr-1"></i> ${post.likes}</span>
-                                    <span><i class="fas fa-comment text-blue-400 mr-1"></i> ${post.comments}</span>
+                                    <span><i class="fas fa-heart text-red-400 mr-1"></i> ${postLikes}</span>
+                                    <span><i class="fas fa-comment text-blue-400 mr-1"></i> ${postComments}</span>
                                 </div>
                             </div>
                         </div>
