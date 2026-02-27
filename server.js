@@ -24,6 +24,8 @@ const POST_STATUS_VALUES = {
     SCHEDULED: 'scheduled',
     PUBLISHED: 'published'
 };
+const SOCIAL_DASHBOARD_CACHE_TTL = 60000;
+const socialDashboardCache = new Map();
 
 // Carregar variáveis de ambiente do arquivo .env manualmente
 const envPath = path.join(__dirname, '.env');
@@ -5870,6 +5872,199 @@ const server = http.createServer(async (request, response) => {
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ workflows: workflowsWithClients }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/social/dashboard' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const role = String(authContext.profile?.role || '').trim().toLowerCase();
+            const isSuperAdmin = role === 'super_admin';
+            const scopeParam = String(parsedUrl.query.scope || 'client').trim().toLowerCase();
+            const scope = scopeParam === 'agency' && isSuperAdmin ? 'agency' : 'client';
+            const tenantParam = String(parsedUrl.query.tenant_id || '').trim();
+            const periodParam = String(parsedUrl.query.period || 'last7').trim().toLowerCase();
+            const period = ['last7', 'last30', 'month'].includes(periodParam) ? periodParam : 'last7';
+
+            let tenantId = authContext.tenantId;
+            if (scope === 'client') {
+                if (tenantParam) {
+                    if (!/^\d+$/.test(tenantParam)) {
+                        response.writeHead(400, { 'Content-Type': 'application/json' });
+                        response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                        return;
+                    }
+                    if (!isSuperAdmin && String(tenantParam) !== String(tenantId)) {
+                        response.writeHead(403, { 'Content-Type': 'application/json' });
+                        response.end(JSON.stringify({ error: 'tenant_sem_permissao' }));
+                        return;
+                    }
+                    tenantId = tenantParam;
+                }
+                if (!tenantId || !/^\d+$/.test(String(tenantId))) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'tenant_id_obrigatorio' }));
+                    return;
+                }
+            } else if (tenantParam && !/^\d+$/.test(tenantParam)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                return;
+            }
+
+            const cacheKey = [authContext.user?.id || '', scope, tenantParam || tenantId || '', period].join('|');
+            const now = Date.now();
+            const cached = socialDashboardCache.get(cacheKey);
+            if (cached && now - cached.timestamp < SOCIAL_DASHBOARD_CACHE_TTL) {
+                response.writeHead(200, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ...cached.payload, cached: true }));
+                return;
+            }
+
+            const today = new Date();
+            const endDate = new Date(today);
+            const startDate = new Date(today);
+            if (period === 'last7') {
+                startDate.setDate(startDate.getDate() - 6);
+            } else if (period === 'last30') {
+                startDate.setDate(startDate.getDate() - 29);
+            } else {
+                startDate.setDate(1);
+            }
+            const startStr = startDate.toISOString().slice(0, 10);
+            const endStr = endDate.toISOString().slice(0, 10);
+
+            const postsParams = new URLSearchParams();
+            postsParams.set('select', 'id,status,data_agendada,data_envio_aprovacao,created_at,social_calendars!inner(tenant_id)');
+            if (scope === 'client') {
+                postsParams.set('social_calendars.tenant_id', `eq.${tenantId}`);
+            } else if (tenantParam) {
+                postsParams.set('social_calendars.tenant_id', `eq.${tenantParam}`);
+            }
+            postsParams.append('data_agendada', `gte.${startStr}`);
+            postsParams.append('data_agendada', `lte.${endStr}`);
+            const postsRes = await supabaseServiceRest(`/rest/v1/social_posts?${postsParams.toString()}`);
+            if (postsRes.status >= 400) {
+                response.writeHead(postsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postsRes.data || { error: 'erro_ao_buscar_posts' }));
+                return;
+            }
+            const posts = Array.isArray(postsRes.data) ? postsRes.data : [];
+
+            const draftPosts = posts.filter((post) => post.status === POST_STATUS_VALUES.DRAFT).length;
+            const awaitingApproval = posts.filter((post) => post.status === POST_STATUS_VALUES.READY_FOR_APPROVAL).length;
+            const rejectedPosts = posts.filter((post) => post.status === POST_STATUS_VALUES.REJECTED).length;
+            const scheduledPosts = posts.filter((post) => post.status === POST_STATUS_VALUES.SCHEDULED).length;
+            const publishedPosts = posts.filter((post) => post.status === POST_STATUS_VALUES.PUBLISHED).length;
+            const todayStr = today.toISOString().slice(0, 10);
+            const publishingToday = posts.filter((post) => post.status === POST_STATUS_VALUES.PUBLISHED && String(post.data_agendada || '').slice(0, 10) === todayStr).length;
+
+            const stuckThreshold = new Date();
+            stuckThreshold.setDate(stuckThreshold.getDate() - 3);
+            const stuckApproval = posts.filter((post) => {
+                if (post.status !== POST_STATUS_VALUES.READY_FOR_APPROVAL) return false;
+                const baseDate = post.data_envio_aprovacao || post.created_at;
+                if (!baseDate) return false;
+                return new Date(baseDate).getTime() <= stuckThreshold.getTime();
+            }).length;
+
+            const postIds = posts.map((post) => post.id).filter(Boolean);
+            let postsWithUploadedCreative = new Set();
+            if (postIds.length) {
+                const creativesUploadedParams = new URLSearchParams();
+                creativesUploadedParams.set('select', 'post_id');
+                creativesUploadedParams.set('status', 'eq.uploaded');
+                creativesUploadedParams.set('post_id', `in.(${postIds.join(',')})`);
+                if (scope === 'client') {
+                    creativesUploadedParams.set('tenant_id', `eq.${tenantId}`);
+                } else if (tenantParam) {
+                    creativesUploadedParams.set('tenant_id', `eq.${tenantParam}`);
+                }
+                const uploadedRes = await supabaseServiceRest(`/rest/v1/social_creatives?${creativesUploadedParams.toString()}`);
+                if (uploadedRes.status < 400) {
+                    const uploaded = Array.isArray(uploadedRes.data) ? uploadedRes.data : [];
+                    postsWithUploadedCreative = new Set(uploaded.map((item) => String(item.post_id)));
+                }
+            }
+            const noCreative = postIds.filter((id) => !postsWithUploadedCreative.has(String(id))).length;
+
+            const creativesParams = new URLSearchParams();
+            creativesParams.set('select', 'id,status,created_at,tenant_id');
+            creativesParams.set('status', 'eq.designing');
+            creativesParams.append('created_at', `gte.${startDate.toISOString()}`);
+            creativesParams.append('created_at', `lte.${endDate.toISOString()}`);
+            if (scope === 'client') {
+                creativesParams.set('tenant_id', `eq.${tenantId}`);
+            } else if (tenantParam) {
+                creativesParams.set('tenant_id', `eq.${tenantParam}`);
+            }
+            const creativesRes = await supabaseServiceRest(`/rest/v1/social_creatives?${creativesParams.toString()}`);
+            if (creativesRes.status >= 400) {
+                response.writeHead(creativesRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(creativesRes.data || { error: 'erro_ao_buscar_creatives' }));
+                return;
+            }
+            const creatives = Array.isArray(creativesRes.data) ? creativesRes.data : [];
+            const designing = creatives.length;
+
+            const requestsParams = new URLSearchParams();
+            requestsParams.set('select', 'id,status,created_at,tenant_id');
+            requestsParams.set('status', 'in.(requested,needs_revision)');
+            requestsParams.append('created_at', `gte.${startDate.toISOString()}`);
+            requestsParams.append('created_at', `lte.${endDate.toISOString()}`);
+            if (scope === 'client') {
+                requestsParams.set('tenant_id', `eq.${tenantId}`);
+            } else if (tenantParam) {
+                requestsParams.set('tenant_id', `eq.${tenantParam}`);
+            }
+            const requestsRes = await supabaseServiceRest(`/rest/v1/creative_requests?${requestsParams.toString()}`);
+            if (requestsRes.status >= 400) {
+                response.writeHead(requestsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(requestsRes.data || { error: 'erro_ao_buscar_solicitacoes' }));
+                return;
+            }
+            const pendingRequests = Array.isArray(requestsRes.data) ? requestsRes.data.length : 0;
+
+            const payload = {
+                scope,
+                period,
+                tenant_id: scope === 'client' ? tenantId : (tenantParam || null),
+                range: { start: startStr, end: endStr },
+                kpis: {
+                    production: {
+                        draft_posts: draftPosts,
+                        designing,
+                        no_creative: noCreative
+                    },
+                    approval: {
+                        awaiting: awaitingApproval,
+                        rejected: rejectedPosts,
+                        stuck_approval: stuckApproval,
+                        creative_requests_pending: pendingRequests
+                    },
+                    execution: {
+                        scheduled: scheduledPosts,
+                        published: publishedPosts,
+                        publishing_today: publishingToday
+                    },
+                    post: {
+                        reach: 0,
+                        engagement_rate: 0
+                    }
+                }
+            };
+
+            socialDashboardCache.set(cacheKey, { timestamp: now, payload });
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify(payload));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });

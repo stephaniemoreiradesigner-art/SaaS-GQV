@@ -102,6 +102,146 @@ window.showSocialMediaHome = function() {
     }
 }
 
+const operationalHubState = {
+    scope: 'client',
+    period: 'last7'
+};
+
+async function getDashboardAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+function getOperationalTenantId() {
+    if (window.currentClienteId) return String(window.currentClienteId);
+    const selectCalendar = document.getElementById('select-cliente');
+    if (selectCalendar && selectCalendar.value) return String(selectCalendar.value);
+    const selectInsights = document.getElementById('insights-cliente');
+    if (selectInsights && selectInsights.value) return String(selectInsights.value);
+    return '';
+}
+
+function formatPeriodLabel(period) {
+    if (period === 'last30') return 'Últimos 30 dias';
+    if (period === 'month') return 'Este mês';
+    return 'Últimos 7 dias';
+}
+
+function updateOperationalScopeButtons() {
+    const btnAgency = document.getElementById('btn-operational-agency');
+    const btnClient = document.getElementById('btn-operational-client');
+    if (!btnAgency || !btnClient) return;
+    if (operationalHubState.scope === 'agency') {
+        btnAgency.className = 'px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white';
+        btnClient.className = 'px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900';
+    } else {
+        btnClient.className = 'px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white';
+        btnAgency.className = 'px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900';
+    }
+}
+
+window.setOperationalScope = function(scope) {
+    operationalHubState.scope = scope === 'agency' ? 'agency' : 'client';
+    updateOperationalScopeButtons();
+    loadOperationalDashboard();
+};
+
+async function loadOperationalDashboard() {
+    const statusEl = document.getElementById('operational-status');
+    const kpisEl = document.getElementById('operational-kpis');
+    if (!statusEl || !kpisEl) return;
+
+    statusEl.textContent = 'Carregando visão operacional...';
+    kpisEl.innerHTML = '';
+
+    const tenantId = getOperationalTenantId();
+    const params = new URLSearchParams();
+    params.set('scope', operationalHubState.scope);
+    params.set('period', operationalHubState.period);
+    if (tenantId && operationalHubState.scope === 'client') {
+        params.set('tenant_id', tenantId);
+    }
+
+    try {
+        const res = await fetch(`/api/social/dashboard?${params.toString()}`, {
+            method: 'GET',
+            headers: await getDashboardAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            const message = data?.error || 'Erro ao carregar o hub operacional';
+            statusEl.textContent = message;
+            return;
+        }
+
+        const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(Number(value || 0));
+        const formatRate = (value) => {
+            const num = Number(value || 0);
+            if (!Number.isFinite(num)) return '0%';
+            return `${num}%`;
+        };
+        const scopeLabel = operationalHubState.scope === 'agency' ? 'Agência' : 'Cliente';
+        statusEl.textContent = `Escopo: ${scopeLabel} • Período: ${formatPeriodLabel(operationalHubState.period)}`;
+
+        const production = data?.kpis?.production || {};
+        const approval = data?.kpis?.approval || {};
+        const execution = data?.kpis?.execution || {};
+        const post = data?.kpis?.post || {};
+
+        kpisEl.innerHTML = `
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase">Produção</h3>
+                    <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Equipe</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700">
+                    <div class="flex items-center justify-between"><span>Rascunhos</span><span class="font-semibold">${formatNumber(production.draft_posts)}</span></div>
+                    <div class="flex items-center justify-between"><span>Em criação</span><span class="font-semibold">${formatNumber(production.designing)}</span></div>
+                    <div class="flex items-center justify-between"><span>Sem criativo</span><span class="font-semibold">${formatNumber(production.no_creative)}</span></div>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase">Aprovação</h3>
+                    <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Cliente</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700">
+                    <div class="flex items-center justify-between"><span>Aguardando</span><span class="font-semibold">${formatNumber(approval.awaiting)}</span></div>
+                    <div class="flex items-center justify-between"><span>Reprovados</span><span class="font-semibold">${formatNumber(approval.rejected)}</span></div>
+                    <div class="flex items-center justify-between"><span>Travados +3d</span><span class="font-semibold">${formatNumber(approval.stuck_approval)}</span></div>
+                    <div class="flex items-center justify-between"><span>Criativos pendentes</span><span class="font-semibold">${formatNumber(approval.creative_requests_pending)}</span></div>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase">Execução</h3>
+                    <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Publicação</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700">
+                    <div class="flex items-center justify-between"><span>Agendados</span><span class="font-semibold">${formatNumber(execution.scheduled)}</span></div>
+                    <div class="flex items-center justify-between"><span>Publicados</span><span class="font-semibold">${formatNumber(execution.published)}</span></div>
+                    <div class="flex items-center justify-between"><span>Publicado hoje</span><span class="font-semibold">${formatNumber(execution.publishing_today)}</span></div>
+                </div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase">Pós</h3>
+                    <span class="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Impacto</span>
+                </div>
+                <div class="space-y-2 text-sm text-gray-700">
+                    <div class="flex items-center justify-between"><span>Alcance</span><span class="font-semibold">${formatNumber(post.reach)}</span></div>
+                    <div class="flex items-center justify-between"><span>Taxa engajamento</span><span class="font-semibold">${formatRate(post.engagement_rate)}</span></div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        statusEl.textContent = error.message || 'Erro ao carregar o hub operacional';
+    }
+}
+
 // Insights Logic
 async function loadInsightsClients() {
     const select = document.getElementById('insights-cliente');
@@ -196,6 +336,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (select.value) {
         updateInsightsPlatforms(select.value);
     }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const hub = document.getElementById('operational-hub');
+    if (!hub) return;
+    updateOperationalScopeButtons();
+    loadOperationalDashboard();
 });
 
 async function loadLogsClients() {

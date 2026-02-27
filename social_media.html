@@ -306,6 +306,21 @@
                 <p class="text-gray-500 mt-1">Gerencie seu conteúdo, aprovações e métricas em um só lugar.</p>
             </header>
 
+            <section id="operational-hub" class="mb-8">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">Hub Operacional</h2>
+                        <p class="text-sm text-gray-500">Visão rápida do fluxo de trabalho.</p>
+                    </div>
+                    <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1 w-fit">
+                        <button id="btn-operational-agency" onclick="setOperationalScope('agency')" class="px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900">Agência</button>
+                        <button id="btn-operational-client" onclick="setOperationalScope('client')" class="px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white">Cliente</button>
+                    </div>
+                </div>
+                <div id="operational-status" class="text-sm text-gray-500 mb-3"></div>
+                <div id="operational-kpis" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+            </section>
+
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Botão: Criar Calendário -->
                 <div onclick="openSocialMediaTab('calendar')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
