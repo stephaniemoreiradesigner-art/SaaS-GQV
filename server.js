@@ -5878,6 +5878,281 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/creative-requests' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const role = String(authContext.profile?.role || '').trim().toLowerCase();
+            const isSuperAdmin = role === 'super_admin';
+            const scopeParam = String(parsedUrl.query.scope || 'client').trim().toLowerCase();
+            const scope = scopeParam === 'agency' && isSuperAdmin ? 'agency' : 'client';
+            const statusParam = String(parsedUrl.query.status || '').trim();
+            const formatParam = String(parsedUrl.query.format || '').trim();
+            const deadlineParam = String(parsedUrl.query.deadline || '').trim();
+            const tenantParam = String(parsedUrl.query.tenant_id || '').trim();
+
+            let tenantId = authContext.tenantId;
+            if (scope === 'client' && tenantParam) {
+                if (!/^\d+$/.test(tenantParam)) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                    return;
+                }
+                tenantId = tenantParam;
+            }
+            if (scope === 'client' && (!tenantId || !/^\d+$/.test(String(tenantId)))) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_id_obrigatorio' }));
+                return;
+            }
+            if (scope === 'agency' && tenantParam) {
+                if (!/^\d+$/.test(tenantParam)) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                    return;
+                }
+            }
+
+            const params = new URLSearchParams();
+            params.set('select', '*');
+            params.set('order', 'created_at.desc');
+            if (scope === 'client') {
+                params.set('tenant_id', `eq.${tenantId}`);
+            } else if (tenantParam) {
+                params.set('tenant_id', `eq.${tenantParam}`);
+            }
+            if (statusParam) params.set('status', `eq.${statusParam}`);
+            if (formatParam) params.set('format', `eq.${formatParam}`);
+
+            if (deadlineParam) {
+                const today = new Date();
+                const todayStr = today.toISOString().slice(0, 10);
+                if (/^\d{4}-\d{2}-\d{2}$/.test(deadlineParam)) {
+                    params.set('deadline_date', `eq.${deadlineParam}`);
+                } else if (deadlineParam === 'overdue') {
+                    params.set('deadline_date', `lt.${todayStr}`);
+                } else if (deadlineParam === 'next7' || deadlineParam === 'next30') {
+                    const days = deadlineParam === 'next7' ? 7 : 30;
+                    const end = new Date(today);
+                    end.setDate(end.getDate() + days);
+                    const endStr = end.toISOString().slice(0, 10);
+                    params.append('deadline_date', `gte.${todayStr}`);
+                    params.append('deadline_date', `lte.${endStr}`);
+                }
+            }
+
+            const listRes = await supabaseServiceRest(`/rest/v1/creative_requests?${params.toString()}`);
+            if (listRes.status >= 400) {
+                response.writeHead(listRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(listRes.data || { error: 'erro_ao_buscar_solicitacoes' }));
+                return;
+            }
+            const items = Array.isArray(listRes.data) ? listRes.data : [];
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ items }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname.startsWith('/api/creative-requests/') && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const role = String(authContext.profile?.role || '').trim().toLowerCase();
+            const isSuperAdmin = role === 'super_admin';
+            const requestId = pathname.split('/').pop();
+            if (!requestId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'id_invalido' }));
+                return;
+            }
+            const params = new URLSearchParams();
+            params.set('select', '*');
+            params.set('id', `eq.${requestId}`);
+            params.set('limit', '1');
+            if (!isSuperAdmin) {
+                params.set('tenant_id', `eq.${authContext.tenantId}`);
+            }
+            const detailRes = await supabaseServiceRest(`/rest/v1/creative_requests?${params.toString()}`);
+            if (detailRes.status >= 400) {
+                response.writeHead(detailRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(detailRes.data || { error: 'erro_ao_buscar_solicitacao' }));
+                return;
+            }
+            const row = Array.isArray(detailRes.data) ? detailRes.data[0] : null;
+            if (!row) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'solicitacao_nao_encontrada' }));
+                return;
+            }
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: row }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/creative-requests' && request.method === 'POST') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const role = String(authContext.profile?.role || '').trim().toLowerCase();
+            const isSuperAdmin = role === 'super_admin';
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const tenantParam = String(body?.tenant_id || '').trim();
+            const tenantId = tenantParam || String(authContext.tenantId || '').trim();
+            if (!/^\d+$/.test(tenantId)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                return;
+            }
+            if (!isSuperAdmin && String(authContext.tenantId) !== String(tenantId)) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_sem_permissao' }));
+                return;
+            }
+
+            const title = String(body?.title || body?.titulo || body?.request_title || '').trim();
+            const briefing = String(body?.briefing || body?.descricao || '').trim();
+            if (!title || !briefing) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'dados_obrigatorios', message: 'title e briefing são obrigatórios.' }));
+                return;
+            }
+
+            const payload = {
+                tenant_id: Number(tenantId),
+                title,
+                briefing,
+                format: body?.format ? String(body.format).trim() : null,
+                deadline_date: body?.deadline_date || body?.deadline || null,
+                status: body?.status ? String(body.status).trim() : 'requested',
+                requested_by: authContext.user?.id || null,
+                requested_by_name: body?.requested_by_name ? String(body.requested_by_name).trim() : (authContext.user?.email || null),
+                delivered_assets: body?.delivered_assets ?? null,
+                response_notes: body?.response_notes ?? null
+            };
+
+            const createRes = await supabaseServiceRest('/rest/v1/creative_requests', 'POST', payload, {
+                Prefer: 'return=representation'
+            });
+            if (createRes.status >= 400) {
+                response.writeHead(createRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(createRes.data || { error: 'erro_ao_criar_solicitacao' }));
+                return;
+            }
+            const created = Array.isArray(createRes.data) ? createRes.data[0] : createRes.data;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: created || null }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname.startsWith('/api/creative-requests/') && request.method === 'PATCH') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const role = String(authContext.profile?.role || '').trim().toLowerCase();
+            const allowedRoles = new Set(['super_admin', 'admin', 'gestor', 'social', 'designer']);
+            if (!allowedRoles.has(role)) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'sem_permissao' }));
+                return;
+            }
+
+            const requestId = pathname.split('/').pop();
+            if (!requestId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'id_invalido' }));
+                return;
+            }
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const allowedStatus = new Set(['requested', 'in_progress', 'delivered', 'needs_revision', 'approved', 'canceled']);
+            const payload = {};
+            if (body?.status) {
+                const statusValue = String(body.status).trim();
+                if (!allowedStatus.has(statusValue)) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'status_invalido' }));
+                    return;
+                }
+                payload.status = statusValue;
+            }
+            if (body?.response_notes !== undefined) {
+                payload.response_notes = body.response_notes;
+            }
+            if (body?.delivered_assets !== undefined) {
+                payload.delivered_assets = body.delivered_assets;
+            }
+            payload.updated_at = new Date().toISOString();
+
+            if (!Object.keys(payload).length) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_vazio' }));
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('id', `eq.${requestId}`);
+            if (role !== 'super_admin') {
+                params.set('tenant_id', `eq.${authContext.tenantId}`);
+            }
+
+            const updateRes = await supabaseServiceRest(`/rest/v1/creative_requests?${params.toString()}`, 'PATCH', payload, {
+                Prefer: 'return=representation'
+            });
+            if (updateRes.status >= 400) {
+                response.writeHead(updateRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(updateRes.data || { error: 'erro_ao_atualizar_solicitacao' }));
+                return;
+            }
+            const updated = Array.isArray(updateRes.data) ? updateRes.data[0] : updateRes.data;
+            if (!updated) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'solicitacao_nao_encontrada' }));
+                return;
+            }
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ data: updated }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/worklogs' && request.method === 'POST') {
         try {
             const userId = await getSupabaseUserIdFromRequest(request);

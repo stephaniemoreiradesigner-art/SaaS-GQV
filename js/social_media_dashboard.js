@@ -7,6 +7,7 @@ window.openSocialMediaTab = function(tabName) {
     const calendarView = document.getElementById('calendar-view');
     const insightsView = document.getElementById('insights-view');
     const logsView = document.getElementById('logs-view');
+    const creativeRequestsView = document.getElementById('creative-requests-view');
     
     // Floating Button Logic
     const floatingBtn = document.getElementById('btn-floating-add');
@@ -24,11 +25,13 @@ window.openSocialMediaTab = function(tabName) {
     if(calendarView) calendarView.classList.add('hidden');
     if(insightsView) insightsView.classList.add('hidden');
     if(logsView) logsView.classList.add('hidden');
+    if(creativeRequestsView) creativeRequestsView.classList.add('hidden');
     
     if(home) home.classList.remove('flex');
     if(calendarView) calendarView.classList.remove('flex');
     if(insightsView) insightsView.classList.remove('flex');
     if(logsView) logsView.classList.remove('flex');
+    if(creativeRequestsView) creativeRequestsView.classList.remove('flex');
 
     // Show selected view
     if (tabName === 'calendar') {
@@ -64,6 +67,13 @@ window.openSocialMediaTab = function(tabName) {
         } else {
             console.error('Função loadWorklogs não encontrada!');
         }
+    } else if (tabName === 'creative-requests') {
+        if (creativeRequestsView) {
+            creativeRequestsView.classList.remove('hidden');
+            creativeRequestsView.classList.add('flex');
+        }
+        initCreativeRequestsView();
+        loadCreativeRequests();
     }
 }
 
@@ -73,14 +83,17 @@ window.showSocialMediaHome = function() {
     const calendarView = document.getElementById('calendar-view');
     const insightsView = document.getElementById('insights-view');
     const logsView = document.getElementById('logs-view');
+    const creativeRequestsView = document.getElementById('creative-requests-view');
 
     if(calendarView) calendarView.classList.add('hidden');
     if(insightsView) insightsView.classList.add('hidden');
     if(logsView) logsView.classList.add('hidden');
+    if(creativeRequestsView) creativeRequestsView.classList.add('hidden');
     
     if(calendarView) calendarView.classList.remove('flex');
     if(insightsView) insightsView.classList.remove('flex');
     if(logsView) logsView.classList.remove('flex');
+    if(creativeRequestsView) creativeRequestsView.classList.remove('flex');
 
     // Show home
     if(home) {
@@ -1157,3 +1170,321 @@ window.generatePDFReport = function() {
         template.classList.add('hidden');
     });
 }
+
+const creativeRequestsState = {
+    initialized: false,
+    current: null,
+    list: [],
+    clientMap: {}
+};
+
+async function getCreativeRequestsAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const sessionResult = await window.supabaseClient?.auth?.getSession();
+    const token = sessionResult?.data?.session?.access_token;
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+}
+
+async function resolveCreativeRequestsRole() {
+    if (window.currentUserData?.perfil_acesso) {
+        return String(window.currentUserData.perfil_acesso).toLowerCase();
+    }
+    if (!window.supabaseClient) return 'usuario';
+    const sessionResult = await window.supabaseClient.auth.getSession();
+    const userId = sessionResult?.data?.session?.user?.id;
+    if (!userId) return 'usuario';
+    const { data } = await window.supabaseClient
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+    return String(data?.role || 'usuario').toLowerCase();
+}
+
+function formatCreativeStatus(status) {
+    const map = {
+        requested: 'Solicitado',
+        in_progress: 'Em produção',
+        delivered: 'Entregue',
+        needs_revision: 'Ajustes',
+        approved: 'Aprovado',
+        canceled: 'Cancelado'
+    };
+    return map[status] || status || '-';
+}
+
+function formatCreativeDate(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('pt-BR');
+}
+
+async function loadCreativeRequestsClients() {
+    const select = document.getElementById('creative-requests-client');
+    if (!select || select.options.length > 1) return;
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('clientes')
+            .select('id, nome_fantasia, nome_empresa')
+            .order('nome_fantasia');
+        if (error) throw error;
+        const list = Array.isArray(data) ? data : [];
+        list.forEach(cliente => {
+            const option = document.createElement('option');
+            option.value = cliente.id;
+            option.textContent = cliente.nome_fantasia || cliente.nome_empresa || `Cliente ${cliente.id}`;
+            select.appendChild(option);
+            creativeRequestsState.clientMap[String(cliente.id)] = option.textContent;
+        });
+    } catch (error) {
+        console.error('Erro ao carregar clientes:', error);
+    }
+}
+
+function renderCreativeRequestsList() {
+    const tbody = document.getElementById('creative-requests-table-body');
+    if (!tbody) return;
+    if (!creativeRequestsState.list.length) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 italic">Nenhuma solicitação encontrada.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = '';
+    creativeRequestsState.list.forEach(item => {
+        const createdAt = formatCreativeDate(item.created_at);
+        const deadline = formatCreativeDate(item.deadline_date);
+        const clientName = creativeRequestsState.clientMap[String(item.tenant_id)] || `Cliente ${item.tenant_id || '-'}`;
+        const statusLabel = formatCreativeStatus(item.status);
+        const formatLabel = item.format || '-';
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-6 py-4 text-sm text-gray-500">${createdAt}</td>
+            <td class="px-6 py-4 text-sm font-medium text-gray-800">${clientName}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${item.title || '-'}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${formatLabel}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${deadline}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${statusLabel}</td>
+            <td class="px-6 py-4 text-right">
+                <button onclick="openCreativeRequestModal('${item.id}')" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Ver</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+window.initCreativeRequestsView = async function() {
+    if (creativeRequestsState.initialized) return;
+    creativeRequestsState.initialized = true;
+    const modeSelect = document.getElementById('creative-requests-mode');
+    const clientWrapper = document.getElementById('creative-requests-client-wrapper');
+    const clientSelect = document.getElementById('creative-requests-client');
+    const statusSelect = document.getElementById('creative-requests-status');
+    const deadlineSelect = document.getElementById('creative-requests-deadline');
+    const formatSelect = document.getElementById('creative-requests-format');
+    const assetsInput = document.getElementById('creative-request-assets');
+
+    const role = await resolveCreativeRequestsRole();
+    const isSuperAdmin = role === 'super_admin';
+    if (!isSuperAdmin && modeSelect) {
+        modeSelect.value = 'client';
+        modeSelect.disabled = true;
+    }
+
+    const updateMode = async () => {
+        const modeValue = modeSelect?.value || 'client';
+        const isAgency = modeValue === 'agency' && isSuperAdmin;
+        if (clientWrapper) clientWrapper.classList.toggle('hidden', !isAgency);
+        if (isAgency) await loadCreativeRequestsClients();
+    };
+
+    if (modeSelect) {
+        modeSelect.addEventListener('change', async () => {
+            await updateMode();
+        });
+    }
+    if (clientSelect) clientSelect.addEventListener('change', () => loadCreativeRequests());
+    if (statusSelect) statusSelect.addEventListener('change', () => loadCreativeRequests());
+    if (deadlineSelect) deadlineSelect.addEventListener('change', () => loadCreativeRequests());
+    if (formatSelect) formatSelect.addEventListener('change', () => loadCreativeRequests());
+    if (assetsInput) {
+        assetsInput.addEventListener('change', () => {
+            renderCreativeRequestAssetsList();
+        });
+    }
+    await updateMode();
+};
+
+window.loadCreativeRequests = async function() {
+    const tbody = document.getElementById('creative-requests-table-body');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando solicitações...</td></tr>`;
+    }
+    try {
+        const role = await resolveCreativeRequestsRole();
+        const isSuperAdmin = role === 'super_admin';
+        const modeSelect = document.getElementById('creative-requests-mode');
+        const clientSelect = document.getElementById('creative-requests-client');
+        const statusSelect = document.getElementById('creative-requests-status');
+        const deadlineSelect = document.getElementById('creative-requests-deadline');
+        const formatSelect = document.getElementById('creative-requests-format');
+
+        const scope = modeSelect?.value === 'agency' && isSuperAdmin ? 'agency' : 'client';
+        const url = new URL('/api/creative-requests', window.location.origin);
+        url.searchParams.set('scope', scope);
+        if (scope === 'agency' && clientSelect?.value) {
+            url.searchParams.set('tenant_id', clientSelect.value);
+        }
+        if (statusSelect?.value) url.searchParams.set('status', statusSelect.value);
+        if (deadlineSelect?.value) url.searchParams.set('deadline', deadlineSelect.value);
+        if (formatSelect?.value) url.searchParams.set('format', formatSelect.value);
+
+        const headers = await getCreativeRequestsAuthHeaders();
+        const res = await fetch(url.toString(), { headers });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.error || 'Erro ao carregar solicitações');
+        }
+        const items = Array.isArray(json?.items) ? json.items : [];
+        creativeRequestsState.list = items;
+        await loadCreativeRequestsClients();
+        renderCreativeRequestsList();
+    } catch (error) {
+        const tbodyEl = document.getElementById('creative-requests-table-body');
+        if (tbodyEl) {
+            tbodyEl.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-500">Erro ao carregar solicitações.</td></tr>`;
+        }
+    }
+};
+
+function renderCreativeRequestAssetsList() {
+    const listEl = document.getElementById('creative-request-assets-list');
+    if (!listEl) return;
+    const assetsInput = document.getElementById('creative-request-assets');
+    const existing = Array.isArray(creativeRequestsState.current?.delivered_assets)
+        ? creativeRequestsState.current.delivered_assets
+        : [];
+    const selectedFiles = assetsInput?.files ? Array.from(assetsInput.files) : [];
+    const existingNames = existing.map(asset => asset?.name || asset?.file || '').filter(Boolean);
+    const selectedNames = selectedFiles.map(file => file.name);
+    const allNames = [...existingNames, ...selectedNames].filter(Boolean);
+    listEl.textContent = allNames.length ? allNames.join(', ') : 'Nenhum arquivo selecionado.';
+}
+
+window.openCreativeRequestModal = async function(requestId) {
+    if (!requestId) return;
+    try {
+        const headers = await getCreativeRequestsAuthHeaders();
+        const res = await fetch(`/api/creative-requests/${encodeURIComponent(requestId)}`, { headers });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.error || 'Erro ao carregar solicitação');
+        }
+        creativeRequestsState.current = json?.data || null;
+        const data = creativeRequestsState.current;
+        const clientName = creativeRequestsState.clientMap[String(data?.tenant_id)] || `Cliente ${data?.tenant_id || '-'}`;
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value ?? '-';
+        };
+        setText('creative-request-detail-client', clientName);
+        setText('creative-request-detail-status', formatCreativeStatus(data?.status));
+        setText('creative-request-detail-format', data?.format || '-');
+        setText('creative-request-detail-deadline', formatCreativeDate(data?.deadline_date));
+        setText('creative-request-detail-title', data?.title || '-');
+        setText('creative-request-detail-briefing', data?.briefing || '-');
+        setText('creative-request-detail-meta', data?.requested_by_name ? `Solicitado por ${data.requested_by_name}` : '');
+        const notesEl = document.getElementById('creative-request-response-notes');
+        if (notesEl) notesEl.value = data?.response_notes || '';
+        const assetsInput = document.getElementById('creative-request-assets');
+        if (assetsInput) assetsInput.value = '';
+        renderCreativeRequestAssetsList();
+        const modalId = 'creative-request-modal';
+        if (typeof openModalAnim === 'function') {
+            openModalAnim(modalId);
+        } else {
+            const el = document.getElementById(modalId);
+            if (el) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+                el.classList.remove('opacity-0');
+            }
+        }
+    } catch (error) {
+        alert('Não foi possível abrir a solicitação.');
+    }
+};
+
+window.closeCreativeRequestModal = function() {
+    const modalId = 'creative-request-modal';
+    if (typeof closeModalAnim === 'function') {
+        closeModalAnim(modalId);
+    } else {
+        const el = document.getElementById(modalId);
+        if (el) {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        }
+    }
+};
+
+function buildCreativeAssetsPayload() {
+    const assetsInput = document.getElementById('creative-request-assets');
+    const selectedFiles = assetsInput?.files ? Array.from(assetsInput.files) : [];
+    const existing = Array.isArray(creativeRequestsState.current?.delivered_assets)
+        ? creativeRequestsState.current.delivered_assets
+        : [];
+    const newAssets = selectedFiles.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        placeholder: true,
+        uploaded_at: new Date().toISOString()
+    }));
+    if (!newAssets.length) return existing.length ? existing : null;
+    const map = new Map();
+    [...existing, ...newAssets].forEach(item => {
+        const key = `${item?.name || ''}-${item?.size || ''}`;
+        if (!map.has(key)) map.set(key, item);
+    });
+    return Array.from(map.values());
+}
+
+async function submitCreativeRequestUpdate(extraPayload = {}) {
+    const current = creativeRequestsState.current;
+    if (!current?.id) return;
+    const notesEl = document.getElementById('creative-request-response-notes');
+    const responseNotes = notesEl ? notesEl.value.trim() : '';
+    const deliveredAssets = buildCreativeAssetsPayload();
+    const payload = {
+        ...extraPayload
+    };
+    if (responseNotes !== '') payload.response_notes = responseNotes;
+    if (deliveredAssets !== null) payload.delivered_assets = deliveredAssets;
+    try {
+        const headers = await getCreativeRequestsAuthHeaders();
+        const res = await fetch(`/api/creative-requests/${encodeURIComponent(current.id)}`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(payload)
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(json?.error || 'Erro ao atualizar solicitação');
+        }
+        creativeRequestsState.current = json?.data || creativeRequestsState.current;
+        await loadCreativeRequests();
+        renderCreativeRequestAssetsList();
+    } catch (error) {
+        alert('Não foi possível atualizar a solicitação.');
+    }
+}
+
+window.saveCreativeRequestResponse = async function() {
+    await submitCreativeRequestUpdate({});
+};
+
+window.updateCreativeRequestStatus = async function(status) {
+    if (!status) return;
+    await submitCreativeRequestUpdate({ status });
+};
