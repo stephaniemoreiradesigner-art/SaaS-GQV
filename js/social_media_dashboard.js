@@ -1266,7 +1266,7 @@ function renderCreativeRequestsList() {
             <td class="px-6 py-4 text-sm text-gray-500">${deadline}</td>
             <td class="px-6 py-4 text-sm text-gray-700">${statusLabel}</td>
             <td class="px-6 py-4 text-right">
-                <button onclick="openCreativeRequestModal('${item.id}')" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Ver</button>
+                <button onclick="openCreativeRequestModal('${item.id_uuid || ''}')" class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">Ver</button>
             </td>
         `;
         tbody.appendChild(row);
@@ -1452,7 +1452,8 @@ function buildCreativeAssetsPayload() {
 
 async function submitCreativeRequestUpdate(extraPayload = {}) {
     const current = creativeRequestsState.current;
-    if (!current?.id) return;
+    const currentId = current?.id_uuid || current?.id;
+    if (!currentId) return;
     const notesEl = document.getElementById('creative-request-response-notes');
     const responseNotes = notesEl ? notesEl.value.trim() : '';
     const deliveredAssets = buildCreativeAssetsPayload();
@@ -1463,7 +1464,7 @@ async function submitCreativeRequestUpdate(extraPayload = {}) {
     if (deliveredAssets !== null) payload.delivered_assets = deliveredAssets;
     try {
         const headers = await getCreativeRequestsAuthHeaders();
-        const res = await fetch(`/api/creative-requests/${encodeURIComponent(current.id)}`, {
+        const res = await fetch(`/api/creative-requests/${encodeURIComponent(currentId)}`, {
             method: 'PATCH',
             headers,
             body: JSON.stringify(payload)

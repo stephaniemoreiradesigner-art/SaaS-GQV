@@ -5965,14 +5965,14 @@ const server = http.createServer(async (request, response) => {
             const role = String(authContext.profile?.role || '').trim().toLowerCase();
             const isSuperAdmin = role === 'super_admin';
             const requestId = pathname.split('/').pop();
-            if (!requestId) {
+            if (!requestId || !/^[0-9a-fA-F-]{36}$/.test(requestId)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'id_invalido' }));
                 return;
             }
             const params = new URLSearchParams();
             params.set('select', '*');
-            params.set('id', `eq.${requestId}`);
+            params.set('id_uuid', `eq.${requestId}`);
             params.set('limit', '1');
             if (!isSuperAdmin) {
                 params.set('tenant_id', `eq.${authContext.tenantId}`);
@@ -6017,13 +6017,16 @@ const server = http.createServer(async (request, response) => {
             }
 
             const tenantParam = String(body?.tenant_id || '').trim();
-            const tenantId = tenantParam || String(authContext.tenantId || '').trim();
+            let tenantId = String(authContext.tenantId || '').trim();
+            if (tenantParam && isSuperAdmin) {
+                tenantId = tenantParam;
+            }
             if (!/^\d+$/.test(tenantId)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
                 return;
             }
-            if (!isSuperAdmin && String(authContext.tenantId) !== String(tenantId)) {
+            if (!isSuperAdmin && tenantParam && String(authContext.tenantId) !== String(tenantParam)) {
                 response.writeHead(403, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'tenant_sem_permissao' }));
                 return;
@@ -6044,7 +6047,7 @@ const server = http.createServer(async (request, response) => {
                 format: body?.format ? String(body.format).trim() : null,
                 deadline_date: body?.deadline_date || body?.deadline || null,
                 status: body?.status ? String(body.status).trim() : 'requested',
-                requested_by: authContext.user?.id || null,
+                requested_by: authContext.user?.id,
                 requested_by_name: body?.requested_by_name ? String(body.requested_by_name).trim() : (authContext.user?.email || null),
                 delivered_assets: body?.delivered_assets ?? null,
                 response_notes: body?.response_notes ?? null
@@ -6082,7 +6085,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const requestId = pathname.split('/').pop();
-            if (!requestId) {
+            if (!requestId || !/^[0-9a-fA-F-]{36}$/.test(requestId)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'id_invalido' }));
                 return;
@@ -6124,7 +6127,7 @@ const server = http.createServer(async (request, response) => {
             }
 
             const params = new URLSearchParams();
-            params.set('id', `eq.${requestId}`);
+            params.set('id_uuid', `eq.${requestId}`);
             if (role !== 'super_admin') {
                 params.set('tenant_id', `eq.${authContext.tenantId}`);
             }
