@@ -753,14 +753,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modalPost = document.getElementById('modal-post');
     if (modalPost) {
         modalPost.addEventListener('click', (e) => {
-            if (e.target === modalPost) closePostModal();
+            if (e.target === modalPost) window.closePostModal();
         });
     }
 });
 
 // Expor initCalendar globalmente
 window.initCalendar = initCalendar;
-window.closePostModal = closePostModal;
 
 function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -1291,7 +1290,7 @@ function handleFileSelect(event, type, maxFiles, acceptType) {
     mediaUploadState[type] = acceptedFiles;
 }
 
-function closePostModal() {
+window.closePostModal = function closePostModal() {
     const modal = document.getElementById('modal-post');
     const content = document.getElementById('modal-post-content');
     if (!modal || !content) return;
@@ -1450,7 +1449,7 @@ async function savePost() {
             }
         }
 
-        closePostModal();
+        window.closePostModal();
         await loadCalendarData();
 
     } catch (err) {
@@ -1491,7 +1490,7 @@ async function deletePost() {
             });
         }
 
-        closePostModal();
+        window.closePostModal();
         const event = calendar.getEventById(eventId);
         if (event) event.remove();
 
