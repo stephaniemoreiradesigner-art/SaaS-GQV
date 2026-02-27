@@ -648,9 +648,33 @@ async function uploadMediaFiles(files, { clientId, month, postId, source }) {
     return uploads;
 }
 
+let socialMediaDomReady = false;
+let socialMediaSupabaseReady = false;
+
+const tryLoadSocialMediaClients = () => {
+    if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
+    loadClientes();
+};
+
+window.addEventListener('supabaseReady', () => {
+    socialMediaSupabaseReady = true;
+    tryLoadSocialMediaClients();
+});
+
 document.addEventListener('DOMContentLoaded', async () => {
+    socialMediaDomReady = true;
+    if (window.supabaseClient) {
+        socialMediaSupabaseReady = true;
+        tryLoadSocialMediaClients();
+    } else {
+        setTimeout(() => {
+            if (window.supabaseClient) {
+                socialMediaSupabaseReady = true;
+                tryLoadSocialMediaClients();
+            }
+        }, 800);
+    }
     initCalendar();
-    await loadClientes();
 
     const selectCliente = document.getElementById('select-cliente');
     if (selectCliente) {
@@ -1811,7 +1835,7 @@ async function loadClientes() {
             ? Array.from(new Map(data.map(cliente => [String(cliente.id), cliente])).values())
             : [];
 
-        console.log('Clientes encontrados:', uniqueData.length);
+        console.log(`[SocialMedia] Clientes carregados: ${uniqueData.length}`);
 
         select.innerHTML = '<option value="">Selecione o Cliente...</option>';
         
