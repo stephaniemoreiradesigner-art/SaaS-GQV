@@ -106,6 +106,7 @@ const operationalHubState = {
     scope: 'client',
     period: 'last7'
 };
+const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 
 async function getDashboardAuthHeaders() {
     const headers = { 'Content-Type': 'application/json' };
@@ -146,6 +147,15 @@ function updateOperationalScopeButtons() {
 window.setOperationalScope = function(scope) {
     operationalHubState.scope = scope === 'agency' ? 'agency' : 'client';
     updateOperationalScopeButtons();
+    loadOperationalDashboard();
+};
+
+window.setOperationalPeriod = function(period) {
+    const normalized = ['last7', 'last30', 'month'].includes(period) ? period : 'last7';
+    operationalHubState.period = normalized;
+    try {
+        localStorage.setItem(HUB_PERIOD_STORAGE_KEY, normalized);
+    } catch {}
     loadOperationalDashboard();
 };
 
@@ -212,7 +222,10 @@ async function loadOperationalDashboard() {
                     <div class="flex items-center justify-between"><span>Aguardando</span><span class="font-semibold">${formatNumber(approval.awaiting)}</span></div>
                     <div class="flex items-center justify-between"><span>Reprovados</span><span class="font-semibold">${formatNumber(approval.rejected)}</span></div>
                     <div class="flex items-center justify-between"><span>Travados +3d</span><span class="font-semibold">${formatNumber(approval.stuck_approval)}</span></div>
-                    <div class="flex items-center justify-between"><span>Criativos pendentes</span><span class="font-semibold">${formatNumber(approval.creative_requests_pending)}</span></div>
+                    <button type="button" onclick="openCreativeRequestsPending()" class="flex items-center justify-between w-full text-left hover:text-[var(--color-primary)] transition-colors">
+                        <span>Criativos pendentes</span>
+                        <span class="font-semibold">${formatNumber(approval.creative_requests_pending)}</span>
+                    </button>
                 </div>
             </div>
             <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
@@ -341,6 +354,17 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const hub = document.getElementById('operational-hub');
     if (!hub) return;
+    const storedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY);
+    if (storedPeriod && ['last7', 'last30', 'month'].includes(storedPeriod)) {
+        operationalHubState.period = storedPeriod;
+    }
+    const periodSelect = document.getElementById('operational-period');
+    if (periodSelect) {
+        periodSelect.value = operationalHubState.period;
+        periodSelect.addEventListener('change', (event) => {
+            window.setOperationalPeriod(event.target.value);
+        });
+    }
     updateOperationalScopeButtons();
     loadOperationalDashboard();
 });
@@ -1476,13 +1500,19 @@ window.loadCreativeRequests = async function() {
         const deadlineSelect = document.getElementById('creative-requests-deadline');
         const formatSelect = document.getElementById('creative-requests-format');
 
+        if (creativeRequestsState.pendingFilter && statusSelect) {
+            statusSelect.value = 'pending';
+        }
+
         const scope = modeSelect?.value === 'agency' && isSuperAdmin ? 'agency' : 'client';
         const url = new URL('/api/creative-requests', window.location.origin);
         url.searchParams.set('scope', scope);
         if (scope === 'agency' && clientSelect?.value) {
             url.searchParams.set('tenant_id', clientSelect.value);
         }
-        if (statusSelect?.value) url.searchParams.set('status', statusSelect.value);
+        if (statusSelect?.value && statusSelect.value !== 'pending') {
+            url.searchParams.set('status', statusSelect.value);
+        }
         if (deadlineSelect?.value) url.searchParams.set('deadline', deadlineSelect.value);
         if (formatSelect?.value) url.searchParams.set('format', formatSelect.value);
 
@@ -1492,16 +1522,25 @@ window.loadCreativeRequests = async function() {
         if (!res.ok) {
             throw new Error(json?.error || 'Erro ao carregar solicitações');
         }
-        const items = Array.isArray(json?.items) ? json.items : [];
+        let items = Array.isArray(json?.items) ? json.items : [];
+        if (statusSelect?.value === 'pending') {
+            items = items.filter(item => ['requested', 'needs_revision'].includes(String(item?.status || '').toLowerCase()));
+        }
         creativeRequestsState.list = items;
         await loadCreativeRequestsClients();
         renderCreativeRequestsList();
+        creativeRequestsState.pendingFilter = false;
     } catch (error) {
         const tbodyEl = document.getElementById('creative-requests-table-body');
         if (tbodyEl) {
             tbodyEl.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-red-500">Erro ao carregar solicitações.</td></tr>`;
         }
     }
+};
+
+window.openCreativeRequestsPending = function() {
+    creativeRequestsState.pendingFilter = true;
+    openSocialMediaTab('creative-requests');
 };
 
 function renderCreativeRequestAssetsList() {
