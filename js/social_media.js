@@ -2719,6 +2719,39 @@ async function generateSinglePostAI(date, format) {
     document.body.appendChild(loadingDiv);
 
     try {
+        const toIsoDate = (value) => {
+            if (value instanceof Date && !Number.isNaN(value.getTime())) {
+                return value.toISOString().slice(0, 10);
+            }
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            if (raw.includes('T')) {
+                const [datePart] = raw.split('T');
+                if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
+            }
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+                const [d, m, y] = raw.split('/').map(Number);
+                return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+            if (/^\d{2}\/\d{2}$/.test(raw) && typeof currentMonth === 'string') {
+                const [d, m] = raw.split('/').map(Number);
+                if (/^\d{4}-\d{2}$/.test(currentMonth)) {
+                    const [y] = currentMonth.split('-').map(Number);
+                    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                }
+            }
+            return '';
+        };
+
+        const resolveFallbackDate = () => {
+            if (typeof currentMonth === 'string' && /^\d{4}-\d{2}$/.test(currentMonth)) {
+                return `${currentMonth}-01`;
+            }
+            return new Date().toISOString().slice(0, 10);
+        };
+
+        const scheduledDate = toIsoDate(date) || resolveFallbackDate();
         // VIBECODE: Removido fetch de API Key do Frontend.
         // const { data: configData } = await window.supabaseClient...
         
@@ -2730,7 +2763,7 @@ async function generateSinglePostAI(date, format) {
 
         const prompt = `
         Crie UM post para redes sociais para o cliente: ${client.nome_empresa}.
-        Data: ${date}
+        Data: ${scheduledDate}
         Formato: ${format}
         Nicho: ${client.nicho_atuacao || 'Geral'}
         
@@ -2822,7 +2855,7 @@ async function generateSinglePostAI(date, format) {
 
         const newPost = {
             cliente_id: finalClienteId,
-            data_agendada: date,
+            data_agendada: scheduledDate,
             hora_agendada: '10:00',
             formato: format || 'post',
             tema: jsonContent.tema || 'Sem título',

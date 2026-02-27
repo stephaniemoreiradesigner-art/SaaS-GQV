@@ -5430,9 +5430,22 @@ const server = http.createServer(async (request, response) => {
                         }
                     }
 
+                    let invalidDateCount = 0;
                     const postsToInsert = Array.isArray(calendarJson?.posts)
-                        ? calendarJson.posts.map(mapPostToInsert).filter(Boolean)
+                        ? calendarJson.posts.map((post) => {
+                            const mapped = mapPostToInsert(post);
+                            if (!mapped) invalidDateCount += 1;
+                            return mapped;
+                        }).filter(Boolean)
                         : [];
+                    if (invalidDateCount) {
+                        const message = 'data_agendada ausente em um ou mais posts.';
+                        if (errorLogContext?.calendarId) {
+                            await appendCalendarLog(errorLogContext.calendarId, message);
+                        }
+                        sendJson(400, { error: true, message, missing: invalidDateCount });
+                        return;
+                    }
                     if (!postsToInsert.length) {
                         await handleBatchFailure('BATCH_EMPTY', 'Nenhum post válido para inserir.', generated, batchIndex);
                         return;
