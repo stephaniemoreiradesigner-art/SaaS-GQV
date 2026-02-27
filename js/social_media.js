@@ -1809,61 +1809,74 @@ async function changeThemeWithAI() {
 
 async function loadClientes() {
     const select = document.getElementById('select-cliente');
-    if (!select) return;
+    if (!select) {
+        console.warn('[SocialMedia] select-cliente não encontrado no DOM.');
+        return;
+    }
 
-    // Retry logic se o Supabase não estiver pronto
-    if (!window.supabaseClient) { 
-        console.warn('Supabase ainda não inicializado, tentando novamente em 500ms...');
-        setTimeout(loadClientes, 500); 
-        return; 
+    // Retry se o Supabase não estiver pronto
+    if (!window.supabaseClient) {
+        console.warn('[SocialMedia] Supabase ainda não inicializado, tentando novamente em 500ms...');
+        setTimeout(loadClientes, 500);
+        return;
     }
 
     try {
-        console.log('Iniciando carregamento de clientes...');
-        
-        // Adiciona indicador visual de carregamento
-        if(select.options.length > 0 && select.options[0]) select.options[0].text = 'Carregando...';
+        console.log('[SocialMedia] Iniciando carregamento de clientes...');
 
-        // Tentar carregar sem filtro primeiro para debug
+        // indicador visual
+        if (select.options.length > 0 && select.options[0]) {
+            select.options[0].text = 'Carregando...';
+        }
+
+        // Busca nome_fantasia e nome_empresa (fallback), pois ambientes podem ter schema diferente
         const { data, error } = await window.supabaseClient
             .from('clientes')
-            .select('id, nome_empresa, plataformas_social')
-            .order('nome_empresa');
+            .select('id, nome_fantasia, nome_empresa, plataformas_social')
+            .order('nome_fantasia', { ascending: true });
 
         if (error) {
-            console.error('Erro Supabase Detalhado:', JSON.stringify(error, null, 2));
+            console.error('[SocialMedia] Erro ao carregar clientes (Supabase):', error);
             throw error;
         }
 
-        const uniqueData = Array.isArray(data)
-            ? Array.from(new Map(data.map(cliente => [String(cliente.id), cliente])).values())
-            : [];
+        const rows = Array.isArray(data) ? data : [];
+        const uniqueRows = Array.from(new Map(rows.map(c => [String(c.id), c])).values());
 
-        console.log(`[SocialMedia] Clientes carregados: ${uniqueData.length}`);
+        console.log(`[SocialMedia] Clientes carregados: ${uniqueRows.length}`);
 
+        // reset options
         select.innerHTML = '<option value="">Selecione o Cliente...</option>';
-        
-        if (uniqueData.length === 0) {
+
+        clientDataMap = clientDataMap || {};
+        uniqueRows.forEach(c => {
+            clientDataMap[c.id] = c;
+
+            const label =
+                c.nome_fantasia ||
+                c.nome_empresa ||
+                `Cliente ${c.id}`;
+
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+
+        if (uniqueRows.length === 0) {
             const opt = document.createElement('option');
             opt.disabled = true;
             opt.textContent = 'Nenhum cliente encontrado';
             select.appendChild(opt);
-        } else {
-            uniqueData.forEach(c => {
-                clientDataMap[c.id] = c;
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.nome_empresa;
-                select.appendChild(opt);
-            });
         }
+
     } catch (err) {
-        console.error('Erro crítico ao carregar clientes:', err);
+        console.error('[SocialMedia] Erro crítico ao carregar clientes:', err);
         select.innerHTML = '<option value="">Erro ao carregar</option>';
-        // Tentar recuperar do erro recarregando a página se for crítico após um delay
-        // setTimeout(() => location.reload(), 5000); 
     }
 }
+
+window.__debugLoadClientes = loadClientes;
 
 function checkSelection() {
     const btnConfig = document.getElementById('btn-config-ia');
