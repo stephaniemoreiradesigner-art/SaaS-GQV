@@ -766,7 +766,7 @@ function initCalendar() {
     if (!calendarEl) return;
 
     // Se já existir, destrói para recriar (evita duplicação)
-    if (window.calendar) {
+    if (window.calendar && typeof window.calendar.destroy === 'function') {
         window.calendar.destroy();
     }
 
