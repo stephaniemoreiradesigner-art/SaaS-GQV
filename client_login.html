@@ -37,6 +37,47 @@
     </div>
     <script src="js/client_app.js"></script>
     <script>
+        const loadClientSupabaseConfig = async () => {
+            try {
+                const response = await fetch('/config');
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (!data?.supabaseUrl || !data?.supabaseAnonKey || data?.missing) return null;
+                return { supabaseUrl: data.supabaseUrl, supabaseAnonKey: data.supabaseAnonKey };
+            } catch (error) {
+                console.error('[CLIENT LOGIN] erro ao carregar /config:', error);
+                return null;
+            }
+        };
+
+        const ensureSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (!window.supabaseConfig) {
+                const config = await loadClientSupabaseConfig();
+                if (config) window.supabaseConfig = config;
+            }
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            if (window.supabase && window.supabaseConfig?.supabaseUrl && window.supabaseConfig?.supabaseAnonKey) {
+                window.supabaseClient = window.supabase.createClient(
+                    window.supabaseConfig.supabaseUrl,
+                    window.supabaseConfig.supabaseAnonKey
+                );
+                return window.supabaseClient;
+            }
+            return null;
+        };
+
+        const getFriendlyLoginError = (error) => {
+            const message = String(error?.message || '');
+            if (message === 'Invalid login credentials') return 'E-mail ou senha incorretos.';
+            if (message === 'Email not confirmed') return 'Seu e-mail ainda não foi confirmado.';
+            if (message === 'User not found') return 'Usuário não encontrado.';
+            return 'Falha ao iniciar login. Veja o console para detalhes.';
+        };
+
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-login-form');
             const button = document.getElementById('client-login-button');
@@ -57,15 +98,17 @@
                 button.textContent = 'Entrando...';
 
                 try {
-                    const supabase = await window.clientApp.getSupabaseClient();
+                    const supabase = await ensureSupabaseClient();
                     if (!supabase) {
-                        alert('Não foi possível iniciar o login agora.');
+                        alert('Falha ao iniciar login. Veja o console para detalhes.');
                         return;
                     }
 
                     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                     if (error) {
-                        alert('E-mail ou senha inválidos.');
+                        console.error('[CLIENT LOGIN] erro:', error);
+                        console.error('[CLIENT LOGIN] detalhes:', { message: error?.message, status: error?.status, name: error?.name });
+                        alert(getFriendlyLoginError(error));
                         return;
                     }
 
@@ -93,7 +136,8 @@
 
                     window.location.href = 'client_dashboard.html';
                 } catch (err) {
-                    alert('Erro ao fazer login. Tente novamente.');
+                    console.error('[CLIENT LOGIN] erro inesperado:', err);
+                    alert('Falha ao iniciar login. Veja o console para detalhes.');
                 } finally {
                     button.disabled = false;
                     button.textContent = originalText;
