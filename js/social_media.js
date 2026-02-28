@@ -1461,7 +1461,7 @@ async function savePost() {
     }
 }
 
-async function deletePost() {
+window.deletePost = async function deletePost() {
     const modal = document.getElementById('modal-post');
     const eventId = modal.dataset.eventId;
     if (!eventId) return;
@@ -1493,6 +1493,7 @@ async function deletePost() {
         window.closePostModal();
         const event = calendar.getEventById(eventId);
         if (event) event.remove();
+        await loadCalendarData();
 
     } catch (err) {
         console.error('Erro ao excluir:', err);
@@ -1665,6 +1666,14 @@ async function getAuthHeaders() {
     return headers;
 }
 
+function normalizeMonthValue(value) {
+    const raw = String(value || '').trim();
+    if (/^\d{4}-\d{2}$/.test(raw)) return raw;
+    const match = raw.match(/^(\d{4})-(\d{1,2})$/);
+    if (!match) return '';
+    return `${match[1]}-${match[2].padStart(2, '0')}`;
+}
+
 function setApproveButtonLabel(button, label) {
     if (!button) return;
     if (!button.dataset.iconHtml) {
@@ -1675,10 +1684,14 @@ function setApproveButtonLabel(button, label) {
 }
 
 async function fetchApprovalBatchStatus(clientId, month) {
-    if (!clientId || !month) return null;
+    const normalizedMonth = normalizeMonthValue(month);
+    if (!clientId || !normalizedMonth) return null;
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/client/calendar/approvals?month=${encodeURIComponent(month)}`, { headers });
+        const url = new URL('/api/client/calendar/approvals', window.location.origin);
+        url.searchParams.set('month', normalizedMonth);
+        url.searchParams.set('client_id', String(clientId));
+        const res = await fetch(url.toString(), { headers });
         const text = await res.text();
         let data = null;
         try {
