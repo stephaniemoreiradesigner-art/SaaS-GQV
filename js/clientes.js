@@ -1459,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         body.innerHTML = `<tr><td colspan="7" class="px-6 py-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando histórico...</td></tr>`;
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch(`/api/worklogs?client_id=${encodeURIComponent(clientId)}`, { headers });
+            const res = await fetch(`${window.API_BASE_URL}/api/worklogs?client_id=${encodeURIComponent(clientId)}`, { headers });
             const json = await res.json().catch(() => []);
             if (!res.ok) {
                 throw new Error(json?.error || 'Erro ao carregar histórico');
@@ -1524,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loadClientWorklogDetail = async (worklogId) => {
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}`, { headers });
+            const res = await fetch(`${window.API_BASE_URL}/api/worklogs/${encodeURIComponent(worklogId)}`, { headers });
             const json = await res.json().catch(() => null);
             if (!res.ok) {
                 throw new Error(json?.error || 'Erro ao carregar detalhe');
@@ -1624,7 +1624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             const headers = await getAuthHeaders();
-            const res = await fetch(`/api/clients/${clientId}/connections`, { headers });
+            const res = await fetch(`${window.API_BASE_URL}/api/clients/${clientId}/connections`, { headers });
             if (!res.ok) {
                 throw new Error(`Erro ao buscar conexões (${res.status})`);
             }
@@ -1644,7 +1644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentClientIdForConnections) return;
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/meta/start?platform=${encodeURIComponent(platform)}`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/clients/${currentClientIdForConnections}/connections/meta/start?platform=${encodeURIComponent(platform)}`, {
             method: 'GET',
             headers
         });
@@ -1666,7 +1666,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentClientIdForConnections) return;
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/clients/${currentClientIdForConnections}/connections/${platform}/disconnect`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/clients/${currentClientIdForConnections}/connections/${platform}/disconnect`, {
             method: 'POST',
             headers
         });

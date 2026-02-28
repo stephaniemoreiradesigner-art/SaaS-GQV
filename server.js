@@ -1355,9 +1355,9 @@ const appendQuery = (baseUrl, params) => {
 
 const server = http.createServer(async (request, response) => {
     // CORS Headers para permitir desenvolvimento local
-    response.setHeader('Access-Control-Allow-Origin', '*');
-    response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    response.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,authorization');
+    response.setHeader('Access-Control-Allow-Origin', 'https://gestaoquevende.cloud');
+    response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-request-id');
 
     if (request.method === 'OPTIONS') {
         response.writeHead(204);

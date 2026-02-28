@@ -520,7 +520,7 @@ window.loadWorklogs = async function() {
     try {
         const headers = await getWorklogAuthHeaders();
         const responses = await Promise.all(clientIds.map(async (id) => {
-            const res = await fetch(`/api/worklogs?client_id=${encodeURIComponent(id)}&module=social_media`, {
+            const res = await fetch(`${window.API_BASE_URL}/api/worklogs?client_id=${encodeURIComponent(id)}&module=social_media`, {
                 method: 'GET',
                 headers
             });
@@ -653,7 +653,7 @@ window.submitWorklog = async function(event) {
 
     try {
         const headers = await getWorklogAuthHeaders();
-        const res = await fetch('/api/worklogs', {
+        const res = await fetch(`${window.API_BASE_URL}/api/worklogs`, {
             method: 'POST',
             headers,
             body: JSON.stringify(payload)
@@ -695,7 +695,7 @@ window.closeWorklogDetailModal = function() {
 async function loadWorklogDetail(worklogId) {
     if (!worklogId) return;
     const headers = await getWorklogAuthHeaders();
-    const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}`, {
+    const res = await fetch(`${window.API_BASE_URL}/api/worklogs/${encodeURIComponent(worklogId)}`, {
         method: 'GET',
         headers
     });
@@ -775,7 +775,7 @@ window.submitWorklogAction = async function() {
 
     try {
         const headers = await getWorklogAuthHeaders();
-        const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}/actions`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/worklogs/${encodeURIComponent(worklogId)}/actions`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ note })
@@ -798,7 +798,7 @@ window.closeWorklog = async function() {
     if (!worklogId) return;
     try {
         const headers = await getWorklogAuthHeaders();
-        const res = await fetch(`/api/worklogs/${encodeURIComponent(worklogId)}/close`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/worklogs/${encodeURIComponent(worklogId)}/close`, {
             method: 'POST',
             headers
         });

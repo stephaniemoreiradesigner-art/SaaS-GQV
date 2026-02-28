@@ -37,7 +37,7 @@ window.Logbook = (() => {
             };
 
             const headers = await getAuthHeaders();
-            const res = await fetch('/api/logbook/actions', {
+            const res = await fetch(`${window.API_BASE_URL}/api/logbook/actions`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(apiPayload)

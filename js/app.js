@@ -1,4 +1,5 @@
 // Inicialização do cliente Supabase
+window.API_BASE_URL = window.API_BASE_URL || 'https://api.gestaoquevende.cloud';
 window.supabaseConfig = null;
 let supabaseConfigPromise = null;
 
@@ -120,7 +121,7 @@ window.getConnectedPlatforms = async function(clientId) {
             if (token) headers.Authorization = `Bearer ${token}`;
         }
 
-        const res = await fetch(`/api/clients/${clientId}/connections`, { headers });
+        const res = await fetch(`${window.API_BASE_URL}/api/clients/${clientId}/connections`, { headers });
         if (!res.ok) {
             return { all: fallbackList, connected: [], map: fallbackMap };
         }

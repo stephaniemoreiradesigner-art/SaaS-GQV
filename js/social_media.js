@@ -272,7 +272,7 @@ async function pollCalendarProgress() {
     if (!progressCalendarId) return;
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/social/calendars/${progressCalendarId}`, { headers });
+        const res = await fetch(`${window.API_BASE_URL}/api/social/calendars/${progressCalendarId}`, { headers });
         if (!res.ok) return;
         const data = await res.json();
         const calendar = data?.calendar || null;
@@ -1572,7 +1572,7 @@ async function refineWithAI(targetId = 'post-legenda') {
 
         // PROXY VIBECODE: Chamada segura via backend local
         // Removemos a necessidade de apiKey no frontend
-        const response = await fetch('/api/openai/chat/completions', {
+        const response = await fetch(`${window.API_BASE_URL}/api/openai/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1688,7 +1688,7 @@ async function fetchApprovalBatchStatus(clientId, month) {
     if (!clientId || !normalizedMonth) return null;
     try {
         const headers = await getAuthHeaders();
-        const url = new URL('/api/client/calendar/approvals', window.location.origin);
+        const url = new URL(`${window.API_BASE_URL}/api/client/calendar/approvals`);
         url.searchParams.set('month', normalizedMonth);
         url.searchParams.set('client_id', String(clientId));
         const res = await fetch(url.toString(), { headers });
@@ -1745,7 +1745,7 @@ async function improveCopyWithAI() {
             }
         };
 
-        const response = await fetch('/api/social/improve-copy', {
+        const response = await fetch(`${window.API_BASE_URL}/api/social/improve-copy`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -1816,7 +1816,7 @@ async function changeThemeWithAI() {
             }
         };
 
-        const response = await fetch('/api/social/change-theme', {
+        const response = await fetch(`${window.API_BASE_URL}/api/social/change-theme`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -2299,8 +2299,8 @@ async function generateCalendar(config = {}) {
 
         const contextLink = null;
 
-        const apiEndpoint = '/api/openai/proxy';
-        const apiEndpointUrl = new URL(apiEndpoint, window.location.origin).toString();
+        const apiEndpoint = `${window.API_BASE_URL}/api/openai/proxy`;
+        const apiEndpointUrl = new URL(apiEndpoint).toString();
         console.log('[generateCalendar] endpoint', apiEndpoint, 'clientId', currentClienteId);
         console.log('[generateCalendar] request_id', requestId);
         appendGenerationLog(`request_id: ${requestId}`);
@@ -2865,7 +2865,7 @@ async function generateSinglePostAI(date, format) {
 
         // VIBECODE: Usando Proxy Backend
         const headers = await getAuthHeaders();
-        const response = await fetch('/api/openai/proxy', {
+        const response = await fetch(`${window.API_BASE_URL}/api/openai/proxy`, {
             method: 'POST',
             headers,
             body: JSON.stringify({

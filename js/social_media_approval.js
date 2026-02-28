@@ -97,7 +97,7 @@ async function sendMonthlyApproval() {
     }
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/client/calendar/approvals/submit?month=${encodeURIComponent(currentMonth)}`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/client/calendar/approvals/submit?month=${encodeURIComponent(currentMonth)}`, {
             method: 'POST',
             headers
         });
@@ -348,7 +348,7 @@ async function sendWeeklyApproval() {
     }
     try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`/api/client/post/approvals/submit?from=${encodeURIComponent(approvalRangeFrom)}&to=${encodeURIComponent(approvalRangeTo)}`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/client/post/approvals/submit?from=${encodeURIComponent(approvalRangeFrom)}&to=${encodeURIComponent(approvalRangeTo)}`, {
             method: 'POST',
             headers
         });

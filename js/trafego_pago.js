@@ -525,7 +525,7 @@ window.fetchMetaAdsData = async function(accountId, token, startDate, endDate) {
     console.log('Fetching Meta Ads via Proxy:', endpoint);
 
     // Chamada ao Backend Proxy
-    const response = await fetch('/api/meta/proxy', {
+    const response = await fetch(`${window.API_BASE_URL}/api/meta/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: endpoint })

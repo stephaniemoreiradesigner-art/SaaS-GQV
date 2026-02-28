@@ -269,7 +269,7 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return null;
-            const data = await fetchJson(`/api/social/posts/${state.current.id}/history`, { headers });
+            const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/history`, { headers });
             state.history = data || null;
             const versions = Array.isArray(data?.versions) ? data.versions : [];
             state.currentVersion = versions.length ? versions[0] : null;
@@ -298,8 +298,8 @@
             const commentInput = document.getElementById('client-approval-comment-input');
             const comment = commentInput?.value.trim() || '';
             const endpoint = status === 'approved'
-                ? `/api/social/posts/${state.current.id}/approve`
-                : `/api/social/posts/${state.current.id}/reject`;
+                ? `${window.API_BASE_URL}/api/social/posts/${state.current.id}/approve`
+                : `${window.API_BASE_URL}/api/social/posts/${state.current.id}/reject`;
             const body = status === 'approved'
                 ? { version_id: state.currentVersion.id, comment: comment || null }
                 : { version_id: state.currentVersion.id, comment, requested_changes: [] };
@@ -335,7 +335,7 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const data = await fetchJson(`/api/social/posts/${state.current.id}/submit-for-approval`, {
+            const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/submit-for-approval`, {
                 method: 'POST',
                 headers
             });
@@ -375,7 +375,7 @@
                 type: 'general',
                 payload: { text: comment }
             };
-            const data = await fetchJson(`/api/social/posts/${state.current.id}/comments`, {
+            const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/comments`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(payload)
@@ -416,7 +416,7 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const data = await fetchJson('/api/client/social/pending-posts', { headers });
+            const data = await fetchJson(`${window.API_BASE_URL}/api/client/social/pending-posts`, { headers });
             const posts = Array.isArray(data?.items) ? data.items : [];
             state.posts = posts;
             renderList();

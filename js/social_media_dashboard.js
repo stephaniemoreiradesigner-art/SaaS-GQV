@@ -195,7 +195,7 @@ async function loadOperationalDashboard() {
             statusEl.textContent = 'Sessão não encontrada. Faça login novamente.';
             return;
         }
-        const res = await fetch(`/api/social/dashboard?${params.toString()}`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/social/dashboard?${params.toString()}`, {
             method: 'GET',
             headers: auth.headers
         });
@@ -304,7 +304,7 @@ const insightsSelectedAssetsCache = {};
 async function fetchMetaSelectedAssets(clientId) {
     if (!clientId) return null;
     if (insightsSelectedAssetsCache[clientId]) return insightsSelectedAssetsCache[clientId];
-    const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
+    const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
     const data = await res.json().catch(() => null);
     if (!res.ok || !data) {
         insightsSelectedAssetsCache[clientId] = null;
@@ -463,7 +463,7 @@ async function fetchPlatformData(platform, clientData, developerToken, since, un
         const body = { endpoint };
         if (tokenOverride) body.access_token = tokenOverride;
         
-        const res = await fetch('/api/meta/proxy', {
+        const res = await fetch(`${window.API_BASE_URL}/api/meta/proxy`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
@@ -1543,7 +1543,7 @@ window.loadCreativeRequests = async function() {
         }
 
         const scope = modeSelect?.value === 'agency' && isSuperAdmin ? 'agency' : 'client';
-        const url = new URL('/api/creative-requests', window.location.origin);
+        const url = new URL(`${window.API_BASE_URL}/api/creative-requests`);
         url.searchParams.set('scope', scope);
         if (scope === 'agency' && clientSelect?.value) {
             url.searchParams.set('tenant_id', clientSelect.value);
@@ -1599,7 +1599,7 @@ window.openCreativeRequestModal = async function(requestId) {
     if (!requestId) return;
     try {
         const headers = await getCreativeRequestsAuthHeaders();
-        const res = await fetch(`/api/creative-requests/${encodeURIComponent(requestId)}`, { headers });
+        const res = await fetch(`${window.API_BASE_URL}/api/creative-requests/${encodeURIComponent(requestId)}`, { headers });
         const json = await res.json().catch(() => null);
         if (!res.ok) {
             throw new Error(json?.error || 'Erro ao carregar solicitação');
@@ -1688,7 +1688,7 @@ async function submitCreativeRequestUpdate(extraPayload = {}) {
     if (deliveredAssets !== null) payload.delivered_assets = deliveredAssets;
     try {
         const headers = await getCreativeRequestsAuthHeaders();
-        const res = await fetch(`/api/creative-requests/${encodeURIComponent(currentId)}`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/creative-requests/${encodeURIComponent(currentId)}`, {
             method: 'PATCH',
             headers,
             body: JSON.stringify(payload)

@@ -1,5 +1,5 @@
 // automacoes.js - Módulo de Automação v2.0
-const API_BASE = window.location?.origin ? `${window.location.origin}/api/automation` : '/api/automation';
+const API_BASE = `${window.API_BASE_URL || window.location?.origin || ''}/api/automation`;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Tenta liberar a tela de loading usando a função global do app.js
@@ -532,7 +532,7 @@ function renderWorkflowsTable(workflows) {
     });
 }
 
-const LOGBOOK_API_BASE = window.location?.origin || '';
+const LOGBOOK_API_BASE = window.API_BASE_URL || window.location?.origin || '';
 let currentLogbookClientId = '';
 
 const parseLogbookDetails = (details) => {

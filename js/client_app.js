@@ -1,4 +1,5 @@
 (() => {
+    window.API_BASE_URL = window.API_BASE_URL || 'https://api.gestaoquevende.cloud';
     const getSupabaseClient = async () => {
         if (window.supabaseClient) return window.supabaseClient;
         if (typeof window.initSupabase === 'function') {
@@ -48,7 +49,7 @@
         const { data } = await supabase.auth.getSession();
         const accessToken = data?.session?.access_token || '';
         if (!accessToken) throw new Error('unauthorized');
-        const response = await fetch('/api/me/context', {
+        const response = await fetch(`${window.API_BASE_URL}/api/me/context`, {
             headers: {
                 Authorization: `Bearer ${accessToken}`
             }

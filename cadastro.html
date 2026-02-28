@@ -81,6 +81,9 @@
     </div>
 
     <script>
+        window.API_BASE_URL = window.API_BASE_URL || 'https://api.gestaoquevende.cloud';
+    </script>
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('registerForm');
             if (form) {
@@ -109,7 +112,7 @@
                         btn.disabled = true;
                         btn.classList.add('opacity-75', 'cursor-not-allowed');
 
-                        const response = await fetch('/api/auth/register-invite', {
+                        const response = await fetch(`${window.API_BASE_URL}/api/auth/register-invite`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ email, password, kind: 'colaborador' })

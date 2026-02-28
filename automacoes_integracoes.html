@@ -318,7 +318,7 @@
             }
 
             console.debug('Meta clientId', clientId);
-            const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`, {
+            const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`, {
                 method: 'GET',
                 headers: {
                     Authorization: `Bearer ${session.access_token}`
@@ -433,7 +433,7 @@
             const loadMetaAssets = async () => {
                 const clientId = localStorage.getItem('current_client_id');
                 if (!clientId) return;
-                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets?platform=facebook`);
+                const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets?platform=facebook`);
                 const data = await res.json().catch(() => null);
                 if (!res.ok || !data) {
                     alert('Erro ao carregar ativos Meta.');
@@ -470,7 +470,7 @@
 
             const loadMetaSelected = async (clientId) => {
                 if (!clientId) return null;
-                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
+                const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/assets/selected`);
                 const data = await res.json().catch(() => null);
                 if (!res.ok || !data) return null;
                 return data.data || null;
@@ -479,7 +479,7 @@
             const fetchMetaStatus = async (clientId, platform) => {
                 if (!clientId) return;
                 const targetPlatform = platform || 'facebook';
-                const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/status?platform=${encodeURIComponent(targetPlatform)}`);
+                const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/connections/meta/status?platform=${encodeURIComponent(targetPlatform)}`);
                 if (!res.ok) return;
                 const data = await res.json().catch(() => null);
                 if (!data) return;
@@ -534,7 +534,7 @@
                     return;
                 }
 
-                const response = await fetch('/api/clients/list');
+                const response = await fetch(`${window.API_BASE_URL}/api/clients/list`);
                 const payload = await response.json().catch(() => null);
                 if (!response.ok) {
                     console.error('Erro ao carregar clientes:', payload);
@@ -689,7 +689,7 @@
                         ad_account_name: adAccountName || null
                     };
 
-                    const res = await fetch(`/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets`, {
+                    const res = await fetch(`${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/connections/meta/assets`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -734,7 +734,7 @@
                             }
                             return;
                         }
-                        const startUrl = `/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`;
+                        const startUrl = `${window.API_BASE_URL}/api/clients/${encodeURIComponent(clientId)}/connections/meta/start?platform=facebook`;
                         console.debug('OAuth start url', startUrl);
                         const res = await fetch(startUrl);
                         if (!res.ok) {

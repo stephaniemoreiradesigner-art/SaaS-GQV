@@ -319,7 +319,7 @@
         if (!state.current?.id) return;
         const headers = await getAuthHeaders();
         if (!headers) return;
-        const res = await fetch(`/api/client/social/approval-items/${state.current.id}/status`, {
+        const res = await fetch(`${window.API_BASE_URL}/api/client/social/approval-items/${state.current.id}/status`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ status, reason })
@@ -351,7 +351,7 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return;
-            const url = `/api/client/social/approval-batch?month=${monthStr}`;
+            const url = `${window.API_BASE_URL}/api/client/social/approval-batch?month=${monthStr}`;
             const res = await fetch(url, { headers });
             const text = await res.text();
             let data = null;
