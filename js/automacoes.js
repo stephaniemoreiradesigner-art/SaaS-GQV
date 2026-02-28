@@ -649,15 +649,18 @@ window.saveLogbookRecord = async function(e) {
     };
 
     try {
-        const { error } = await window.supabaseClient.rpc('add_action', payload);
-        if (error) throw error;
-        alert('Registro salvo com sucesso!');
-        window.closeLogbookModal();
-        currentLogbookClientId = clienteId;
-        loadLogbookRecords(clienteId);
-        return;
+        if (window.Logbook?.addAction) {
+            const result = await window.Logbook.addAction(payload);
+            if (result) {
+                alert('Registro salvo com sucesso!');
+                window.closeLogbookModal();
+                currentLogbookClientId = clienteId;
+                loadLogbookRecords(clienteId);
+                return;
+            }
+        }
     } catch (err) {
-        console.warn('Falha no RPC add_action, tentando backend:', err);
+        console.warn('Falha ao salvar no diário, tentando backend:', err);
     }
 
     try {

@@ -2,6 +2,14 @@
 // - Se os nomes das RPCs ou parâmetros forem diferentes, ajuste em addAction/closeEntry.
 // - Se o schema de tabela for diferente, ajuste em listActionsByClient.
 window.Logbook = (() => {
+    const getAuthHeaders = async () => {
+        const headers = { 'Content-Type': 'application/json' };
+        const sessionResult = await window.supabaseClient?.auth?.getSession();
+        const token = sessionResult?.data?.session?.access_token;
+        if (token) headers.Authorization = `Bearer ${token}`;
+        return headers;
+    };
+
     const formatModuleLabel = (module) => {
         const map = {
             social_media: 'Social Media',
@@ -17,22 +25,32 @@ window.Logbook = (() => {
             const clienteId = payload?.clienteId || payload?.cliente_id;
             if (!clienteId) return null;
 
-            const rpcPayload = {
+            const apiPayload = {
                 cliente_id: clienteId,
                 module: payload?.module,
                 action_type: payload?.actionType || payload?.action_type,
                 title: payload?.title,
                 details: payload?.details,
                 ref_type: payload?.refType || payload?.ref_type,
-                ref_id: payload?.refId || payload?.ref_id
+                ref_id: payload?.refId || payload?.ref_id,
+                created_at: payload?.created_at || payload?.createdAt
             };
 
-            const { data, error } = await window.supabaseClient.rpc('add_action', rpcPayload);
-            if (error) {
-                console.warn('Logbook addAction falhou:', error);
-                return null;
+            const headers = await getAuthHeaders();
+            const res = await fetch('/api/logbook/actions', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(apiPayload)
+            });
+            const text = await res.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = null;
             }
-            return data || null;
+            if (!res.ok) return null;
+            return data?.data || null;
         } catch (err) {
             console.warn('Logbook addAction falhou:', err);
             return null;
