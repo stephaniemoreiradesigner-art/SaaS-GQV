@@ -3061,6 +3061,98 @@ const server = http.createServer(async (request, response) => {
         return { post: postRow };
     };
 
+    const getLatestVersionForPost = async (postId, tenantId) => {
+        const versionsParams = new URLSearchParams();
+        versionsParams.set('select', 'id,version_number');
+        versionsParams.set('tenant_id', `eq.${tenantId}`);
+        versionsParams.set('post_id', `eq.${postId}`);
+        versionsParams.set('order', 'version_number.desc');
+        versionsParams.set('limit', '1');
+        const versionsRes = await supabaseRest(
+            request,
+            `/rest/v1/social_post_versions?${versionsParams.toString()}`
+        );
+        if (versionsRes.status < 200 || versionsRes.status >= 300) {
+            return { error: { status: versionsRes.status, data: versionsRes.data || { error: 'erro_ao_listar_versoes' } } };
+        }
+        const versionRow = Array.isArray(versionsRes.data) ? versionsRes.data[0] : versionsRes.data;
+        return { version: versionRow || null };
+    };
+
+    const createPostVersionSnapshot = async (postId, tenantId, userId) => {
+        const postResult = await getPostByIdForTenant(postId, tenantId);
+        if (postResult.error) {
+            return { error: postResult.error };
+        }
+
+        const creativesSnapshotParams = new URLSearchParams();
+        creativesSnapshotParams.set('select', '*');
+        creativesSnapshotParams.set('post_id', `eq.${postId}`);
+        const creativesSnapshotRes = await supabaseRest(
+            request,
+            `/rest/v1/social_creatives?${creativesSnapshotParams.toString()}`
+        );
+        if (creativesSnapshotRes.status < 200 || creativesSnapshotRes.status >= 300) {
+            return { error: { status: creativesSnapshotRes.status, data: creativesSnapshotRes.data || { error: 'erro_ao_listar_creatives' } } };
+        }
+        const creativesSnapshot = Array.isArray(creativesSnapshotRes.data) ? creativesSnapshotRes.data : [];
+        const snapshotJson = {
+            post: postResult.post,
+            creatives: creativesSnapshot
+        };
+
+        const latestResult = await getLatestVersionForPost(postId, tenantId);
+        if (latestResult.error) {
+            return { error: latestResult.error };
+        }
+        const nextVersion = (latestResult.version?.version_number || 0) + 1;
+
+        const insertPayload = {
+            tenant_id: tenantId,
+            post_id: postId,
+            version_number: nextVersion,
+            snapshot_json: snapshotJson,
+            diff_json: null,
+            created_by: userId
+        };
+        const insertVersionRes = await supabaseRest(
+            request,
+            `/rest/v1/social_post_versions`,
+            'POST',
+            insertPayload
+        );
+        if (insertVersionRes.status < 200 || insertVersionRes.status >= 300) {
+            return { error: { status: insertVersionRes.status, data: insertVersionRes.data || { error: 'erro_ao_criar_versao' } } };
+        }
+
+        const versionFetchParams = new URLSearchParams();
+        versionFetchParams.set('select', '*');
+        versionFetchParams.set('tenant_id', `eq.${tenantId}`);
+        versionFetchParams.set('post_id', `eq.${postId}`);
+        versionFetchParams.set('version_number', `eq.${nextVersion}`);
+        versionFetchParams.set('limit', '1');
+        const versionFetchRes = await supabaseRest(
+            request,
+            `/rest/v1/social_post_versions?${versionFetchParams.toString()}`
+        );
+        if (versionFetchRes.status < 200 || versionFetchRes.status >= 300) {
+            return { error: { status: versionFetchRes.status, data: versionFetchRes.data || { error: 'erro_ao_buscar_versao' } } };
+        }
+        const version = Array.isArray(versionFetchRes.data) ? versionFetchRes.data[0] : versionFetchRes.data;
+        return { version };
+    };
+
+    const ensureLatestVersion = async (postId, tenantId, userId) => {
+        const latestResult = await getLatestVersionForPost(postId, tenantId);
+        if (latestResult.error) {
+            return { error: latestResult.error };
+        }
+        if (latestResult.version) {
+            return { version: latestResult.version };
+        }
+        return await createPostVersionSnapshot(postId, tenantId, userId);
+    };
+
     const submitForApprovalMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/submit-for-approval$/);
     if (submitForApprovalMatch && request.method === 'POST') {
         try {
@@ -3097,58 +3189,10 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const versionsParams = new URLSearchParams();
-            versionsParams.set('select', 'version_number');
-            versionsParams.set('tenant_id', `eq.${tenantId}`);
-            versionsParams.set('post_id', `eq.${postId}`);
-            versionsParams.set('order', 'version_number.desc');
-            versionsParams.set('limit', '1');
-            const versionsRes = await supabaseRest(
-                request,
-                `/rest/v1/social_post_versions?${versionsParams.toString()}`
-            );
-            if (versionsRes.status < 200 || versionsRes.status >= 300) {
-                response.writeHead(versionsRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(versionsRes.data || { error: 'erro_ao_listar_versoes' }));
-                return;
-            }
-            const versionRow = Array.isArray(versionsRes.data) ? versionsRes.data[0] : versionsRes.data;
-            const nextVersion = (versionRow?.version_number || 0) + 1;
-
-            const creativesSnapshotParams = new URLSearchParams();
-            creativesSnapshotParams.set('select', '*');
-            creativesSnapshotParams.set('post_id', `eq.${postId}`);
-            const creativesSnapshotRes = await supabaseRest(
-                request,
-                `/rest/v1/social_creatives?${creativesSnapshotParams.toString()}`
-            );
-            if (creativesSnapshotRes.status < 200 || creativesSnapshotRes.status >= 300) {
-                response.writeHead(creativesSnapshotRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(creativesSnapshotRes.data || { error: 'erro_ao_listar_creatives' }));
-                return;
-            }
-            const creativesSnapshot = Array.isArray(creativesSnapshotRes.data) ? creativesSnapshotRes.data : [];
-            const snapshot = {
-                post: postResult.post,
-                creatives: creativesSnapshot
-            };
-
-            const insertPayload = {
-                tenant_id: tenantId,
-                post_id: postId,
-                version_number: nextVersion,
-                snapshot,
-                created_by: user.id
-            };
-            const insertVersionRes = await supabaseRest(
-                request,
-                `/rest/v1/social_post_versions`,
-                'POST',
-                insertPayload
-            );
-            if (insertVersionRes.status < 200 || insertVersionRes.status >= 300) {
-                response.writeHead(insertVersionRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(insertVersionRes.data || { error: 'erro_ao_criar_versao' }));
+            const versionResult = await createPostVersionSnapshot(postId, tenantId, user.id);
+            if (versionResult.error) {
+                response.writeHead(versionResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionResult.error.data));
                 return;
             }
 
@@ -3169,22 +3213,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const versionFetchParams = new URLSearchParams();
-            versionFetchParams.set('select', '*');
-            versionFetchParams.set('tenant_id', `eq.${tenantId}`);
-            versionFetchParams.set('post_id', `eq.${postId}`);
-            versionFetchParams.set('version_number', `eq.${nextVersion}`);
-            versionFetchParams.set('limit', '1');
-            const versionFetchRes = await supabaseRest(
-                request,
-                `/rest/v1/social_post_versions?${versionFetchParams.toString()}`
-            );
-            if (versionFetchRes.status < 200 || versionFetchRes.status >= 300) {
-                response.writeHead(versionFetchRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(versionFetchRes.data || { error: 'erro_ao_buscar_versao' }));
-                return;
-            }
-            const version = Array.isArray(versionFetchRes.data) ? versionFetchRes.data[0] : versionFetchRes.data;
+            const version = versionResult.version;
 
             const postRefresh = await getPostByIdForTenant(postId, tenantId);
             if (postRefresh.error) {
@@ -3229,28 +3258,33 @@ const server = http.createServer(async (request, response) => {
             }
 
             const versionId = String(body?.version_id || '').trim();
-            if (!versionId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'version_id_obrigatorio' }));
-                return;
+            let versionRow = null;
+            if (versionId) {
+                const versionParams = new URLSearchParams();
+                versionParams.set('select', 'id,version_number');
+                versionParams.set('id', `eq.${versionId}`);
+                versionParams.set('post_id', `eq.${postId}`);
+                versionParams.set('tenant_id', `eq.${tenantId}`);
+                versionParams.set('limit', '1');
+                const versionRes = await supabaseRest(
+                    request,
+                    `/rest/v1/social_post_versions?${versionParams.toString()}`
+                );
+                if (versionRes.status < 200 || versionRes.status >= 300) {
+                    response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
+                    return;
+                }
+                versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
+            } else {
+                const ensureResult = await ensureLatestVersion(postId, tenantId, user.id);
+                if (ensureResult.error) {
+                    response.writeHead(ensureResult.error.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(ensureResult.error.data));
+                    return;
+                }
+                versionRow = ensureResult.version;
             }
-
-            const versionParams = new URLSearchParams();
-            versionParams.set('select', 'id,version_number');
-            versionParams.set('id', `eq.${versionId}`);
-            versionParams.set('post_id', `eq.${postId}`);
-            versionParams.set('tenant_id', `eq.${tenantId}`);
-            versionParams.set('limit', '1');
-            const versionRes = await supabaseRest(
-                request,
-                `/rest/v1/social_post_versions?${versionParams.toString()}`
-            );
-            if (versionRes.status < 200 || versionRes.status >= 300) {
-                response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
-                return;
-            }
-            const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
             if (!versionRow) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
@@ -3263,11 +3297,11 @@ const server = http.createServer(async (request, response) => {
                 tenant_id: tenantId,
                 post_id: postId,
                 version_id: versionRow.id,
-                decision: 'approved',
-                decided_by: user.id,
-                decided_at: new Date().toISOString(),
-                comment: comment || null,
-                meta
+                status: 'approved',
+                decision_comment: comment || null,
+                actor_user_id: user.id,
+                metadata_json: meta,
+                created_at: new Date().toISOString()
             };
             const approvalRes = await supabaseRest(
                 request,
@@ -3309,26 +3343,28 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            if (comment) {
-                const commentPayload = {
-                    tenant_id: tenantId,
-                    post_id: postId,
-                    version_id: versionRow.id,
-                    author_id: user.id,
-                    type: 'approval_note',
-                    payload: { text: comment }
-                };
-                const commentRes = await supabaseRest(
-                    request,
-                    `/rest/v1/social_post_comments`,
-                    'POST',
-                    commentPayload
-                );
-                if (commentRes.status < 200 || commentRes.status >= 300) {
-                    response.writeHead(commentRes.status, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify(commentRes.data || { error: 'erro_ao_registrar_comentario' }));
-                    return;
-                }
+            const commentPayload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                parent_comment_id: null,
+                author_user_id: user.id,
+                comment_type: 'decision',
+                body: comment || 'Aprovado',
+                target_json: meta ? { status: 'approved', meta } : { status: 'approved' },
+                status: 'open',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            const commentRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments`,
+                'POST',
+                commentPayload
+            );
+            if (commentRes.status < 200 || commentRes.status >= 300) {
+                response.writeHead(commentRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentRes.data || { error: 'erro_ao_registrar_comentario' }));
+                return;
             }
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
@@ -3368,33 +3404,38 @@ const server = http.createServer(async (request, response) => {
 
             const versionId = String(body?.version_id || '').trim();
             const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
-            if (!versionId) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'version_id_obrigatorio' }));
-                return;
-            }
             if (!comment) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'comentario_obrigatorio' }));
                 return;
             }
-
-            const versionParams = new URLSearchParams();
-            versionParams.set('select', 'id,version_number');
-            versionParams.set('id', `eq.${versionId}`);
-            versionParams.set('post_id', `eq.${postId}`);
-            versionParams.set('tenant_id', `eq.${tenantId}`);
-            versionParams.set('limit', '1');
-            const versionRes = await supabaseRest(
-                request,
-                `/rest/v1/social_post_versions?${versionParams.toString()}`
-            );
-            if (versionRes.status < 200 || versionRes.status >= 300) {
-                response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
-                return;
+            let versionRow = null;
+            if (versionId) {
+                const versionParams = new URLSearchParams();
+                versionParams.set('select', 'id,version_number');
+                versionParams.set('id', `eq.${versionId}`);
+                versionParams.set('post_id', `eq.${postId}`);
+                versionParams.set('tenant_id', `eq.${tenantId}`);
+                versionParams.set('limit', '1');
+                const versionRes = await supabaseRest(
+                    request,
+                    `/rest/v1/social_post_versions?${versionParams.toString()}`
+                );
+                if (versionRes.status < 200 || versionRes.status >= 300) {
+                    response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
+                    return;
+                }
+                versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
+            } else {
+                const ensureResult = await ensureLatestVersion(postId, tenantId, user.id);
+                if (ensureResult.error) {
+                    response.writeHead(ensureResult.error.status, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify(ensureResult.error.data));
+                    return;
+                }
+                versionRow = ensureResult.version;
             }
-            const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
             if (!versionRow) {
                 response.writeHead(404, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
@@ -3408,12 +3449,11 @@ const server = http.createServer(async (request, response) => {
                 tenant_id: tenantId,
                 post_id: postId,
                 version_id: versionRow.id,
-                decision: 'rejected',
-                decided_by: user.id,
-                decided_at: new Date().toISOString(),
-                reason_code: reasonCode || null,
-                comment,
-                meta
+                status: 'needs_revision',
+                decision_comment: comment,
+                actor_user_id: user.id,
+                metadata_json: meta ? { reason_code: reasonCode || null, requested_changes: requestedChanges, meta } : { reason_code: reasonCode || null, requested_changes: requestedChanges },
+                created_at: new Date().toISOString()
             };
             const approvalRes = await supabaseRest(
                 request,
@@ -3458,15 +3498,18 @@ const server = http.createServer(async (request, response) => {
             const commentPayload = {
                 tenant_id: tenantId,
                 post_id: postId,
-                version_id: versionRow.id,
-                author_id: user.id,
-                type: 'change_request',
-                thread_key: null,
-                payload: {
-                    text: comment,
+                parent_comment_id: null,
+                author_user_id: user.id,
+                comment_type: 'decision',
+                body: comment,
+                target_json: {
+                    status: 'needs_revision',
                     reason_code: reasonCode || null,
                     requested_changes: requestedChanges
-                }
+                },
+                status: 'open',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             };
             const commentRes = await supabaseRest(
                 request,
@@ -3515,55 +3558,44 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const type = String(body?.type || '').trim() || 'general';
-            const allowedTypes = new Set(['general', 'change_request', 'approval_note']);
-            if (!allowedTypes.has(type)) {
+            const legacyType = String(body?.type || '').trim();
+            const commentTypeRaw = String(body?.comment_type || '').trim();
+            const commentTypeMap = {
+                general: 'comment',
+                change_request: 'decision',
+                approval_note: 'decision'
+            };
+            const commentType = commentTypeRaw || commentTypeMap[legacyType] || 'comment';
+            const allowedTypes = new Set(['comment', 'decision', 'system']);
+            if (!allowedTypes.has(commentType)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'tipo_invalido' }));
                 return;
             }
 
             const payload = body?.payload && typeof body.payload === 'object' ? body.payload : null;
-            if (!payload) {
+            const targetJson = body?.target_json && typeof body.target_json === 'object'
+                ? body.target_json
+                : payload;
+            const bodyText = typeof body?.body === 'string' ? body.body.trim() : String(payload?.text || '').trim();
+            if (!bodyText) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'payload_obrigatorio' }));
+                response.end(JSON.stringify({ error: 'body_obrigatorio' }));
                 return;
             }
 
-            const versionId = body?.version_id ? String(body.version_id).trim() : null;
-            if (versionId) {
-                const versionParams = new URLSearchParams();
-                versionParams.set('select', 'id');
-                versionParams.set('id', `eq.${versionId}`);
-                versionParams.set('post_id', `eq.${postId}`);
-                versionParams.set('tenant_id', `eq.${tenantId}`);
-                versionParams.set('limit', '1');
-                const versionRes = await supabaseRest(
-                    request,
-                    `/rest/v1/social_post_versions?${versionParams.toString()}`
-                );
-                if (versionRes.status < 200 || versionRes.status >= 300) {
-                    response.writeHead(versionRes.status, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify(versionRes.data || { error: 'erro_ao_buscar_versao' }));
-                    return;
-                }
-                const versionRow = Array.isArray(versionRes.data) ? versionRes.data[0] : versionRes.data;
-                if (!versionRow) {
-                    response.writeHead(404, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ error: 'versao_nao_encontrada' }));
-                    return;
-                }
-            }
-
-            const threadKey = typeof body?.thread_key === 'string' ? body.thread_key.trim() : null;
+            const parentCommentId = body?.parent_comment_id ? String(body.parent_comment_id).trim() : null;
             const commentPayload = {
                 tenant_id: tenantId,
                 post_id: postId,
-                version_id: versionId || null,
-                author_id: user.id,
-                type,
-                thread_key: threadKey || null,
-                payload
+                parent_comment_id: parentCommentId || null,
+                author_user_id: user.id,
+                comment_type: commentType,
+                body: bodyText,
+                target_json: targetJson || null,
+                status: 'open',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             };
             const commentRes = await supabaseRest(
                 request,
@@ -3639,7 +3671,7 @@ const server = http.createServer(async (request, response) => {
             approvalsParams.set('select', '*');
             approvalsParams.set('tenant_id', `eq.${tenantId}`);
             approvalsParams.set('post_id', `eq.${postId}`);
-            approvalsParams.set('order', 'decided_at.desc');
+            approvalsParams.set('order', 'created_at.desc');
             const approvalsRes = await supabaseRest(
                 request,
                 `/rest/v1/social_approvals?${approvalsParams.toString()}`
@@ -3669,6 +3701,79 @@ const server = http.createServer(async (request, response) => {
 
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({ versions, approvals, comments }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    const postAuditMatch = pathname.match(/^\/api\/social\/posts\/([0-9a-fA-F-]{36})\/audit$/);
+    if (postAuditMatch && request.method === 'GET') {
+        try {
+            const postId = postAuditMatch[1];
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { tenantId } = authContext;
+
+            const postResult = await getPostByIdForTenant(postId, tenantId);
+            if (postResult.error) {
+                response.writeHead(postResult.error.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(postResult.error.data));
+                return;
+            }
+
+            const versionsParams = new URLSearchParams();
+            versionsParams.set('select', '*');
+            versionsParams.set('tenant_id', `eq.${tenantId}`);
+            versionsParams.set('post_id', `eq.${postId}`);
+            versionsParams.set('order', 'version_number.desc');
+            const versionsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_versions?${versionsParams.toString()}`
+            );
+            if (versionsRes.status < 200 || versionsRes.status >= 300) {
+                response.writeHead(versionsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(versionsRes.data || { error: 'erro_ao_listar_versoes' }));
+                return;
+            }
+            const versions = Array.isArray(versionsRes.data) ? versionsRes.data : [];
+
+            const approvalsParams = new URLSearchParams();
+            approvalsParams.set('select', '*');
+            approvalsParams.set('tenant_id', `eq.${tenantId}`);
+            approvalsParams.set('post_id', `eq.${postId}`);
+            approvalsParams.set('order', 'created_at.desc');
+            const approvalsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_approvals?${approvalsParams.toString()}`
+            );
+            if (approvalsRes.status < 200 || approvalsRes.status >= 300) {
+                response.writeHead(approvalsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(approvalsRes.data || { error: 'erro_ao_listar_aprovacoes' }));
+                return;
+            }
+            const approvals = Array.isArray(approvalsRes.data) ? approvalsRes.data : [];
+
+            const commentsParams = new URLSearchParams();
+            commentsParams.set('select', '*');
+            commentsParams.set('tenant_id', `eq.${tenantId}`);
+            commentsParams.set('post_id', `eq.${postId}`);
+            commentsParams.set('order', 'created_at.desc');
+            const commentsRes = await supabaseRest(
+                request,
+                `/rest/v1/social_post_comments?${commentsParams.toString()}`
+            );
+            if (commentsRes.status < 200 || commentsRes.status >= 300) {
+                response.writeHead(commentsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(commentsRes.data || { error: 'erro_ao_listar_comentarios' }));
+                return;
+            }
+            const comments = Array.isArray(commentsRes.data) ? commentsRes.data : [];
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ post: postResult.post, versions, approvals, comments }));
             return;
         } catch (error) {
             response.writeHead(500, { 'Content-Type': 'application/json' });

@@ -140,7 +140,9 @@
         const previewEl = document.getElementById('client-approval-preview');
         const mediaEl = document.getElementById('client-approval-media');
         const captionEl = document.getElementById('client-approval-caption');
-        const historyEl = document.getElementById('client-approval-history');
+        const approvalsEl = document.getElementById('client-approval-audit-approvals');
+        const versionsEl = document.getElementById('client-approval-audit-versions');
+        const commentsEl = document.getElementById('client-approval-audit-comments');
         const commentInput = document.getElementById('client-approval-comment-input');
         const approveBtn = document.getElementById('client-approval-approve');
         const changesBtn = document.getElementById('client-approval-changes');
@@ -171,7 +173,9 @@
         }
         if (captionEl) captionEl.textContent = display.caption;
         if (commentInput) commentInput.value = '';
-        if (historyEl) historyEl.innerHTML = '<div class="text-sm text-gray-400">Carregando histórico...</div>';
+        if (approvalsEl) approvalsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando...</div>';
+        if (versionsEl) versionsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando...</div>';
+        if (commentsEl) commentsEl.innerHTML = '<div class="text-sm text-gray-400">Carregando...</div>';
         if (versionEl) versionEl.textContent = '-';
         if (approveBtn) approveBtn.disabled = post.status !== 'ready_for_approval';
         if (changesBtn) changesBtn.disabled = post.status !== 'ready_for_approval';
@@ -193,68 +197,132 @@
         state.currentVersion = null;
     };
 
-    const renderHistory = () => {
-        const historyEl = document.getElementById('client-approval-history');
-        if (!historyEl) return;
-        historyEl.innerHTML = '';
+    const showSnapshot = (snapshot) => {
+        let modal = document.getElementById('client-approval-snapshot-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'client-approval-snapshot-modal';
+            modal.className = 'fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                        <h3 class="text-lg font-semibold text-gray-900">Snapshot da versão</h3>
+                        <button id="client-approval-snapshot-close" class="text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto">
+                        <pre id="client-approval-snapshot-content" class="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-4"></pre>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            const closeBtn = modal.querySelector('#client-approval-snapshot-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                });
+            }
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+        }
+        const content = modal.querySelector('#client-approval-snapshot-content');
+        if (content) content.textContent = JSON.stringify(snapshot || {}, null, 2);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    };
+
+    const renderAudit = () => {
+        const approvalsEl = document.getElementById('client-approval-audit-approvals');
+        const versionsEl = document.getElementById('client-approval-audit-versions');
+        const commentsEl = document.getElementById('client-approval-audit-comments');
+        if (approvalsEl) approvalsEl.innerHTML = '';
+        if (versionsEl) versionsEl.innerHTML = '';
+        if (commentsEl) commentsEl.innerHTML = '';
+
         const approvals = Array.isArray(state.history?.approvals) ? state.history.approvals : [];
         const comments = Array.isArray(state.history?.comments) ? state.history.comments : [];
-        const entries = [
-            ...approvals.map((item) => ({
-                kind: 'approval',
-                created_at: item.decided_at,
-                decision: item.decision,
-                comment: item.comment,
-                reason_code: item.reason_code
-            })),
-            ...comments.map((item) => ({
-                kind: 'comment',
-                created_at: item.created_at,
-                type: item.type,
-                payload: item.payload
-            }))
-        ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        if (!entries.length) {
-            const empty = document.createElement('div');
-            empty.className = 'text-sm text-gray-400';
-            empty.textContent = 'Nenhum histórico ainda.';
-            historyEl.appendChild(empty);
-            return;
+        const versions = Array.isArray(state.history?.versions) ? state.history.versions : [];
+
+        if (approvalsEl) {
+            if (!approvals.length) {
+                approvalsEl.innerHTML = '<div class="text-sm text-gray-400">Nenhuma decisão ainda.</div>';
+            } else {
+                approvals.forEach((item) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'border border-gray-100 rounded-lg p-3';
+                    const createdAt = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
+                    const statusLabel = item.status === 'approved'
+                        ? 'Aprovado'
+                        : item.status === 'needs_revision'
+                            ? 'Solicitou ajustes'
+                            : 'Reprovado';
+                    const meta = document.createElement('div');
+                    meta.className = 'text-xs text-gray-400 mb-1';
+                    meta.textContent = `${statusLabel}${createdAt ? ` • ${createdAt}` : ''}`;
+                    const body = document.createElement('div');
+                    body.className = 'text-sm text-gray-700 whitespace-pre-wrap';
+                    body.textContent = item.decision_comment || '';
+                    wrap.appendChild(meta);
+                    wrap.appendChild(body);
+                    approvalsEl.appendChild(wrap);
+                });
+            }
         }
-        entries.forEach((entry) => {
-            const wrap = document.createElement('div');
-            wrap.className = 'border border-gray-100 rounded-lg p-3';
 
-            const meta = document.createElement('div');
-            meta.className = 'text-xs text-gray-400 mb-1';
-            const createdAt = entry.created_at ? new Date(entry.created_at).toLocaleString('pt-BR') : '';
-            const label = entry.kind === 'approval'
-                ? entry.decision === 'approved'
-                    ? 'Aprovado'
-                    : 'Reprovado'
-                : entry.type === 'change_request'
-                    ? 'Pedido de ajuste'
-                    : entry.type === 'approval_note'
-                        ? 'Nota de aprovação'
-                        : 'Comentário';
-            meta.textContent = `${label}${createdAt ? ` • ${createdAt}` : ''}`;
+        if (versionsEl) {
+            if (!versions.length) {
+                versionsEl.innerHTML = '<div class="text-sm text-gray-400">Nenhuma versão registrada.</div>';
+            } else {
+                versions.forEach((item) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'border border-gray-100 rounded-lg p-3 flex items-center justify-between gap-3';
+                    const createdAt = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
+                    const meta = document.createElement('div');
+                    meta.className = 'text-sm text-gray-700';
+                    meta.textContent = `Versão #${item.version_number || '-'}${createdAt ? ` • ${createdAt}` : ''}`;
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'px-3 py-1.5 text-xs rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition';
+                    btn.textContent = 'Ver snapshot';
+                    btn.addEventListener('click', () => showSnapshot(item.snapshot_json));
+                    wrap.appendChild(meta);
+                    wrap.appendChild(btn);
+                    versionsEl.appendChild(wrap);
+                });
+            }
+        }
 
-            const body = document.createElement('div');
-            body.className = 'text-sm text-gray-700 whitespace-pre-wrap';
-            const payloadText = entry.kind === 'comment' ? entry.payload?.text : entry.comment;
-            const reason = entry.kind === 'approval' ? entry.reason_code : entry.payload?.reason_code;
-            const requested = entry.kind === 'comment' ? entry.payload?.requested_changes : null;
-            const details = [
-                payloadText || '',
-                reason ? `Motivo: ${reason}` : '',
-                Array.isArray(requested) && requested.length ? `Ajustes: ${requested.join(', ')}` : ''
-            ].filter(Boolean);
-            body.textContent = details.join('\n');
-
-            wrap.appendChild(meta);
-            wrap.appendChild(body);
-            historyEl.appendChild(wrap);
-        });
+        if (commentsEl) {
+            if (!comments.length) {
+                commentsEl.innerHTML = '<div class="text-sm text-gray-400">Nenhum comentário ainda.</div>';
+            } else {
+                comments.forEach((item) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'border border-gray-100 rounded-lg p-3';
+                    const createdAt = item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
+                    const typeLabel = item.comment_type === 'decision'
+                        ? 'Decisão'
+                        : item.comment_type === 'system'
+                            ? 'Sistema'
+                            : 'Comentário';
+                    const meta = document.createElement('div');
+                    meta.className = 'text-xs text-gray-400 mb-1';
+                    meta.textContent = `${typeLabel}${createdAt ? ` • ${createdAt}` : ''}`;
+                    const body = document.createElement('div');
+                    body.className = 'text-sm text-gray-700 whitespace-pre-wrap';
+                    body.textContent = item.body || '';
+                    wrap.appendChild(meta);
+                    wrap.appendChild(body);
+                    commentsEl.appendChild(wrap);
+                });
+            }
+        }
     };
 
     const updatePostInState = (updated) => {
@@ -269,7 +337,7 @@
         try {
             const headers = await getAuthHeaders();
             if (!headers) return null;
-            const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/history`, { headers });
+            const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/audit`, { headers });
             state.history = data || null;
             const versions = Array.isArray(data?.versions) ? data.versions : [];
             state.currentVersion = versions.length ? versions[0] : null;
@@ -278,10 +346,10 @@
                 const versionNumber = state.currentVersion?.version_number;
                 versionEl.textContent = versionNumber ? `#${versionNumber}` : 'Nenhuma versão';
             }
-            renderHistory();
+            renderAudit();
             return data;
         } catch (error) {
-            renderHistory();
+            renderAudit();
             return null;
         }
     };
@@ -371,9 +439,9 @@
             const headers = await getAuthHeaders();
             if (!headers) return;
             const payload = {
-                version_id: state.currentVersion?.id || null,
-                type: 'general',
-                payload: { text: comment }
+                comment_type: 'comment',
+                body: comment,
+                target_json: { source: 'client' }
             };
             const data = await fetchJson(`${window.API_BASE_URL}/api/social/posts/${state.current.id}/comments`, {
                 method: 'POST',
@@ -385,7 +453,7 @@
                 const existing = Array.isArray(state.history?.comments) ? state.history.comments : [];
                 const updated = [data, ...existing];
                 state.history = { ...(state.history || {}), comments: updated };
-                renderHistory();
+                renderAudit();
             }
         } catch (error) {
             alert('Não foi possível enviar o comentário.');
