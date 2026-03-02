@@ -522,6 +522,49 @@ const getBearerToken = (request) => {
     return match ? match[1].trim() : '';
 };
 
+const parseCookies = (cookieHeader) => {
+    const cookies = {};
+    if (!cookieHeader) return cookies;
+    cookieHeader.split(';').forEach((part) => {
+        const index = part.indexOf('=');
+        if (index <= 0) return;
+        const key = decodeURIComponent(part.slice(0, index).trim());
+        const value = decodeURIComponent(part.slice(index + 1).trim());
+        if (key) cookies[key] = value;
+    });
+    return cookies;
+};
+
+const getAccessTokenFromCookies = (cookies) => {
+    if (cookies['sb-access-token']) return cookies['sb-access-token'];
+    if (cookies['supabase-auth-token']) {
+        try {
+            const parsed = JSON.parse(cookies['supabase-auth-token']);
+            if (Array.isArray(parsed) && parsed[0]) return parsed[0];
+        } catch {
+            return '';
+        }
+    }
+    const cookieKeys = Object.keys(cookies);
+    for (const key of cookieKeys) {
+        if (!key.endsWith('-auth-token')) continue;
+        try {
+            const parsed = JSON.parse(cookies[key]);
+            if (Array.isArray(parsed) && parsed[0]) return parsed[0];
+        } catch {
+            continue;
+        }
+    }
+    return '';
+};
+
+const getAccessTokenFromRequest = (request) => {
+    const bearer = getBearerToken(request);
+    if (bearer) return bearer;
+    const cookies = parseCookies(request.headers.cookie || '');
+    return getAccessTokenFromCookies(cookies);
+};
+
 const supabaseRest = async (request, pathWithQuery, method = 'GET', body = null) => {
     const token = getBearerToken(request);
     const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
@@ -553,12 +596,15 @@ const supabaseRest = async (request, pathWithQuery, method = 'GET', body = null)
     return { status: response.status, data, text };
 };
 
-const requireAuth = async (request, response) => {
-    const token = getBearerToken(request);
+const requireSession = async (request, response) => {
+    const token = getAccessTokenFromRequest(request);
     if (!token) {
         response.writeHead(401, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ error: 'unauthorized' }));
         return null;
+    }
+    if (!request.headers.authorization) {
+        request.headers.authorization = `Bearer ${token}`;
     }
     const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -586,7 +632,13 @@ const requireAuth = async (request, response) => {
         response.end(JSON.stringify({ error: 'unauthorized' }));
         return null;
     }
-    return { id: userId, email };
+    return { user: { id: userId, email }, accessToken: token };
+};
+
+const requireAuth = async (request, response) => {
+    const session = await requireSession(request, response);
+    if (!session) return null;
+    return session.user;
 };
 
 const getProfileForUser = async (request, userId) => {
@@ -659,8 +711,9 @@ const resolveTenantIdFromClientId = async (request, clientId) => {
 };
 
 const getAuthContext = async (request, response) => {
-    const user = await requireAuth(request, response);
-    if (!user) return null;
+    const session = await requireSession(request, response);
+    if (!session) return null;
+    const user = session.user;
     const profile = await getProfileForUser(request, user.id);
     if (!profile) {
         response.writeHead(403, { 'Content-Type': 'application/json' });
@@ -675,6 +728,128 @@ const getAuthContext = async (request, response) => {
         return null;
     }
     return { user, profile, tenantId };
+};
+
+const isActiveMembership = (status) => {
+    const normalized = String(status || '').trim().toLowerCase();
+    if (!normalized) return true;
+    return ['active', 'ativo', 'approved', 'aprovado'].includes(normalized);
+};
+
+const buildClientPermissions = (membership, profile) => {
+    if (membership && !isActiveMembership(membership.status)) return [];
+    const permissions = [
+        'dashboard.view',
+        'metrics.view',
+        'integrations.view',
+        'approvals.calendar.view',
+        'approvals.posts.view'
+    ];
+    const role = String(membership?.role || profile?.role || '').trim().toLowerCase();
+    if (['owner', 'admin', 'gestor', 'manager', 'super_admin'].includes(role)) {
+        permissions.push('performance.view');
+    }
+    return Array.from(new Set(permissions));
+};
+
+const buildClientNav = (permissions) => {
+    const allow = (permission) => !permission || permissions.includes(permission);
+    const nav = [
+        {
+            label: '',
+            items: [
+                { label: 'Dashboard', href: '/client', icon: 'fas fa-grid-2', permission: 'dashboard.view' },
+                { label: 'Métricas', href: '/client/metrics', icon: 'fas fa-chart-line', permission: 'metrics.view' },
+                { label: 'Integrações', href: '/client/integrations', icon: 'fas fa-plug', permission: 'integrations.view' },
+                { label: 'Performance', href: '/client/performance', icon: 'fas fa-chart-column', permission: 'performance.view' }
+            ]
+        },
+        {
+            label: 'Aprovações',
+            items: [
+                { label: 'Calendário', href: '/client/approvals/calendar', icon: 'fas fa-calendar', permission: 'approvals.calendar.view' },
+                { label: 'Posts', href: '/client/approvals/posts', icon: 'fas fa-clapperboard', permission: 'approvals.posts.view' }
+            ]
+        }
+    ];
+    return nav
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => allow(item.permission))
+        }))
+        .filter((section) => section.items.length > 0);
+};
+
+const attachClientContext = async (request, response) => {
+    const session = await requireSession(request, response);
+    if (!session) return null;
+    const user = session.user;
+    const profile = await getProfileForUser(request, user.id);
+    if (!profile) {
+        response.writeHead(403, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'profile_not_found' }));
+        return null;
+    }
+
+    let membership = null;
+    const membershipsRes = await supabaseRest(
+        request,
+        `/rest/v1/memberships?select=id,user_id,tenant_id,role,status,created_at&user_id=eq.${user.id}&limit=1`
+    );
+    if (membershipsRes.status >= 200 && membershipsRes.status < 300) {
+        membership = Array.isArray(membershipsRes.data) ? membershipsRes.data[0] : null;
+    } else {
+        const legacyRes = await supabaseRest(
+            request,
+            `/rest/v1/client_memberships?select=tenant_id,client_id,user_id,created_at&user_id=eq.${user.id}&limit=1`
+        );
+        if (legacyRes.status >= 200 && legacyRes.status < 300) {
+            const legacy = Array.isArray(legacyRes.data) ? legacyRes.data[0] : null;
+            if (legacy) {
+                membership = {
+                    id: null,
+                    user_id: legacy.user_id || user.id,
+                    tenant_id: legacy.tenant_id || legacy.client_id || null,
+                    role: profile?.role || 'client',
+                    status: 'active',
+                    created_at: legacy.created_at || null
+                };
+            }
+        }
+    }
+    const fallbackTenantId = profile?.tenant_id || profile?.client_id || null;
+    if (!membership && fallbackTenantId) {
+        membership = {
+            id: null,
+            user_id: user.id,
+            tenant_id: fallbackTenantId,
+            role: profile?.role || 'client',
+            status: 'active',
+            created_at: null
+        };
+    }
+    const tenantId = membership?.tenant_id || fallbackTenantId || null;
+    if (!tenantId) {
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'missing_tenant' }));
+        return null;
+    }
+
+    const tenantRes = await supabaseRest(
+        request,
+        `/rest/v1/clientes?select=id,nome_empresa,nome_fantasia&limit=1&id=eq.${tenantId}`
+    );
+    const tenant = Array.isArray(tenantRes.data) ? tenantRes.data[0] : null;
+    const permissions = buildClientPermissions(membership, profile);
+    const nav = buildClientNav(permissions);
+
+    return {
+        user,
+        tenant,
+        membership,
+        permissions,
+        nav
+    };
 };
 
 const resolveTenantAndClient = async (request, response, clienteId) => {
@@ -1886,30 +2061,15 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/me' && request.method === 'GET') {
         try {
-            const authContext = await getAuthContext(request, response);
-            if (!authContext) return;
-            const { user, profile, tenantId } = authContext;
-
-            const membershipsRes = await supabaseRest(
-                request,
-                `/rest/v1/client_memberships?select=client_id&user_id=eq.${user.id}`
-            );
-            if (membershipsRes.status < 200 || membershipsRes.status >= 300) {
-                response.writeHead(membershipsRes.status, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify(membershipsRes.data || { error: 'erro_ao_listar_clientes' }));
-                return;
-            }
-
-            const clientIds = Array.isArray(membershipsRes.data)
-                ? membershipsRes.data.map((row) => row?.client_id).filter((id) => id !== null && id !== undefined)
-                : [];
-
+            const context = await attachClientContext(request, response);
+            if (!context) return;
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({
-                user_id: user.id,
-                tenant_id: tenantId,
-                role: profile?.role || null,
-                client_ids: Array.from(new Set(clientIds))
+                user: context.user,
+                tenant: context.tenant,
+                membership: context.membership,
+                permissions: context.permissions,
+                nav: context.nav
             }));
             return;
         } catch (error) {
@@ -8586,7 +8746,7 @@ const server = http.createServer(async (request, response) => {
 
     const isClientRoute = pathname === '/client' || pathname === '/client/' || pathname.startsWith('/client/');
     if (isClientRoute) {
-        if (pathname === '/client' || pathname === '/client/') {
+        if (pathname === '/client' || pathname === '/client/' || pathname === '/client/home') {
             filePath = './client/index.html';
         } else if (!path.extname(filePath)) {
             filePath = `.${pathname}.html`;

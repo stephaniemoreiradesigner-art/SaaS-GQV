@@ -80,8 +80,9 @@
             return null;
         }
 
-        window.currentTenantId = data?.tenant_id || null;
-        window.currentClientIds = Array.isArray(data?.client_ids) ? data.client_ids : [];
+        window.CLIENT_CONTEXT = data || null;
+        window.currentTenantId = data?.tenant?.id || null;
+        window.currentClientIds = data?.tenant?.id ? [data.tenant.id] : [];
         return data;
     };
 

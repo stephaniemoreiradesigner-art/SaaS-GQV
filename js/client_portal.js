@@ -1,5 +1,3 @@
-const normalizeRole = (value) => String(value || '').trim().toLowerCase();
-
 const setClientName = (value) => {
     const name = value || 'Cliente';
     const nodes = document.querySelectorAll('[data-client-name]');
@@ -29,52 +27,101 @@ const setupClientNavigation = () => {
 
 const setupClientLogout = () => {
     const btn = document.getElementById('client-logout');
-    if (!btn || !window.supabaseClient) return;
+    if (!btn) return;
     btn.addEventListener('click', async () => {
-        await window.supabaseClient.auth.signOut();
+        if (window.clientSession?.clientLogout) {
+            await window.clientSession.clientLogout();
+            return;
+        }
+        if (window.supabaseClient) {
+            await window.supabaseClient.auth.signOut();
+        }
         window.location.href = '/client/login';
     });
 };
 
+const renderClientNav = (nav, currentPath) => {
+    const container = document.getElementById('client-nav');
+    if (!container) return;
+    const normalizedPath = currentPath.replace(/\/$/, '') || '/client';
+    container.innerHTML = '';
+    nav.forEach((section) => {
+        if (section.label) {
+            const label = document.createElement('div');
+            label.className = 'mt-4 text-xs uppercase text-gray-400 px-3';
+            label.textContent = section.label;
+            container.appendChild(label);
+        }
+        section.items.forEach((item) => {
+            const link = document.createElement('a');
+            const itemPath = item.href.replace(/\/$/, '') || '/client';
+            const isActive = normalizedPath === itemPath;
+            link.href = item.href;
+            link.className = [
+                'flex items-center gap-3 px-3 py-2 rounded-lg',
+                isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-gray-600 hover:bg-gray-50'
+            ].join(' ');
+            link.innerHTML = `<i class="${item.icon}"></i> ${item.label}`;
+            container.appendChild(link);
+        });
+    });
+};
+
+const getRequiredPermission = (pathname) => {
+    const cleaned = pathname.replace(/\/$/, '') || '/client';
+    const map = {
+        '/client': 'dashboard.view',
+        '/client/home': 'dashboard.view',
+        '/client/metrics': 'metrics.view',
+        '/client/integrations': 'integrations.view',
+        '/client/performance': 'performance.view',
+        '/client/approvals/calendar': 'approvals.calendar.view',
+        '/client/approvals/posts': 'approvals.posts.view'
+    };
+    return map[cleaned] || 'dashboard.view';
+};
+
+const applyPermissionVisibility = (permissions) => {
+    const list = Array.isArray(permissions) ? permissions : [];
+    document.querySelectorAll('[data-required-permission]').forEach((element) => {
+        const required = element.getAttribute('data-required-permission');
+        if (required && !list.includes(required)) {
+            element.classList.add('hidden');
+        } else {
+            element.classList.remove('hidden');
+        }
+    });
+};
+
 const ensureClientAccess = async () => {
-    const client = window.supabaseClient;
-    if (!client) {
+    if (!window.clientSession?.ensureClientSession) {
         setTimeout(ensureClientAccess, 300);
         return;
     }
-    const { data } = await client.auth.getSession();
-    const session = data?.session || null;
-    if (!session) {
-        window.location.href = '/client/login';
+    const context = await window.clientSession.ensureClientSession();
+    if (!context) return;
+    const tenantName = context?.tenant?.nome_fantasia || context?.tenant?.nome_empresa || context?.user?.email || 'Cliente';
+    setClientName(tenantName);
+    const navItems = context?.nav || window.CLIENT_CONTEXT?.nav || [];
+    renderClientNav(navItems, window.location.pathname);
+    const requiredPermission = getRequiredPermission(window.location.pathname);
+    const permissions = Array.isArray(context?.permissions) ? context.permissions : [];
+    applyPermissionVisibility(permissions);
+    if (requiredPermission && !permissions.includes(requiredPermission)) {
+        window.location.href = '/client/home';
         return;
     }
-    const user = session.user;
-    let profile = null;
-    try {
-        const { data: profileData } = await client
-            .from('profiles')
-            .select('role,full_name,tenant_id')
-            .eq('id', user.id)
-            .maybeSingle();
-        profile = profileData || null;
-    } catch (error) {
-        console.warn('Erro ao buscar perfil', error);
-    }
-    const role = normalizeRole(profile?.role || user?.user_metadata?.role || user?.app_metadata?.role);
-    if (role !== 'client') {
-        window.location.href = '/dashboard.html';
-        return;
-    }
-    setClientName(profile?.full_name || user?.user_metadata?.full_name || user?.email || 'Cliente');
     const content = document.getElementById('client-content');
     if (content) content.classList.remove('opacity-0');
     setupClientNavigation();
     setupClientLogout();
-    client.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_OUT') {
-            window.location.href = '/client/login';
-        }
-    });
+    if (window.supabaseClient?.auth) {
+        window.supabaseClient.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_OUT') {
+                window.location.href = '/client/login';
+            }
+        });
+    }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
