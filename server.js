@@ -739,7 +739,8 @@ const isActiveMembership = (status) => {
     return ['active', 'ativo', 'approved', 'aprovado'].includes(normalized);
 };
 
-const buildClientPermissions = (membership, profile) => {
+const buildClientPermissions = (userId, tenantId, membership, profile) => {
+    if (!userId || !tenantId) return [];
     if (membership && !isActiveMembership(membership.status)) return [];
     const permissions = [
         'dashboard.view',
@@ -763,14 +764,17 @@ const buildClientNav = (permissions) => {
             items: [
                 { label: 'Home', href: '/client/index.html', icon: 'fas fa-grid-2', permission: 'dashboard.view' },
                 { label: 'Integrações', href: '/client/integrations.html', icon: 'fas fa-plug', permission: 'integrations.view' },
-                { label: 'Métricas', href: '/client/metrics.html', icon: 'fas fa-chart-line', permission: 'performance.view' }
+                { label: 'Métricas', href: '/client/metrics.html', icon: 'fas fa-chart-line', permission: 'metrics.view' },
+                { label: 'Performance', href: '/client/performance.html', icon: 'fas fa-bolt', permission: 'performance.view' }
             ]
         }
     ];
     return nav
         .map((section) => ({
-            ...section,
-            items: section.items.filter((item) => allow(item.permission))
+            label: section.label,
+            items: section.items
+                .filter((item) => allow(item.permission))
+                .map((item) => ({ label: item.label, href: item.href, icon: item.icon }))
         }))
         .filter((section) => section.items.length > 0);
 };
@@ -835,7 +839,7 @@ const attachClientContext = async (request, response) => {
         `/rest/v1/clientes?select=id,nome_empresa,nome_fantasia&limit=1&id=eq.${tenantId}`
     );
     const tenant = Array.isArray(tenantRes.data) ? tenantRes.data[0] : null;
-    const permissions = buildClientPermissions(membership, profile);
+    const permissions = buildClientPermissions(user.id, tenantId, membership, profile);
     const nav = buildClientNav(permissions);
 
     request.clientContext = { tenant, membership, permissions };
@@ -2055,11 +2059,25 @@ const server = http.createServer(async (request, response) => {
             if (!session) return;
             const context = await attachClientContext(request, response);
             if (!context) return;
+            const tenantName = context?.tenant?.nome_fantasia || context?.tenant?.nome_empresa || context?.tenant?.nome || null;
+            const membership = context?.membership || {};
             response.writeHead(200, { 'Content-Type': 'application/json' });
             response.end(JSON.stringify({
-                user: context.user,
-                tenant: context.tenant,
-                membership: context.membership,
+                meta: { contract: 'client_me', version: 1 },
+                user: {
+                    id: context.user?.id || null,
+                    email: context.user?.email || null,
+                    name: context.user?.name || null
+                },
+                tenant: {
+                    id: context?.tenant?.id || null,
+                    name: tenantName
+                },
+                membership: {
+                    id: membership?.id || null,
+                    role: membership?.role || null,
+                    status: membership?.status || null
+                },
                 permissions: context.permissions,
                 nav: context.nav
             }));

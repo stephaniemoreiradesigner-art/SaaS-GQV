@@ -66,7 +66,6 @@ const renderClientNav = (nav, currentPath) => {
     const container = document.getElementById('client-nav');
     if (!container) return;
     const normalizedPath = currentPath.replace(/\/$/, '') || '/client';
-    const permissions = Array.isArray(window.CLIENT_CONTEXT?.permissions) ? window.CLIENT_CONTEXT.permissions : [];
     container.innerHTML = '';
     const normalizedNav = normalizeClientNav(nav);
     normalizedNav.forEach((section) => {
@@ -77,9 +76,6 @@ const renderClientNav = (nav, currentPath) => {
             container.appendChild(label);
         }
         section.items.forEach((item) => {
-            if (item?.permission && !permissions.includes(item.permission)) {
-                return;
-            }
             const link = document.createElement('a');
             const itemHref = item.href || '';
             const itemPath = itemHref.replace(/\/$/, '') || '/client';
@@ -165,7 +161,7 @@ const ensureClientAccess = async () => {
     }
     const context = await loadClientContext();
     if (!context) return;
-    const tenantName = context?.tenant?.nome_fantasia || context?.tenant?.nome_empresa || context?.user?.email || 'Cliente';
+    const tenantName = context?.tenant?.name || context?.user?.email || 'Cliente';
     setClientName(tenantName);
     renderMenu();
     const requiredPermission = getRequiredPermission(window.location.pathname);
