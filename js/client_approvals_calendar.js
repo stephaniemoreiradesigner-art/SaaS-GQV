@@ -6,6 +6,12 @@
 
     const POST_STATUS = window.POST_STATUS;
     const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
+    const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
+    const approvalStatusGroups = (() => {
+        const approved = [POST_STATUS?.APPROVED, 'aprovado', 'approved'].filter(Boolean).map(normalizeStatus);
+        const rejected = [POST_STATUS?.REJECTED, 'ajuste_solicitado', 'needs_adjustment'].filter(Boolean).map(normalizeStatus);
+        return { approved, rejected };
+    })();
 
     const setEmptyState = (visible) => {
         const emptyEl = document.getElementById('calendar-empty-state');
@@ -104,17 +110,15 @@
     };
 
     const getStatusConfig = (status) => {
-        const normalized = String(status || '').trim().toLowerCase();
-        const approvedValues = [POST_STATUS.APPROVED, 'aprovado', 'approved'].filter(Boolean);
-        const rejectedValues = [POST_STATUS.REJECTED, 'ajuste_solicitado', 'needs_adjustment'].filter(Boolean);
-        if (approvedValues.includes(normalized)) {
+        const normalized = normalizeStatus(status);
+        if (approvalStatusGroups.approved.includes(normalized)) {
             const label = (POST_STATUS_LABEL?.[POST_STATUS.APPROVED] || 'Aprovado').toUpperCase();
             return {
                 label,
                 className: 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700'
             };
         }
-        if (rejectedValues.includes(normalized)) {
+        if (approvalStatusGroups.rejected.includes(normalized)) {
             const label = (POST_STATUS_LABEL?.[POST_STATUS.REJECTED] || 'Ajustes Solicitados').toUpperCase();
             return {
                 label,
@@ -127,11 +131,29 @@
         };
     };
 
-    const setApprovalBatchButton = (approvalId) => {
+    const getPendingItems = (items) => {
+        const list = Array.isArray(items) ? items : [];
+        return list.filter((item) => {
+            const normalized = normalizeStatus(item?.status);
+            if (approvalStatusGroups.approved.includes(normalized)) return false;
+            if (approvalStatusGroups.rejected.includes(normalized)) return false;
+            return true;
+        });
+    };
+
+    const setApprovalBatchButton = (approvalId, items = state.items) => {
         const btn = document.getElementById('client-approval-batch-btn');
         if (!btn) return;
         if (approvalId) {
             btn.classList.remove('hidden');
+            const pendingCount = getPendingItems(items).length;
+            const label = pendingCount > 0
+                ? `Aprovar ${pendingCount} Post${pendingCount > 1 ? 's' : ''}`
+                : 'Nenhum post pendente';
+            btn.textContent = label;
+            btn.disabled = pendingCount === 0;
+            btn.classList.toggle('opacity-60', btn.disabled);
+            btn.classList.toggle('cursor-not-allowed', btn.disabled);
         } else {
             btn.classList.add('hidden');
         }
@@ -313,13 +335,11 @@
             }
         }
         if (state.month) renderCalendar(state.month, updatedItems);
+        setApprovalBatchButton(state.approvalId, updatedItems);
     };
 
-    const updateApprovalItemStatus = async (status, reason) => {
-        if (!state.current?.id) return;
-        const headers = await getAuthHeaders();
-        if (!headers) return;
-        const res = await fetch(`${window.API_BASE_URL}/api/client/social/approval-items/${state.current.id}/status`, {
+    const updateApprovalItemStatusById = async (headers, itemId, status, reason) => {
+        const res = await fetch(`${window.API_BASE_URL}/api/client/social/approval-items/${itemId}/status`, {
             method: 'POST',
             headers,
             body: JSON.stringify({ status, reason })
@@ -331,17 +351,67 @@
         } catch {
             data = null;
         }
-        if (!res.ok) {
-            const message = data?.error === 'motivo_obrigatorio'
+        return { ok: res.ok, data };
+    };
+
+    const updateApprovalItemStatus = async (status, reason) => {
+        if (!state.current?.id) return;
+        const headers = await getAuthHeaders();
+        if (!headers) return;
+        const result = await updateApprovalItemStatusById(headers, state.current.id, status, reason);
+        if (!result.ok) {
+            const message = result.data?.error === 'motivo_obrigatorio'
                 ? 'Informe o motivo do ajuste.'
                 : 'Não foi possível atualizar o status.';
             showFeedback(message);
             return;
         }
-        const nextStatus = data?.status || status;
-        const feedback = data?.feedback_ajuste ?? reason ?? null;
+        const nextStatus = result.data?.status || status;
+        const feedback = result.data?.feedback_ajuste ?? reason ?? null;
         updateLocalItemStatus(state.current.id, nextStatus, feedback);
         showFeedback('Status atualizado com sucesso.');
+    };
+
+    const approveBatchItems = async () => {
+        if (!state.approvalId) return;
+        const pendingItems = getPendingItems(state.items);
+        if (!pendingItems.length) {
+            showFeedback('Nenhum post pendente para aprovar.');
+            return;
+        }
+        if (!confirm(`Confirma a aprovação de ${pendingItems.length} post(s)?`)) return;
+        const btn = document.getElementById('client-approval-batch-btn');
+        const originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Aprovando...';
+        }
+        const headers = await getAuthHeaders();
+        if (!headers) {
+            if (btn) btn.textContent = originalText;
+            return;
+        }
+        let successCount = 0;
+        let failureCount = 0;
+        for (const item of pendingItems) {
+            const result = await updateApprovalItemStatusById(headers, item.id, 'approved');
+            if (result.ok) {
+                successCount += 1;
+                const nextStatus = result.data?.status || 'approved';
+                const feedback = result.data?.feedback_ajuste ?? null;
+                updateLocalItemStatus(item.id, nextStatus, feedback);
+            } else {
+                failureCount += 1;
+            }
+        }
+        if (btn) {
+            btn.textContent = originalText;
+        }
+        if (failureCount === 0) {
+            showFeedback('Todos os posts foram aprovados.');
+        } else {
+            showFeedback(`Aprovados: ${successCount}. Falharam: ${failureCount}.`);
+        }
     };
 
     const loadCalendarForMonth = async (monthStr) => {
@@ -381,7 +451,7 @@
                 return;
             }
             setEmptyState(false);
-            setApprovalBatchButton(state.approvalId);
+            setApprovalBatchButton(state.approvalId, items);
             renderCalendar(monthStr, items);
         } catch {
             setEmptyState(false);
@@ -412,13 +482,7 @@
                 updateApprovalItemStatus('needs_adjustment', reason);
             });
         }
-        if (batchBtn) {
-            batchBtn.addEventListener('click', () => {
-                if (state.approvalId) {
-                    window.location.href = `aprovacao.html?id=${state.approvalId}`;
-                }
-            });
-        }
+        if (batchBtn) batchBtn.addEventListener('click', approveBatchItems);
 
         if (monthInput) {
             const now = new Date();
