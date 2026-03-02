@@ -1884,6 +1884,127 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/client/me' && request.method === 'GET') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const { user, profile, tenantId } = authContext;
+
+            const membershipsRes = await supabaseRest(
+                request,
+                `/rest/v1/client_memberships?select=client_id&user_id=eq.${user.id}`
+            );
+            if (membershipsRes.status < 200 || membershipsRes.status >= 300) {
+                response.writeHead(membershipsRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify(membershipsRes.data || { error: 'erro_ao_listar_clientes' }));
+                return;
+            }
+
+            const clientIds = Array.isArray(membershipsRes.data)
+                ? membershipsRes.data.map((row) => row?.client_id).filter((id) => id !== null && id !== undefined)
+                : [];
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                user_id: user.id,
+                tenant_id: tenantId,
+                role: profile?.role || null,
+                client_ids: Array.from(new Set(clientIds))
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/client/invite' && request.method === 'POST') {
+        try {
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'payload_invalido' }));
+                return;
+            }
+
+            const email = String(body?.email || '').trim().toLowerCase();
+            const clientIdRaw = String(body?.client_id || '').trim();
+            const clientId = /^\d+$/.test(clientIdRaw) ? Number(clientIdRaw) : null;
+
+            if (!email || !clientId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'dados_invalidos' }));
+                return;
+            }
+
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+
+            const inviteRes = await supabaseAdminAuthRest('/invite', 'POST', { email });
+            if (inviteRes.status >= 400) {
+                response.writeHead(inviteRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: inviteRes.data?.error || 'erro_ao_convidar' }));
+                return;
+            }
+
+            const userId = inviteRes.data?.user?.id || inviteRes.data?.id || null;
+            if (!userId) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'usuario_nao_criado' }));
+                return;
+            }
+
+            const profilePayload = {
+                id: userId,
+                email,
+                tenant_id: authContext.tenantId,
+                role: 'client'
+            };
+
+            const profileRes = await supabaseServiceRest(
+                '/rest/v1/profiles?on_conflict=id',
+                'POST',
+                profilePayload,
+                { Prefer: 'resolution=merge-duplicates,return=representation' }
+            );
+
+            if (profileRes.status >= 400) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_ao_atualizar_perfil', message: profileRes.data?.message || profileRes.data?.error || profileRes.text }));
+                return;
+            }
+
+            const membershipRes = await supabaseServiceRest(
+                '/rest/v1/client_memberships?on_conflict=tenant_id,client_id,user_id',
+                'POST',
+                {
+                    tenant_id: authContext.tenantId,
+                    client_id: clientId,
+                    user_id: userId
+                },
+                { Prefer: 'resolution=merge-duplicates,return=representation' }
+            );
+
+            if (membershipRes.status >= 400) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_ao_criar_vinculo', message: membershipRes.data?.message || membershipRes.data?.error || membershipRes.text }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true, user_id: userId }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/client/approvals' && request.method === 'GET') {
         try {
             const type = String(parsedUrl.query.type || '').trim().toLowerCase();

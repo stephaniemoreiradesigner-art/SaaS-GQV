@@ -15,14 +15,36 @@
     <div class="min-h-screen flex flex-col">
         <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8">
             <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
-            <button onclick="window.clientApp && window.clientApp.clientLogout()" class="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">Sair</button>
+            <button onclick="window.clientSession && window.clientSession.clientLogout()" class="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">Sair</button>
         </header>
 
         <main class="flex-1 px-4 py-10">
             <div class="max-w-4xl mx-auto">
                 <h1 class="text-2xl font-bold text-gray-900 mb-6 text-center">Bem-vindo ao seu Painel</h1>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <a href="client_dashboard.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <a href="client_approvals_posts.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-gray-800 truncate">Aprovações pendentes</h2>
+                                <p class="text-sm text-gray-500 truncate">Revisar conteúdos aguardando</p>
+                            </div>
+                        </div>
+                    </a>
+                    <div class="bg-white border border-gray-200 rounded-xl p-6">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                                <i class="fas fa-bullhorn"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-lg font-semibold text-gray-800 truncate">Solicitar campanha</h2>
+                                <p class="text-sm text-gray-500 truncate">Pedir novas campanhas</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-xl p-6">
                         <div class="flex items-center gap-3">
                             <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
                                 <i class="fas fa-chart-line"></i>
@@ -32,51 +54,11 @@
                                 <p class="text-sm text-gray-500 truncate">Visão geral do desempenho</p>
                             </div>
                         </div>
-                    </a>
-                    <a href="client_integrations.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-plug"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Integrações</h2>
-                                <p class="text-sm text-gray-500 truncate">Conecte suas plataformas</p>
-                            </div>
-                        </div>
-                    </a>
-                    <a href="client_approvals_calendar.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-calendar-check"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Aprovar Calendário</h2>
-                                <p class="text-sm text-gray-500 truncate">Veja o que precisa de aprovação</p>
-                            </div>
-                        </div>
-                    </a>
-                    <a href="client_approvals_posts.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-clapperboard"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Aprovar Posts</h2>
-                                <p class="text-sm text-gray-500 truncate">Aprove conteúdos pendentes</p>
-                            </div>
-                        </div>
-                    </a>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
-    <script src="js/client_app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.clientApp && window.clientApp.requireClientAuth) {
-                window.clientApp.requireClientAuth();
-            }
-        });
-    </script>
+    <script src="js/client_session.js"></script>
 </body>
 </html>

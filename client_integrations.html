@@ -21,7 +21,7 @@
                     </svg>
                     Voltar ao Painel
                 </button>
-                <button onclick="window.clientApp && window.clientApp.clientLogout()" class="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition focus:outline-none focus:ring-2 focus:ring-purple-300">Sair</button>
+                <button onclick="window.clientSession && window.clientSession.clientLogout()" class="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition focus:outline-none focus:ring-2 focus:ring-purple-300">Sair</button>
             </div>
         </header>
 
@@ -53,13 +53,6 @@
             </div>
         </main>
     </div>
-    <script src="js/client_app.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (window.clientApp && window.clientApp.requireClientAuth) {
-                window.clientApp.requireClientAuth();
-            }
-        });
-    </script>
+    <script src="js/client_session.js"></script>
 </body>
 </html>

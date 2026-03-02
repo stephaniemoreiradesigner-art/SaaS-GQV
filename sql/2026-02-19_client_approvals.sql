@@ -121,3 +121,25 @@ ADD COLUMN IF NOT EXISTS brand_kit_url text,
 ADD COLUMN IF NOT EXISTS reference_doc_url text,
 ADD COLUMN IF NOT EXISTS ai_memory_summary text,
 ADD COLUMN IF NOT EXISTS ai_memory_updated_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS public.client_memberships (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id bigint NOT NULL,
+    client_id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    permission_json jsonb DEFAULT '{}'::jsonb,
+    created_at timestamptz DEFAULT now(),
+    CONSTRAINT client_memberships_unique UNIQUE (tenant_id, client_id, user_id)
+);
+
+ALTER TABLE public.client_memberships ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Profiles Select Own" ON public.profiles;
+CREATE POLICY "Profiles Select Own" ON public.profiles
+FOR SELECT TO authenticated
+USING (id = auth.uid());
+
+DROP POLICY IF EXISTS "Client memberships select own" ON public.client_memberships;
+CREATE POLICY "Client memberships select own" ON public.client_memberships
+FOR SELECT TO authenticated
+USING (user_id = auth.uid());

@@ -29,7 +29,7 @@
     };
 
     const getSessionOrRedirect = async () => {
-        const supabase = await window.clientApp?.getSupabaseClient?.();
+        const supabase = await window.clientSession?.getSupabaseClient?.();
         if (!supabase) {
             window.location.href = 'client_login.html';
             return null;

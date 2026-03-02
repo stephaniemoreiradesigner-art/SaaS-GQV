@@ -72,7 +72,7 @@
 
     const getPublicUrlFromPath = async (path) => {
         if (!path) return '';
-        const supabase = await window.clientApp?.getSupabaseClient?.();
+        const supabase = await window.clientSession?.getSupabaseClient?.();
         if (!supabase?.storage) return '';
         const { data } = supabase.storage.from('social_media_uploads').getPublicUrl(path);
         return data?.publicUrl || '';
@@ -85,7 +85,7 @@
     };
 
     const getAuthHeaders = async () => {
-        const supabase = await window.clientApp?.getSupabaseClient?.();
+        const supabase = await window.clientSession?.getSupabaseClient?.();
         if (!supabase) {
             window.location.href = 'client_login.html';
             return null;
