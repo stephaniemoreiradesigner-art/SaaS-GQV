@@ -81,3 +81,17 @@ CREATE TABLE IF NOT EXISTS public.projetos (
     prazo DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- Tabela Memberships (Painel do Cliente)
+CREATE TABLE IF NOT EXISTS public.memberships (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id),
+    tenant_id BIGINT REFERENCES public.clientes(id),
+    role TEXT,
+    status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS memberships_user_id_idx ON public.memberships (user_id);
+CREATE INDEX IF NOT EXISTS memberships_tenant_id_idx ON public.memberships (tenant_id);
+CREATE INDEX IF NOT EXISTS memberships_user_tenant_idx ON public.memberships (user_id, tenant_id);

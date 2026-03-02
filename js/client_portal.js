@@ -93,17 +93,49 @@ const applyPermissionVisibility = (permissions) => {
     });
 };
 
+const getClientAccessToken = async () => {
+    const supabase = await window.clientSession?.getSupabaseClient?.();
+    const client = supabase || window.supabaseClient;
+    if (!client?.auth?.getSession) return null;
+    const { data } = await client.auth.getSession();
+    return data?.session?.access_token || null;
+};
+
+const loadClientContext = async () => {
+    const accessToken = await getClientAccessToken();
+    if (!accessToken) {
+        window.location.href = '/client/login';
+        return null;
+    }
+    const response = await fetch(`${window.API_BASE_URL}/api/client/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (response.status === 401) {
+        window.location.href = '/client/login';
+        return null;
+    }
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+        return null;
+    }
+    window.CLIENT_CONTEXT = payload || null;
+    return window.CLIENT_CONTEXT;
+};
+
+const renderMenu = () => {
+    renderClientNav(window.CLIENT_CONTEXT?.nav || [], window.location.pathname);
+};
+
 const ensureClientAccess = async () => {
-    if (!window.clientSession?.ensureClientSession) {
+    if (!window.clientSession?.getSupabaseClient) {
         setTimeout(ensureClientAccess, 300);
         return;
     }
-    const context = await window.clientSession.ensureClientSession();
+    const context = await loadClientContext();
     if (!context) return;
     const tenantName = context?.tenant?.nome_fantasia || context?.tenant?.nome_empresa || context?.user?.email || 'Cliente';
     setClientName(tenantName);
-    const navItems = context?.nav || window.CLIENT_CONTEXT?.nav || [];
-    renderClientNav(navItems, window.location.pathname);
+    renderMenu();
     const requiredPermission = getRequiredPermission(window.location.pathname);
     const permissions = Array.isArray(context?.permissions) ? context.permissions : [];
     applyPermissionVisibility(permissions);

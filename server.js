@@ -627,12 +627,15 @@ const requireSession = async (request, response) => {
     }
     const userId = userJson?.id || userJson?.user?.id || null;
     const email = userJson?.email || userJson?.user?.email || null;
+    const metadata = userJson?.user_metadata || userJson?.user?.user_metadata || {};
+    const name = metadata?.full_name || metadata?.name || metadata?.nome || metadata?.display_name || email || null;
     if (!userId) {
         response.writeHead(401, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify({ error: 'unauthorized' }));
         return null;
     }
-    return { user: { id: userId, email }, accessToken: token };
+    request.user = { id: userId, email, name };
+    return { user: request.user, accessToken: token };
 };
 
 const requireAuth = async (request, response) => {
@@ -758,17 +761,9 @@ const buildClientNav = (permissions) => {
         {
             label: '',
             items: [
-                { label: 'Dashboard', href: '/client', icon: 'fas fa-grid-2', permission: 'dashboard.view' },
-                { label: 'Métricas', href: '/client/metrics', icon: 'fas fa-chart-line', permission: 'metrics.view' },
-                { label: 'Integrações', href: '/client/integrations', icon: 'fas fa-plug', permission: 'integrations.view' },
-                { label: 'Performance', href: '/client/performance', icon: 'fas fa-chart-column', permission: 'performance.view' }
-            ]
-        },
-        {
-            label: 'Aprovações',
-            items: [
-                { label: 'Calendário', href: '/client/approvals/calendar', icon: 'fas fa-calendar', permission: 'approvals.calendar.view' },
-                { label: 'Posts', href: '/client/approvals/posts', icon: 'fas fa-clapperboard', permission: 'approvals.posts.view' }
+                { label: 'Home', href: '/client/index.html', icon: 'fas fa-grid-2', permission: 'dashboard.view' },
+                { label: 'Integrações', href: '/client/integrations.html', icon: 'fas fa-plug', permission: 'integrations.view' },
+                { label: 'Métricas', href: '/client/metrics.html', icon: 'fas fa-chart-line', permission: 'performance.view' }
             ]
         }
     ];
@@ -781,7 +776,7 @@ const buildClientNav = (permissions) => {
 };
 
 const attachClientContext = async (request, response) => {
-    const session = await requireSession(request, response);
+    const session = request.user ? { user: request.user } : await requireSession(request, response);
     if (!session) return null;
     const user = session.user;
     const profile = await getProfileForUser(request, user.id);
@@ -843,13 +838,8 @@ const attachClientContext = async (request, response) => {
     const permissions = buildClientPermissions(membership, profile);
     const nav = buildClientNav(permissions);
 
-    return {
-        user,
-        tenant,
-        membership,
-        permissions,
-        nav
-    };
+    request.clientContext = { tenant, membership, permissions };
+    return { user, tenant, membership, permissions, nav };
 };
 
 const resolveTenantAndClient = async (request, response, clienteId) => {
@@ -2061,6 +2051,8 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/me' && request.method === 'GET') {
         try {
+            const session = await requireSession(request, response);
+            if (!session) return;
             const context = await attachClientContext(request, response);
             if (!context) return;
             response.writeHead(200, { 'Content-Type': 'application/json' });
