@@ -66,6 +66,7 @@ const renderClientNav = (nav, currentPath) => {
     const container = document.getElementById('client-nav');
     if (!container) return;
     const normalizedPath = currentPath.replace(/\/$/, '') || '/client';
+    const permissions = Array.isArray(window.CLIENT_CONTEXT?.permissions) ? window.CLIENT_CONTEXT.permissions : [];
     container.innerHTML = '';
     const normalizedNav = normalizeClientNav(nav);
     normalizedNav.forEach((section) => {
@@ -76,6 +77,9 @@ const renderClientNav = (nav, currentPath) => {
             container.appendChild(label);
         }
         section.items.forEach((item) => {
+            if (item?.permission && !permissions.includes(item.permission)) {
+                return;
+            }
             const link = document.createElement('a');
             const itemHref = item.href || '';
             const itemPath = itemHref.replace(/\/$/, '') || '/client';
