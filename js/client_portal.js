@@ -40,12 +40,35 @@ const setupClientLogout = () => {
     });
 };
 
+const normalizeClientNav = (nav) => {
+    if (!Array.isArray(nav) || nav.length === 0) return [];
+    const hasSections = nav.some((section) => Array.isArray(section?.items));
+    if (hasSections) {
+        return nav
+            .map((section) => ({
+                label: section?.label || '',
+                items: Array.isArray(section?.items) ? section.items : []
+            }))
+            .filter((section) => section.items.length > 0);
+    }
+    const items = nav
+        .map((item) => ({
+            label: item?.label || '',
+            href: item?.href || item?.path || '',
+            icon: item?.icon || '',
+            permission: item?.permission
+        }))
+        .filter((item) => item.href);
+    return items.length ? [{ label: '', items }] : [];
+};
+
 const renderClientNav = (nav, currentPath) => {
     const container = document.getElementById('client-nav');
     if (!container) return;
     const normalizedPath = currentPath.replace(/\/$/, '') || '/client';
     container.innerHTML = '';
-    nav.forEach((section) => {
+    const normalizedNav = normalizeClientNav(nav);
+    normalizedNav.forEach((section) => {
         if (section.label) {
             const label = document.createElement('div');
             label.className = 'mt-4 text-xs uppercase text-gray-400 px-3';
@@ -54,9 +77,10 @@ const renderClientNav = (nav, currentPath) => {
         }
         section.items.forEach((item) => {
             const link = document.createElement('a');
-            const itemPath = item.href.replace(/\/$/, '') || '/client';
+            const itemHref = item.href || '';
+            const itemPath = itemHref.replace(/\/$/, '') || '/client';
             const isActive = normalizedPath === itemPath;
-            link.href = item.href;
+            link.href = itemHref;
             link.className = [
                 'flex items-center gap-3 px-3 py-2 rounded-lg',
                 isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-gray-600 hover:bg-gray-50'
@@ -71,10 +95,14 @@ const getRequiredPermission = (pathname) => {
     const cleaned = pathname.replace(/\/$/, '') || '/client';
     const map = {
         '/client': 'dashboard.view',
+        '/client/index.html': 'dashboard.view',
         '/client/home': 'dashboard.view',
         '/client/metrics': 'metrics.view',
+        '/client/metrics.html': 'metrics.view',
         '/client/integrations': 'integrations.view',
+        '/client/integrations.html': 'integrations.view',
         '/client/performance': 'performance.view',
+        '/client/performance.html': 'performance.view',
         '/client/approvals/calendar': 'approvals.calendar.view',
         '/client/approvals/posts': 'approvals.posts.view'
     };
@@ -140,7 +168,7 @@ const ensureClientAccess = async () => {
     const permissions = Array.isArray(context?.permissions) ? context.permissions : [];
     applyPermissionVisibility(permissions);
     if (requiredPermission && !permissions.includes(requiredPermission)) {
-        window.location.href = '/client/home';
+        window.location.href = '/client/index.html';
         return;
     }
     const content = document.getElementById('client-content');
