@@ -901,79 +901,74 @@ document.addEventListener('DOMContentLoaded', async () => {
             const clienteId = document.getElementById('cliente_id').value; // ID oculto
 
             try {
-
                 btnSave.innerText = 'Salvando...';
                 btnSave.disabled = true;
 
                 // Coletar Checkboxes
-                const getCheckedValues = (name) => {
-                    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
-                };
+            const getCheckedValues = (name) => {
+                return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
+            };
 
-                // Coletar Mensalidades
-                const mensalidades = getMensalidadesFromForm();
+            // Coletar Mensalidades
+            const mensalidades = getMensalidadesFromForm();
+            
+            // Calcular valor total e definir dia de vencimento principal (baseado no primeiro item)
+            let valorTotal = 0;
+            let diaVencimentoPrincipal = null;
 
-                // Calcular valor total e definir dia de vencimento principal (baseado no primeiro item)
-                let valorTotal = 0;
-                let diaVencimentoPrincipal = null;
+            if (mensalidades.length > 0) {
+                valorTotal = mensalidades.reduce((acc, curr) => acc + curr.valor, 0);
+                diaVencimentoPrincipal = mensalidades[0].dia_vencimento;
+            }
 
-                if (mensalidades.length > 0) {
-                    valorTotal = mensalidades.reduce((acc, curr) => acc + curr.valor, 0);
-                    diaVencimentoPrincipal = mensalidades[0].dia_vencimento;
-                }
+            const gestorSelect = document.getElementById('gestor_trafego_email');
+            const socialSelect = document.getElementById('social_media_email');
+            const gestorOption = gestorSelect && gestorSelect.selectedOptions ? gestorSelect.selectedOptions[0] : null;
+            const socialOption = socialSelect && socialSelect.selectedOptions ? socialSelect.selectedOptions[0] : null;
+            const gestorColaboradorId = gestorSelect && gestorSelect.value ? gestorSelect.value : null;
+            const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
+            const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
+            const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
+            const logoUrlInputValue = normalizeLogoUrl(document.getElementById('logo_url').value);
+            const logoFileInput = document.getElementById('logo_file');
+            const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+            const registroGrupo = document.getElementById('registro_grupo').value;
+            const emailEmpresaValue = normalizeEmailValue(document.getElementById('email_contato').value);
 
-                const gestorSelect = document.getElementById('gestor_trafego_email');
-                const socialSelect = document.getElementById('social_media_email');
-                const gestorOption = gestorSelect && gestorSelect.selectedOptions ? gestorSelect.selectedOptions[0] : null;
-                const socialOption = socialSelect && socialSelect.selectedOptions ? socialSelect.selectedOptions[0] : null;
-                const gestorColaboradorId = gestorSelect && gestorSelect.value ? gestorSelect.value : null;
-                const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
-                const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
-                const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
-                const logoUrlInputValue = normalizeLogoUrl(document.getElementById('logo_url').value);
-                const logoFileInput = document.getElementById('logo_file');
-                const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
-                const registroGrupo = document.getElementById('registro_grupo').value;
-                const emailEmpresaValue = normalizeEmailValue(document.getElementById('email_contato').value);
+            const clienteData = {
+                nome_empresa: document.getElementById('nome_empresa').value,
+                nome_fantasia: document.getElementById('nome_fantasia').value,
+                time_id: document.getElementById('time_id').value || null,
+                telefone: document.getElementById('telefone').value,
+                endereco: document.getElementById('endereco').value,
+                email_contato: emailEmpresaValue || null,
+                responsavel_nome: document.getElementById('responsavel_nome').value,
+                responsavel_whatsapp: document.getElementById('responsavel_whatsapp').value,
+                responsavel_nome_2: document.getElementById('responsavel_nome_2').value,
+                responsavel_whatsapp_2: document.getElementById('responsavel_whatsapp_2').value,
+                
+                // Campos de compatibilidade + JSONB
+                valor_mensalidade: valorTotal,
+                dia_vencimento: diaVencimentoPrincipal,
+                mensalidades: mensalidades, // Salva o array completo no JSONB
 
-                const clienteData = {
-                    nome_empresa: document.getElementById('nome_empresa').value,
-                    nome_fantasia: document.getElementById('nome_fantasia').value,
-                    time_id: document.getElementById('time_id').value || null,
-                    telefone: document.getElementById('telefone').value,
-                    endereco: document.getElementById('endereco').value,
-                    email_contato: emailEmpresaValue || null,
-                    responsavel_nome: document.getElementById('responsavel_nome').value,
-                    responsavel_whatsapp: document.getElementById('responsavel_whatsapp').value,
-                    responsavel_nome_2: document.getElementById('responsavel_nome_2').value,
-                    responsavel_whatsapp_2: document.getElementById('responsavel_whatsapp_2').value,
-
-                    // Campos de compatibilidade + JSONB
-                    valor_mensalidade: valorTotal,
-                    dia_vencimento: diaVencimentoPrincipal,
-                    mensalidades: mensalidades, // Salva o array completo no JSONB
-
-                    // Links Úteis
-                    link_briefing: document.getElementById('link_briefing').value,
-                    link_site: document.getElementById('link_site').value,
-                    link_lp: document.getElementById('link_lp').value,
-                    link_drive: document.getElementById('link_drive').value,
-                    link_persona: document.getElementById('link_persona').value,
-                    link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
-                    registro_grupo: registroGrupo || null,
-                    logo_url: logoUrlInputValue || null,
-
-                    servicos: getCheckedValues('servicos'),
-                    responsavel_trafego_colaborador_id: gestorColaboradorId,
-                    responsavel_social_colaborador_id: socialColaboradorId,
-                    gestor_trafego_email: gestorEmail,
-                    social_media_email: socialEmail,
-                    status: document.getElementById('status_cliente').value
-                };
-
-                // --- HOTFIX escopo savedRow/savedId ---
-                let savedRow = null;
-                let savedId = null;
+                // Links Úteis
+                link_briefing: document.getElementById('link_briefing').value,
+                link_site: document.getElementById('link_site').value,
+                link_lp: document.getElementById('link_lp').value,
+                link_drive: document.getElementById('link_drive').value,
+                link_persona: document.getElementById('link_persona').value,
+                link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
+                registro_grupo: registroGrupo || null,
+                logo_url: logoUrlInputValue || null,
+                
+                servicos: getCheckedValues('servicos'),
+                responsavel_trafego_colaborador_id: gestorColaboradorId,
+                responsavel_social_colaborador_id: socialColaboradorId,
+                gestor_trafego_email: gestorEmail,
+                social_media_email: socialEmail,
+                status: document.getElementById('status_cliente').value
+            };
 
                 const logSave = (...args) => console.log('[Clientes Save]', ...args);
 
@@ -1013,6 +1008,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 let error;
                 let allowLogoColumn = true;
+                let savedRow = null;
+                let savedId = null;
 
                 if (clienteId) {
                     if (logoFile) {
@@ -1138,18 +1135,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (error) throw error;
                 if (!savedId && !clienteId) throw new Error('Save retornou sem id');
 
-                // --- Pós-save: nunca lançar erro, apenas logar ---
-                try { await refreshClientById(savedId || clienteId); } catch (e) { console.warn('Erro pós-save (refreshClientById):', e); }
-                try { loadClientes(); } catch (e) { console.warn('Erro pós-save (loadClientes):', e); }
+                const refreshedClientId = savedId || clienteId;
 
                 alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
-
+                
                 // Volta para lista
                 const lista = document.getElementById('lista-clientes-container');
                 const formContainer = document.getElementById('form-cliente-container');
                 if (lista && formContainer) {
                     lista.style.display = 'block';
                     formContainer.style.display = 'none';
+                }
+                
+                try {
+                    await refreshClientById(refreshedClientId);
+                } catch (refreshError) {
+                    console.warn('Erro ao recarregar cliente atualizado:', refreshError);
+                }
+
+                try {
+                    loadClientes();
+                } catch (loadError) {
+                    console.warn('Erro ao recarregar lista de clientes:', loadError);
                 }
 
             } catch (error) {
