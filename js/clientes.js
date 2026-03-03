@@ -970,6 +970,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 status: document.getElementById('status_cliente').value
             };
 
+                const logSave = (...args) => console.log('[Clientes Save]', ...args);
+
                 const getErrorMessage = (err) => String(err?.message || err?.error || err?.details || err || '');
                 const getErrorPayload = (err) => {
                     try { return JSON.stringify(err || {}); } catch (e) { return ''; }
@@ -1019,12 +1021,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     let updatePayload = { ...clienteData };
                     logDev('payload enviado no update', updatePayload);
-                    let { data: updateData, error: updateError } = await window.supabaseClient
+                    logSave('endpoint', 'supabase: clientes update');
+                    logSave('payload', updatePayload);
+                    let { data: updateData, error: updateError, status: updateStatus, statusText: updateStatusText } = await window.supabaseClient
                         .from('clientes')
                         .update(updatePayload)
                         .eq('id', clienteId)
                         .select()
                         .single();
+                    logSave('response', { status: updateStatus, statusText: updateStatusText, data: updateData, error: updateError });
                     if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo') || hasMissingColumn(updateError, 'tenant_id'))) {
                         updatePayload = stripMissingColumns(updatePayload, updateError);
                         if (hasMissingColumn(updateError, 'logo_url')) missingColumns.add('logo_url');
@@ -1032,6 +1037,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (hasMissingColumn(updateError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in updatePayload)) allowLogoColumn = false;
+                        logSave('endpoint', 'supabase: clientes update (retry)');
+                        logSave('payload', updatePayload);
                         const retry = await window.supabaseClient
                             .from('clientes')
                             .update(updatePayload)
@@ -1040,6 +1047,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .single();
                         updateData = retry.data;
                         updateError = retry.error;
+                        logSave('response', { status: retry.status, statusText: retry.statusText, data: updateData, error: updateError });
                     }
                     
                     error = updateError;
@@ -1063,11 +1071,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (resolvedTenantId) clienteData.tenant_id = resolvedTenantId;
                     if (clienteData.is_demo === undefined) clienteData.is_demo = false;
                     let insertPayload = { ...clienteData };
-                    let { data, error: insertError } = await window.supabaseClient
+                    logSave('endpoint', 'supabase: clientes insert');
+                    logSave('payload', insertPayload);
+                    let { data, error: insertError, status: insertStatus, statusText: insertStatusText } = await window.supabaseClient
                         .from('clientes')
                         .insert([insertPayload])
                         .select()
                         .single();
+                    logSave('response', { status: insertStatus, statusText: insertStatusText, data, error: insertError });
                     if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo') || hasMissingColumn(insertError, 'tenant_id'))) {
                         insertPayload = stripMissingColumns(insertPayload, insertError);
                         if (hasMissingColumn(insertError, 'logo_url')) missingColumns.add('logo_url');
@@ -1075,6 +1086,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (hasMissingColumn(insertError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in insertPayload)) allowLogoColumn = false;
+                        logSave('endpoint', 'supabase: clientes insert (retry)');
+                        logSave('payload', insertPayload);
                         const retry = await window.supabaseClient
                             .from('clientes')
                             .insert([insertPayload])
@@ -1082,6 +1095,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .single();
                         data = retry.data;
                         insertError = retry.error;
+                        logSave('response', { status: retry.status, statusText: retry.statusText, data, error: insertError });
                     }
                     
                     error = insertError;

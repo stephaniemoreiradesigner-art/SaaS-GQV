@@ -289,6 +289,7 @@ async function loadInsightsClients() {
         const { data: clients, error } = await window.supabaseClient
             .from('clientes')
             .select('id, nome_fantasia, nome_empresa')
+            .eq('is_demo', false)
             .order('nome_fantasia');
 
         if (error) throw error;
@@ -397,6 +398,7 @@ async function loadLogsClients() {
         const { data: clients, error } = await window.supabaseClient
             .from('clientes')
             .select('id, nome_fantasia, nome_empresa')
+            .eq('is_demo', false)
             .order('nome_fantasia');
 
         if (error) throw error;
@@ -1438,6 +1440,7 @@ async function loadCreativeRequestsClients() {
         const { data, error } = await window.supabaseClient
             .from('clientes')
             .select('id, nome_fantasia, nome_empresa')
+            .eq('is_demo', false)
             .order('nome_fantasia');
         if (error) throw error;
         const list = Array.isArray(data) ? data : [];
