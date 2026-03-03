@@ -182,29 +182,50 @@ async function updateCalendarConnections(clientId) {
     updateGenerateButtonState();
 }
 
-window.openGenerationConfigModal = function() {
-    const modal = document.getElementById('generationModal');
+// --- Modal: Configurar Geração (compatível com IDs antigos e novos)
+function getGenerationModalElements() {
+    // HTML antigo: modal-generation-config / modal-generation-config-content
+    // HTML novo: generationModal / generationModalContent
+    const modal =
+        document.getElementById("generationModal") ||
+        document.getElementById("modal-generation-config");
+
+    const content =
+        document.getElementById("generationModalContent") ||
+        document.getElementById("modal-generation-config-content");
+
+    return { modal, content };
+}
+
+window.openGenerationConfigModal = function () {
+    const { modal, content } = getGenerationModalElements();
     if (!modal) return;
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+
+    requestAnimationFrame(() => {
+        modal.classList.remove("opacity-0");
+        if (content) content.classList.remove("scale-95");
+    });
+};
+
+window.closeGenerationModal = function () {
+    const { modal, content } = getGenerationModalElements();
+    if (!modal) return;
+
+    modal.classList.add("opacity-0");
+    if (content) content.classList.add("scale-95");
+
     setTimeout(() => {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        setTimeout(() => {
-            modal.classList.remove('opacity-0');
-            const content = document.getElementById('modal-generation-config-content');
-            if (content) content.classList.remove('scale-95');
-        }, 10);
-    }, 250);
-}
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+    }, 300);
+};
 
-function closeGenerationModal() {
-    const modal = document.getElementById('generationModal');
-    if (!modal) return;
-    modal.classList.add('hidden');
-}
-
-window.closeGenerationConfigModal = function() {
-    closeGenerationModal();
-}
+// Mantém compatibilidade com chamadas antigas
+window.closeGenerationConfigModal =
+    window.closeGenerationConfigModal || window.closeGenerationModal;
 
 function showGenerationLog() {
     const log = document.getElementById('generationLog');
@@ -419,7 +440,7 @@ async function pollCalendarProgress() {
                         await loadCalendarData();
                         const updated = await waitForCalendarUpdate({ timeoutMs: 10000 });
                         if (updated) {
-                            closeGenerationConfigModal();
+                            window.closeGenerationModal();
                             hideGenerationLog();
                         } else {
                             const message = 'Calendário ainda não apareceu. Clique em "Tentar novamente" para atualizar.';
@@ -822,12 +843,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
 
-    document.addEventListener('click', function(e) {
-        if (generationModalLoading) return;
-        if (e.target.matches('[data-close-generation]')) {
-            closeGenerationModal();
+        const { modal: modalGeneration } =
+            typeof getGenerationModalElements === "function"
+                ? getGenerationModalElements()
+                : { modal: null };
+
+        if (modalGeneration) {
+            modalGeneration.addEventListener("click", (e) => {
+                // clique no overlay fecha
+                if (e.target === modalGeneration) window.closeGenerationModal();
+            });
         }
-    });
+
+        // Compatível: botões por ID (HTML antigo)
+        const btnGenerationCancel = document.getElementById("btn-generation-cancel");
+        if (btnGenerationCancel)
+            btnGenerationCancel.addEventListener("click", window.closeGenerationModal);
+
+        const btnGenerationClose = document.getElementById("btn-generation-close");
+        if (btnGenerationClose)
+            btnGenerationClose.addEventListener("click", window.closeGenerationModal);
+
+        // Compatível: botões/overlay por data-attribute (HTML novo)
+        document.addEventListener("click", (e) => {
+            const target =
+                e.target && e.target.closest
+                    ? e.target.closest("[data-close-generation]")
+                    : null;
+            if (!target) return;
+            e.preventDefault();
+            window.closeGenerationModal();
+        });
 
     const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
     if (btnGenerationConfirm) {
@@ -2450,7 +2496,8 @@ Regras obrigatórias:
           { role: "user", content: calendarPrompt }
         ];
         const requestPayload = {
-                mode: 'calendar',
+            __legacy_calendar_mode: true,
+            mode: 'calendar',
                 model: 'gpt-4-turbo',
                 temperature: 0.7,
                 request_id: requestId,
@@ -2757,7 +2804,7 @@ Regras obrigatórias:
             const updated = await waitForCalendarUpdate({ timeoutMs: 10000 });
             if (updated) {
                 generationSucceeded = true;
-                closeGenerationConfigModal();
+                window.closeGenerationModal();
                 hideGenerationLog();
             } else {
                 const message = 'Calendário ainda não apareceu. Clique em "Tentar novamente" para atualizar.';

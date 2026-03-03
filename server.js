@@ -5957,8 +5957,27 @@ const server = http.createServer(async (request, response) => {
                 });
                 setImmediate(() => {
                     executeProxy().catch(async (error) => {
-                        console.error('[generateCalendar][fatal_error]', error);
-                        await sendError('INTERNAL_ERROR', error?.message || 'Erro interno no proxy OpenAI.', error?.stack || null);
+                        // IMPORTANTE: em modo calendário, a resposta já foi enviada (processing).
+                        // Se der erro aqui, precisamos marcar o calendário como ERRO no banco,
+                        // senão o front fica preso para sempre em "processando".
+                        try {
+                            if (errorLogContext?.calendarId) {
+                                const safeMsg = String(error?.message || "Erro interno no proxy OpenAI.");
+                                await appendCalendarLog(
+                                    errorLogContext.calendarId,
+                                    `ERRO: ${safeMsg}`,
+                                    { status: "erro" }
+                                );
+                            }
+                        } catch (logError) {
+                            // evita crash do worker por falha de log
+                        }
+
+                        await sendError(
+                            "INTERNAL_ERROR",
+                            error?.message || "Erro interno no proxy OpenAI.",
+                            error?.stack || null
+                        );
                     });
                 });
                 return;
