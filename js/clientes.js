@@ -399,11 +399,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 clientes = data || [];
             }
 
-            const uniqueClientes = Array.isArray(clientes)
-                ? Array.from(new Map(clientes.map(cliente => [String(cliente.id), cliente])).values())
+            // Filtra clientes demo (is_demo=true) para área separada
+            const clientesNormais = Array.isArray(clientes)
+                ? clientes.filter(c => !c.is_demo)
+                : [];
+            const clientesDemo = Array.isArray(clientes)
+                ? clientes.filter(c => c.is_demo)
                 : [];
 
-            renderClientes(uniqueClientes);
+            // Exibe clientes normais na listagem principal
+            renderClientes(clientesNormais);
+
+            // Exibe área demo se houver clientes demo
+            if (clientesDemo.length > 0) {
+                renderDemoArea(clientesDemo);
+            }
 
         } catch (error) {
             const message = error?.message || error?.error_description || JSON.stringify(error);
@@ -449,6 +459,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 2. Renderizar Cards
     function renderClientes(clientes) {
+            // ...existing code...
+
+            // Função para exibir área de clientes demo
+            function renderDemoArea(clientesDemo) {
+                let demoHtml = `<div class="mt-8"><h2 class="text-lg font-bold text-gray-700 mb-2">Clientes Demo</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+                clientesDemo.forEach(cliente => {
+                    const nomeExibicao = cliente.nome_fantasia || cliente.nome_empresa;
+                    demoHtml += `<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4"><div class="font-semibold text-yellow-800">${nomeExibicao}</div></div>`;
+                });
+                demoHtml += `</div></div>`;
+                // Adiciona ao final da listagem principal
+                clientesTableBody.insertAdjacentHTML('afterend', demoHtml);
+            }
         clientesTableBody.innerHTML = '';
 
         if (!clientes || clientes.length === 0) {

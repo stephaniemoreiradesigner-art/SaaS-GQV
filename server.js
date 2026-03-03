@@ -1116,8 +1116,11 @@ const seedDemoData = async () => {
     if (emailColumn) clientePayload[emailColumn] = 'demo@gqv.com';
     if (clientColumns.has('telefone')) clientePayload.telefone = '11999999999';
     if (clientColumns.has('status')) clientePayload.status = 'ativo';
-    if (supportsTenantId) clientePayload.tenant_id = DEMO_TENANT_ID;
+    // Sempre usar o tenant_id do contexto autenticado
+    if (supportsTenantId) clientePayload.tenant_id = authContext?.profile?.tenant_id || DEMO_TENANT_ID;
     if (timeId) clientePayload.time_id = timeId;
+    // Tratar is_demo
+    if (clientColumns.has('is_demo')) clientePayload.is_demo = true;
     const clientCreateRes = await supabaseServiceRest(
         '/rest/v1/clientes',
         'POST',
@@ -6045,8 +6048,21 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            // 1. Obter tenant_id do usuário autenticado
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const tenantId = authContext.profile?.tenant_id;
+            if (!tenantId) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_nao_resolvido' }));
+                return;
+            }
+
+            // 2. Montar query filtrando por tenant_id e is_demo=false
             const params = new URLSearchParams();
-            params.set('select', 'id,nome_fantasia,nome_empresa,link_grupo');
+            params.set('select', 'id,nome_fantasia,nome_empresa,link_grupo,is_demo');
+            params.set('tenant_id', `eq.${tenantId}`);
+            params.set('is_demo', 'eq.false');
             params.set('order', 'nome_fantasia.asc,nome_empresa.asc');
 
             const targetUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${params.toString()}`;
@@ -6063,6 +6079,7 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
+            // 3. Montar lista final
             const list = Array.isArray(json) ? json : [];
             const clients = list
                 .map((cliente) => {
@@ -7508,6 +7525,10 @@ const server = http.createServer(async (request, response) => {
                 facebook_page_id: pageId,
                 instagram_id: igBusinessId || null
             };
+            // Sempre usar o tenant_id do contexto autenticado
+            if (authContext?.profile?.tenant_id) clientUpdatePayload.tenant_id = authContext.profile.tenant_id;
+            // Nunca permitir alteração de is_demo por usuários comuns
+            if ('is_demo' in clientUpdatePayload) delete clientUpdatePayload.is_demo;
             const clientUpdateRes = await fetch(clientUpdateUrl, {
                 method: 'PATCH',
                 headers: {
