@@ -1264,7 +1264,8 @@ window.verificarGeracaoMensalidadesAutomaticas = async function() {
         const { data: clientes, error: errClientes } = await window.supabaseClient
             .from('clientes')
             .select('*')
-            .eq('status', 'Ativo');
+            .eq('status', 'Ativo')
+            .eq('is_demo', false);
 
         if (errClientes) throw errClientes;
 

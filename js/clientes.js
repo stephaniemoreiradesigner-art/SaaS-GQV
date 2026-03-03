@@ -562,6 +562,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     const logDev = (...args) => {
         if (isDev) console.log(...args);
     };
+    let cachedTenantId = null;
+    const resolveCurrentTenantId = async () => {
+        if (cachedTenantId !== null) return cachedTenantId;
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return null;
+
+        const metaTenant = user?.user_metadata?.tenant_id
+            || user?.app_metadata?.tenant_id
+            || user?.user_metadata?.cliente_id
+            || user?.app_metadata?.cliente_id;
+        if (metaTenant && /^\d+$/.test(String(metaTenant))) {
+            cachedTenantId = Number(metaTenant);
+            return cachedTenantId;
+        }
+
+        const { data: profile } = await window.supabaseClient
+            .from('profiles')
+            .select('tenant_id')
+            .eq('id', user.id)
+            .maybeSingle();
+        cachedTenantId = profile?.tenant_id ? Number(profile.tenant_id) : null;
+        return cachedTenantId;
+    };
 
     const updateClientAccessUI = ({ liberado, disabled, note, loading }) => {
         const statusEl = document.getElementById('client-view-access-status');
@@ -973,11 +996,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const next = { ...data };
                     if (hasMissingColumn(err, 'logo_url')) delete next.logo_url;
                     if (hasMissingColumn(err, 'registro_grupo')) delete next.registro_grupo;
+                    if (hasMissingColumn(err, 'tenant_id')) delete next.tenant_id;
                     return next;
                 };
                 const missingColumns = getMissingColumnsCache();
                 if (missingColumns.has('logo_url')) delete clienteData.logo_url;
                 if (missingColumns.has('registro_grupo')) delete clienteData.registro_grupo;
+                if (missingColumns.has('tenant_id')) delete clienteData.tenant_id;
 
                 let error;
                 let allowLogoColumn = true;
@@ -1000,10 +1025,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .eq('id', clienteId)
                         .select()
                         .single();
-                    if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo'))) {
+                    if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo') || hasMissingColumn(updateError, 'tenant_id'))) {
                         updatePayload = stripMissingColumns(updatePayload, updateError);
                         if (hasMissingColumn(updateError, 'logo_url')) missingColumns.add('logo_url');
                         if (hasMissingColumn(updateError, 'registro_grupo')) missingColumns.add('registro_grupo');
+                        if (hasMissingColumn(updateError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in updatePayload)) allowLogoColumn = false;
                         const retry = await window.supabaseClient
@@ -1033,16 +1059,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                         );
                     }
                 } else {
+                    const resolvedTenantId = await resolveCurrentTenantId();
+                    if (resolvedTenantId) clienteData.tenant_id = resolvedTenantId;
+                    if (clienteData.is_demo === undefined) clienteData.is_demo = false;
                     let insertPayload = { ...clienteData };
                     let { data, error: insertError } = await window.supabaseClient
                         .from('clientes')
                         .insert([insertPayload])
                         .select()
                         .single();
-                    if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo'))) {
+                    if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo') || hasMissingColumn(insertError, 'tenant_id'))) {
                         insertPayload = stripMissingColumns(insertPayload, insertError);
                         if (hasMissingColumn(insertError, 'logo_url')) missingColumns.add('logo_url');
                         if (hasMissingColumn(insertError, 'registro_grupo')) missingColumns.add('registro_grupo');
+                        if (hasMissingColumn(insertError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
                         if (!('logo_url' in insertPayload)) allowLogoColumn = false;
                         const retry = await window.supabaseClient
@@ -1111,7 +1141,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             } catch (error) {
                 console.error('Erro ao salvar:', error);
-                alert('Erro ao salvar cliente: ' + error.message);
+                const message = String(error?.message || error?.details || error?.hint || error?.error || 'Erro ao salvar cliente.').trim();
+                alert(`Erro ao salvar cliente: ${message}`);
             } finally {
                 btnSave.innerText = originalText;
                 btnSave.disabled = false;
