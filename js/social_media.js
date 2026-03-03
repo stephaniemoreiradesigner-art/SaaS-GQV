@@ -16,6 +16,7 @@ var calendarConnectionsCache = {};
 var socialPostsCache = [];
 var lastSeasonalDates = [];
 var currentPostProps = null;
+let socialMediaPermission = null;
 
 const CALENDAR_STATUS = window.CALENDAR_STATUS;
 const POST_STATUS = window.POST_STATUS;
@@ -36,6 +37,56 @@ function ensureCalendarCTAContainer() {
     return container;
 }
 
+async function ensureSocialMediaPermission() {
+    if (socialMediaPermission !== null) return socialMediaPermission;
+    if (!window.supabaseClient) return false;
+    try {
+        const { data: { user } } = await window.supabaseClient.auth.getUser();
+        if (!user) return false;
+        const isSuper = (window.SUPERADMIN_EMAILS || []).includes(user.email);
+        if (isSuper) {
+            socialMediaPermission = true;
+            return true;
+        }
+
+        let colab = null;
+        const { data: colabByUserId } = await window.supabaseClient
+            .from('colaboradores')
+            .select('id, perfil_acesso, permissoes, email')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        if (colabByUserId) {
+            colab = colabByUserId;
+        } else {
+            const { data: colabByEmail } = await window.supabaseClient
+                .from('colaboradores')
+                .select('id, perfil_acesso, permissoes, email')
+                .eq('email', user.email)
+                .maybeSingle();
+            if (colabByEmail) colab = colabByEmail;
+        }
+
+        const role = colab?.perfil_acesso || '';
+        const perms = Array.isArray(colab?.permissoes) ? colab.permissoes : [];
+        socialMediaPermission = role === 'admin' || role === 'super_admin' || perms.includes('social_media');
+        return socialMediaPermission;
+    } catch (err) {
+        console.warn('[SocialMedia] Falha ao checar permissao:', err);
+        socialMediaPermission = false;
+        return false;
+    }
+}
+
+function updateGenerateButtonState() {
+    const btnHeaderGenerate = document.getElementById('btn-header-generate');
+    const btnModalGenerate = document.getElementById('btn-modal-generate');
+    const hasClient = !!currentClienteId;
+    const hasPermission = socialMediaPermission === true;
+    const isEnabled = hasClient && hasPermission;
+    if (btnHeaderGenerate) btnHeaderGenerate.disabled = !isEnabled;
+    if (btnModalGenerate) btnModalGenerate.disabled = !isEnabled;
+}
+
 async function updateCalendarConnections(clientId) {
     if (!clientId) {
         const container = ensureCalendarCTAContainer();
@@ -50,17 +101,16 @@ async function updateCalendarConnections(clientId) {
     calendarConnectionsCache[clientId] = connections;
     const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
 
-    const btnHeaderGenerate = document.getElementById('btn-header-generate');
     const btnModalGenerate = document.getElementById('btn-modal-generate');
     const container = ensureCalendarCTAContainer();
 
     if (connectedPlatforms.length === 0) {
-        if (btnHeaderGenerate) btnHeaderGenerate.disabled = true;
         if (btnModalGenerate) btnModalGenerate.disabled = true;
         if (container) {
             container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
             container.classList.remove('hidden');
         }
+        updateGenerateButtonState();
         return;
     }
 
@@ -68,6 +118,8 @@ async function updateCalendarConnections(clientId) {
         container.innerHTML = '';
         container.classList.add('hidden');
     }
+
+    updateGenerateButtonState();
 }
 
 window.openGenerationConfigModal = function() {
@@ -679,6 +731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 800);
     }
     initCalendar();
+    ensureSocialMediaPermission().then(updateGenerateButtonState);
 
     const selectCliente = document.getElementById('select-cliente');
     if (selectCliente) {
@@ -1949,6 +2002,9 @@ function checkSelection() {
 
         if (calendar) calendar.removeAllEvents();
     }
+
+    updateGenerateButtonState();
+    ensureSocialMediaPermission().then(updateGenerateButtonState);
 }
 
 async function loadCalendarData() {
@@ -2102,6 +2158,11 @@ function updateWeeklyApproveState() {
 }
 
 async function handleGenerateClick() {
+    const hasPermission = await ensureSocialMediaPermission();
+    if (!hasPermission) {
+        alert('Voce nao tem permissao para gerar calendario.');
+        return;
+    }
     if (!currentClienteId) {
         alert('Por favor, selecione um cliente primeiro.');
         return;
