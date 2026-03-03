@@ -1,3 +1,23 @@
+// Função global para renderizar área de clientes demo
+function renderDemoArea(clientesDemo) {
+    if (!Array.isArray(clientesDemo) || clientesDemo.length === 0) return;
+    let demoArea = document.getElementById('demoArea');
+    if (!demoArea) {
+        // Tenta criar acima da tabela principal
+        const mainContainer = document.getElementById('lista-clientes-container') || document.body;
+        demoArea = document.createElement('div');
+        demoArea.id = 'demoArea';
+        demoArea.className = 'mt-8';
+        mainContainer.insertBefore(demoArea, mainContainer.firstChild);
+    }
+    let html = `<h2 class="text-lg font-bold text-gray-700 mb-2">Clientes Demo</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+    clientesDemo.forEach(cliente => {
+        const nomeExibicao = cliente.nome_fantasia || cliente.nome_empresa;
+        html += `<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4"><div class="font-semibold text-yellow-800">${nomeExibicao}</div></div>`;
+    });
+    html += `</div>`;
+    demoArea.innerHTML = html;
+}
 document.addEventListener('DOMContentLoaded', async () => {
     // Verifica se estamos na página de clientes
     if (!window.location.pathname.includes('clientes.html')) return;
