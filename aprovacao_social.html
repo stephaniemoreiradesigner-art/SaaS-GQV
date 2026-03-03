@@ -160,6 +160,13 @@
             btn.disabled = true;
             
             try {
+                if (!token) {
+                    errorMsg.classList.remove('hidden');
+                    errorMsg.innerText = 'Link inválido ou expirado.';
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
                 const supabaseClient = await getSupabaseClient();
                 if (!supabaseClient) {
                     errorMsg.classList.remove('hidden');
@@ -175,7 +182,15 @@
                     .eq('share_token', token)
                     .single();
 
-                if (data && data.access_password === pass) {
+                if (error || !data) {
+                    errorMsg.classList.remove('hidden');
+                    errorMsg.innerText = 'Link inválido ou expirado.';
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    return;
+                }
+
+                if (data.access_password === pass) {
                     calendarData = data;
                     document.getElementById('login-box').classList.add('hidden');
                     document.getElementById('approval-area').classList.remove('hidden');
@@ -187,6 +202,7 @@
                     document.getElementById('calendar-month-title').textContent = `Calendário de ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
                 } else {
                     errorMsg.classList.remove('hidden');
+                    errorMsg.innerText = 'Senha incorreta.';
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }

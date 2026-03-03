@@ -919,6 +919,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnHeaderGenerate = document.getElementById('btn-header-generate');
     if (btnHeaderGenerate) btnHeaderGenerate.addEventListener('click', handleGenerateClick);
+
+    document.querySelectorAll('[data-action="set-tab"][data-tab="calendar"]').forEach((card) => {
+        card.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const selectedClientId = resolveSelectedClientId();
+            const hasPermission = await ensureSocialMediaPermission();
+            if (!selectedClientId) {
+                alert('Selecione um cliente válido antes de criar o calendário.');
+                return;
+            }
+            if (!hasPermission) {
+                alert('Você não tem permissão para acessar o calendário.');
+                return;
+            }
+            await window.createSocialCalendar({ clientId: selectedClientId, month: resolveSelectedMonth() });
+        });
+    });
     
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
@@ -1894,6 +1911,210 @@ function normalizeMonthValue(value) {
     if (!match) return '';
     return `${match[1]}-${match[2].padStart(2, '0')}`;
 }
+
+function resolveSelectedClientId(value) {
+    const direct = String(value || '').trim();
+    if (direct) return direct;
+    if (currentClienteId) return String(currentClienteId);
+    const select = document.getElementById('select-cliente');
+    if (select && select.value) return String(select.value);
+    return '';
+}
+
+function resolveSelectedMonth(month, year) {
+    const normalized = normalizeMonthValue(month);
+    if (normalized) return normalized;
+    const fromInput = normalizeMonthValue(document.getElementById('input-mes')?.value || '');
+    if (fromInput) return fromInput;
+    const y = Number(year);
+    const m = Number(month);
+    if (Number.isFinite(y) && Number.isFinite(m) && m >= 1 && m <= 12) {
+        return `${y}-${String(m).padStart(2, '0')}`;
+    }
+    const fallback = normalizeMonthValue(currentMonth);
+    return fallback || '';
+}
+
+function buildApprovalLink(shareToken) {
+    const token = String(shareToken || '').trim();
+    if (!token) return '';
+    const base = window.location.origin || '';
+    return `${base}/aprovacao_social.html?token=${encodeURIComponent(token)}`;
+}
+
+function generateShareToken() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    const rand = Math.random().toString(36).slice(2);
+    const time = Date.now().toString(36);
+    return `${rand}${time}`;
+}
+
+window.createSocialCalendar = async function({ clientId, month, year } = {}) {
+    const resolvedClientId = resolveSelectedClientId(clientId);
+    const resolvedMonth = resolveSelectedMonth(month, year);
+    console.info('[SOCIAL] createCalendar start/payload', { clientId: resolvedClientId || null, month: resolvedMonth || null, year: year || null });
+
+    if (!resolvedClientId) {
+        alert('Selecione um cliente válido antes de criar o calendário.');
+        return null;
+    }
+    if (!resolvedMonth) {
+        alert('Selecione um mês válido para o calendário.');
+        return null;
+    }
+    if (!window.supabaseClient) {
+        alert('Supabase não está pronto. Tente novamente em alguns segundos.');
+        return null;
+    }
+    const hasPermission = await ensureSocialMediaPermission();
+    if (!hasPermission) {
+        alert('Você não tem permissão para criar calendário.');
+        return null;
+    }
+
+    const mesReferencia = `${resolvedMonth}-01`;
+    const clientIdValue = Number.isFinite(Number(resolvedClientId)) ? Number(resolvedClientId) : resolvedClientId;
+    let savedId = null;
+    try {
+        const { data: existing, error: existingError } = await window.supabaseClient
+            .from('social_calendars')
+            .select('id, status, share_token, access_password')
+            .eq('cliente_id', clientIdValue)
+            .eq('mes_referencia', mesReferencia)
+            .maybeSingle();
+        if (!existingError && existing?.id) {
+            savedId = existing.id;
+        }
+    } catch (err) {
+        console.warn('[SOCIAL] createCalendar lookup failed', err);
+    }
+
+    if (!savedId) {
+        const { data, error } = await window.supabaseClient
+            .from('social_calendars')
+            .insert({
+                cliente_id: clientIdValue,
+                mes_referencia: mesReferencia,
+                status: 'rascunho',
+                updated_at: new Date().toISOString()
+            })
+            .select();
+        if (error) {
+            console.error('[SOCIAL] createCalendar insert error', error);
+            alert('Não foi possível criar o calendário. Tente novamente.');
+            return null;
+        }
+        const calendarId = data?.[0]?.id || data?.id || savedId;
+        if (!calendarId) {
+            alert('Não foi possível confirmar o ID do calendário.');
+            return null;
+        }
+        savedId = calendarId;
+    }
+
+    const calendarId = savedId;
+    currentCalendarId = calendarId;
+    window.currentCalendarId = calendarId;
+
+    const select = document.getElementById('select-cliente');
+    if (select && String(select.value || '') !== String(resolvedClientId)) {
+        select.value = String(resolvedClientId);
+    }
+    currentClienteId = resolvedClientId;
+
+    const inputMes = document.getElementById('input-mes');
+    if (inputMes && String(inputMes.value || '') !== String(resolvedMonth)) {
+        inputMes.value = resolvedMonth;
+    }
+    currentMonth = resolvedMonth;
+    if (calendar && typeof calendar.gotoDate === 'function') {
+        calendar.gotoDate(`${resolvedMonth}-01`);
+    }
+
+    if (typeof window.openSocialMediaTab === 'function') {
+        window.openSocialMediaTab('calendar');
+    }
+    if (typeof checkSelection === 'function') {
+        checkSelection();
+    }
+
+    console.info('[SOCIAL] createCalendar ok calendarId', calendarId);
+    return calendarId;
+};
+
+window.sendCalendarForApproval = async function(calendarId) {
+    let resolvedCalendarId = String(calendarId || '').trim();
+    if (!window.supabaseClient) {
+        alert('Supabase não está pronto. Tente novamente.');
+        return '';
+    }
+
+    if (!resolvedCalendarId) {
+        const resolvedClientId = resolveSelectedClientId();
+        const resolvedMonth = resolveSelectedMonth();
+        if (!resolvedClientId || !resolvedMonth) {
+            alert('Selecione um cliente e um mês antes de enviar para aprovação.');
+            return '';
+        }
+        const mesReferencia = `${resolvedMonth}-01`;
+        const clientIdValue = Number.isFinite(Number(resolvedClientId)) ? Number(resolvedClientId) : resolvedClientId;
+        const { data: existing, error: existingError } = await window.supabaseClient
+            .from('social_calendars')
+            .select('id')
+            .eq('cliente_id', clientIdValue)
+            .eq('mes_referencia', mesReferencia)
+            .maybeSingle();
+        if (existingError || !existing?.id) {
+            alert('Calendário não encontrado para este cliente e mês.');
+            return '';
+        }
+        resolvedCalendarId = String(existing.id);
+    }
+
+    console.info('[SOCIAL] sendForApproval start calendarId', resolvedCalendarId);
+
+    const { data: calendarData, error: calendarError } = await window.supabaseClient
+        .from('social_calendars')
+        .select('id, share_token, status, access_password')
+        .eq('id', resolvedCalendarId)
+        .maybeSingle();
+    if (calendarError || !calendarData?.id) {
+        alert('Não foi possível localizar o calendário.');
+        return '';
+    }
+
+    const shareToken = calendarData.share_token || generateShareToken();
+    const { data: updatedData, error: updateError } = await window.supabaseClient
+        .from('social_calendars')
+        .update({
+            status: 'aguardando_aprovacao',
+            share_token: shareToken,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', resolvedCalendarId)
+        .select();
+    if (updateError) {
+        console.error('[SOCIAL] sendForApproval update error', updateError);
+        alert('Não foi possível enviar para aprovação.');
+        return '';
+    }
+
+    const updated = Array.isArray(updatedData) ? updatedData[0] : updatedData;
+    const finalToken = updated?.share_token || shareToken;
+    const approvalLink = buildApprovalLink(finalToken);
+    console.info('[SOCIAL] sendForApproval ok share_token', finalToken);
+
+    if (approvalLink) {
+        if (typeof showApprovalSuccessModal === 'function') {
+            showApprovalSuccessModal(approvalLink, updated?.access_password || calendarData?.access_password || '');
+        } else {
+            alert(`Link de aprovação:\n${approvalLink}`);
+        }
+    } else {
+        alert('Não foi possível gerar o link de aprovação.');
+    }
+    return approvalLink;
+};
 
 function setApproveButtonLabel(button, label) {
     if (!button) return;

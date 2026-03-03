@@ -131,11 +131,16 @@ async function sendMonthlyApproval() {
 }
 
 window.sendForApproval = async function() {
+    if (!confirm('Confirma o envio do calendário deste mês para aprovação?')) return;
+    if (typeof window.sendCalendarForApproval === 'function') {
+        const calendarId = window.currentCalendarId || '';
+        await window.sendCalendarForApproval(calendarId);
+        return;
+    }
     if (!currentClienteId || !currentMonth) {
         alert('Selecione um cliente e um mês primeiro.');
         return;
     }
-    if (!confirm('Confirma o envio do calendário deste mês para aprovação?')) return;
     await sendMonthlyApproval();
 }
 
