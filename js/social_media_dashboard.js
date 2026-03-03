@@ -1,10 +1,5 @@
 // js/social_media_dashboard.js
-// ==============================
-// Safe globals / compat
-// ==============================
-const HUB_PERIOD_STORAGE_KEY =
-    (typeof window !== "undefined" && window.HUB_PERIOD_STORAGE_KEY) ||
-    "gqv_hub_period_v1";
+const HUB_PERIOD_STORAGE_KEY = 'social_hub_selected_period';
 
 (function(){
     const isDashboard = document.querySelector('h1')?.textContent?.includes('Social Media Dashboard')
@@ -192,7 +187,11 @@ window.setOperationalPeriod = function(period) {
     else if (period === 'month') normalized = 'month';
     operationalHubState.period = normalized;
     try {
-        localStorage.setItem(HUB_PERIOD_STORAGE_KEY, normalized);
+        if (typeof HUB_PERIOD_STORAGE_KEY === 'undefined') {
+            console.error('HUB_PERIOD_STORAGE_KEY não definido');
+        }
+        const selectedPeriod = normalized;
+        localStorage.setItem(HUB_PERIOD_STORAGE_KEY, selectedPeriod);
     } catch {}
     loadOperationalDashboard();
 };
@@ -390,12 +389,15 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('DOMContentLoaded', () => {
     const hub = document.getElementById('operational-hub');
     if (!hub) return;
-    const storedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY);
+    if (typeof HUB_PERIOD_STORAGE_KEY === 'undefined') {
+        console.error('HUB_PERIOD_STORAGE_KEY não definido');
+    }
+    const savedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY) || '30d';
     let normalized = 'last_7d';
-    if (storedPeriod === 'last7' || storedPeriod === 'last_7' || storedPeriod === 'last_7d') normalized = 'last_7d';
-    else if (storedPeriod === 'last30' || storedPeriod === 'last_30' || storedPeriod === 'last_30d') normalized = 'last_30d';
-    else if (storedPeriod === 'last90' || storedPeriod === 'last_90' || storedPeriod === 'last_90d') normalized = 'last_90d';
-    else if (storedPeriod === 'month') normalized = 'month';
+    if (savedPeriod === 'last7' || savedPeriod === 'last_7' || savedPeriod === 'last_7d') normalized = 'last_7d';
+    else if (savedPeriod === 'last30' || savedPeriod === 'last_30' || savedPeriod === 'last_30d' || savedPeriod === '30d') normalized = 'last_30d';
+    else if (savedPeriod === 'last90' || savedPeriod === 'last_90' || savedPeriod === 'last_90d' || savedPeriod === '90d') normalized = 'last_90d';
+    else if (savedPeriod === 'month') normalized = 'month';
     operationalHubState.period = normalized;
     const periodSelect = document.getElementById('operational-period');
     if (periodSelect) {
