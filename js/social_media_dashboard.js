@@ -149,7 +149,7 @@ function updateOperationalScopeButtons() {
     const btnAgency = document.getElementById('btn-operational-agency');
     const btnClient = document.getElementById('btn-operational-client');
     if (!btnAgency || !btnClient) return;
-    if (operationalHubState.scope === 'agency') {
+    if (operationalHubState.scope === 'agencia') {
         btnAgency.className = 'px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white';
         btnClient.className = 'px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900';
     } else {
@@ -159,7 +159,7 @@ function updateOperationalScopeButtons() {
 }
 
 window.setOperationalScope = function(scope) {
-    operationalHubState.scope = scope === 'agency' ? 'agency' : 'client';
+    operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
     updateOperationalScopeButtons();
     loadOperationalDashboard();
 };
@@ -185,7 +185,7 @@ async function loadOperationalDashboard() {
     const params = new URLSearchParams();
     params.set('scope', operationalHubState.scope);
     params.set('period', operationalHubState.period);
-    if (tenantId && operationalHubState.scope === 'client') {
+    if (tenantId && operationalHubState.scope === 'cliente') {
         params.set('tenant_id', tenantId);
     }
 
@@ -212,7 +212,7 @@ async function loadOperationalDashboard() {
             if (!Number.isFinite(num)) return '0%';
             return `${num}%`;
         };
-        const scopeLabel = operationalHubState.scope === 'agency' ? 'Agência' : 'Cliente';
+        const scopeLabel = operationalHubState.scope === 'agencia' ? 'Agência' : 'Cliente';
         statusEl.textContent = `Escopo: ${scopeLabel} • Período: ${formatPeriodLabel(operationalHubState.period)}`;
 
         const production = data?.kpis?.production || {};
@@ -1502,7 +1502,7 @@ window.initCreativeRequestsView = async function() {
 
     const updateMode = async () => {
         const modeValue = modeSelect?.value || 'client';
-        const isAgency = modeValue === 'agency' && isSuperAdmin;
+        const isAgency = modeValue === 'agencia' && isSuperAdmin;
         if (clientWrapper) clientWrapper.classList.toggle('hidden', !isAgency);
         if (isAgency) await loadCreativeRequestsClients();
     };
@@ -1542,10 +1542,10 @@ window.loadCreativeRequests = async function() {
             statusSelect.value = 'pending';
         }
 
-        const scope = modeSelect?.value === 'agency' && isSuperAdmin ? 'agency' : 'client';
+        const scope = modeSelect?.value === 'agencia' && isSuperAdmin ? 'agencia' : 'cliente';
         const url = new URL(`${window.API_BASE_URL}/api/creative-requests`);
         url.searchParams.set('scope', scope);
-        if (scope === 'agency' && clientSelect?.value) {
+        if (scope === 'agencia' && clientSelect?.value) {
             url.searchParams.set('tenant_id', clientSelect.value);
         }
         if (statusSelect?.value && statusSelect.value !== 'pending') {
