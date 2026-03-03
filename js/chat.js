@@ -453,7 +453,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 table: 'chat_messages', 
                 filter: `channel_id=eq.${channelId}` 
             }, payload => {
-                appendMessage(payload.new).then(() => scrollToBottom());
+                const safePayload = payload?.payload ?? payload;
+                if (!safePayload) {
+                    console.warn('Evento recebido sem payload:', payload);
+                    return;
+                }
+                const row = safePayload.new || safePayload?.new;
+                if (!row) {
+                    console.warn('Mensagem recebida sem dados:', safePayload);
+                    return;
+                }
+                appendMessage(row).then(() => scrollToBottom());
             })
             .subscribe();
     }

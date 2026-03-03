@@ -23,8 +23,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 table: 'notificacoes',
                 filter: `usuario_id=eq.${user.id}`
             }, payload => {
-                console.log('🔔 Nova notificação recebida:', payload);
-                const notif = payload.new;
+                const safePayload = payload?.payload ?? payload;
+                if (!safePayload) {
+                    console.warn('Evento recebido sem payload:', payload);
+                    return;
+                }
+                console.log('🔔 Nova notificação recebida:', safePayload);
+                const notif = safePayload.new || safePayload?.new;
+                if (!notif) {
+                    console.warn('Notificação recebida sem dados:', safePayload);
+                    return;
+                }
                 
                 // Exibir Toast
                 if (window.showToast) {
