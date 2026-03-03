@@ -1,4 +1,11 @@
 // js/social_media_dashboard.js
+// ==============================
+// Safe globals / compat
+// ==============================
+const HUB_PERIOD_STORAGE_KEY =
+    (typeof window !== "undefined" && window.HUB_PERIOD_STORAGE_KEY) ||
+    "gqv_hub_period_v1";
+
 (function(){
     const isDashboard = document.querySelector('h1')?.textContent?.includes('Social Media Dashboard')
         || document.body?.dataset?.page === 'social-dashboard'
@@ -56,6 +63,9 @@ window.openSocialMediaTab = window.openSocialMediaTab || function(tabName) {
         } else if (window.calendar && typeof window.calendar.render === 'function') {
             setTimeout(() => window.calendar.render(), 100);
         }
+        if (typeof window.forceCalendarRerender === 'function') {
+            setTimeout(() => window.forceCalendarRerender(), 50);
+        }
     } else if (tabName === 'insights') {
         if(insightsView) {
             insightsView.classList.remove('hidden');
@@ -110,7 +120,6 @@ window.showSocialMediaHome = function() {
     }
 }
 
-const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 const operationalHubState = {
     scope: 'client',
     period: 'last_7d'

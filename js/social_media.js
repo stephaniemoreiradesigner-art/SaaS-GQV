@@ -62,6 +62,10 @@ if (typeof window.openSocialMediaTab !== 'function') {
                 target.style.display = '';
             }
 
+            if (key === 'calendar') {
+                setTimeout(forceCalendarRerender, 50);
+            }
+
             const url = new URL(window.location.href);
             url.hash = `#tab=${encodeURIComponent(key)}`;
             window.history.replaceState({}, '', url.toString());
@@ -76,7 +80,23 @@ function applySocialTabFromHash() {
     const params = new URLSearchParams(rawHash);
     const tab = params.get('tab');
     window.openSocialMediaTab(tab || 'dashboard');
+    if (rawHash.includes('tab=calendar')) {
+        setTimeout(forceCalendarRerender, 50);
+    }
 }
+
+function forceCalendarRerender() {
+    if (!window.__gqvCalendarInstance) return;
+
+    // FullCalendar às vezes renderiza “em branco” se o container estava hidden
+    requestAnimationFrame(() => {
+        try {
+            window.__gqvCalendarInstance.updateSize();
+        } catch (_) {}
+    });
+}
+
+window.forceCalendarRerender = forceCalendarRerender;
 
 const CALENDAR_STATUS = window.CALENDAR_STATUS;
 const POST_STATUS = window.POST_STATUS;
@@ -1038,6 +1058,7 @@ function initCalendar() {
     });
 
     calendar.render();
+    window.__gqvCalendarInstance = calendar;
     updateApprovalButtonsForView(calendar?.view?.type || '');
 }
 
