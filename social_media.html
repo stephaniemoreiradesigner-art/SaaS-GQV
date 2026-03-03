@@ -318,8 +318,8 @@
                             <option value="month">Este mês</option>
                         </select>
                         <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg p-1 w-fit">
-                            <button id="btn-operational-agency" onclick="setOperationalScope('agency')" class="px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900">Agência</button>
-                            <button id="btn-operational-client" onclick="setOperationalScope('client')" class="px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white">Cliente</button>
+                            <button id="btn-operational-agency" data-action="set-scope" data-scope="agency" class="px-4 py-2 rounded-md text-sm font-semibold text-gray-600 hover:text-gray-900">Agência</button>
+                            <button id="btn-operational-client" data-action="set-scope" data-scope="client" class="px-4 py-2 rounded-md text-sm font-semibold bg-[var(--color-primary)] text-white">Cliente</button>
                         </div>
                     </div>
                 </div>
@@ -329,7 +329,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Botão: Criar Calendário -->
-                <div onclick="openSocialMediaTab('calendar')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                <div data-action="set-tab" data-tab="calendar" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
                     <div class="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mb-4 group-hover:bg-purple-100 transition-colors">
                         <i class="fas fa-calendar-alt text-3xl text-purple-600"></i>
                     </div>
@@ -338,7 +338,7 @@
                 </div>
 
                 <!-- Botão: Insights -->
-                <div onclick="openSocialMediaTab('insights')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                <div data-action="set-tab" data-tab="insights" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
                     <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mb-4 group-hover:bg-green-100 transition-colors">
                         <i class="fas fa-chart-line text-3xl text-green-600"></i>
                     </div>
@@ -347,7 +347,7 @@
                 </div>
 
                 <!-- Botão: Diário de Bordo -->
-                <div onclick="openSocialMediaTab('logs')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                <div data-action="set-tab" data-tab="logs" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
                     <div class="w-16 h-16 rounded-full bg-orange-50 flex items-center justify-center mb-4 group-hover:bg-orange-100 transition-colors">
                         <i class="fas fa-book-open text-3xl text-orange-600"></i>
                     </div>
@@ -355,7 +355,7 @@
                     <p class="text-sm text-gray-500 mt-2">Registro de atividades e logs</p>
                 </div>
 
-                <div onclick="openSocialMediaTab('creative-requests')" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
+                <div data-action="set-tab" data-tab="creative-requests" class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center text-center h-48">
                     <div class="w-16 h-16 rounded-full bg-pink-50 flex items-center justify-center mb-4 group-hover:bg-pink-100 transition-colors">
                         <i class="fas fa-photo-video text-3xl text-pink-600"></i>
                     </div>
