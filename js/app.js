@@ -44,7 +44,17 @@ async function initSupabase() {
                 const config = await loadSupabaseConfig();
                 if (!config) return false;
             }
-            window.supabaseClient = window.supabase.createClient(window.supabaseConfig.supabaseUrl, window.supabaseConfig.supabaseAnonKey);
+                window.supabaseClient = window.supabase.createClient(
+                    window.supabaseConfig.supabaseUrl,
+                    window.supabaseConfig.supabaseAnonKey,
+                    {
+                        auth: {
+                            persistSession: true,
+                            autoRefreshToken: true,
+                            detectSessionInUrl: true
+                        }
+                    }
+                );
             console.log('Supabase inicializado com sucesso no app.js');
             window.SUPERADMIN_EMAILS = ['stephaniemoreira.designer@gmail.com', 'marketing.vaniamello@gmail.com'];
             return true;
