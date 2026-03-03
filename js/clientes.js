@@ -1009,6 +1009,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let error;
                 let allowLogoColumn = true;
 
+                // 🔵 Variável única para guardar o registro salvo (insert ou update)
+                let savedRow = null;
+
                 if (clienteId) {
                     if (logoFile) {
                         try {
@@ -1019,98 +1022,103 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!clienteData.logo_url) clienteData.logo_url = null;
                         }
                     }
+
                     let updatePayload = { ...clienteData };
-                    logDev('payload enviado no update', updatePayload);
-                    logSave('endpoint', 'supabase: clientes update');
-                    logSave('payload', updatePayload);
-                    let { data: updateData, error: updateError, status: updateStatus, statusText: updateStatusText } = await window.supabaseClient
+
+                    let { data: updateData, error: updateError } = await window.supabaseClient
                         .from('clientes')
                         .update(updatePayload)
                         .eq('id', clienteId)
                         .select()
                         .single();
-                    logSave('response', { status: updateStatus, statusText: updateStatusText, data: updateData, error: updateError });
-                    if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo') || hasMissingColumn(updateError, 'tenant_id'))) {
+
+                    if (updateError && (hasMissingColumn(updateError, 'logo_url') || hasMissingColumn(updateError, 'registro_grupo'))) {
                         updatePayload = stripMissingColumns(updatePayload, updateError);
+
                         if (hasMissingColumn(updateError, 'logo_url')) missingColumns.add('logo_url');
                         if (hasMissingColumn(updateError, 'registro_grupo')) missingColumns.add('registro_grupo');
-                        if (hasMissingColumn(updateError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
+
                         if (!('logo_url' in updatePayload)) allowLogoColumn = false;
-                        logSave('endpoint', 'supabase: clientes update (retry)');
-                        logSave('payload', updatePayload);
+
                         const retry = await window.supabaseClient
                             .from('clientes')
                             .update(updatePayload)
                             .eq('id', clienteId)
                             .select()
                             .single();
+
                         updateData = retry.data;
                         updateError = retry.error;
-                        logSave('response', { status: retry.status, statusText: retry.statusText, data: updateData, error: updateError });
                     }
-                    
+
                     error = updateError;
-                    logDev('retorno do supabase (update)', { data: updateData, error: updateError });
+
                     if (!error && !updateData) {
                         throw new Error('Nenhuma linha atualizada.');
                     }
 
+                    // 🔵 Salva o registro atualizado
+                    savedRow = updateData;
+
                     if (!error) {
                         await gerarCobrancasMensalidades(
-                            { 
+                            {
                                 nome_empresa: clienteData.nome_empresa,
-                                nome_fantasia: clienteData.nome_fantasia 
+                                nome_fantasia: clienteData.nome_fantasia
                             },
                             mensalidades,
                             { replaceExisting: true }
                         );
                     }
+
                 } else {
-                    const resolvedTenantId = await resolveCurrentTenantId();
-                    if (resolvedTenantId) clienteData.tenant_id = resolvedTenantId;
-                    if (clienteData.is_demo === undefined) clienteData.is_demo = false;
+
                     let insertPayload = { ...clienteData };
-                    logSave('endpoint', 'supabase: clientes insert');
-                    logSave('payload', insertPayload);
-                    let { data, error: insertError, status: insertStatus, statusText: insertStatusText } = await window.supabaseClient
+
+                    let { data: insertData, error: insertError } = await window.supabaseClient
                         .from('clientes')
                         .insert([insertPayload])
                         .select()
                         .single();
-                    logSave('response', { status: insertStatus, statusText: insertStatusText, data, error: insertError });
-                    if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo') || hasMissingColumn(insertError, 'tenant_id'))) {
+
+                    if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo'))) {
                         insertPayload = stripMissingColumns(insertPayload, insertError);
+
                         if (hasMissingColumn(insertError, 'logo_url')) missingColumns.add('logo_url');
                         if (hasMissingColumn(insertError, 'registro_grupo')) missingColumns.add('registro_grupo');
-                        if (hasMissingColumn(insertError, 'tenant_id')) missingColumns.add('tenant_id');
                         setMissingColumnsCache(missingColumns);
+
                         if (!('logo_url' in insertPayload)) allowLogoColumn = false;
-                        logSave('endpoint', 'supabase: clientes insert (retry)');
-                        logSave('payload', insertPayload);
+
                         const retry = await window.supabaseClient
                             .from('clientes')
                             .insert([insertPayload])
                             .select()
                             .single();
-                        data = retry.data;
+
+                        insertData = retry.data;
                         insertError = retry.error;
-                        logSave('response', { status: retry.status, statusText: retry.statusText, data, error: insertError });
                     }
-                    
+
                     error = insertError;
-                    logDev('retorno do supabase (insert)', { data, error: insertError });
-                    if (!error && !data) {
+
+                    if (!error && !insertData) {
                         throw new Error('Nenhuma linha inserida.');
                     }
-                    if (!error && data && logoFile && allowLogoColumn) {
+
+                    // 🔵 Salva o registro inserido
+                    savedRow = insertData;
+
+                    if (!error && insertData && logoFile && allowLogoColumn) {
                         try {
-                            const uploadedUrl = await uploadClientLogoFile(data.id, logoFile);
+                            const uploadedUrl = await uploadClientLogoFile(insertData.id, logoFile);
                             if (uploadedUrl) {
                                 const { error: logoUpdateError } = await window.supabaseClient
                                     .from('clientes')
                                     .update({ logo_url: uploadedUrl })
-                                    .eq('id', data.id);
+                                    .eq('id', insertData.id);
+
                                 if (logoUpdateError) console.warn('Erro ao salvar logo no cliente:', logoUpdateError);
                             }
                         } catch (uploadError) {
@@ -1118,11 +1126,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
 
-                    if (!error && data && clienteData.status === 'Ativo') {
+                    if (!error && insertData && clienteData.status === 'Ativo') {
                         await gerarCobrancasMensalidades(
-                            { 
+                            {
                                 nome_empresa: clienteData.nome_empresa,
-                                nome_fantasia: clienteData.nome_fantasia 
+                                nome_fantasia: clienteData.nome_fantasia
                             },
                             mensalidades,
                             { replaceExisting: false }
@@ -1132,7 +1140,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (error) throw error;
 
-                const refreshedClientId = clienteId || (data && data.id ? data.id : null);
+                // 🔵 FIX DEFINITIVO — usar savedRow (existe nos dois fluxos)
+                const refreshedClientId = (clienteId || (savedRow && savedRow.id ? savedRow.id : null));
+
                 if (refreshedClientId) {
                     try {
                         await refreshClientById(refreshedClientId);
@@ -1142,16 +1152,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
-                
-                // Volta para lista
+
                 const lista = document.getElementById('lista-clientes-container');
                 const formContainer = document.getElementById('form-cliente-container');
+
                 if (lista && formContainer) {
                     lista.style.display = 'block';
                     formContainer.style.display = 'none';
                 }
-                
-                loadClientes(); // Recarrega a lista
+
+                loadClientes();
 
             } catch (error) {
                 console.error('Erro ao salvar:', error);
