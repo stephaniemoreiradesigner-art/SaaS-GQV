@@ -75,7 +75,6 @@ window.openSocialMediaTab = function(tabName) {
         initCreativeRequestsView();
         loadCreativeRequests();
     }
-}
 
 window.showSocialMediaHome = function() {
     // Hide all views
@@ -333,19 +332,11 @@ async function updateInsightsPlatforms(clientId) {
             <option value="all">Todas (Relatório Unificado)</option>
         `;
         platformSelect.disabled = false;
+
         if (btn) btn.disabled = false;
-        return;
     }
 
-    const connections = await window.getConnectedPlatforms(clientId);
-    insightsConnectionsCache[clientId] = connections;
-    const connected = connections.connected.filter(item => ['instagram', 'facebook'].includes(item.platform));
 
-    if (connected.length === 0) {
-        platformSelect.innerHTML = '<option value="">Nenhuma plataforma conectada</option>';
-        platformSelect.disabled = true;
-        if (btn) btn.disabled = true;
-        if (results) results.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook');
         return;
     }
 
