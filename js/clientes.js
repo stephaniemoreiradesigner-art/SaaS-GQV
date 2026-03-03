@@ -1059,14 +1059,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     savedRow = updateData;
                     savedId = updateData?.id || clienteId;
                     if (!error) {
-                        await gerarCobrancasMensalidades(
-                            { 
-                                nome_empresa: clienteData.nome_empresa,
-                                nome_fantasia: clienteData.nome_fantasia 
-                            },
-                            mensalidades,
-                            { replaceExisting: true }
-                        );
+                        try {
+                            await gerarCobrancasMensalidades(
+                                { 
+                                    nome_empresa: clienteData.nome_empresa,
+                                    nome_fantasia: clienteData.nome_fantasia 
+                                },
+                                mensalidades,
+                                { replaceExisting: true }
+                            );
+                        } catch (cobrancaError) {
+                            console.warn('Pós-save: erro ao gerar cobranças/mensalidades:', cobrancaError);
+                        }
                     }
                 } else {
                     const resolvedTenantId = await resolveCurrentTenantId();
@@ -1121,14 +1125,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                     if (!error && insertData && clienteData.status === 'Ativo') {
-                        await gerarCobrancasMensalidades(
-                            { 
-                                nome_empresa: clienteData.nome_empresa,
-                                nome_fantasia: clienteData.nome_fantasia 
-                            },
-                            mensalidades,
-                            { replaceExisting: false }
-                        );
+                        try {
+                            await gerarCobrancasMensalidades(
+                                { 
+                                    nome_empresa: clienteData.nome_empresa,
+                                    nome_fantasia: clienteData.nome_fantasia 
+                                },
+                                mensalidades,
+                                { replaceExisting: false }
+                            );
+                        } catch (cobrancaError) {
+                            console.warn('Pós-save: erro ao gerar cobranças/mensalidades:', cobrancaError);
+                        }
                     }
                 }
 
