@@ -419,6 +419,19 @@ const getMetaRedirectUri = (request) => {
     return `${baseUrl.replace(/\/$/, '')}/api/oauth/meta/callback`;
 };
 
+const parseOAuthStatePayload = (state) => {
+    if (!state) return null;
+    try {
+        const parsed = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf8'));
+        if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+    try {
+        const parsed = JSON.parse(String(state));
+        if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+    return null;
+};
+
 const handleClientMetaStart = async (request, response, parsedUrl, clientId) => {
     if (!clientId) {
         response.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1536,6 +1549,14 @@ const server = http.createServer(async (request, response) => {
 
     const parsedUrl = url.parse(request.url, true);
     const pathname = parsedUrl.pathname;
+
+    if (request.method === 'HEAD') {
+        if (pathname === '/api/health' || pathname === '/api/oauth/meta/callback' || pathname === '/api/oauth/google/callback') {
+            response.writeHead(200);
+            response.end();
+            return;
+        }
+    }
 
     console.log(`${request.method} ${pathname}`);
 
@@ -8687,6 +8708,125 @@ const server = http.createServer(async (request, response) => {
             console.log('REDIRECTING_TO_FRONT', { url });
             response.writeHead(302, { Location: url });
             response.end();
+            return;
+        }
+    }
+
+    if (pathname === '/api/oauth/google/callback' && request.method === 'GET') {
+        try {
+            const query = parsedUrl.query || {};
+            const code = query.code;
+            const state = query.state;
+            const errorParam = query.error || query.error_reason || query.error_description;
+
+            if (errorParam) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: String(errorParam) }));
+                return;
+            }
+
+            if (!code) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'codigo_ausente' }));
+                return;
+            }
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const googleClientId = envVars['GOOGLE_CLIENT_ID'] || process.env.GOOGLE_CLIENT_ID || '';
+            const googleClientSecret = envVars['GOOGLE_CLIENT_SECRET'] || process.env.GOOGLE_CLIENT_SECRET || '';
+            const googleRedirectUri = envVars['GOOGLE_REDIRECT_URI'] || process.env.GOOGLE_REDIRECT_URI || '';
+
+            const payload = parseOAuthStatePayload(state);
+            const tenantId = payload?.tenant_id || payload?.tenantId || payload?.client_id || payload?.clientId || null;
+
+            if (!tenantId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'tenant_id_ausente' }));
+                return;
+            }
+
+            if (!googleClientId || !googleClientSecret || !googleRedirectUri) {
+                response.writeHead(501, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'google_oauth_nao_configurado' }));
+                return;
+            }
+
+            const tokenParams = new URLSearchParams();
+            tokenParams.set('client_id', googleClientId);
+            tokenParams.set('client_secret', googleClientSecret);
+            tokenParams.set('redirect_uri', googleRedirectUri);
+            tokenParams.set('code', code);
+            tokenParams.set('grant_type', 'authorization_code');
+
+            const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: tokenParams.toString()
+            });
+
+            const tokenJson = await tokenRes.json().catch(() => null);
+            if (!tokenRes.ok || !tokenJson?.access_token) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: tokenJson?.error || tokenJson?.error_description || 'erro_ao_gerar_token' }));
+                return;
+            }
+
+            const accessToken = tokenJson.access_token;
+            const refreshToken = tokenJson.refresh_token || null;
+            const idToken = tokenJson.id_token || null;
+            const expiresIn = Number(tokenJson.expires_in);
+            const tokenExpiresAt = Number.isFinite(expiresIn)
+                ? new Date(Date.now() + expiresIn * 1000).toISOString()
+                : null;
+            const scope = tokenJson.scope || null;
+            const tokenType = tokenJson.token_type || null;
+
+            const upsertPayload = {
+                client_id: tenantId,
+                platform: 'google',
+                status: 'connected',
+                access_token: accessToken,
+                token_expires_at: tokenExpiresAt,
+                meta: {
+                    provider: 'google',
+                    refresh_token: refreshToken,
+                    id_token: idToken,
+                    scope,
+                    token_type: tokenType
+                }
+            };
+
+            const upsertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_platform_connections?on_conflict=client_id,platform`;
+            const upsertRes = await fetch(upsertUrl, {
+                method: 'POST',
+                headers: {
+                    apikey: serviceRoleKey,
+                    Authorization: `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'resolution=merge-duplicates'
+                },
+                body: JSON.stringify(upsertPayload)
+            });
+
+            if (!upsertRes.ok) {
+                const errText = await upsertRes.text();
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: errText || 'erro_ao_salvar_conexao' }));
+                return;
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ success: true, tenant_id: tenantId }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
             return;
         }
     }
