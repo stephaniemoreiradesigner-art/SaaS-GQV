@@ -75,6 +75,66 @@ if (typeof window.openSocialMediaTab !== 'function') {
     };
 }
 
+const storedHubScope = (() => {
+    try {
+        const value = localStorage.getItem('social_hub_selected_scope');
+        return value === 'agencia' ? 'agencia' : 'cliente';
+    } catch {
+        return 'cliente';
+    }
+})();
+
+const storedHubPeriod = (() => {
+    try {
+        const value = localStorage.getItem('social_hub_selected_period');
+        return value || 'last_30d';
+    } catch {
+        return 'last_30d';
+    }
+})();
+
+if (!window.operationalHubState) {
+    window.operationalHubState = { scope: storedHubScope, period: storedHubPeriod };
+} else {
+    if (!window.operationalHubState.scope) window.operationalHubState.scope = storedHubScope;
+    if (!window.operationalHubState.period) window.operationalHubState.period = storedHubPeriod;
+}
+
+if (typeof window.setOperationalScope !== 'function') {
+    window.setOperationalScope = function(scope) {
+        window.operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
+        try {
+            localStorage.setItem('social_hub_selected_scope', window.operationalHubState.scope);
+        } catch {}
+        if (typeof window.loadOperationalDashboard === 'function') {
+            window.loadOperationalDashboard();
+        }
+    };
+}
+
+if (typeof window.showSocialMediaHome !== 'function') {
+    window.showSocialMediaHome = function() {
+        const params = new URLSearchParams(window.location.search || '');
+        const tabParam = params.get('tab');
+        const hashTab = window.location.hash ? window.location.hash.replace('#', '') : '';
+        const targetTab = tabParam || hashTab;
+        if (targetTab && typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab(targetTab);
+            return;
+        }
+        const views = getSocialDashboardViews();
+        Object.values(views).forEach(el => {
+            if (!el) return;
+            el.classList.add('hidden');
+            el.style.display = 'none';
+        });
+        if (views.dashboard) {
+            views.dashboard.classList.remove('hidden');
+            views.dashboard.style.display = '';
+        }
+    };
+}
+
 function applySocialTabFromHash() {
     const rawHash = String(window.location.hash || '').replace(/^#/, '');
     const params = new URLSearchParams(rawHash);

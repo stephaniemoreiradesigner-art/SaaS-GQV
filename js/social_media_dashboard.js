@@ -1,10 +1,81 @@
 // js/social_media_dashboard.js
 const HUB_PERIOD_STORAGE_KEY = 'social_hub_selected_period';
+const HUB_SCOPE_STORAGE_KEY = 'social_hub_selected_scope';
 
 (function(){
     const isDashboard = document.querySelector('h1')?.textContent?.includes('Social Media Dashboard')
         || document.body?.dataset?.page === 'social-dashboard'
         || document.querySelector('[data-social-dashboard]');
+
+    const storedScope = (() => {
+        try {
+            const value = localStorage.getItem(HUB_SCOPE_STORAGE_KEY);
+            return value === 'agencia' ? 'agencia' : 'cliente';
+        } catch {
+            return 'cliente';
+        }
+    })();
+    const storedPeriod = (() => {
+        try {
+            const value = localStorage.getItem(HUB_PERIOD_STORAGE_KEY);
+            return value || 'last_30d';
+        } catch {
+            return 'last_30d';
+        }
+    })();
+
+    if (!window.operationalHubState) {
+        window.operationalHubState = { scope: storedScope, period: storedPeriod };
+    } else {
+        if (!window.operationalHubState.scope) window.operationalHubState.scope = storedScope;
+        if (!window.operationalHubState.period) window.operationalHubState.period = storedPeriod;
+    }
+
+    const operationalHubState = window.operationalHubState;
+
+    window.setOperationalScope = function(scope) {
+        operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
+        try {
+            localStorage.setItem(HUB_SCOPE_STORAGE_KEY, operationalHubState.scope);
+        } catch {}
+        if (typeof updateOperationalScopeButtons === 'function') {
+            updateOperationalScopeButtons();
+        }
+        if (typeof loadOperationalDashboard === 'function') {
+            loadOperationalDashboard();
+        }
+    };
+
+    window.showSocialMediaHome = function() {
+        if (!isDashboard) return;
+        const params = new URLSearchParams(window.location.search || '');
+        const tabParam = params.get('tab');
+        const hashTab = window.location.hash ? window.location.hash.replace('#', '') : '';
+        const targetTab = tabParam || hashTab;
+        if (targetTab && typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab(targetTab);
+            return;
+        }
+        const home = document.getElementById('social-media-home');
+        const calendarView = document.getElementById('calendar-view');
+        const insightsView = document.getElementById('insights-view');
+        const logsView = document.getElementById('logs-view');
+        const creativeRequestsView = document.getElementById('creative-requests-view');
+
+        if(calendarView) calendarView.classList.add('hidden');
+        if(insightsView) insightsView.classList.add('hidden');
+        if(logsView) logsView.classList.add('hidden');
+        if(creativeRequestsView) creativeRequestsView.classList.add('hidden');
+        
+        if(calendarView) calendarView.classList.remove('flex');
+        if(insightsView) insightsView.classList.remove('flex');
+        if(logsView) logsView.classList.remove('flex');
+        if(creativeRequestsView) creativeRequestsView.classList.remove('flex');
+
+        if(home) {
+            home.classList.remove('hidden');
+        }
+    };
 
     if (!isDashboard) {
         window.openSocialMediaTab = window.openSocialMediaTab || function() {};
@@ -89,51 +160,6 @@ window.openSocialMediaTab = window.openSocialMediaTab || function(tabName) {
         initCreativeRequestsView();
         loadCreativeRequests();
     }
-
-window.showSocialMediaHome = function() {
-    // Hide all views
-    const home = document.getElementById('social-media-home');
-    const calendarView = document.getElementById('calendar-view');
-    const insightsView = document.getElementById('insights-view');
-    const logsView = document.getElementById('logs-view');
-    const creativeRequestsView = document.getElementById('creative-requests-view');
-
-    if(calendarView) calendarView.classList.add('hidden');
-    if(insightsView) insightsView.classList.add('hidden');
-    if(logsView) logsView.classList.add('hidden');
-    if(creativeRequestsView) creativeRequestsView.classList.add('hidden');
-    
-    if(calendarView) calendarView.classList.remove('flex');
-    if(insightsView) insightsView.classList.remove('flex');
-    if(logsView) logsView.classList.remove('flex');
-    if(creativeRequestsView) creativeRequestsView.classList.remove('flex');
-
-    // Show home
-    if(home) {
-        home.classList.remove('hidden');
-        // home.classList.add('flex'); // Removido pois causa layout horizontal indesejado
-    }
-}
-
-// Ensure operationalHubState is defined globally
-if (!window.operationalHubState) {
-    window.operationalHubState = {
-        scope: 'cliente', // Default value
-        period: '30d'    // Default value
-    };
-}
-
-// Update setOperationalScope to attach to window and log changes
-window.setOperationalScope = function(scope) {
-    operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
-    console.log('[Dashboard] Scope alterado para:', scope);
-    updateOperationalScopeButtons();
-    loadOperationalDashboard();
-};
-
-const operationalHubState = {
-    scope: 'cliente',
-    period: '30d'
 };
 
 async function waitForSupabaseReady() {
@@ -187,14 +213,6 @@ function updateOperationalScopeButtons() {
     }
 }
 
-
-function setOperationalScope(scope) {
-    operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
-    console.log('[Dashboard] Scope alterado para:', scope);
-    updateOperationalScopeButtons();
-    loadOperationalDashboard();
-}
-window.setOperationalScope = setOperationalScope;
 
 window.setOperationalPeriod = function(period) {
     let normalized = 'last_7d';
