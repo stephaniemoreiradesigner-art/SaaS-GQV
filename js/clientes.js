@@ -901,74 +901,79 @@ document.addEventListener('DOMContentLoaded', async () => {
             const clienteId = document.getElementById('cliente_id').value; // ID oculto
 
             try {
+
                 btnSave.innerText = 'Salvando...';
                 btnSave.disabled = true;
 
                 // Coletar Checkboxes
-            const getCheckedValues = (name) => {
-                return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
-            };
+                const getCheckedValues = (name) => {
+                    return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
+                };
 
-            // Coletar Mensalidades
-            const mensalidades = getMensalidadesFromForm();
-            
-            // Calcular valor total e definir dia de vencimento principal (baseado no primeiro item)
-            let valorTotal = 0;
-            let diaVencimentoPrincipal = null;
+                // Coletar Mensalidades
+                const mensalidades = getMensalidadesFromForm();
 
-            if (mensalidades.length > 0) {
-                valorTotal = mensalidades.reduce((acc, curr) => acc + curr.valor, 0);
-                diaVencimentoPrincipal = mensalidades[0].dia_vencimento;
-            }
+                // Calcular valor total e definir dia de vencimento principal (baseado no primeiro item)
+                let valorTotal = 0;
+                let diaVencimentoPrincipal = null;
 
-            const gestorSelect = document.getElementById('gestor_trafego_email');
-            const socialSelect = document.getElementById('social_media_email');
-            const gestorOption = gestorSelect && gestorSelect.selectedOptions ? gestorSelect.selectedOptions[0] : null;
-            const socialOption = socialSelect && socialSelect.selectedOptions ? socialSelect.selectedOptions[0] : null;
-            const gestorColaboradorId = gestorSelect && gestorSelect.value ? gestorSelect.value : null;
-            const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
-            const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
-            const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
-            const logoUrlInputValue = normalizeLogoUrl(document.getElementById('logo_url').value);
-            const logoFileInput = document.getElementById('logo_file');
-            const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
-            const registroGrupo = document.getElementById('registro_grupo').value;
-            const emailEmpresaValue = normalizeEmailValue(document.getElementById('email_contato').value);
+                if (mensalidades.length > 0) {
+                    valorTotal = mensalidades.reduce((acc, curr) => acc + curr.valor, 0);
+                    diaVencimentoPrincipal = mensalidades[0].dia_vencimento;
+                }
 
-            const clienteData = {
-                nome_empresa: document.getElementById('nome_empresa').value,
-                nome_fantasia: document.getElementById('nome_fantasia').value,
-                time_id: document.getElementById('time_id').value || null,
-                telefone: document.getElementById('telefone').value,
-                endereco: document.getElementById('endereco').value,
-                email_contato: emailEmpresaValue || null,
-                responsavel_nome: document.getElementById('responsavel_nome').value,
-                responsavel_whatsapp: document.getElementById('responsavel_whatsapp').value,
-                responsavel_nome_2: document.getElementById('responsavel_nome_2').value,
-                responsavel_whatsapp_2: document.getElementById('responsavel_whatsapp_2').value,
-                
-                // Campos de compatibilidade + JSONB
-                valor_mensalidade: valorTotal,
-                dia_vencimento: diaVencimentoPrincipal,
-                mensalidades: mensalidades, // Salva o array completo no JSONB
+                const gestorSelect = document.getElementById('gestor_trafego_email');
+                const socialSelect = document.getElementById('social_media_email');
+                const gestorOption = gestorSelect && gestorSelect.selectedOptions ? gestorSelect.selectedOptions[0] : null;
+                const socialOption = socialSelect && socialSelect.selectedOptions ? socialSelect.selectedOptions[0] : null;
+                const gestorColaboradorId = gestorSelect && gestorSelect.value ? gestorSelect.value : null;
+                const socialColaboradorId = socialSelect && socialSelect.value ? socialSelect.value : null;
+                const gestorEmail = gestorOption && gestorOption.dataset ? gestorOption.dataset.email || null : null;
+                const socialEmail = socialOption && socialOption.dataset ? socialOption.dataset.email || null : null;
+                const logoUrlInputValue = normalizeLogoUrl(document.getElementById('logo_url').value);
+                const logoFileInput = document.getElementById('logo_file');
+                const logoFile = logoFileInput && logoFileInput.files && logoFileInput.files[0] ? logoFileInput.files[0] : null;
+                const registroGrupo = document.getElementById('registro_grupo').value;
+                const emailEmpresaValue = normalizeEmailValue(document.getElementById('email_contato').value);
 
-                // Links Úteis
-                link_briefing: document.getElementById('link_briefing').value,
-                link_site: document.getElementById('link_site').value,
-                link_lp: document.getElementById('link_lp').value,
-                link_drive: document.getElementById('link_drive').value,
-                link_persona: document.getElementById('link_persona').value,
-                link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
-                registro_grupo: registroGrupo || null,
-                logo_url: logoUrlInputValue || null,
-                
-                servicos: getCheckedValues('servicos'),
-                responsavel_trafego_colaborador_id: gestorColaboradorId,
-                responsavel_social_colaborador_id: socialColaboradorId,
-                gestor_trafego_email: gestorEmail,
-                social_media_email: socialEmail,
-                status: document.getElementById('status_cliente').value
-            };
+                const clienteData = {
+                    nome_empresa: document.getElementById('nome_empresa').value,
+                    nome_fantasia: document.getElementById('nome_fantasia').value,
+                    time_id: document.getElementById('time_id').value || null,
+                    telefone: document.getElementById('telefone').value,
+                    endereco: document.getElementById('endereco').value,
+                    email_contato: emailEmpresaValue || null,
+                    responsavel_nome: document.getElementById('responsavel_nome').value,
+                    responsavel_whatsapp: document.getElementById('responsavel_whatsapp').value,
+                    responsavel_nome_2: document.getElementById('responsavel_nome_2').value,
+                    responsavel_whatsapp_2: document.getElementById('responsavel_whatsapp_2').value,
+
+                    // Campos de compatibilidade + JSONB
+                    valor_mensalidade: valorTotal,
+                    dia_vencimento: diaVencimentoPrincipal,
+                    mensalidades: mensalidades, // Salva o array completo no JSONB
+
+                    // Links Úteis
+                    link_briefing: document.getElementById('link_briefing').value,
+                    link_site: document.getElementById('link_site').value,
+                    link_lp: document.getElementById('link_lp').value,
+                    link_drive: document.getElementById('link_drive').value,
+                    link_persona: document.getElementById('link_persona').value,
+                    link_grupo: normalizeGroupLink(document.getElementById('link_grupo').value),
+                    registro_grupo: registroGrupo || null,
+                    logo_url: logoUrlInputValue || null,
+
+                    servicos: getCheckedValues('servicos'),
+                    responsavel_trafego_colaborador_id: gestorColaboradorId,
+                    responsavel_social_colaborador_id: socialColaboradorId,
+                    gestor_trafego_email: gestorEmail,
+                    social_media_email: socialEmail,
+                    status: document.getElementById('status_cliente').value
+                };
+
+                // --- HOTFIX escopo savedRow/savedId ---
+                let savedRow = null;
+                let savedId = null;
 
                 const logSave = (...args) => console.log('[Clientes Save]', ...args);
 
@@ -1054,7 +1059,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!error && !updateData) {
                         throw new Error('Nenhuma linha atualizada.');
                     }
-                    let savedRow = updateData;
+                    savedRow = updateData;
+                    savedId = updateData?.id || clienteId;
                     if (!error) {
                         await gerarCobrancasMensalidades(
                             { 
@@ -1072,12 +1078,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     let insertPayload = { ...clienteData };
                     logSave('endpoint', 'supabase: clientes insert');
                     logSave('payload', insertPayload);
-                    let { data, error: insertError, status: insertStatus, statusText: insertStatusText } = await window.supabaseClient
+                    let { data: insertData, error: insertError, status: insertStatus, statusText: insertStatusText } = await window.supabaseClient
                         .from('clientes')
                         .insert([insertPayload])
                         .select()
                         .single();
-                    logSave('response', { status: insertStatus, statusText: insertStatusText, data, error: insertError });
+                    logSave('response', { status: insertStatus, statusText: insertStatusText, data: insertData, error: insertError });
                     if (insertError && (hasMissingColumn(insertError, 'logo_url') || hasMissingColumn(insertError, 'registro_grupo') || hasMissingColumn(insertError, 'tenant_id'))) {
                         insertPayload = stripMissingColumns(insertPayload, insertError);
                         if (hasMissingColumn(insertError, 'logo_url')) missingColumns.add('logo_url');
@@ -1092,31 +1098,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .insert([insertPayload])
                             .select()
                             .single();
-                        data = retry.data;
+                        insertData = retry.data;
                         insertError = retry.error;
-                        logSave('response', { status: retry.status, statusText: retry.statusText, data, error: insertError });
+                        logSave('response', { status: retry.status, statusText: retry.statusText, data: insertData, error: insertError });
                     }
                     error = insertError;
-                    logDev('retorno do supabase (insert)', { data, error: insertError });
-                    let savedRow = data;
-                    if (!error && !data) {
+                    logDev('retorno do supabase (insert)', { data: insertData, error: insertError });
+                    savedRow = insertData;
+                    savedId = insertData?.id || null;
+                    if (!error && !insertData) {
                         throw new Error('Nenhuma linha inserida.');
                     }
-                    if (!error && data && logoFile && allowLogoColumn) {
+                    if (!error && insertData && logoFile && allowLogoColumn) {
                         try {
-                            const uploadedUrl = await uploadClientLogoFile(data.id, logoFile);
+                            const uploadedUrl = await uploadClientLogoFile(insertData.id, logoFile);
                             if (uploadedUrl) {
                                 const { error: logoUpdateError } = await window.supabaseClient
                                     .from('clientes')
                                     .update({ logo_url: uploadedUrl })
-                                    .eq('id', data.id);
+                                    .eq('id', insertData.id);
                                 if (logoUpdateError) console.warn('Erro ao salvar logo no cliente:', logoUpdateError);
                             }
                         } catch (uploadError) {
                             console.warn('Erro ao subir logo:', uploadError);
                         }
                     }
-                    if (!error && data && clienteData.status === 'Ativo') {
+                    if (!error && insertData && clienteData.status === 'Ativo') {
                         await gerarCobrancasMensalidades(
                             { 
                                 nome_empresa: clienteData.nome_empresa,
@@ -1129,18 +1136,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 if (error) throw error;
+                if (!savedId && !clienteId) throw new Error('Save retornou sem id');
 
-
-                const savedId = savedRow?.id || clienteId;
-                if (!savedId) throw new Error('Save retornou sem id');
-                try {
-                    await refreshClientById(savedId);
-                } catch (refreshError) {
-                    console.error('Erro ao recarregar cliente atualizado:', refreshError);
-                }
+                // --- Pós-save: nunca lançar erro, apenas logar ---
+                try { await refreshClientById(savedId || clienteId); } catch (e) { console.warn('Erro pós-save (refreshClientById):', e); }
+                try { loadClientes(); } catch (e) { console.warn('Erro pós-save (loadClientes):', e); }
 
                 alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
-                
+
                 // Volta para lista
                 const lista = document.getElementById('lista-clientes-container');
                 const formContainer = document.getElementById('form-cliente-container');
@@ -1148,8 +1151,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     lista.style.display = 'block';
                     formContainer.style.display = 'none';
                 }
-                
-                loadClientes(); // Recarrega a lista
 
             } catch (error) {
                 console.error('Erro ao salvar:', error);
