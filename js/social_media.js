@@ -123,7 +123,7 @@ async function updateCalendarConnections(clientId) {
 }
 
 window.openGenerationConfigModal = function() {
-    const modal = document.getElementById('modal-generation-config');
+    const modal = document.getElementById('generationModal');
     if (!modal) return;
     setTimeout(() => {
         modal.classList.remove('hidden');
@@ -136,17 +136,14 @@ window.openGenerationConfigModal = function() {
     }, 250);
 }
 
+function closeGenerationModal() {
+    const modal = document.getElementById('generationModal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+
 window.closeGenerationConfigModal = function() {
-    const modal = document.getElementById('modal-generation-config');
-    if (modal) {
-        modal.classList.add('opacity-0');
-        const content = document.getElementById('modal-generation-config-content');
-        if (content) content.classList.add('scale-95');
-        setTimeout(() => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }, 300);
-    }
+    closeGenerationModal();
 }
 
 function showGenerationLog() {
@@ -764,29 +761,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
 
-    const modalGeneration = document.getElementById('modal-generation-config');
-    if (modalGeneration) {
-        modalGeneration.addEventListener('click', (e) => {
-            if (generationModalLoading) return;
-            if (e.target === modalGeneration) closeGenerationConfigModal();
-        });
-    }
-
-    const btnGenerationCancel = document.getElementById('btn-generation-cancel');
-    if (btnGenerationCancel) {
-        btnGenerationCancel.addEventListener('click', () => {
-            if (generationModalLoading) return;
-            closeGenerationConfigModal();
-        });
-    }
-
-    const btnGenerationClose = document.getElementById('btn-generation-close');
-    if (btnGenerationClose) {
-        btnGenerationClose.addEventListener('click', () => {
-            if (generationModalLoading) return;
-            closeGenerationConfigModal();
-        });
-    }
+    document.addEventListener('click', function(e) {
+        if (generationModalLoading) return;
+        if (e.target.matches('[data-close-generation]')) {
+            closeGenerationModal();
+        }
+    });
 
     const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
     if (btnGenerationConfirm) {
