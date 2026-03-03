@@ -1,3 +1,46 @@
+// ROTA TEMPORÁRIA DE DEBUG CLIENTES
+app.get('/api/debug/clientes', async (req, res) => {
+    try {
+        const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+        if (!supabaseUrl || !serviceRoleKey) {
+            res.status(500).json({ error: 'supabase_nao_configurado' });
+            return;
+        }
+        // Buscar os 5 últimos registros
+        const selectUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?select=*&order=id.desc&limit=5`;
+        const selectRes = await fetch(selectUrl, {
+            method: 'GET',
+            headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`
+            }
+        });
+        const selectResult = await selectRes.json().catch(() => null);
+
+        // Inserir registro de teste
+        const insertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes`;
+        const insertPayload = {
+            nome_empresa: 'CLIENTE TESTE TRAE',
+            ativo: true,
+            is_demo: false
+        };
+        const insertRes = await fetch(insertUrl, {
+            method: 'POST',
+            headers: {
+                apikey: serviceRoleKey,
+                Authorization: `Bearer ${serviceRoleKey}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation'
+            },
+            body: JSON.stringify(insertPayload)
+        });
+        const insertResult = await insertRes.json().catch(() => null);
+
+        res.json({ select_result: selectResult, insert_result: insertResult, error: null });
+    } catch (error) {
+        res.json({ error: error.message });
+    }
+});
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
