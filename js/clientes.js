@@ -1008,7 +1008,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 let error;
                 let allowLogoColumn = true;
-                let savedRow = null;
                 let savedId = null;
 
                 if (clienteId) {
@@ -1056,7 +1055,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!error && !updateData) {
                         throw new Error('Nenhuma linha atualizada.');
                     }
-                    savedRow = updateData;
                     savedId = updateData?.id || clienteId;
                     if (!error) {
                         try {
@@ -1105,7 +1103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     error = insertError;
                     logDev('retorno do supabase (insert)', { data: insertData, error: insertError });
-                    savedRow = insertData;
                     savedId = insertData?.id || null;
                     if (!error && !insertData) {
                         throw new Error('Nenhuma linha inserida.');
