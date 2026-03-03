@@ -115,9 +115,25 @@ window.showSocialMediaHome = function() {
     }
 }
 
+// Ensure operationalHubState is defined globally
+if (!window.operationalHubState) {
+    window.operationalHubState = {
+        scope: 'cliente', // Default value
+        period: '30d'    // Default value
+    };
+}
+
+// Update setOperationalScope to attach to window and log changes
+window.setOperationalScope = function(scope) {
+    operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
+    console.log('[Dashboard] Scope alterado para:', scope);
+    updateOperationalScopeButtons();
+    loadOperationalDashboard();
+};
+
 const operationalHubState = {
-    scope: 'client',
-    period: 'last_7d'
+    scope: 'cliente',
+    period: '30d'
 };
 
 async function waitForSupabaseReady() {
@@ -174,6 +190,7 @@ function updateOperationalScopeButtons() {
 
 function setOperationalScope(scope) {
     operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
+    console.log('[Dashboard] Scope alterado para:', scope);
     updateOperationalScopeButtons();
     loadOperationalDashboard();
 }
