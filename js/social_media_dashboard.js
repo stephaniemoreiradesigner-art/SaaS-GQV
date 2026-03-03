@@ -389,9 +389,23 @@ async function updateInsightsPlatforms(clientId) {
         platformSelect.disabled = false;
 
         if (btn) btn.disabled = false;
+        return;
     }
 
+    if (results) results.innerHTML = '';
 
+    const connections = insightsConnectionsCache[clientId] || await window.getConnectedPlatforms(clientId);
+    insightsConnectionsCache[clientId] = connections;
+    const connected = Array.isArray(connections?.connected) ? connections.connected : [];
+
+    if (!connected.length) {
+        platformSelect.innerHTML = `
+            <option value="instagram" selected>Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="all">Todas (Relatório Unificado)</option>
+        `;
+        platformSelect.disabled = false;
+        if (btn) btn.disabled = false;
         return;
     }
 
