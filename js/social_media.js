@@ -93,11 +93,21 @@ const storedHubPeriod = (() => {
     }
 })();
 
+const storedHubClient = (() => {
+    try {
+        const value = localStorage.getItem('social_active_client');
+        return value ? String(value) : '';
+    } catch {
+        return '';
+    }
+})();
+
 if (!window.operationalHubState) {
-    window.operationalHubState = { scope: storedHubScope, period: storedHubPeriod };
+    window.operationalHubState = { scope: storedHubScope, period: storedHubPeriod, clientId: storedHubClient };
 } else {
     if (!window.operationalHubState.scope) window.operationalHubState.scope = storedHubScope;
     if (!window.operationalHubState.period) window.operationalHubState.period = storedHubPeriod;
+    if (!window.operationalHubState.clientId) window.operationalHubState.clientId = storedHubClient;
 }
 
 if (typeof window.setOperationalScope !== 'function') {
@@ -111,6 +121,19 @@ if (typeof window.setOperationalScope !== 'function') {
         }
     };
 }
+
+window.setActiveClient = function(clientId) {
+    const resolved = String(clientId || '').trim();
+    window.operationalHubState = window.operationalHubState || {};
+    window.operationalHubState.clientId = resolved;
+    try {
+        if (resolved) {
+            localStorage.setItem('social_active_client', resolved);
+        } else {
+            localStorage.removeItem('social_active_client');
+        }
+    } catch {}
+};
 
 if (typeof window.showSocialMediaHome !== 'function') {
     window.showSocialMediaHome = function() {
@@ -896,8 +919,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (selectCliente) {
         selectCliente.addEventListener('change', (e) => {
             currentClienteId = e.target.value;
+            window.setActiveClient(currentClienteId);
+            const hubSelect = document.getElementById('hub-client-select');
+            if (hubSelect && hubSelect.value !== String(currentClienteId || '')) {
+                hubSelect.value = currentClienteId || '';
+            }
             checkSelection();
             updateCalendarConnections(currentClienteId);
+            updateCreateCalendarCardState();
         });
     }
 
@@ -926,7 +955,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const selectedClientId = resolveSelectedClientId();
             const hasPermission = await ensureSocialMediaPermission();
             if (!selectedClientId) {
-                alert('Selecione um cliente válido antes de criar o calendário.');
+                updateCreateCalendarCardState();
                 return;
             }
             if (!hasPermission) {
@@ -936,6 +965,57 @@ document.addEventListener('DOMContentLoaded', async () => {
             await window.createSocialCalendar({ clientId: selectedClientId, month: resolveSelectedMonth() });
         });
     });
+
+    const hubSelect = document.getElementById('hub-client-select');
+    if (hubSelect) {
+        const storedClientId = resolveSelectedClientId();
+        if (storedClientId) {
+            hubSelect.value = storedClientId;
+            currentClienteId = storedClientId;
+            const calendarSelect = document.getElementById('select-cliente');
+            if (calendarSelect) calendarSelect.value = storedClientId;
+            checkSelection();
+        }
+        hubSelect.addEventListener('change', (event) => {
+            const selected = event.target.value;
+            window.setActiveClient(selected);
+            currentClienteId = selected;
+            const calendarSelect = document.getElementById('select-cliente');
+            if (calendarSelect) calendarSelect.value = selected;
+            checkSelection();
+            updateCalendarConnections(currentClienteId);
+            updateCreateCalendarCardState();
+        });
+    }
+
+    const hubPeriodSelect = document.getElementById('hub-period-select');
+    if (hubPeriodSelect) {
+        const displayValue = normalizeHubPeriodDisplay(window.operationalHubState?.period || storedHubPeriod);
+        hubPeriodSelect.value = displayValue;
+        hubPeriodSelect.addEventListener('change', (event) => {
+            const normalized = normalizeHubPeriodValue(event.target.value);
+            window.operationalHubState.period = normalized;
+            try {
+                localStorage.setItem('social_hub_selected_period', normalized);
+            } catch {}
+            if (typeof window.setOperationalPeriod === 'function') {
+                window.setOperationalPeriod(event.target.value);
+            } else if (typeof window.loadOperationalDashboard === 'function') {
+                window.loadOperationalDashboard();
+            }
+        });
+    }
+
+    document.querySelectorAll('.scope-toggle button[data-scope]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const scope = button.dataset.scope;
+            if (typeof window.setOperationalScope === 'function') {
+                window.setOperationalScope(scope);
+            }
+        });
+    });
+
+    updateCreateCalendarCardState();
     
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
@@ -1915,10 +1995,65 @@ function normalizeMonthValue(value) {
 function resolveSelectedClientId(value) {
     const direct = String(value || '').trim();
     if (direct) return direct;
+    const stored = String(window.operationalHubState?.clientId || '').trim();
+    if (stored) return stored;
     if (currentClienteId) return String(currentClienteId);
     const select = document.getElementById('select-cliente');
     if (select && select.value) return String(select.value);
     return '';
+}
+
+function normalizeHubPeriodValue(value) {
+    const raw = String(value || '').trim();
+    if (raw === '7d' || raw === 'last7' || raw === 'last_7' || raw === 'last_7d') return 'last_7d';
+    if (raw === '30d' || raw === 'last30' || raw === 'last_30' || raw === 'last_30d') return 'last_30d';
+    if (raw === '90d' || raw === 'last90' || raw === 'last_90' || raw === 'last_90d') return 'last_90d';
+    if (raw === 'month') return 'month';
+    return 'last_7d';
+}
+
+function normalizeHubPeriodDisplay(value) {
+    const raw = String(value || '').trim();
+    if (raw === 'last_7d' || raw === 'last7' || raw === '7d') return '7d';
+    if (raw === 'last_30d' || raw === 'last30' || raw === '30d') return '30d';
+    if (raw === 'last_90d' || raw === 'last90' || raw === '90d') return '90d';
+    if (raw === 'month') return 'month';
+    return '7d';
+}
+
+function setHubClientMessage(message) {
+    const text = String(message || '').trim();
+    const messageEl = document.getElementById('hub-client-message');
+    const cardMessage = document.getElementById('card-create-calendar-message');
+    if (messageEl) {
+        if (text) {
+            messageEl.textContent = text;
+            messageEl.classList.remove('hidden');
+        } else {
+            messageEl.classList.add('hidden');
+        }
+    }
+    if (cardMessage) {
+        if (text) {
+            cardMessage.textContent = text;
+            cardMessage.classList.remove('hidden');
+        } else {
+            cardMessage.classList.add('hidden');
+        }
+    }
+}
+
+function updateCreateCalendarCardState() {
+    const card = document.getElementById('card-create-calendar');
+    if (!card) return;
+    const hasClient = !!resolveSelectedClientId();
+    if (hasClient) {
+        card.classList.remove('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
+        setHubClientMessage('');
+    } else {
+        card.classList.add('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
+        setHubClientMessage('Selecione um cliente para iniciar');
+    }
 }
 
 function resolveSelectedMonth(month, year) {
@@ -1955,7 +2090,7 @@ window.createSocialCalendar = async function({ clientId, month, year } = {}) {
     console.info('[SOCIAL] createCalendar start/payload', { clientId: resolvedClientId || null, month: resolvedMonth || null, year: year || null });
 
     if (!resolvedClientId) {
-        alert('Selecione um cliente válido antes de criar o calendário.');
+        updateCreateCalendarCardState();
         return null;
     }
     if (!resolvedMonth) {
@@ -2015,12 +2150,17 @@ window.createSocialCalendar = async function({ clientId, month, year } = {}) {
     const calendarId = savedId;
     currentCalendarId = calendarId;
     window.currentCalendarId = calendarId;
+    window.setActiveClient(resolvedClientId);
 
     const select = document.getElementById('select-cliente');
     if (select && String(select.value || '') !== String(resolvedClientId)) {
         select.value = String(resolvedClientId);
     }
     currentClienteId = resolvedClientId;
+    const hubSelect = document.getElementById('hub-client-select');
+    if (hubSelect && String(hubSelect.value || '') !== String(resolvedClientId)) {
+        hubSelect.value = String(resolvedClientId);
+    }
 
     const inputMes = document.getElementById('input-mes');
     if (inputMes && String(inputMes.value || '') !== String(resolvedMonth)) {
@@ -2289,6 +2429,36 @@ async function loadClientes() {
             opt.disabled = true;
             opt.textContent = 'Nenhum cliente encontrado';
             select.appendChild(opt);
+        }
+
+        const hubSelect = document.getElementById('hub-client-select');
+        if (hubSelect) {
+            hubSelect.innerHTML = '<option value="">Selecione um cliente...</option>';
+            uniqueRows.forEach(c => {
+                const label =
+                    c.nome_fantasia ||
+                    c.nome_empresa ||
+                    `Cliente ${c.id}`;
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = label;
+                hubSelect.appendChild(opt);
+            });
+            if (uniqueRows.length === 0) {
+                const opt = document.createElement('option');
+                opt.disabled = true;
+                opt.textContent = 'Nenhum cliente encontrado';
+                hubSelect.appendChild(opt);
+            }
+            const storedId = resolveSelectedClientId();
+            if (storedId) {
+                hubSelect.value = storedId;
+                if (select && select.value !== storedId) {
+                    select.value = storedId;
+                }
+                currentClienteId = storedId;
+            }
+            updateCreateCalendarCardState();
         }
 
     } catch (err) {

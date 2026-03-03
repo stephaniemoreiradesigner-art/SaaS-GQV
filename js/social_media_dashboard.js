@@ -185,6 +185,10 @@ async function getDashboardAuthHeaders() {
 }
 
 function getOperationalTenantId() {
+    const hubClient = String(window.operationalHubState?.clientId || '').trim();
+    if (hubClient) return hubClient;
+    const hubSelect = document.getElementById('hub-client-select');
+    if (hubSelect && hubSelect.value) return String(hubSelect.value);
     if (window.currentClienteId) return String(window.currentClienteId);
     const selectCalendar = document.getElementById('select-cliente');
     if (selectCalendar && selectCalendar.value) return String(selectCalendar.value);
@@ -216,9 +220,9 @@ function updateOperationalScopeButtons() {
 
 window.setOperationalPeriod = function(period) {
     let normalized = 'last_7d';
-    if (period === 'last7' || period === 'last_7' || period === 'last_7d') normalized = 'last_7d';
-    else if (period === 'last30' || period === 'last_30' || period === 'last_30d') normalized = 'last_30d';
-    else if (period === 'last90' || period === 'last_90' || period === 'last_90d') normalized = 'last_90d';
+    if (period === '7d' || period === 'last7' || period === 'last_7' || period === 'last_7d') normalized = 'last_7d';
+    else if (period === '30d' || period === 'last30' || period === 'last_30' || period === 'last_30d') normalized = 'last_30d';
+    else if (period === '90d' || period === 'last90' || period === 'last_90' || period === 'last_90d') normalized = 'last_90d';
     else if (period === 'month') normalized = 'month';
     operationalHubState.period = normalized;
     try {
@@ -443,14 +447,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const savedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY) || '30d';
     let normalized = 'last_7d';
-    if (savedPeriod === 'last7' || savedPeriod === 'last_7' || savedPeriod === 'last_7d') normalized = 'last_7d';
+    if (savedPeriod === 'last7' || savedPeriod === 'last_7' || savedPeriod === 'last_7d' || savedPeriod === '7d') normalized = 'last_7d';
     else if (savedPeriod === 'last30' || savedPeriod === 'last_30' || savedPeriod === 'last_30d' || savedPeriod === '30d') normalized = 'last_30d';
     else if (savedPeriod === 'last90' || savedPeriod === 'last_90' || savedPeriod === 'last_90d' || savedPeriod === '90d') normalized = 'last_90d';
     else if (savedPeriod === 'month') normalized = 'month';
     operationalHubState.period = normalized;
-    const periodSelect = document.getElementById('operational-period');
+    const periodSelect = document.getElementById('hub-period-select');
     if (periodSelect) {
-        periodSelect.value = operationalHubState.period;
+        if (operationalHubState.period === 'last_30d') periodSelect.value = '30d';
+        else if (operationalHubState.period === 'last_90d') periodSelect.value = '90d';
+        else if (operationalHubState.period === 'month') periodSelect.value = 'month';
+        else periodSelect.value = '7d';
         periodSelect.addEventListener('change', (event) => {
             window.setOperationalPeriod(event.target.value);
         });
