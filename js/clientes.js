@@ -1049,13 +1049,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         updateError = retry.error;
                         logSave('response', { status: retry.status, statusText: retry.statusText, data: updateData, error: updateError });
                     }
-                    
                     error = updateError;
                     logDev('retorno do supabase (update)', { data: updateData, error: updateError });
                     if (!error && !updateData) {
                         throw new Error('Nenhuma linha atualizada.');
                     }
-
+                    let savedRow = updateData;
                     if (!error) {
                         await gerarCobrancasMensalidades(
                             { 
@@ -1097,9 +1096,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         insertError = retry.error;
                         logSave('response', { status: retry.status, statusText: retry.statusText, data, error: insertError });
                     }
-                    
                     error = insertError;
                     logDev('retorno do supabase (insert)', { data, error: insertError });
+                    let savedRow = data;
                     if (!error && !data) {
                         throw new Error('Nenhuma linha inserida.');
                     }
@@ -1117,7 +1116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             console.warn('Erro ao subir logo:', uploadError);
                         }
                     }
-
                     if (!error && data && clienteData.status === 'Ativo') {
                         await gerarCobrancasMensalidades(
                             { 
@@ -1132,13 +1130,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (error) throw error;
 
-                const refreshedClientId = clienteId || (data && data.id ? data.id : null);
-                if (refreshedClientId) {
-                    try {
-                        await refreshClientById(refreshedClientId);
-                    } catch (refreshError) {
-                        console.error('Erro ao recarregar cliente atualizado:', refreshError);
-                    }
+
+                const savedId = savedRow?.id || clienteId;
+                if (!savedId) throw new Error('Save retornou sem id');
+                try {
+                    await refreshClientById(savedId);
+                } catch (refreshError) {
+                    console.error('Erro ao recarregar cliente atualizado:', refreshError);
                 }
 
                 alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
