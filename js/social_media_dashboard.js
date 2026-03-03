@@ -1,7 +1,16 @@
 // js/social_media_dashboard.js
+(function(){
+    const isDashboard = document.querySelector('h1')?.textContent?.includes('Social Media Dashboard')
+        || document.body?.dataset?.page === 'social-dashboard'
+        || document.querySelector('[data-social-dashboard]');
+
+    if (!isDashboard) {
+        window.openSocialMediaTab = window.openSocialMediaTab || function() {};
+        return;
+    }
 
 // Tab Navigation
-window.openSocialMediaTab = function(tabName) {
+window.openSocialMediaTab = window.openSocialMediaTab || function(tabName) {
     // Hide all views
     const home = document.getElementById('social-media-home');
     const calendarView = document.getElementById('calendar-view');
@@ -1717,3 +1726,5 @@ window.updateCreativeRequestStatus = async function(status) {
     if (!status) return;
     await submitCreativeRequestUpdate({ status });
 };
+
+})();
