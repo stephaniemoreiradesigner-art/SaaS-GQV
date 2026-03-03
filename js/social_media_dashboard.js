@@ -101,11 +101,11 @@ window.showSocialMediaHome = function() {
     }
 }
 
+const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 const operationalHubState = {
     scope: 'client',
     period: 'last_7d'
 };
-const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 
 async function waitForSupabaseReady() {
     if (window.supabaseClient) return true;
@@ -158,11 +158,13 @@ function updateOperationalScopeButtons() {
     }
 }
 
-window.setOperationalScope = function(scope) {
+
+function setOperationalScope(scope) {
     operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
     updateOperationalScopeButtons();
     loadOperationalDashboard();
-};
+}
+window.setOperationalScope = setOperationalScope;
 
 window.setOperationalPeriod = function(period) {
     let normalized = 'last_7d';
