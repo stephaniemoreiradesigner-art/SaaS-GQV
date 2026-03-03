@@ -9276,20 +9276,33 @@ const server = http.createServer(async (request, response) => {
         return;
     }
 
+    let resolvedPathname = pathname;
+    if (resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname === '/client/home') {
+        resolvedPathname = '/client_dashboard.html';
+    } else if (resolvedPathname === '/client/login' || resolvedPathname === '/client/login/') {
+        resolvedPathname = '/client_login.html';
+    } else if (resolvedPathname === '/client/integrations' || resolvedPathname === '/client/integrations/') {
+        resolvedPathname = '/client_integrations.html';
+    } else if (resolvedPathname === '/client/approvals/calendar' || resolvedPathname === '/client/approvals/calendar/') {
+        resolvedPathname = '/client_approvals_calendar.html';
+    } else if (resolvedPathname === '/client/approvals/posts' || resolvedPathname === '/client/approvals/posts/') {
+        resolvedPathname = '/client_approvals_posts.html';
+    }
+
     // --- ARQUIVOS ESTÁTICOS ---
     
     // Remove query string para encontrar o arquivo
-    let filePath = '.' + pathname;
+    let filePath = '.' + resolvedPathname;
     if (filePath === './') {
         filePath = './index.html';
     }
 
-    const isClientRoute = pathname === '/client' || pathname === '/client/' || pathname.startsWith('/client/');
+    const isClientRoute = resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname.startsWith('/client/');
     if (isClientRoute) {
-        if (pathname === '/client' || pathname === '/client/' || pathname === '/client/home') {
+        if (resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname === '/client/home') {
             filePath = './client/index.html';
         } else if (!path.extname(filePath)) {
-            filePath = `.${pathname}.html`;
+            filePath = `.${resolvedPathname}.html`;
         }
     }
 

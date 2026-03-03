@@ -36,7 +36,7 @@ const setupClientLogout = () => {
         if (window.supabaseClient) {
             await window.supabaseClient.auth.signOut();
         }
-        window.location.href = '/client/login';
+        window.location.href = 'client_login.html';
     });
 };
 
@@ -132,14 +132,14 @@ const getClientAccessToken = async () => {
 const loadClientContext = async () => {
     const accessToken = await getClientAccessToken();
     if (!accessToken) {
-        window.location.href = '/client/login';
+        window.location.href = 'client_login.html';
         return null;
     }
     const response = await fetch(`${window.API_BASE_URL}/api/client/me`, {
         headers: { Authorization: `Bearer ${accessToken}` }
     });
     if (response.status === 401) {
-        window.location.href = '/client/login';
+        window.location.href = 'client_login.html';
         return null;
     }
     const payload = await response.json().catch(() => null);
@@ -178,7 +178,7 @@ const ensureClientAccess = async () => {
     if (window.supabaseClient?.auth) {
         window.supabaseClient.auth.onAuthStateChange((event) => {
             if (event === 'SIGNED_OUT') {
-                window.location.href = '/client/login';
+                window.location.href = 'client_login.html';
             }
         });
     }
