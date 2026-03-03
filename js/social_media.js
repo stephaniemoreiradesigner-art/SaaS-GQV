@@ -18,6 +18,66 @@ var lastSeasonalDates = [];
 var currentPostProps = null;
 let socialMediaPermission = null;
 
+// === Dashboard navigation shim (v1.1) ===
+function getSocialDashboardViews() {
+    return {
+        dashboard: document.getElementById('social-media-home'),
+        calendar: document.getElementById('calendar-view'),
+        insights: document.getElementById('insights-view'),
+        diary: document.getElementById('logs-view'),
+        creative: document.getElementById('creative-requests-view')
+    };
+}
+
+if (typeof window.openSocialMediaTab !== 'function') {
+    window.openSocialMediaTab = function(tab) {
+        try {
+            const t = String(tab || '').toLowerCase();
+            const views = getSocialDashboardViews();
+            const hasAnyView = Object.values(views).some(Boolean);
+
+            if (!hasAnyView) {
+                const url = new URL(window.location.href);
+                url.hash = `#tab=${encodeURIComponent(t)}`;
+                window.location.href = url.toString();
+                return;
+            }
+
+            Object.values(views).forEach(el => {
+                if (!el) return;
+                el.classList.add('hidden');
+                el.style.display = 'none';
+            });
+
+            const key =
+                (t === 'calendario' || t === 'calendar') ? 'calendar' :
+                (t === 'insights') ? 'insights' :
+                (t === 'diario' || t === 'diary') ? 'diary' :
+                (t === 'solicitacoes' || t === 'creative' || t === 'creative_requests') ? 'creative' :
+                'dashboard';
+
+            const target = views[key] || views.dashboard;
+            if (target) {
+                target.classList.remove('hidden');
+                target.style.display = '';
+            }
+
+            const url = new URL(window.location.href);
+            url.hash = `#tab=${encodeURIComponent(key)}`;
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.error('[SocialMedia] openSocialMediaTab failed:', e);
+        }
+    };
+}
+
+function applySocialTabFromHash() {
+    const rawHash = String(window.location.hash || '').replace(/^#/, '');
+    const params = new URLSearchParams(rawHash);
+    const tab = params.get('tab');
+    window.openSocialMediaTab(tab || 'dashboard');
+}
+
 const CALENDAR_STATUS = window.CALENDAR_STATUS;
 const POST_STATUS = window.POST_STATUS;
 const CALENDAR_STATUS_LABEL = window.CALENDAR_STATUS_LABEL || {};
@@ -729,6 +789,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initCalendar();
     ensureSocialMediaPermission().then(updateGenerateButtonState);
+    applySocialTabFromHash();
 
     const selectCliente = document.getElementById('select-cliente');
     if (selectCliente) {
