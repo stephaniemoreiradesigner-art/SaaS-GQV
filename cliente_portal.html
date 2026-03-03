@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Cliente</title>
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+    <div class="min-h-screen flex flex-col">
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+            <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                        <i class="fas fa-handshake"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold">Portal do Cliente</h1>
+                        <p class="text-sm text-gray-500" id="portal-client-name">Carregando...</p>
+                    </div>
+                </div>
+                <button id="portal-logout" class="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">
+                    Sair
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+            <div class="flex flex-col gap-6">
+                <div class="flex flex-wrap gap-2 border-b border-gray-200">
+                    <button data-tab="calendars" class="portal-tab-btn px-4 py-2 text-sm font-semibold text-primary border-b-2 border-primary">
+                        Aprovar Calendários
+                    </button>
+                    <button data-tab="posts" class="portal-tab-btn px-4 py-2 text-sm font-semibold text-gray-500 border-b-2 border-transparent hover:text-gray-700">
+                        Aprovar Posts
+                    </button>
+                    <button data-tab="insights" class="portal-tab-btn px-4 py-2 text-sm font-semibold text-gray-500 border-b-2 border-transparent hover:text-gray-700">
+                        Insights
+                    </button>
+                </div>
+
+                <section id="tab-calendars" class="space-y-4">
+                    <div id="calendar-loading" class="text-sm text-gray-500">Carregando calendários...</div>
+                    <div id="calendar-error" class="hidden text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg p-3"></div>
+                    <div id="calendar-empty" class="hidden text-sm text-gray-500">Nenhum calendário aguardando aprovação.</div>
+                    <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </section>
+
+                <section id="tab-posts" class="hidden">
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 text-sm text-gray-500">
+                        Em breve: aprovação de posts direto no portal.
+                    </div>
+                </section>
+
+                <section id="tab-insights" class="hidden">
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 text-sm text-gray-500">
+                        Em breve: insights e relatórios resumidos.
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="calendar-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 id="calendar-modal-title" class="text-lg font-semibold"></h2>
+                    <p id="calendar-modal-subtitle" class="text-sm text-gray-500"></p>
+                </div>
+                <button id="calendar-modal-close" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <div id="calendar-posts-loading" class="text-sm text-gray-500">Carregando posts...</div>
+                <div id="calendar-posts-empty" class="hidden text-sm text-gray-500">Nenhum post encontrado.</div>
+                <div id="calendar-posts-list" class="space-y-3"></div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
+                    <textarea id="calendar-approval-comment" rows="3" class="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button id="calendar-modal-cancel" class="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">Cancelar</button>
+                <button id="calendar-approve-btn" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover">Aprovar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const portalState = {
+            supabase: null,
+            user: null,
+            tenantId: null,
+            clientId: null,
+            calendars: [],
+            currentCalendar: null
+        };
+
+        const loadPortalSupabaseConfig = async () => {
+            const response = await fetch('/config');
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (!data?.supabaseUrl || !data?.supabaseAnonKey || data?.missing) return null;
+            return { supabaseUrl: data.supabaseUrl, supabaseAnonKey: data.supabaseAnonKey };
+        };
+
+        const initPortalSupabase = async () => {
+            if (portalState.supabase) return portalState.supabase;
+            const config = await loadPortalSupabaseConfig();
+            if (!config || !window.supabase) return null;
+            portalState.supabase = window.supabase.createClient(
+                config.supabaseUrl,
+                config.supabaseAnonKey,
+                {
+                    auth: {
+                        persistSession: true,
+                        autoRefreshToken: true,
+                        detectSessionInUrl: true
+                    }
+                }
+            );
+            return portalState.supabase;
+        };
+
+        const showToast = (message, type = 'success') => {
+            const toast = document.createElement('div');
+            const colors = {
+                success: '#28a745',
+                error: '#dc3545',
+                warning: '#ffc107',
+                info: '#17a2b8'
+            };
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background-color: ${colors[type] || '#333'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                box-shadow: 0 6px 12px rgba(0,0,0,0.12);
+                z-index: 99999;
+                font-size: 14px;
+                opacity: 0;
+                transform: translateY(-10px);
+                transition: all 0.25s ease;
+            `;
+            document.body.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateY(0)';
+            });
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 250);
+            }, 3000);
+        };
+
+        const parseNumeric = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return null;
+            if (/^\d+$/.test(raw)) return Number(raw);
+            return null;
+        };
+
+        const getMetaValue = (user, keys) => {
+            const sources = [user?.user_metadata || {}, user?.app_metadata || {}];
+            for (const source of sources) {
+                for (const key of keys) {
+                    const value = parseNumeric(source?.[key]);
+                    if (value !== null) return value;
+                }
+            }
+            return null;
+        };
+
+        const safeSingle = async (table, columns, field, value) => {
+            const supabase = portalState.supabase;
+            if (!supabase) return null;
+            const { data, error } = await supabase
+                .from(table)
+                .select(columns)
+                .eq(field, value)
+                .maybeSingle();
+            if (error) return null;
+            return data || null;
+        };
+
+        const resolveClientContext = async () => {
+            const supabase = portalState.supabase;
+            if (!supabase) return null;
+            const { data } = await supabase.auth.getSession();
+            const session = data?.session;
+            if (!session?.user) return null;
+            portalState.user = session.user;
+
+            const metaTenant = getMetaValue(session.user, ['tenant_id']);
+            const metaClient = getMetaValue(session.user, ['client_id', 'cliente_id']);
+
+            const clientMembership = await safeSingle('client_memberships', 'tenant_id, client_id', 'user_id', session.user.id);
+            const portalMembership = await safeSingle('client_portal_users', 'tenant_id, client_id', 'user_id', session.user.id);
+            const membership = await safeSingle('memberships', 'tenant_id', 'user_id', session.user.id);
+            const profile = await safeSingle('profiles', 'tenant_id, client_id', 'id', session.user.id);
+
+            const tenantId = clientMembership?.tenant_id
+                || portalMembership?.tenant_id
+                || profile?.tenant_id
+                || membership?.tenant_id
+                || metaTenant
+                || null;
+            const clientId = clientMembership?.client_id
+                || portalMembership?.client_id
+                || profile?.client_id
+                || metaClient
+                || tenantId
+                || null;
+
+            portalState.tenantId = tenantId;
+            portalState.clientId = clientId;
+
+            if (tenantId && clientId && tenantId !== clientId) {
+                return { error: 'vinculo_invalido' };
+            }
+            if (!clientId) {
+                return { error: 'cliente_nao_vinculado' };
+            }
+            return { tenantId, clientId };
+        };
+
+        const setCalendarState = ({ loading = false, error = '', empty = false } = {}) => {
+            const loadingEl = document.getElementById('calendar-loading');
+            const errorEl = document.getElementById('calendar-error');
+            const emptyEl = document.getElementById('calendar-empty');
+            if (loadingEl) loadingEl.classList.toggle('hidden', !loading);
+            if (errorEl) {
+                errorEl.classList.toggle('hidden', !error);
+                errorEl.textContent = error || '';
+            }
+            if (emptyEl) emptyEl.classList.toggle('hidden', !empty);
+        };
+
+        const formatMonth = (dateStr) => {
+            if (!dateStr) return '';
+            const parsed = new Date(`${dateStr}T00:00:00`);
+            if (Number.isNaN(parsed.getTime())) return dateStr;
+            const label = parsed.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        };
+
+        const formatDateTime = (value) => {
+            if (!value) return '';
+            const parsed = new Date(value);
+            if (Number.isNaN(parsed.getTime())) return value;
+            return parsed.toLocaleString('pt-BR');
+        };
+
+        const renderCalendars = (items) => {
+            const list = document.getElementById('calendar-list');
+            if (!list) return;
+            list.innerHTML = '';
+            items.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-gray-200 rounded-2xl p-5 shadow-sm flex flex-col gap-3';
+                const monthLabel = formatMonth(item.mes_referencia);
+                const createdLabel = formatDateTime(item.created_at);
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <h3 class="text-lg font-semibold">${monthLabel || 'Calendário'}</h3>
+                        <span class="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100">Aguardando aprovação</span>
+                    </div>
+                    <p class="text-xs text-gray-500">Criado em ${createdLabel || '-'}</p>
+                    <button data-calendar-id="${item.id}" class="portal-open-calendar w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
+                `;
+                list.appendChild(card);
+            });
+        };
+
+        const loadCalendars = async () => {
+            const supabase = portalState.supabase;
+            if (!supabase) return;
+            setCalendarState({ loading: true });
+            const { data, error } = await supabase
+                .from('social_calendars')
+                .select('id, mes_referencia, created_at, status')
+                .eq('cliente_id', portalState.clientId)
+                .eq('status', 'aguardando_aprovacao')
+                .order('mes_referencia', { ascending: false });
+            if (error) {
+                setCalendarState({ error: 'Erro ao carregar calendários.' });
+                return;
+            }
+            portalState.calendars = Array.isArray(data) ? data : [];
+            if (!portalState.calendars.length) {
+                setCalendarState({ empty: true });
+                return;
+            }
+            setCalendarState({ empty: false });
+            renderCalendars(portalState.calendars);
+        };
+
+        const openCalendarModal = async (calendarId) => {
+            const modal = document.getElementById('calendar-modal');
+            const titleEl = document.getElementById('calendar-modal-title');
+            const subtitleEl = document.getElementById('calendar-modal-subtitle');
+            const postsList = document.getElementById('calendar-posts-list');
+            const postsLoading = document.getElementById('calendar-posts-loading');
+            const postsEmpty = document.getElementById('calendar-posts-empty');
+            const commentEl = document.getElementById('calendar-approval-comment');
+            if (!modal || !postsList) return;
+            const calendar = portalState.calendars.find((item) => item.id === calendarId);
+            if (!calendar) return;
+            portalState.currentCalendar = calendar;
+            if (titleEl) titleEl.textContent = formatMonth(calendar.mes_referencia) || 'Calendário';
+            if (subtitleEl) subtitleEl.textContent = `Criado em ${formatDateTime(calendar.created_at) || '-'}`;
+            if (commentEl) commentEl.value = '';
+            postsList.innerHTML = '';
+            postsLoading.classList.remove('hidden');
+            postsEmpty.classList.add('hidden');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            const supabase = portalState.supabase;
+            const { data, error } = await supabase
+                .from('social_posts')
+                .select('id, tema, legenda, data_agendada, formato, plataforma, hora_agendada')
+                .eq('calendar_id', calendar.id)
+                .order('data_agendada', { ascending: true });
+            postsLoading.classList.add('hidden');
+            if (error) {
+                postsEmpty.textContent = 'Erro ao carregar posts.';
+                postsEmpty.classList.remove('hidden');
+                return;
+            }
+            const posts = Array.isArray(data) ? data : [];
+            if (!posts.length) {
+                postsEmpty.classList.remove('hidden');
+                return;
+            }
+            postsEmpty.classList.add('hidden');
+            posts.forEach((post) => {
+                const row = document.createElement('div');
+                row.className = 'border border-gray-200 rounded-xl p-4 flex flex-col gap-2';
+                const dateLabel = post.data_agendada ? new Date(`${post.data_agendada}T00:00:00`).toLocaleDateString('pt-BR') : '';
+                row.innerHTML = `
+                    <div class="flex items-center justify-between text-xs text-gray-500">
+                        <span>${dateLabel}</span>
+                        <span>${post.formato || 'Formato não informado'}</span>
+                    </div>
+                    <h4 class="text-base font-semibold text-gray-900">${post.tema || 'Sem tema'}</h4>
+                    <p class="text-sm text-gray-600 whitespace-pre-wrap">${post.legenda || 'Sem legenda'}</p>
+                `;
+                postsList.appendChild(row);
+            });
+        };
+
+        const closeCalendarModal = () => {
+            const modal = document.getElementById('calendar-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            portalState.currentCalendar = null;
+        };
+
+        const approveCalendar = async () => {
+            const calendar = portalState.currentCalendar;
+            if (!calendar) return;
+            const commentEl = document.getElementById('calendar-approval-comment');
+            const comment = commentEl ? commentEl.value.trim() : '';
+            const supabase = portalState.supabase;
+            const { error } = await supabase
+                .from('social_calendars')
+                .update({
+                    status: 'aprovado',
+                    approved_at: new Date().toISOString(),
+                    approval_comment: comment || null
+                })
+                .eq('id', calendar.id);
+            if (error) {
+                showToast('Não foi possível aprovar o calendário.', 'error');
+                return;
+            }
+            showToast('Calendário aprovado com sucesso.', 'success');
+            portalState.calendars = portalState.calendars.filter((item) => item.id !== calendar.id);
+            closeCalendarModal();
+            if (!portalState.calendars.length) {
+                setCalendarState({ empty: true });
+                const list = document.getElementById('calendar-list');
+                if (list) list.innerHTML = '';
+                return;
+            }
+            renderCalendars(portalState.calendars);
+        };
+
+        const setupTabs = () => {
+            const buttons = document.querySelectorAll('.portal-tab-btn');
+            const tabs = {
+                calendars: document.getElementById('tab-calendars'),
+                posts: document.getElementById('tab-posts'),
+                insights: document.getElementById('tab-insights')
+            };
+            const activate = (tabKey) => {
+                Object.entries(tabs).forEach(([key, element]) => {
+                    if (element) element.classList.toggle('hidden', key !== tabKey);
+                });
+                buttons.forEach((btn) => {
+                    const isActive = btn.dataset.tab === tabKey;
+                    btn.classList.toggle('text-primary', isActive);
+                    btn.classList.toggle('border-primary', isActive);
+                    btn.classList.toggle('text-gray-500', !isActive);
+                    btn.classList.toggle('border-transparent', !isActive);
+                });
+            };
+            buttons.forEach((btn) => {
+                btn.addEventListener('click', () => activate(btn.dataset.tab));
+            });
+            activate('calendars');
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupTabs();
+            const supabase = await initPortalSupabase();
+            if (!supabase) {
+                setCalendarState({ error: 'Configuração do portal indisponível.' });
+                return;
+            }
+            const session = await supabase.auth.getSession();
+            if (!session?.data?.session) {
+                window.location.href = 'cliente_portal_login.html';
+                return;
+            }
+
+            const context = await resolveClientContext();
+            if (!context || context.error) {
+                const errorMessage = context?.error === 'vinculo_invalido'
+                    ? 'Seu usuário não está vinculado corretamente ao cliente.'
+                    : 'Seu usuário ainda não está vinculado a um cliente.';
+                setCalendarState({ error: errorMessage });
+                return;
+            }
+
+            if (portalState.tenantId) {
+                const { data } = await supabase
+                    .from('clientes')
+                    .select('nome_fantasia, nome_empresa')
+                    .eq('id', portalState.tenantId)
+                    .maybeSingle();
+                const name = data?.nome_fantasia || data?.nome_empresa || 'Cliente';
+                const nameEl = document.getElementById('portal-client-name');
+                if (nameEl) nameEl.textContent = name;
+            }
+
+            await loadCalendars();
+
+            document.addEventListener('click', (event) => {
+                const target = event.target.closest('.portal-open-calendar');
+                if (target?.dataset?.calendarId) {
+                    openCalendarModal(target.dataset.calendarId);
+                }
+            });
+
+            const closeBtn = document.getElementById('calendar-modal-close');
+            const cancelBtn = document.getElementById('calendar-modal-cancel');
+            const approveBtn = document.getElementById('calendar-approve-btn');
+            if (closeBtn) closeBtn.addEventListener('click', closeCalendarModal);
+            if (cancelBtn) cancelBtn.addEventListener('click', closeCalendarModal);
+            if (approveBtn) approveBtn.addEventListener('click', approveCalendar);
+
+            const logoutBtn = document.getElementById('portal-logout');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = 'cliente_portal_login.html';
+                });
+            }
+        });
+    </script>
+</body>
+</html>
