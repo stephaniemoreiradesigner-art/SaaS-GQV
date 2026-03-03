@@ -1,46 +1,3 @@
-// ROTA TEMPORÁRIA DE DEBUG CLIENTES
-app.get('/api/debug/clientes', async (req, res) => {
-    try {
-        const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-        if (!supabaseUrl || !serviceRoleKey) {
-            res.status(500).json({ error: 'supabase_nao_configurado' });
-            return;
-        }
-        // Buscar os 5 últimos registros
-        const selectUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?select=*&order=id.desc&limit=5`;
-        const selectRes = await fetch(selectUrl, {
-            method: 'GET',
-            headers: {
-                apikey: serviceRoleKey,
-                Authorization: `Bearer ${serviceRoleKey}`
-            }
-        });
-        const selectResult = await selectRes.json().catch(() => null);
-
-        // Inserir registro de teste
-        const insertUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes`;
-        const insertPayload = {
-            nome_empresa: 'CLIENTE TESTE TRAE',
-            ativo: true,
-            is_demo: false
-        };
-        const insertRes = await fetch(insertUrl, {
-            method: 'POST',
-            headers: {
-                apikey: serviceRoleKey,
-                Authorization: `Bearer ${serviceRoleKey}`,
-                'Content-Type': 'application/json',
-                Prefer: 'return=representation'
-            },
-            body: JSON.stringify(insertPayload)
-        });
-        const insertResult = await insertRes.json().catch(() => null);
-
-        res.json({ select_result: selectResult, insert_result: insertResult, error: null });
-    } catch (error) {
-        res.json({ error: error.message });
-    }
-});
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -1974,6 +1931,44 @@ const server = http.createServer(async (request, response) => {
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
+    }
+
+    if (pathname === '/api/debug/clientes' && request.method === 'GET') {
+        try {
+            const selectRes = await supabaseServiceRest('/rest/v1/clientes?select=id,nome_empresa&order=id.desc&limit=5');
+            if (selectRes.status >= 400) {
+                response.writeHead(selectRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_select_clientes', details: selectRes.data || selectRes.text || null }));
+                return;
+            }
+
+            const insertPayload = {
+                nome_empresa: 'CLIENTE TESTE TRAE',
+                ativo: true,
+                is_demo: false
+            };
+            const insertRes = await supabaseServiceRest('/rest/v1/clientes?select=id,nome_empresa', 'POST', insertPayload, {
+                Prefer: 'return=representation'
+            });
+            if (insertRes.status >= 400) {
+                response.writeHead(insertRes.status, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_insert_cliente', details: insertRes.data || insertRes.text || null }));
+                return;
+            }
+
+            const insertResult = Array.isArray(insertRes.data) ? insertRes.data[0] : insertRes.data || null;
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                select_result: Array.isArray(selectRes.data) ? selectRes.data : [],
+                insert_result: insertResult,
+                error: null
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
     }
 
     if (pathname === '/api/demo/seed' && request.method === 'POST') {
