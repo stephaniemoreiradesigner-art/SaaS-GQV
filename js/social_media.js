@@ -75,65 +75,10 @@ if (typeof window.openSocialMediaTab !== 'function') {
     };
 }
 
-const storedHubScope = (() => {
-    try {
-        const value = localStorage.getItem('social_hub_selected_scope');
-        return value === 'agencia' ? 'agencia' : 'cliente';
-    } catch {
-        return 'cliente';
-    }
-})();
-
-const storedHubPeriod = (() => {
-    try {
-        const value = localStorage.getItem('social_hub_selected_period');
-        return value || 'last_30d';
-    } catch {
-        return 'last_30d';
-    }
-})();
-
-const storedHubClient = (() => {
-    try {
-        const value = localStorage.getItem('social_active_client');
-        return value ? String(value) : '';
-    } catch {
-        return '';
-    }
-})();
-
-if (!window.operationalHubState) {
-    window.operationalHubState = { scope: storedHubScope, period: storedHubPeriod, clientId: storedHubClient };
-} else {
-    if (!window.operationalHubState.scope) window.operationalHubState.scope = storedHubScope;
-    if (!window.operationalHubState.period) window.operationalHubState.period = storedHubPeriod;
-    if (!window.operationalHubState.clientId) window.operationalHubState.clientId = storedHubClient;
+function getClientIdFromQuery() {
+    const params = new URLSearchParams(window.location.search || '');
+    return params.get('clientId') || params.get('id') || '';
 }
-
-if (typeof window.setOperationalScope !== 'function') {
-    window.setOperationalScope = function(scope) {
-        window.operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
-        try {
-            localStorage.setItem('social_hub_selected_scope', window.operationalHubState.scope);
-        } catch {}
-        if (typeof window.loadOperationalDashboard === 'function') {
-            window.loadOperationalDashboard();
-        }
-    };
-}
-
-window.setActiveClient = function(clientId) {
-    const resolved = String(clientId || '').trim();
-    window.operationalHubState = window.operationalHubState || {};
-    window.operationalHubState.clientId = resolved;
-    try {
-        if (resolved) {
-            localStorage.setItem('social_active_client', resolved);
-        } else {
-            localStorage.removeItem('social_active_client');
-        }
-    } catch {}
-};
 
 if (typeof window.showSocialMediaHome !== 'function') {
     window.showSocialMediaHome = function() {
@@ -890,7 +835,9 @@ let socialMediaSupabaseReady = false;
 
 const tryLoadSocialMediaClients = () => {
     if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
-    loadClientes();
+    const queryClientId = getClientIdFromQuery();
+    if (!queryClientId) return;
+    loadClientContext(queryClientId);
 };
 
 window.addEventListener('supabaseReady', () => {
@@ -900,6 +847,14 @@ window.addEventListener('supabaseReady', () => {
 
 document.addEventListener('DOMContentLoaded', async () => {
     socialMediaDomReady = true;
+    const queryClientId = getClientIdFromQuery();
+    if (!queryClientId) {
+        setClientRequiredMessage(true);
+        return;
+    }
+    currentClienteId = String(queryClientId);
+    setClientRequiredMessage(false);
+
     if (window.supabaseClient) {
         socialMediaSupabaseReady = true;
         tryLoadSocialMediaClients();
@@ -913,22 +868,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initCalendar();
     ensureSocialMediaPermission().then(updateGenerateButtonState);
-    applySocialTabFromHash();
-
-    const selectCliente = document.getElementById('select-cliente');
-    if (selectCliente) {
-        selectCliente.addEventListener('change', (e) => {
-            currentClienteId = e.target.value;
-            window.setActiveClient(currentClienteId);
-            const hubSelect = document.getElementById('hub-client-select');
-            if (hubSelect && hubSelect.value !== String(currentClienteId || '')) {
-                hubSelect.value = currentClienteId || '';
-            }
-            checkSelection();
-            updateCalendarConnections(currentClienteId);
-            updateCreateCalendarCardState();
-        });
-    }
+    window.openSocialMediaTab('calendar');
 
     const inputMes = document.getElementById('input-mes');
     if (inputMes) {
@@ -949,74 +889,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnHeaderGenerate = document.getElementById('btn-header-generate');
     if (btnHeaderGenerate) btnHeaderGenerate.addEventListener('click', handleGenerateClick);
 
-    document.querySelectorAll('[data-action="set-tab"][data-tab="calendar"]').forEach((card) => {
-        card.addEventListener('click', async (event) => {
-            event.preventDefault();
-            const selectedClientId = resolveSelectedClientId();
-            const hasPermission = await ensureSocialMediaPermission();
-            if (!selectedClientId) {
-                updateCreateCalendarCardState();
-                return;
-            }
-            if (!hasPermission) {
-                alert('Você não tem permissão para acessar o calendário.');
-                return;
-            }
-            await window.createSocialCalendar({ clientId: selectedClientId, month: resolveSelectedMonth() });
-        });
-    });
-
-    const hubSelect = document.getElementById('hub-client-select');
-    if (hubSelect) {
-        const storedClientId = resolveSelectedClientId();
-        if (storedClientId) {
-            hubSelect.value = storedClientId;
-            currentClienteId = storedClientId;
-            const calendarSelect = document.getElementById('select-cliente');
-            if (calendarSelect) calendarSelect.value = storedClientId;
-            checkSelection();
-        }
-        hubSelect.addEventListener('change', (event) => {
-            const selected = event.target.value;
-            window.setActiveClient(selected);
-            currentClienteId = selected;
-            const calendarSelect = document.getElementById('select-cliente');
-            if (calendarSelect) calendarSelect.value = selected;
-            checkSelection();
-            updateCalendarConnections(currentClienteId);
-            updateCreateCalendarCardState();
-        });
-    }
-
-    const hubPeriodSelect = document.getElementById('hub-period-select');
-    if (hubPeriodSelect) {
-        const displayValue = normalizeHubPeriodDisplay(window.operationalHubState?.period || storedHubPeriod);
-        hubPeriodSelect.value = displayValue;
-        hubPeriodSelect.addEventListener('change', (event) => {
-            const normalized = normalizeHubPeriodValue(event.target.value);
-            window.operationalHubState.period = normalized;
-            try {
-                localStorage.setItem('social_hub_selected_period', normalized);
-            } catch {}
-            if (typeof window.setOperationalPeriod === 'function') {
-                window.setOperationalPeriod(event.target.value);
-            } else if (typeof window.loadOperationalDashboard === 'function') {
-                window.loadOperationalDashboard();
-            }
-        });
-    }
-
-    document.querySelectorAll('.scope-toggle button[data-scope]').forEach((button) => {
-        button.addEventListener('click', () => {
-            const scope = button.dataset.scope;
-            if (typeof window.setOperationalScope === 'function') {
-                window.setOperationalScope(scope);
-            }
-        });
-    });
-
-    updateCreateCalendarCardState();
-    
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
 
@@ -1027,12 +899,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (modalGeneration) {
             modalGeneration.addEventListener("click", (e) => {
-                // clique no overlay fecha
                 if (e.target === modalGeneration) window.closeGenerationModal();
             });
         }
 
-        // Compatível: botões por ID (HTML antigo)
         const btnGenerationCancel = document.getElementById("btn-generation-cancel");
         if (btnGenerationCancel)
             btnGenerationCancel.addEventListener("click", window.closeGenerationModal);
@@ -1041,7 +911,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnGenerationClose)
             btnGenerationClose.addEventListener("click", window.closeGenerationModal);
 
-        // Compatível: botões/overlay por data-attribute (HTML novo)
         document.addEventListener("click", (e) => {
             const target =
                 e.target && e.target.closest
@@ -1995,64 +1864,17 @@ function normalizeMonthValue(value) {
 function resolveSelectedClientId(value) {
     const direct = String(value || '').trim();
     if (direct) return direct;
-    const stored = String(window.operationalHubState?.clientId || '').trim();
-    if (stored) return stored;
     if (currentClienteId) return String(currentClienteId);
-    const select = document.getElementById('select-cliente');
-    if (select && select.value) return String(select.value);
     return '';
 }
 
-function normalizeHubPeriodValue(value) {
-    const raw = String(value || '').trim();
-    if (raw === '7d' || raw === 'last7' || raw === 'last_7' || raw === 'last_7d') return 'last_7d';
-    if (raw === '30d' || raw === 'last30' || raw === 'last_30' || raw === 'last_30d') return 'last_30d';
-    if (raw === '90d' || raw === 'last90' || raw === 'last_90' || raw === 'last_90d') return 'last_90d';
-    if (raw === 'month') return 'month';
-    return 'last_7d';
-}
-
-function normalizeHubPeriodDisplay(value) {
-    const raw = String(value || '').trim();
-    if (raw === 'last_7d' || raw === 'last7' || raw === '7d') return '7d';
-    if (raw === 'last_30d' || raw === 'last30' || raw === '30d') return '30d';
-    if (raw === 'last_90d' || raw === 'last90' || raw === '90d') return '90d';
-    if (raw === 'month') return 'month';
-    return '7d';
-}
-
-function setHubClientMessage(message) {
-    const text = String(message || '').trim();
-    const messageEl = document.getElementById('hub-client-message');
-    const cardMessage = document.getElementById('card-create-calendar-message');
-    if (messageEl) {
-        if (text) {
-            messageEl.textContent = text;
-            messageEl.classList.remove('hidden');
-        } else {
-            messageEl.classList.add('hidden');
-        }
-    }
-    if (cardMessage) {
-        if (text) {
-            cardMessage.textContent = text;
-            cardMessage.classList.remove('hidden');
-        } else {
-            cardMessage.classList.add('hidden');
-        }
-    }
-}
-
-function updateCreateCalendarCardState() {
-    const card = document.getElementById('card-create-calendar');
-    if (!card) return;
-    const hasClient = !!resolveSelectedClientId();
-    if (hasClient) {
-        card.classList.remove('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
-        setHubClientMessage('');
+function setClientRequiredMessage(isVisible) {
+    const messageEl = document.getElementById('client-required-message');
+    if (!messageEl) return;
+    if (isVisible) {
+        messageEl.classList.remove('hidden');
     } else {
-        card.classList.add('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
-        setHubClientMessage('Selecione um cliente para iniciar');
+        messageEl.classList.add('hidden');
     }
 }
 
@@ -2090,7 +1912,7 @@ window.createSocialCalendar = async function({ clientId, month, year } = {}) {
     console.info('[SOCIAL] createCalendar start/payload', { clientId: resolvedClientId || null, month: resolvedMonth || null, year: year || null });
 
     if (!resolvedClientId) {
-        updateCreateCalendarCardState();
+        setClientRequiredMessage(true);
         return null;
     }
     if (!resolvedMonth) {
@@ -2150,17 +1972,7 @@ window.createSocialCalendar = async function({ clientId, month, year } = {}) {
     const calendarId = savedId;
     currentCalendarId = calendarId;
     window.currentCalendarId = calendarId;
-    window.setActiveClient(resolvedClientId);
-
-    const select = document.getElementById('select-cliente');
-    if (select && String(select.value || '') !== String(resolvedClientId)) {
-        select.value = String(resolvedClientId);
-    }
     currentClienteId = resolvedClientId;
-    const hubSelect = document.getElementById('hub-client-select');
-    if (hubSelect && String(hubSelect.value || '') !== String(resolvedClientId)) {
-        hubSelect.value = String(resolvedClientId);
-    }
 
     const inputMes = document.getElementById('input-mes');
     if (inputMes && String(inputMes.value || '') !== String(resolvedMonth)) {
@@ -2431,39 +2243,30 @@ async function loadClientes() {
             select.appendChild(opt);
         }
 
-        const hubSelect = document.getElementById('hub-client-select');
-        if (hubSelect) {
-            hubSelect.innerHTML = '<option value="">Selecione um cliente...</option>';
-            uniqueRows.forEach(c => {
-                const label =
-                    c.nome_fantasia ||
-                    c.nome_empresa ||
-                    `Cliente ${c.id}`;
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = label;
-                hubSelect.appendChild(opt);
-            });
-            if (uniqueRows.length === 0) {
-                const opt = document.createElement('option');
-                opt.disabled = true;
-                opt.textContent = 'Nenhum cliente encontrado';
-                hubSelect.appendChild(opt);
-            }
-            const storedId = resolveSelectedClientId();
-            if (storedId) {
-                hubSelect.value = storedId;
-                if (select && select.value !== storedId) {
-                    select.value = storedId;
-                }
-                currentClienteId = storedId;
-            }
-            updateCreateCalendarCardState();
-        }
-
     } catch (err) {
         console.error('[SocialMedia] Erro crítico ao carregar clientes:', err);
         select.innerHTML = '<option value="">Erro ao carregar</option>';
+    }
+}
+
+async function loadClientContext(clientId) {
+    if (!clientId) return;
+    if (!window.supabaseClient) return;
+    try {
+        const { data, error } = await window.supabaseClient
+            .from('clientes')
+            .select('id, nome_fantasia, nome_empresa, plataformas_social, nicho_atuacao, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
+            .eq('id', clientId)
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) return;
+        clientDataMap = clientDataMap || {};
+        clientDataMap[data.id] = data;
+        currentClienteId = String(data.id);
+        checkSelection();
+        updateCalendarConnections(currentClienteId);
+    } catch (err) {
+        console.error('[SocialMedia] Erro ao carregar cliente:', err);
     }
 }
 
@@ -2655,7 +2458,7 @@ async function handleGenerateClick() {
         return;
     }
     if (!currentClienteId) {
-        alert('Por favor, selecione um cliente primeiro.');
+        setClientRequiredMessage(true);
         return;
     }
 
@@ -2701,7 +2504,7 @@ async function deleteCalendar() {
     }
 }
 
-async function generateCalendar(config = {}) {
+async function generateCalendarLegacy(config = {}) {
     if (!currentClienteId) {
         alert('Por favor, selecione um cliente primeiro.');
         return;
@@ -3250,9 +3053,189 @@ Regras obrigatórias:
     }
 }
 
+async function generateCalendar(config = {}) {
+    if (!currentClienteId) {
+        setClientRequiredMessage(true);
+        return;
+    }
+
+    if (!clientDataMap[currentClienteId]) {
+        await loadClientContext(currentClienteId);
+    }
+
+    if (window.__calendarGenerationInProgress === true) {
+        appendGenerationLog('Já estou gerando...');
+        return;
+    }
+    window.__calendarGenerationInProgress = true;
+    window.__calendarGenerating = true;
+
+    const generationButtons = [];
+    const originalButtonTexts = new Map();
+    let bannerEl = null;
+    let stepTimer = null;
+    let generationSucceeded = false;
+
+    const ensureBannerStyle = () => {
+        if (document.getElementById('calendar-generation-banner-style')) return;
+        const style = document.createElement('style');
+        style.id = 'calendar-generation-banner-style';
+        style.textContent = `
+.calendar-generation-spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 999px;
+    animation: calendarGenerationSpin 1s linear infinite;
+}
+@keyframes calendarGenerationSpin {
+    to { transform: rotate(360deg); }
+}
+        `.trim();
+        document.head.appendChild(style);
+    };
+
+    const showGenerationBanner = () => {
+        ensureBannerStyle();
+        if (document.getElementById('calendar-generation-banner')) {
+            bannerEl = document.getElementById('calendar-generation-banner');
+            return;
+        }
+        bannerEl = document.createElement('div');
+        bannerEl.id = 'calendar-generation-banner';
+        bannerEl.className = 'w-full bg-gradient-to-r from-purple-600 to-purple-500 text-white px-4 py-3 rounded-xl shadow-md flex items-center gap-3 mb-4';
+        bannerEl.innerHTML = `
+            <span class="calendar-generation-spinner"></span>
+            <div class="text-sm font-semibold">Gerando seu calendário...</div>
+        `;
+        const container = ensureCalendarCTAContainer();
+        if (container) {
+            container.classList.remove('hidden');
+            container.innerHTML = '';
+            container.appendChild(bannerEl);
+        }
+    };
+
+    const disableGenerationButtons = () => {
+        const selectors = ['#btn-modal-generate', '#btn-generate-calendar', '[data-action="generate-calendar"]', '#btn-generation-confirm', '#btn-header-generate'];
+        selectors.forEach((selector) => {
+            document.querySelectorAll(selector).forEach((btn) => {
+                if (!btn || btn.disabled) return;
+                generationButtons.push(btn);
+                originalButtonTexts.set(btn, btn.innerHTML);
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando...';
+            });
+        });
+    };
+
+    const restoreGenerationButtons = () => {
+        generationButtons.forEach((btn) => {
+            btn.disabled = false;
+            const original = originalButtonTexts.get(btn);
+            if (original !== undefined) {
+                btn.innerHTML = original;
+            }
+        });
+        originalButtonTexts.clear();
+        generationButtons.length = 0;
+    };
+
+    const startStepLogs = () => {
+        const steps = [
+            'Gerando temas...',
+            'Gerando direção de arte...',
+            'Gerando copy...',
+            'Salvando...'
+        ];
+        let index = 0;
+        appendGenerationLog(steps[index]);
+        stepTimer = setInterval(() => {
+            index += 1;
+            if (index < steps.length) {
+                appendGenerationLog(steps[index]);
+            } else {
+                clearInterval(stepTimer);
+                stepTimer = null;
+            }
+        }, 1200);
+    };
+
+    const stopStepLogs = () => {
+        if (stepTimer) {
+            clearInterval(stepTimer);
+            stepTimer = null;
+        }
+    };
+
+    try {
+        disableGenerationButtons();
+        showGenerationBanner();
+        showGenerationLog();
+        setGenerationLoading(true, 'Gerando seu calendário, aguarde...');
+        lastGenerationConfig = config;
+        const postsCount = Number.isFinite(config.postsCount) && config.postsCount > 0 ? config.postsCount : 12;
+        const seasonalDates = Array.isArray(config.seasonalDates) ? config.seasonalDates : [];
+        const seasonalDatesText = seasonalDates.join('\n');
+
+        startStepLogs();
+
+        const apiBase = window.API_BASE_URL || '';
+        const apiEndpoint = `${apiBase}/api/social/calendars/${encodeURIComponent(currentClienteId)}/generate`;
+        const headers = await getAuthHeaders();
+        const response = await fetch(apiEndpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                month: currentMonth,
+                postsCount,
+                seasonalDatesText
+            })
+        });
+        const text = await response.text();
+        let data = null;
+        try {
+            data = text ? JSON.parse(text) : null;
+        } catch {
+            data = null;
+        }
+        if (!response.ok) {
+            const message = data?.error || data?.message || 'Erro ao gerar calendário.';
+            setGenerationLogMessage(message);
+            return;
+        }
+        stopStepLogs();
+        appendGenerationLog('Concluído.');
+        const calendarId = data?.calendarId || data?.calendar_id || null;
+        if (!calendarId) {
+            setGenerationLogMessage('Calendário não retornou ID válido.');
+            return;
+        }
+        currentCalendarId = calendarId;
+        window.currentCalendarId = calendarId;
+        await loadCalendarData();
+        generationSucceeded = true;
+        setGenerationLoading(false);
+    } catch (err) {
+        const errorMessage = err?.message || String(err);
+        setGenerationLogMessage(errorMessage || 'Erro ao gerar calendário.');
+    } finally {
+        stopStepLogs();
+        if (bannerEl) bannerEl.remove();
+        restoreGenerationButtons();
+        window.__calendarGenerating = false;
+        window.__calendarGenerationInProgress = false;
+        updateRetryButtonState();
+        if (generationSucceeded) {
+            stopCalendarProgressPolling();
+        }
+    }
+}
+
 // New functions
 window.openFormatModal = function(dateStr) {
-    if (!currentClienteId) { alert('Selecione um cliente!'); return; }
+    if (!currentClienteId) { setClientRequiredMessage(true); return; }
     tempSelectedDate = dateStr;
     const modal = document.getElementById('modal-select-format');
     if (modal) {

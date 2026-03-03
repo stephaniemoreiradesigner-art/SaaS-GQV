@@ -185,6 +185,9 @@ async function getDashboardAuthHeaders() {
 }
 
 function getOperationalTenantId() {
+    const params = new URLSearchParams(window.location.search || '');
+    const queryClientId = params.get('clientId') || params.get('id') || '';
+    if (queryClientId) return String(queryClientId);
     const hubClient = String(window.operationalHubState?.clientId || '').trim();
     if (hubClient) return hubClient;
     const hubSelect = document.getElementById('hub-client-select');

@@ -4484,6 +4484,318 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    const socialCalendarGenerateMatch = pathname.match(/^\/api\/social\/calendars\/([^/]+)\/generate$/);
+    if (socialCalendarGenerateMatch && request.method === 'POST') {
+        try {
+            const authContext = await getAuthContext(request, response);
+            if (!authContext) return;
+            const rawClientId = decodeURIComponent(socialCalendarGenerateMatch[1] || '').trim();
+            if (!rawClientId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'client_id_invalido' }));
+                return;
+            }
+            const resolved = await resolveTenantAndClient(request, response, rawClientId);
+            if (!resolved) return;
+            const { tenantId, clienteId } = resolved;
+
+            const rawBody = await readRequestBody(request);
+            let body = null;
+            try {
+                body = rawBody ? JSON.parse(rawBody) : null;
+            } catch {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_json', message: 'Body inválido. Envie JSON.' }));
+                return;
+            }
+
+            const month = String(body?.month || '').trim();
+            if (!/^\d{4}-\d{2}$/.test(month)) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'month_invalido' }));
+                return;
+            }
+            const postsCount = Number.isFinite(Number(body?.postsCount)) ? Math.max(1, Number(body.postsCount)) : 12;
+            const seasonalDatesText = String(body?.seasonalDatesText || '').trim();
+            const mesReferencia = `${month}-01`;
+            const [yearRaw] = month.split('-');
+            const year = Number(yearRaw);
+
+            const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+            if (!supabaseUrl || !serviceRoleKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'service_role_nao_configurada' }));
+                return;
+            }
+
+            const clientParams = new URLSearchParams();
+            clientParams.set('select', 'id,nome_empresa,nome_fantasia,nicho_atuacao,client_insights,insights,visual_identity,identidade_visual,link_briefing,link_persona,link_conteudos_anteriores,link_referencias,link_identidade_visual');
+            clientParams.set('id', `eq.${clienteId}`);
+            clientParams.set('limit', '1');
+            const clientRes = await supabaseServiceRest(`/rest/v1/clientes?${clientParams.toString()}`);
+            const clientData = Array.isArray(clientRes.data) ? clientRes.data[0] : null;
+            if (!clientData?.id) {
+                response.writeHead(404, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_nao_encontrado' }));
+                return;
+            }
+
+            const approvedParams = new URLSearchParams();
+            approvedParams.set('select', 'id,mes_referencia,status');
+            approvedParams.set('cliente_id', `eq.${clienteId}`);
+            if (tenantId) approvedParams.set('tenant_id', `eq.${tenantId}`);
+            approvedParams.set('status', 'in.(aprovado,approved)');
+            approvedParams.set('order', 'mes_referencia.desc');
+            approvedParams.set('limit', '1');
+            const lastApprovedRes = await supabaseServiceRest(`/rest/v1/social_calendars?${approvedParams.toString()}`);
+            const lastApproved = Array.isArray(lastApprovedRes.data) ? lastApprovedRes.data[0] : null;
+            let previousPostsSummary = '';
+            if (lastApproved?.id) {
+                const postParams = new URLSearchParams();
+                postParams.set('select', 'tema,formato,legenda,data_agendada,descricao_visual,conteudo_roteiro');
+                postParams.set('calendar_id', `eq.${lastApproved.id}`);
+                postParams.set('order', 'data_agendada.asc');
+                postParams.set('limit', '40');
+                const postsRes = await supabaseServiceRest(`/rest/v1/social_posts?${postParams.toString()}`);
+                const postsRows = Array.isArray(postsRes.data) ? postsRes.data : [];
+                previousPostsSummary = postsRows.map((post) => {
+                    const tema = String(post.tema || '').trim();
+                    const formato = String(post.formato || '').trim();
+                    const dataAgendada = String(post.data_agendada || '').slice(0, 10);
+                    return `${dataAgendada} | ${formato} | ${tema}`;
+                }).filter(Boolean).join('\n');
+            }
+
+            const apiKey = envVars['OPENAI_API_KEY'];
+            if (!apiKey) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'openai_nao_configurada' }));
+                return;
+            }
+
+            const callOpenAiJson = async (payload) => {
+                const openAiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const rawText = await openAiResponse.text();
+                let responseJson = null;
+                try {
+                    responseJson = JSON.parse(rawText);
+                } catch {
+                    throw new Error(rawText || 'Resposta inválida da OpenAI.');
+                }
+                if (!openAiResponse.ok) {
+                    const message = responseJson?.error?.message || 'Erro na OpenAI.';
+                    throw new Error(message);
+                }
+                const content = String(responseJson?.choices?.[0]?.message?.content || '').trim();
+                let result = null;
+                try {
+                    result = JSON.parse(content);
+                } catch {
+                    throw new Error('Falha ao interpretar JSON da IA.');
+                }
+                return result;
+            };
+
+            const clientName = clientData.nome_fantasia || clientData.nome_empresa || 'Cliente';
+            const pipelineLog = [];
+            const contextUsed = {
+                client_id: clienteId,
+                client_name: clientName,
+                month,
+                year,
+                seasonal_dates: seasonalDatesText,
+                briefing_link: clientData.link_briefing || '',
+                persona_link: clientData.link_persona || '',
+                referencias_link: clientData.link_referencias || '',
+                identidade_visual_link: clientData.link_identidade_visual || '',
+                conteudos_anteriores_link: clientData.link_conteudos_anteriores || '',
+                previous_calendar_id: lastApproved?.id || null
+            };
+
+            const agent1Payload = {
+                model: 'gpt-4-turbo',
+                temperature: 0.6,
+                response_format: { type: 'json_object' },
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Você é estrategista de social media. Gere um plano mensal com temas e formatos. Responda apenas JSON.'
+                    },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            client_name: clientName,
+                            niche: clientData.nicho_atuacao || '',
+                            insights: clientData.client_insights || clientData.insights || '',
+                            visual_identity: clientData.visual_identity || clientData.identidade_visual || '',
+                            month,
+                            posts_count: postsCount,
+                            seasonal_dates_text: seasonalDatesText,
+                            previous_calendar_summary: previousPostsSummary
+                        })
+                    }
+                ]
+            };
+            const agent1Result = await callOpenAiJson(agent1Payload);
+            pipelineLog.push({ step: 'temas', ok: true });
+            const themes = Array.isArray(agent1Result?.themes) ? agent1Result.themes : [];
+
+            const agent2Payload = {
+                model: 'gpt-4-turbo',
+                temperature: 0.6,
+                response_format: { type: 'json_object' },
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Você é diretor de arte e roteirista. Para cada tema, gere direção de arte e roteiro. Responda apenas JSON.'
+                    },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            client_name: clientName,
+                            month,
+                            themes
+                        })
+                    }
+                ]
+            };
+            const agent2Result = await callOpenAiJson(agent2Payload);
+            pipelineLog.push({ step: 'direcao_arte', ok: true });
+            const artItems = Array.isArray(agent2Result?.items) ? agent2Result.items : [];
+
+            const agent3Payload = {
+                model: 'gpt-4-turbo',
+                temperature: 0.6,
+                response_format: { type: 'json_object' },
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'Você é copywriter de social media. Para cada tema, gere legenda final com CTA e hashtags. Responda apenas JSON.'
+                    },
+                    {
+                        role: 'user',
+                        content: JSON.stringify({
+                            client_name: clientName,
+                            month,
+                            themes: themes,
+                            art_items: artItems
+                        })
+                    }
+                ]
+            };
+            const agent3Result = await callOpenAiJson(agent3Payload);
+            pipelineLog.push({ step: 'copy', ok: true });
+            const copyItems = Array.isArray(agent3Result?.items) ? agent3Result.items : [];
+
+            const calendarParams = new URLSearchParams();
+            calendarParams.set('select', 'id');
+            calendarParams.set('cliente_id', `eq.${clienteId}`);
+            calendarParams.set('mes_referencia', `eq.${mesReferencia}`);
+            calendarParams.set('order', 'created_at.desc');
+            calendarParams.set('limit', '1');
+            const existingCalendarRes = await supabaseServiceRest(`/rest/v1/social_calendars?${calendarParams.toString()}`);
+            const existingCalendar = Array.isArray(existingCalendarRes.data) ? existingCalendarRes.data[0] : null;
+            let calendarId = existingCalendar?.id || null;
+
+            if (calendarId) {
+                await supabaseServiceRest(`/rest/v1/social_calendars?id=eq.${calendarId}`, 'PATCH', {
+                    status: CALENDAR_STATUS_VALUES.DRAFT,
+                    updated_at: new Date().toISOString()
+                });
+                await supabaseServiceRest(`/rest/v1/social_posts?calendar_id=eq.${calendarId}`, 'DELETE');
+            } else {
+                const createPayload = {
+                    cliente_id: clienteId,
+                    tenant_id: tenantId || null,
+                    mes_referencia: mesReferencia,
+                    status: CALENDAR_STATUS_VALUES.DRAFT,
+                    updated_at: new Date().toISOString()
+                };
+                const createRes = await supabaseServiceRest('/rest/v1/social_calendars', 'POST', createPayload, {
+                    Prefer: 'return=representation'
+                });
+                calendarId = Array.isArray(createRes.data) ? createRes.data[0]?.id : null;
+            }
+
+            if (!calendarId) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'erro_ao_criar_calendario' }));
+                return;
+            }
+
+            const [yearNum, monthNum] = month.split('-').map(Number);
+            const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+            const step = Math.max(1, Math.floor(daysInMonth / postsCount));
+            let dayCursor = 1;
+            const usedDays = new Set();
+            const nextDay = () => {
+                while (dayCursor <= daysInMonth && usedDays.has(dayCursor)) {
+                    dayCursor += 1;
+                }
+                if (dayCursor > daysInMonth) dayCursor = daysInMonth;
+                usedDays.add(dayCursor);
+                const result = dayCursor;
+                dayCursor += step;
+                return result;
+            };
+
+            const postsPayload = themes.slice(0, postsCount).map((theme, index) => {
+                const art = artItems[index] || {};
+                const copy = copyItems[index] || {};
+                const day = nextDay();
+                const dateStr = `${month}-${String(day).padStart(2, '0')}`;
+                const hashtags = Array.isArray(copy.hashtags) ? copy.hashtags.filter(Boolean) : [];
+                return {
+                    calendar_id: calendarId,
+                    cliente_id: clienteId,
+                    tenant_id: tenantId || null,
+                    data_agendada: dateStr,
+                    hora_agendada: '10:00',
+                    tema: theme.tema || art.tema || copy.tema || `Post ${index + 1}`,
+                    formato: theme.formato || art.formato || copy.formato || 'estatico',
+                    descricao_visual: art.descricao_visual || '',
+                    conteudo_roteiro: art.roteiro || art.conteudo_roteiro || '',
+                    legenda: copy.legenda || '',
+                    legenda_linkedin: copy.legenda_linkedin || null,
+                    legenda_tiktok: copy.legenda_tiktok || null,
+                    estrategia: theme.objetivo || '',
+                    creative_guide: {
+                        criativo_brief: art.criativo_brief || '',
+                        roteiro: art.roteiro || '',
+                        cta: copy.cta || '',
+                        hashtags
+                    },
+                    status: POST_STATUS_VALUES.DRAFT
+                };
+            });
+
+            const insertPostsRes = await supabaseServiceRest('/rest/v1/social_posts', 'POST', postsPayload, {
+                Prefer: 'return=representation'
+            });
+            const insertedPosts = Array.isArray(insertPostsRes.data) ? insertPostsRes.data : [];
+
+            await supabaseServiceRest(`/rest/v1/social_calendars?id=eq.${calendarId}`, 'PATCH', {
+                erro_log: JSON.stringify({ context_used: contextUsed, pipeline_log: pipelineLog }),
+                updated_at: new Date().toISOString()
+            });
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ calendarId, postsCreated: insertedPosts.length }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+    }
+
     if (pathname === '/api/social/improve-copy' && request.method === 'POST') {
         try {
             const apiKey = envVars['OPENAI_API_KEY'];
