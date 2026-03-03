@@ -104,7 +104,7 @@ window.showSocialMediaHome = function() {
 
 const operationalHubState = {
     scope: 'client',
-    period: 'last7'
+    period: 'last_7d'
 };
 const HUB_PERIOD_STORAGE_KEY = 'social_hub_period';
 
@@ -140,7 +140,8 @@ function getOperationalTenantId() {
 }
 
 function formatPeriodLabel(period) {
-    if (period === 'last30') return 'Últimos 30 dias';
+    if (period === 'last_30d') return 'Últimos 30 dias';
+    if (period === 'last_90d') return 'Últimos 90 dias';
     if (period === 'month') return 'Este mês';
     return 'Últimos 7 dias';
 }
@@ -165,7 +166,11 @@ window.setOperationalScope = function(scope) {
 };
 
 window.setOperationalPeriod = function(period) {
-    const normalized = ['last7', 'last30', 'month'].includes(period) ? period : 'last7';
+    let normalized = 'last_7d';
+    if (period === 'last7' || period === 'last_7' || period === 'last_7d') normalized = 'last_7d';
+    else if (period === 'last30' || period === 'last_30' || period === 'last_30d') normalized = 'last_30d';
+    else if (period === 'last90' || period === 'last_90' || period === 'last_90d') normalized = 'last_90d';
+    else if (period === 'month') normalized = 'month';
     operationalHubState.period = normalized;
     try {
         localStorage.setItem(HUB_PERIOD_STORAGE_KEY, normalized);
@@ -374,9 +379,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const hub = document.getElementById('operational-hub');
     if (!hub) return;
     const storedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY);
-    if (storedPeriod && ['last7', 'last30', 'month'].includes(storedPeriod)) {
-        operationalHubState.period = storedPeriod;
-    }
+    let normalized = 'last_7d';
+    if (storedPeriod === 'last7' || storedPeriod === 'last_7' || storedPeriod === 'last_7d') normalized = 'last_7d';
+    else if (storedPeriod === 'last30' || storedPeriod === 'last_30' || storedPeriod === 'last_30d') normalized = 'last_30d';
+    else if (storedPeriod === 'last90' || storedPeriod === 'last_90' || storedPeriod === 'last_90d') normalized = 'last_90d';
+    else if (storedPeriod === 'month') normalized = 'month';
+    operationalHubState.period = normalized;
     const periodSelect = document.getElementById('operational-period');
     if (periodSelect) {
         periodSelect.value = operationalHubState.period;
