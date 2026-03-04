@@ -59,8 +59,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function getCurrentTenantId(user) {
         if (!user) return null;
-        const metaTenant = Number(user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id);
-        if (Number.isFinite(metaTenant)) return metaTenant;
+        const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id;
+        if (metaTenant) return String(metaTenant);
 
         const { data: profile } = await window.supabaseClient
             .from('profiles')
@@ -68,30 +68,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             .eq('id', user.id)
             .maybeSingle();
 
-        const profileTenant = Number(profile?.tenant_id);
-        return Number.isFinite(profileTenant) ? profileTenant : null;
+        return profile?.tenant_id ? String(profile.tenant_id) : null;
+    }
+
+    async function getChecklistContext() {
+        const user = await getCurrentSessionUser();
+        const tenantId = window.currentTenantId || window.currentUserData?.tenant_id || localStorage.getItem('tenant_id');
+        const usuarioId = window.currentUserData?.id || window.currentUserData?.user_id || user?.id;
+        const resolvedTenant = tenantId || (user ? await getCurrentTenantId(user) : null);
+        return { tenantId: resolvedTenant, usuarioId, user };
     }
 
     window.addTodo = async function() {
         const input = document.getElementById('new-todo');
-        const titulo = input.value.trim();
-        if (!titulo) return;
+        const texto = input.value.trim();
+        if (!texto) return;
 
         try {
-            const user = await getCurrentSessionUser();
-            if (!user) throw new Error('Usuário não autenticado');
-
-            const tenantId = await getCurrentTenantId(user);
+            const { tenantId, usuarioId } = await getChecklistContext();
+            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
             const payload = {
-                titulo,
-                tipo: 'manual',
-                created_by: user.id,
+                tenant_id: tenantId,
+                usuario_id: usuarioId,
+                texto,
                 concluido: false
             };
-
-            if (Number.isFinite(tenantId)) {
-                payload.tenant_id = tenantId;
-            }
 
             const { error } = await window.supabaseClient
                 .from('lembretes')
@@ -101,19 +102,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             input.value = '';
             loadLembretes(); // Recarrega a lista
         } catch (e) {
-            console.error('Erro ao adicionar lembrete:', e);
-            alert('Erro ao adicionar lembrete. Verifique se você rodou o script de banco de dados.');
+            console.error('[Lembretes] insert error', e);
+            alert('Falha ao salvar checklist');
         }
     };
 
     window.deleteTodo = async function(id) {
         if(!confirm('Excluir este lembrete?')) return;
         try {
+            const { tenantId, usuarioId } = await getChecklistContext();
+            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
             const { error } = await window.supabaseClient
                 .from('lembretes')
                 .delete()
                 .eq('id', id)
-                .eq('tipo', 'manual');
+                .eq('tenant_id', tenantId)
+                .eq('usuario_id', usuarioId);
 
             if (error) throw error;
             loadLembretes();
@@ -124,11 +128,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.toggleTodo = async function(id, checked) {
         try {
+            const { tenantId, usuarioId } = await getChecklistContext();
+            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
+            const payload = checked
+                ? { concluido: true, concluido_em: new Date().toISOString() }
+                : { concluido: false, concluido_em: null };
             const { error } = await window.supabaseClient
                 .from('lembretes')
-                .update({ concluido: checked })
+                .update(payload)
                 .eq('id', id)
-                .eq('tipo', 'manual');
+                .eq('tenant_id', tenantId)
+                .eq('usuario_id', usuarioId);
 
             if (error) throw error;
             loadLembretes();
@@ -144,67 +154,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>';
-            const user = await getCurrentSessionUser();
-            if (!user) throw new Error('Usuário não autenticado');
+            const { tenantId, usuarioId } = await getChecklistContext();
+            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
 
-            const tenantId = await getCurrentTenantId(user);
-
-            const manualQuery = window.supabaseClient
+            const { data: todos, error } = await window.supabaseClient
                 .from('lembretes')
-                .select('id, titulo, concluido, tipo, created_at')
-                .eq('tipo', 'manual')
-                .eq('created_by', user.id)
+                .select('id, texto, concluido, created_at, concluido_em, tenant_id, usuario_id')
+                .eq('tenant_id', tenantId)
+                .eq('usuario_id', usuarioId)
+                .order('concluido', { ascending: true })
                 .order('created_at', { ascending: false });
 
-            let birthdayQuery = window.supabaseClient
-                .from('lembretes')
-                .select('id, titulo, concluido, tipo, created_at, tenant_id')
-                .eq('tipo', 'birthday')
-                .order('created_at', { ascending: false });
-
-            if (Number.isFinite(tenantId)) {
-                birthdayQuery = birthdayQuery.eq('tenant_id', tenantId);
-            }
-
-            const [{ data: manual, error: manualError }, { data: birthdays, error: birthdayError }] = await Promise.all([
-                manualQuery,
-                birthdayQuery
-            ]);
-
-            if (manualError) throw manualError;
-            if (birthdayError) throw birthdayError;
-
-            const todos = [...(birthdays || []), ...(manual || [])];
+            if (error) throw error;
 
             list.innerHTML = '';
             if (!todos || todos.length === 0) {
-                list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Nenhum lembrete manual</li>';
+                list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Nenhum checklist</li>';
                 return;
             }
 
             todos.forEach(todo => {
                 const li = document.createElement('li');
-                if (todo.tipo === 'birthday') {
-                    li.className = 'flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors text-gray-700 hover:bg-gray-50';
-                    li.innerHTML = `
-                        <div class="w-7 h-7 rounded-full bg-pink-100 text-pink-600 flex items-center justify-center shrink-0">
-                            <i class="fas fa-birthday-cake text-xs"></i>
-                        </div>
-                        <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
-                    `;
-                } else {
-                    const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
-                    li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
-                    li.innerHTML = `
-                        <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
-                               ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
-                        <span class="flex-1 text-sm font-medium">${todo.titulo}</span>
-                        <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
-                                onclick="deleteTodo('${todo.id}')" title="Excluir">
-                            <i class="fas fa-trash-alt text-xs"></i>
-                        </button>
-                    `;
-                }
+                const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
+                li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
+                li.innerHTML = `
+                    <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
+                           ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
+                    <span class="flex-1 text-sm font-medium">${todo.texto}</span>
+                    <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
+                            onclick="deleteTodo('${todo.id}')" title="Excluir">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                `;
                 list.appendChild(li);
             });
         } catch (e) {
