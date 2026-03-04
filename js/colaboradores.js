@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             row.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">
                     ${c.foto_url 
-                        ? `<img src="${c.foto_url}" alt="Foto" class="h-10 w-10 rounded-full object-cover border border-gray-200">` 
+                        ? `<img src="${c.foto_url}" alt="Foto" class="h-10 w-10 rounded-full object-cover border border-gray-200 colaborador-avatar">` 
                         : `<div class="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200">
                              <i class="fas fa-user"></i>
                            </div>`
@@ -762,6 +762,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('Erro ao carregar dados para edição: ' + err.message);
         }
     };
+
+    function openImagePreview(src) {
+        const modal = document.getElementById('imagePreviewModal');
+        const img = document.getElementById('previewImage');
+        if (!modal || !img || !src) return;
+        img.src = src;
+        modal.classList.remove('hidden');
+    }
+
+    function closeImagePreview() {
+        const modal = document.getElementById('imagePreviewModal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+    }
+
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target && target.classList.contains('colaborador-avatar')) {
+            openImagePreview(target.src);
+        }
+        if (target && target.classList.contains('close-preview')) {
+            closeImagePreview();
+        }
+        if (target && target.id === 'imagePreviewModal') {
+            closeImagePreview();
+        }
+    });
 
     
 
