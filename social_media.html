@@ -305,6 +305,76 @@
                 <p class="text-gray-500 mt-1">Gerencie seu conteúdo, aprovações e métricas em um só lugar.</p>
             </header>
 
+            <section class="mb-8">
+                <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">Cliente ativo</h2>
+                        <p class="text-sm text-gray-500">Selecione o cliente para liberar as ações do módulo.</p>
+                    </div>
+                    <div class="max-w-sm">
+                        <label for="social-client-select" class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                        <select id="social-client-select" class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
+                            <option value="">Selecione o Cliente...</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mb-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-primary">
+                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold">Gerar Calendário</h3>
+                        </div>
+                        <p class="text-sm text-gray-500">Crie o calendário editorial do mês com IA.</p>
+                        <button data-action="calendar-generate" class="mt-auto w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Começar</button>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-primary">
+                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold">Aprovar Post</h3>
+                        </div>
+                        <p class="text-sm text-gray-500">Gerencie aprovações internas dos posts.</p>
+                        <button data-action="posts-approve" class="mt-auto w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-primary">
+                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold">Insights</h3>
+                        </div>
+                        <p class="text-sm text-gray-500">Acompanhe métricas e resultados do cliente.</p>
+                        <button data-action="insights" class="mt-auto w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-primary">
+                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold">Diário de Bordo</h3>
+                        </div>
+                        <p class="text-sm text-gray-500">Registre ações e andamento das entregas.</p>
+                        <button data-action="diary" class="mt-auto w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
+                    </div>
+                    <div class="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                        <div class="flex items-center gap-3 text-primary">
+                            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <i class="fas fa-bullhorn"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold">Solicitação de Criativos</h3>
+                        </div>
+                        <p class="text-sm text-gray-500">Centralize pedidos vindos do Tráfego Pago.</p>
+                        <button data-action="creatives" class="mt-auto w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
+                    </div>
+                </div>
+            </section>
+
             <section id="operational-hub" class="mb-8">
                 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
                     <div>
@@ -540,13 +610,6 @@
 
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
                 <div class="flex flex-wrap gap-4 items-end">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Modo</label>
-                        <select id="creative-requests-mode" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary">
-                            <option value="client">Cliente</option>
-                            <option value="agency">Agência</option>
-                        </select>
-                    </div>
                     <div id="creative-requests-client-wrapper" class="hidden">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                         <select id="creative-requests-client" class="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-primary focus:border-primary min-w-[220px]">

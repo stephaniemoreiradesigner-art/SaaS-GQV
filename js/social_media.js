@@ -80,6 +80,10 @@ function getClientIdFromQuery() {
     return params.get('clientId') || params.get('id') || '';
 }
 
+function getSocialClientSelect() {
+    return document.getElementById('social-client-select') || document.getElementById('select-cliente');
+}
+
 if (typeof window.showSocialMediaHome !== 'function') {
     window.showSocialMediaHome = function() {
         const params = new URLSearchParams(window.location.search || '');
@@ -835,6 +839,7 @@ let socialMediaSupabaseReady = false;
 
 const tryLoadSocialMediaClients = () => {
     if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
+    loadClientes();
     const queryClientId = getClientIdFromQuery();
     if (!queryClientId) return;
     loadClientContext(queryClientId);
@@ -848,12 +853,13 @@ window.addEventListener('supabaseReady', () => {
 document.addEventListener('DOMContentLoaded', async () => {
     socialMediaDomReady = true;
     const queryClientId = getClientIdFromQuery();
-    if (!queryClientId) {
+    if (queryClientId) {
+        currentClienteId = String(queryClientId);
+        setClientRequiredMessage(false);
+    } else {
         setClientRequiredMessage(true);
-        return;
     }
-    currentClienteId = String(queryClientId);
-    setClientRequiredMessage(false);
+    bindSocialClientSelect();
 
     if (window.supabaseClient) {
         socialMediaSupabaseReady = true;
@@ -868,7 +874,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initCalendar();
     ensureSocialMediaPermission().then(updateGenerateButtonState);
-    window.openSocialMediaTab('calendar');
 
     const inputMes = document.getElementById('input-mes');
     if (inputMes) {
@@ -941,6 +946,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         modalPost.addEventListener('click', (e) => {
             if (e.target === modalPost) window.closePostModal();
         });
+    }
+
+    const home = document.getElementById('social-media-home');
+    if (home) {
+        home.addEventListener('click', (event) => {
+            const action = event.target?.closest?.('[data-action]')?.dataset?.action || '';
+            if (action) {
+                handleSocialHomeAction(action);
+            }
+        });
+    }
+
+    const urlParams = new URLSearchParams(window.location.search || '');
+    const tabParam = urlParams.get('tab');
+    const hashParam = window.location.hash ? window.location.hash.replace('#', '') : '';
+    const initialTab = normalizeSocialTabName(tabParam || hashParam);
+    if (initialTab === 'dashboard') {
+        if (typeof window.showSocialMediaHome === 'function') {
+            window.showSocialMediaHome();
+        }
+    } else if (typeof window.openSocialMediaTab === 'function') {
+        window.openSocialMediaTab(initialTab);
     }
 });
 
@@ -1868,6 +1895,80 @@ function resolveSelectedClientId(value) {
     return '';
 }
 
+function normalizeSocialTabName(value) {
+    const raw = String(value || '').toLowerCase();
+    if (raw === 'calendar' || raw === 'calendario') return 'calendar';
+    if (raw === 'approvals' || raw === 'aprovals' || raw === 'aprovacoes' || raw === 'aprovações') return 'calendar';
+    if (raw === 'insights') return 'insights';
+    if (raw === 'diary' || raw === 'diario' || raw === 'diário' || raw === 'logs') return 'logs';
+    if (raw === 'creatives' || raw === 'criativos' || raw === 'creative' || raw === 'creative_requests' || raw === 'creative-requests') return 'creative-requests';
+    return 'dashboard';
+}
+
+function bindSocialClientSelect() {
+    const select = getSocialClientSelect();
+    if (!select) return;
+    select.addEventListener('change', () => {
+        const value = select.value;
+        if (value) {
+            currentClienteId = String(value);
+            setClientRequiredMessage(false);
+            loadClientContext(value);
+            updateGenerateButtonState();
+        } else {
+            currentClienteId = null;
+            setClientRequiredMessage(true);
+            updateGenerateButtonState();
+        }
+    });
+}
+
+function handleSocialHomeAction(action) {
+    const target = String(action || '').trim();
+    if (!target) return;
+    if (target === 'calendar-generate') {
+        if (!currentClienteId) {
+            setClientRequiredMessage(true);
+            return;
+        }
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('calendar');
+        }
+        setTimeout(() => {
+            handleGenerateClick();
+        }, 50);
+        return;
+    }
+    if (target === 'posts-approve') {
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('calendar');
+        }
+        if (typeof window.sendWeekForApproval === 'function') {
+            setTimeout(() => {
+                window.sendWeekForApproval();
+            }, 50);
+        }
+        return;
+    }
+    if (target === 'insights') {
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('insights');
+        }
+        return;
+    }
+    if (target === 'diary') {
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('logs');
+        }
+        return;
+    }
+    if (target === 'creatives') {
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('creative-requests');
+        }
+    }
+}
+
 function setClientRequiredMessage(isVisible) {
     const messageEl = document.getElementById('client-required-message');
     if (!messageEl) return;
@@ -2181,9 +2282,9 @@ async function improveCopyWithAI() {
 }
 
 async function loadClientes() {
-    const select = document.getElementById('select-cliente');
+    const select = getSocialClientSelect();
     if (!select) {
-        console.warn('[SocialMedia] select-cliente não encontrado no DOM.');
+        console.warn('[SocialMedia] select de cliente não encontrado no DOM.');
         return;
     }
 
@@ -2241,6 +2342,9 @@ async function loadClientes() {
             opt.disabled = true;
             opt.textContent = 'Nenhum cliente encontrado';
             select.appendChild(opt);
+        }
+        if (currentClienteId) {
+            select.value = String(currentClienteId);
         }
 
     } catch (err) {
