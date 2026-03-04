@@ -991,40 +991,12 @@ const ensureDemoUser = async () => {
         }
     }
 
-    const profileColumnChecks = ['id', 'email', 'full_name', 'nome', 'role', 'tenant_id'];
-    const profileColumns = new Set();
-    for (const column of profileColumnChecks) {
-        const columnRes = await supabaseServiceRest(`/rest/v1/profiles?select=${column}&limit=1`);
-        if (columnRes.status < 400) {
-            profileColumns.add(column);
-        }
-    }
-    const profileNameColumn = profileColumns.has('full_name') ? 'full_name' : (profileColumns.has('nome') ? 'nome' : null);
-    let supportsProfileTenantId = false;
-    if (profileColumns.has('tenant_id')) {
-        const tenantTypeRes = await supabaseServiceRest(
-            '/rest/v1/information_schema.columns?select=data_type,udt_name&table_name=eq.profiles&column_name=eq.tenant_id&limit=1'
-        );
-        const tenantTypeRow = Array.isArray(tenantTypeRes.data) ? tenantTypeRes.data[0] : null;
-        const tenantTypeRaw = String(tenantTypeRow?.udt_name || tenantTypeRow?.data_type || '').toLowerCase();
-        const allowedTenantTypes = new Set(['uuid', 'text', 'varchar', 'character varying']);
-        supportsProfileTenantId = allowedTenantTypes.has(tenantTypeRaw);
-    }
-
-    const profilePayload = { id: demoUser.id };
-    if (profileColumns.has('email')) profilePayload.email = DEMO_USER_EMAIL;
-    if (profileNameColumn) profilePayload[profileNameColumn] = 'Demo GQV';
-    if (profileColumns.has('role')) profilePayload.role = 'colaborador';
-    if (supportsProfileTenantId) profilePayload.tenant_id = DEMO_TENANT_ID;
-
     const profileRes = await supabaseServiceRest(
-        '/rest/v1/profiles',
-        'POST',
-        profilePayload,
-        { Prefer: 'resolution=merge-duplicates,return=representation' }
+        `/rest/v1/profiles?id=eq.${demoUser.id}&select=*`
     );
-    if (profileRes.status >= 400) {
-        return { ok: false, error: 'erro_criar_profile_demo', details: profileRes.data || profileRes.text || null };
+    const profileRow = Array.isArray(profileRes.data) ? profileRes.data[0] : null;
+    if (!profileRow) {
+        console.warn('profile_nao_encontrado_para_demo', { status: profileRes.status });
     }
 
     return { ok: true, user: demoUser };
