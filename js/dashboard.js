@@ -57,29 +57,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return session?.user || null;
     }
 
-    function isUuid(v) { 
-      return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v); 
-    } 
-
     const toBigIntSafe = (v) => { 
       if (v === null || v === undefined) return null; 
       const n = Number(v); 
       return Number.isFinite(n) ? Math.trunc(n) : null; 
     }; 
-
-    async function getCurrentTenantId(user) { 
-      if (!user) return null; 
-      const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id; 
-      if (metaTenant) return String(metaTenant); 
-
-      const { data: profile } = await window.supabaseClient 
-        .from('profiles') 
-        .select('tenant_id') 
-        .eq('id', user.id) 
-        .maybeSingle(); 
-
-      return profile?.tenant_id ? String(profile.tenant_id) : null; 
-    } 
 
     async function getChecklistContext() { 
       const user = await getCurrentSessionUser(); 
@@ -89,26 +71,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         user?.id || 
         null; 
 
-      if (!userId) return { tenantUuid: null, userId: null }; 
+      if (!userId) return { tenantId: null, userId: null }; 
 
-      const fromUserData = window.currentUserData?.tenant_id_uuid; 
-      if (isUuid(fromUserData)) return { tenantUuid: fromUserData, userId }; 
-
-      if (isUuid(window.currentTenantId)) return { tenantUuid: window.currentTenantId, userId }; 
+      const fromUserData = toBigIntSafe(window.currentUserData?.tenant_id); 
+      if (fromUserData !== null) return { tenantId: fromUserData, userId }; 
 
       const { data, error } = await window.supabaseClient 
         .from('colaboradores') 
-        .select('tenant_id_uuid') 
+        .select('tenant_id') 
         .eq('user_id', userId) 
         .maybeSingle(); 
 
       if (error) { 
         console.error('[Lembretes] tenant lookup error', error); 
-        return { tenantUuid: null, userId }; 
+        return { tenantId: null, userId }; 
       } 
 
-      const tenantUuid = data?.tenant_id_uuid; 
-      return { tenantUuid: isUuid(tenantUuid) ? tenantUuid : null, userId }; 
+      const tenantId = toBigIntSafe(data?.tenant_id); 
+      return { tenantId, userId }; 
     } 
 
     window.addTodo = async function () { 
@@ -117,21 +97,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!titulo) return; 
 
       try { 
-        const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid) { 
-          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+        const { tenantId, userId } = await getChecklistContext(); 
+        if (tenantId === null) { 
+          alert('Checklist indisponível: tenant_id não resolvido.'); 
           return; 
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
-        const tenantIdBigint = toBigIntSafe(window.currentUserData?.tenant_id || window.currentTenantId || localStorage.getItem('tenant_id')); 
         const payload = { 
           titulo, 
           concluido: false, 
           user_id: userId, 
-          tenant_id_uuid: tenantUuid 
+          tenant_id: tenantId 
         }; 
-        if (tenantIdBigint !== null) payload.tenant_id = tenantIdBigint; 
         console.log('[LEMBRETES] payload antes do save:', JSON.stringify(payload, null, 2)); 
 
         const { error } = await window.supabaseClient 
@@ -152,9 +130,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!confirm('Excluir este item do checklist?')) return; 
 
       try { 
-        const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid) { 
-          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+        const { tenantId, userId } = await getChecklistContext(); 
+        if (tenantId === null) { 
+          alert('Checklist indisponível: tenant_id não resolvido.'); 
           return; 
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
@@ -163,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           .from('lembretes') 
           .delete() 
           .eq('id', id) 
-          .eq('tenant_id_uuid', tenantUuid) 
+          .eq('tenant_id', tenantId) 
           .eq('user_id', userId); 
 
         if (error) throw error; 
@@ -177,9 +155,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.toggleTodo = async function (id, checked) { 
       try { 
-        const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid) { 
-          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+        const { tenantId, userId } = await getChecklistContext(); 
+        if (tenantId === null) { 
+          alert('Checklist indisponível: tenant_id não resolvido.'); 
           return; 
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
@@ -191,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           .from('lembretes') 
           .update(payload) 
           .eq('id', id) 
-          .eq('tenant_id_uuid', tenantUuid) 
+          .eq('tenant_id', tenantId) 
           .eq('user_id', userId); 
 
         if (error) throw error; 
@@ -210,17 +188,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { 
         list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>'; 
 
-        const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid) { 
-          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+        const { tenantId, userId } = await getChecklistContext(); 
+        if (tenantId === null) { 
+          alert('Checklist indisponível: tenant_id não resolvido.'); 
           return; 
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
         const { data: todos, error } = await window.supabaseClient 
           .from('lembretes') 
-          .select('id, titulo, concluido, created_at, user_id, tenant_id_uuid') 
-          .eq('tenant_id_uuid', tenantUuid) 
+          .select('id, titulo, concluido, created_at, user_id, tenant_id') 
+          .eq('tenant_id', tenantId) 
           .eq('user_id', userId) 
           .order('concluido', { ascending: true }) 
           .order('created_at', { ascending: false }); 
