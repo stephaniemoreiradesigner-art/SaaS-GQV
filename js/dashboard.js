@@ -57,6 +57,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return session?.user || null;
     }
 
+    function isUuid(v) { 
+      return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v); 
+    } 
+
     async function getCurrentTenantId(user) { 
       if (!user) return null; 
       const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id; 
@@ -73,22 +77,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function getChecklistContext() { 
       const user = await getCurrentSessionUser(); 
-
-      // Preferir tenant UUID se existir no estado global 
-      const tenantUuid = 
-        window.currentTenantId || 
-        window.currentUserData?.tenant_id_uuid || 
-        window.currentUserData?.tenant_id || 
-        localStorage.getItem('tenant_id') || 
-        (user ? await getCurrentTenantId(user) : null); 
-
       const userId = 
         window.currentUserData?.id || 
         window.currentUserData?.user_id || 
         user?.id || 
         null; 
 
-      return { tenantUuid, userId }; 
+      if (!userId) return { tenantUuid: null, userId: null }; 
+
+      const fromUserData = window.currentUserData?.tenant_id_uuid; 
+      if (isUuid(fromUserData)) return { tenantUuid: fromUserData, userId }; 
+
+      if (isUuid(window.currentTenantId)) return { tenantUuid: window.currentTenantId, userId }; 
+
+      const { data, error } = await window.supabaseClient 
+        .from('colaboradores') 
+        .select('tenant_id_uuid') 
+        .eq('user_id', userId) 
+        .maybeSingle(); 
+
+      if (error) { 
+        console.error('[Lembretes] tenant lookup error', error); 
+        return { tenantUuid: null, userId }; 
+      } 
+
+      const tenantUuid = data?.tenant_id_uuid; 
+      return { tenantUuid: isUuid(tenantUuid) ? tenantUuid : null, userId }; 
     } 
 
     window.addTodo = async function () { 
@@ -98,7 +112,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       try { 
         const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+        if (!tenantUuid) { 
+          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+          return; 
+        } 
+        if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
         const payload = { 
           titulo, 
@@ -128,7 +146,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       try { 
         const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+        if (!tenantUuid) { 
+          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+          return; 
+        } 
+        if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
         const { error } = await window.supabaseClient 
           .from('lembretes') 
@@ -149,7 +171,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.toggleTodo = async function (id, checked) { 
       try { 
         const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+        if (!tenantUuid) { 
+          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+          return; 
+        } 
+        if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
         const { error } = await window.supabaseClient 
           .from('lembretes') 
@@ -175,7 +201,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>'; 
 
         const { tenantUuid, userId } = await getChecklistContext(); 
-        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+        if (!tenantUuid) { 
+          alert('Checklist indisponível: tenant não resolvido. Verifique vínculo do colaborador.'); 
+          return; 
+        } 
+        if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
         const { data: todos, error } = await window.supabaseClient 
           .from('lembretes') 
