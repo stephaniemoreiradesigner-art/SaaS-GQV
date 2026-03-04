@@ -376,6 +376,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const humanizeRole = (role) => {
+        const value = String(role || '').trim();
+        if (!value) return 'Colaborador';
+        return value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
+
     async function loadAniversariantesMes() {
         const list = document.getElementById('birthdays-month-list');
         if (!list) return;
@@ -383,7 +389,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const { data: colaboradores, error } = await window.supabaseClient
                 .from('colaboradores')
-                .select('nome, data_nascimento, perfil_acesso, cargo')
+                .select('nome, data_nascimento, perfil_acesso, cargo, departamento, nivel_hierarquico')
                 .not('data_nascimento', 'is', null);
 
             if (error) throw error;
@@ -407,14 +413,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const parts = c.data_nascimento.split('-');
                 const day = parseInt(parts[2]);
                 const month = parseInt(parts[1]);
-                
-                // Formatar Cargo (Perfil)
-                let cargoDisplay = c.cargo;
-                if (!cargoDisplay) {
-                    let p = c.perfil_acesso || 'Colaborador';
-                    cargoDisplay = p.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                }
-                
+
+                const departamento = typeof c.departamento === 'string' ? c.departamento.trim() : c.departamento;
+                const cargo = typeof c.cargo === 'string' ? c.cargo.trim() : c.cargo;
+                const nivelHierarquico = typeof c.nivel_hierarquico === 'string' ? c.nivel_hierarquico.trim() : c.nivel_hierarquico;
+                const label = departamento || cargo || nivelHierarquico || humanizeRole(c.perfil_acesso);
+
                 // Primeiro Nome
                 const firstName = c.nome.split(' ')[0];
 
@@ -423,7 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     firstName: firstName,
                     day: day,
                     month: month,
-                    cargoDisplay: cargoDisplay,
+                    label: label,
                     isToday: day === currentDay
                 };
             });
@@ -451,7 +455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         <div>
                             <h4 class="text-sm font-semibold ${textClass}">${b.firstName}</h4>
-                            <p class="text-xs text-gray-500">${b.cargoDisplay}</p>
+                            <p class="text-xs text-gray-500">${b.label}</p>
                         </div>
                     </div>
                     <div class="text-right">
