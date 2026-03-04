@@ -27,6 +27,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientesTableBody = document.getElementById('clientes-cards');
     const formCliente = document.getElementById('form-cliente');
     const mensalidadesContainer = document.getElementById('mensalidades-container');
+    const showClienteFeedback = (message, type = 'error') => {
+        if (window.showToast) {
+            window.showToast(message, type);
+            return;
+        }
+        alert(message);
+    };
     if (formCliente && window.hasPermission && !window.hasPermission('clientes.update')) {
         const btnSave = document.getElementById('btn-save-cliente');
         if (btnSave) btnSave.style.display = 'none';
@@ -926,7 +933,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         formCliente.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (window.hasPermission && !window.hasPermission('clientes.update')) {
-                alert('Sem permissão.');
+                showClienteFeedback('Sem permissão.', 'warning');
                 return;
             }
             const btnSave = document.getElementById('btn-save-cliente');
@@ -1175,8 +1182,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const refreshedClientId = savedId || clienteId;
 
-                alert(clienteId ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
-                
                 // Volta para lista
                 const lista = document.getElementById('lista-clientes-container');
                 const formContainer = document.getElementById('form-cliente-container');
@@ -1200,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (error) {
                 console.error('Erro ao salvar:', error);
                 const message = String(error?.message || error?.details || error?.hint || error?.error || 'Erro ao salvar cliente.').trim();
-                alert(`Erro ao salvar cliente: ${message}`);
+                showClienteFeedback(`Erro ao salvar cliente: ${message}`, 'error');
             } finally {
                 btnSave.innerText = originalText;
                 btnSave.disabled = false;
