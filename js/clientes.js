@@ -27,6 +27,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const clientesTableBody = document.getElementById('clientes-cards');
     const formCliente = document.getElementById('form-cliente');
     const mensalidadesContainer = document.getElementById('mensalidades-container');
+    if (formCliente && window.hasPermission && !window.hasPermission('clientes.update')) {
+        const btnSave = document.getElementById('btn-save-cliente');
+        if (btnSave) btnSave.style.display = 'none';
+    }
 
     const phoneInputs = ['telefone', 'responsavel_whatsapp', 'responsavel_whatsapp_2'];
     phoneInputs.forEach(id => {
@@ -318,7 +322,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!user) return null;
 
         const isSuper = (window.SUPERADMIN_EMAILS || []).includes(user.email);
-        if (isSuper) return { role: 'super_admin', times: [], email: user.email, colabId: null };
+        if (isSuper) return { role: 'owner', times: [], email: user.email, colabId: null };
+
+        const normalizeRole = (value) => {
+            const raw = String(value || '').trim().toLowerCase();
+            if (raw === 'owner' || raw === 'super_admin') return 'owner';
+            if (raw === 'admin') return 'admin';
+            if (raw === 'finance' || raw === 'financeiro') return 'finance';
+            if (raw === 'ops' || raw === 'operacao' || raw === 'operacional' || raw === 'departamento') return 'ops';
+            if (raw === 'viewer' || raw === 'usuario' || raw === 'colaborador') return 'viewer';
+            return 'viewer';
+        };
 
         let colab = null;
         const { data: colabByUserId } = await window.supabaseClient
@@ -344,13 +358,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .eq('id', user.id)
                 .single();
             
-            if (profile && profile.role === 'super_admin') return { role: 'super_admin', times: [], email: user.email, colabId: null };
+            if (profile && normalizeRole(profile.role) === 'owner') return { role: 'owner', times: [], email: user.email, colabId: null };
             
-            return { role: 'unknown', times: [], email: user.email, colabId: null };
+            return { role: 'viewer', times: [], email: user.email, colabId: null };
         }
         
         return { 
-            role: colab.perfil_acesso, 
+            role: normalizeRole(colab.perfil_acesso), 
             times: colab.times_acesso || [],
             email: colab.email || user.email,
             colabId: colab.id
@@ -375,12 +389,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const createQuery = () => window.supabaseClient
                 .from('clientes')
                 .select('*, times!clientes_time_id_fkey(nome)')
+                .or('status.is.null,status.neq.Arquivado')
                 .order('created_at', { ascending: false });
 
             let clientes = [];
 
             // Aplica filtro por time ou por responsável se não for admin
-            if (perms && perms.role !== 'super_admin' && perms.role !== 'admin') {
+            if (perms && !['owner', 'admin'].includes(perms.role)) {
                 if (perms.times && perms.times.length > 0) {
                     const { data, error } = await createQuery().in('time_id', perms.times);
                     if (error) throw error;
@@ -797,6 +812,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const editBtn = document.getElementById('client-view-edit-btn');
         if (editBtn) {
+            if (window.hasPermission && !window.hasPermission('clientes.update')) {
+                editBtn.style.display = 'none';
+            }
             editBtn.onclick = () => {
                 closeClientViewModal();
                 editCliente(cliente.id);
@@ -805,6 +823,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const deleteBtn = document.getElementById('client-view-delete-btn');
         if (deleteBtn) {
+            if (window.hasPermission && !window.hasPermission('clientes.delete')) {
+                deleteBtn.style.display = 'none';
+            }
             deleteBtn.onclick = () => {
                 closeClientViewModal();
                 deleteCliente(cliente.id);
@@ -904,6 +925,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (formCliente) {
         formCliente.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (window.hasPermission && !window.hasPermission('clientes.update')) {
+                alert('Sem permissão.');
+                return;
+            }
             const btnSave = document.getElementById('btn-save-cliente');
             const originalText = btnSave.innerText;
             const clienteId = document.getElementById('cliente_id').value; // ID oculto
@@ -1325,12 +1350,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Função Global Delete
     window.deleteCliente = async (id) => {
-        if (!confirm('Tem certeza que deseja excluir este cliente? Isso pode afetar dados vinculados.')) return;
+        if (!window.hasPermission || !window.hasPermission('clientes.delete')) {
+            alert('Sem permissão.');
+            return;
+        }
+        if (!confirm('Tem certeza que deseja arquivar este cliente?')) return;
         
         try {
             const { error } = await window.supabaseClient
                 .from('clientes')
-                .delete()
+                .update({ status: 'Arquivado' })
                 .eq('id', id);
                 
             if (error) throw error;

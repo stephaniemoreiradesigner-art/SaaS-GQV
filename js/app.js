@@ -894,45 +894,56 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateSidebarProfile(session.user, colab);
 
             const allowSuper = (window.SUPERADMIN_EMAILS || []).includes(session.user.email);
-            let roleToApply = profile && profile.role ? profile.role : null;
-            const colabRole = colab && colab.perfil_acesso ? colab.perfil_acesso : null;
+            const normalizeRole = (value) => {
+                const raw = String(value || '').trim().toLowerCase();
+                if (raw === 'owner' || raw === 'super_admin') return 'owner';
+                if (raw === 'admin' || raw === 'diretoria') return 'admin';
+                if (raw === 'finance' || raw === 'financeiro') return 'finance';
+                if (raw === 'ops' || raw === 'operacao' || raw === 'operacional' || raw === 'operacao' || raw === 'operacional' || raw === 'departamento') return 'ops';
+                if (raw === 'viewer' || raw === 'usuario' || raw === 'colaborador') return 'viewer';
+                return '';
+            };
 
-            if (colabRole && (colabRole === 'admin' || colabRole === 'super_admin')) {
-                roleToApply = colabRole;
-            } else if (colabRole && (!roleToApply || roleToApply === 'usuario' || roleToApply === 'colaborador')) {
+            let roleToApply = normalizeRole(profile && profile.role ? profile.role : null);
+            const colabRole = normalizeRole(colab && colab.perfil_acesso ? colab.perfil_acesso : null);
+
+            if (colabRole) {
                 roleToApply = colabRole;
             }
 
             if (allowSuper) {
-                roleToApply = 'super_admin';
+                roleToApply = 'owner';
             }
 
             if (!roleToApply) {
-                roleToApply = allowSuper ? 'super_admin' : 'usuario';
+                roleToApply = allowSuper ? 'owner' : 'viewer';
             }
 
             if (profile && profile.role !== roleToApply) {
-                const rolePersist = roleToApply === 'super_admin' && !allowSuper ? null : roleToApply;
-                if (rolePersist) {
-                    await window.supabaseClient
-                        .from('profiles')
-                        .upsert({ id: session.user.id, role: rolePersist });
-                }
+                await window.supabaseClient
+                    .from('profiles')
+                    .upsert({ id: session.user.id, role: roleToApply });
             }
 
-            if (roleToApply === 'super_admin' && !allowSuper) {
-                roleToApply = 'usuario';
-            }
+            const legacyDefaults = {
+                owner: ['financeiro', 'clientes', 'social_media', 'trafego_pago', 'automacoes', 'colaboradores', 'tarefas', 'aprovacoes'],
+                admin: ['financeiro', 'clientes', 'social_media', 'trafego_pago', 'automacoes', 'colaboradores', 'tarefas', 'aprovacoes'],
+                finance: ['financeiro', 'clientes'],
+                ops: ['clientes', 'social_media', 'trafego_pago', 'automacoes', 'aprovacoes'],
+                viewer: ['clientes', 'social_media', 'trafego_pago', 'automacoes']
+            };
+            const rawPerms = colab && colab.permissoes ? colab.permissoes : [];
+            const mergedPerms = Array.from(new Set([...(legacyDefaults[roleToApply] || []), ...rawPerms]));
 
             // Atualiza currentUserData globalmente para uso em checkPermissions
             window.currentUserData = {
                 ...(colab || {}),
                 perfil_acesso: roleToApply,
-                permissoes: colab && colab.permissoes ? colab.permissoes : []
+                permissoes: mergedPerms
             };
 
             // Aplica permissões
-            const permissoes = colab && colab.permissoes ? colab.permissoes : [];
+            const permissoes = mergedPerms;
             applyUserPermissions(roleToApply, permissoes);
             
             // Re-checa permissões da Sidebar (novo modelo)
@@ -945,20 +956,81 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const ROLE_DEFAULT_PERMISSIONS = {
+        owner: ['*'],
+        admin: [
+            'clientes.read', 'clientes.update',
+            'finance.read', 'finance.update',
+            'timeline.read', 'timeline.create',
+            'social_media.access', 'trafego_pago.access', 'automacoes.access', 'aprovacoes.access',
+            'colaboradores.manage'
+        ],
+        finance: ['finance.read', 'finance.update', 'contracts.read', 'contracts.update', 'clientes.read', 'timeline.read'],
+        ops: ['clientes.read', 'clientes.update', 'timeline.read', 'timeline.create', 'social_media.access', 'trafego_pago.access', 'automacoes.access', 'aprovacoes.access'],
+        viewer: ['clientes.read', 'timeline.read', 'social_media.access', 'trafego_pago.access', 'automacoes.access']
+    };
+
+    const LEGACY_PERMISSION_MAP = {
+        social_media: ['social_media.access'],
+        trafego_pago: ['trafego_pago.access'],
+        automacoes: ['automacoes.access'],
+        clientes: ['clientes.read', 'clientes.update'],
+        financeiro: ['finance.read', 'finance.update', 'contracts.read', 'contracts.update'],
+        financeiro_view: ['finance.read'],
+        financeiro_update: ['finance.update'],
+        colaboradores: ['colaboradores.manage'],
+        aprovacoes: ['aprovacoes.access'],
+        tarefas: ['tarefas.read']
+    };
+
+    const normalizePermissionKey = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+
+    const buildEffectivePermissions = (role, permissoes) => {
+        const base = ROLE_DEFAULT_PERMISSIONS[role] || [];
+        const extra = Array.isArray(permissoes) ? permissoes : [];
+        const expanded = extra.flatMap((perm) => {
+            const key = normalizePermissionKey(perm);
+            return LEGACY_PERMISSION_MAP[key] || [perm];
+        });
+        return Array.from(new Set([...base, ...expanded]));
+    };
+
+    window.hasPermission = function(permission) {
+        const userRole = window.currentUserData?.perfil_acesso || 'viewer';
+        if (userRole === 'owner') return true;
+        const permissoes = Array.isArray(window.currentUserData?.permissoes) ? window.currentUserData.permissoes : [];
+        if (permissoes.includes('*')) return true;
+        const effective = buildEffectivePermissions(userRole, permissoes);
+        return effective.includes(permission);
+    };
+
+    window.canAccessModule = function(moduleId) {
+        const map = {
+            clientes: 'clientes.read',
+            financeiro: 'finance.read',
+            social_media: 'social_media.access',
+            trafego_pago: 'trafego_pago.access',
+            automacoes: 'automacoes.access',
+            colaboradores: 'colaboradores.manage',
+            tarefas: 'tarefas.read',
+            aprovacoes: 'aprovacoes.access'
+        };
+        if (!moduleId) return true;
+        const key = moduleId.replace('.view', '').replace('.read', '');
+        const permission = map[key] || map[moduleId];
+        if (!permission) return true;
+        return window.hasPermission(permission);
+    };
+
     function applyUserPermissions(role, permissoes = []) {
         const body = document.body;
         
-        // 1. Controle de Exclusão (Botão Lixeira)
-        // Apenas SuperAdmin pode excluir (remove a classe no-delete).
-        // Todos os outros ganham a classe no-delete.
-        if (role === 'super_admin') {
+        if (role === 'owner') {
             body.classList.remove('no-delete');
         } else {
             body.classList.add('no-delete');
         }
 
-        // 2. Controle do Menu Lateral (Sidebar)
-        // Usa o seletor direto (>) para não afetar os itens de submenu, que são controlados apenas pelo pai
         const menuItems = document.querySelectorAll('.sidebar-menu > li');
         
         menuItems.forEach(item => {
@@ -966,41 +1038,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!link) return;
             
             const moduleName = link.getAttribute('data-module');
-            const restrictedRoles = item.getAttribute('data-role'); // Roles legados do HTML
-            
-            // SuperAdmin vê tudo
-            if (role === 'super_admin') {
+            if (moduleName === 'dashboard') {
                 item.style.display = 'block';
                 return;
             }
-
-            // Admin vê todos os módulos operacionais, mas não configurações de sistema
-            if (role === 'admin') {
-                // Se for item exclusivo de super_admin (ex: Configurações, Colaboradores se restrito)
-                // Vamos checar o data-role original. Se só tiver 'super_admin', Admin não vê.
-                if (restrictedRoles === 'super_admin') {
-                    item.style.display = 'none';
-                } else {
-                    item.style.display = 'block';
-                }
-                return;
-            }
-
-            // Usuário Comum
-            if (role === 'usuario') {
-                // Dashboard sempre visível
-                if (moduleName === 'dashboard') {
-                    item.style.display = 'block';
-                    return;
-                }
-
-                // Verifica se tem permissão explícita no array de permissões
-                if (permissoes && permissoes.includes(moduleName)) {
-                    item.style.display = 'block';
-                } else {
-                    item.style.display = 'none';
-                }
-            }
+            const hasAccess = window.canAccessModule(moduleName) || (Array.isArray(permissoes) && permissoes.includes(moduleName));
+            item.style.display = hasAccess ? 'block' : 'none';
         });
     }
 
@@ -1011,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Tenta obter role do usuário (pode estar em window.currentUserData ou precisa buscar)
         // Por padrão, assume 'usuario' se não definido
-        let userRole = 'usuario';
+        let userRole = 'viewer';
         
         // Verifica se há dados de usuário carregados (dashboard.js geralmente carrega)
         if (window.currentUserData && window.currentUserData.perfil_acesso) {
@@ -1031,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const moduleMap = {
             'social_media.html': 'social_media',
             'trafego_pago.html': 'trafego_pago',
-            'financeiro.html': 'financeiro.view',
+            'financeiro.html': 'financeiro',
             'automacoes.html': 'automacoes',
             'colaboradores.html': 'colaboradores',
             'clientes.html': 'clientes',
@@ -1050,14 +1093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? window.currentUserData.permissoes
                 : [];
             const hasModulePermission = moduleId && permissoes.includes(moduleId);
-            const isFinanceModule = moduleId === 'financeiro.view' || moduleId === 'financeiro';
-            const hasFinancePermission = permissoes.includes('financeiro.view');
-            // Se usuário é admin ou super_admin, geralmente tem acesso a tudo, 
-            // mas o sistema de roles pode ser explícito.
-            // Vamos assumir que super_admin tem acesso irrestrito.
-            const hasAccess = isFinanceModule
-                ? hasFinancePermission
-                : (hasModulePermission || allowedRoles.includes(userRole) || userRole === 'super_admin' || userRole === 'admin');
+            const hasAccess = window.canAccessModule(moduleId) || hasModulePermission || allowedRoles.includes(userRole);
             
             if (!hasAccess) {
                 el.style.display = 'none';
@@ -1068,11 +1104,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const settingsLinks = document.querySelectorAll('a[href="configuracoes.html"], a[href$="/configuracoes.html"]');
         settingsLinks.forEach(link => {
-            if (userRole !== 'admin' && userRole !== 'super_admin') {
+            if (!window.hasPermission('colaboradores.manage')) {
                 link.style.display = 'none';
             } else {
                 link.style.display = '';
             }
+        });
+
+        const financeLinks = document.querySelectorAll('a[href="financeiro.html"], a[href$="/financeiro.html"]');
+        financeLinks.forEach(link => {
+            link.style.display = window.hasPermission('finance.read') ? '' : 'none';
         });
     };
 

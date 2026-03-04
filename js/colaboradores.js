@@ -29,29 +29,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     const salarioEl = document.getElementById('salario');
     const ativoEl = document.getElementById('ativo');
     const diaVencimentoPagamentoEl = document.getElementById('dia_vencimento_pagamento');
+    const canManageColaboradores = !window.hasPermission || window.hasPermission('colaboradores.manage');
+    if (!canManageColaboradores) {
+        document.querySelectorAll('[onclick="toggleForm()"]').forEach(btn => {
+            btn.style.display = 'none';
+        });
+        const formContainer = document.getElementById('form-colaborador-container');
+        if (formContainer) formContainer.classList.add('hidden');
+    }
 
     // --- Nova Lógica de Permissões ---
     function updatePermissionsUI() {
         const nivel = nivelHierarquicoEl ? nivelHierarquicoEl.value : null;
+        const departamento = departamentoEl ? departamentoEl.value : null;
         if (perfilAcessoEl) {
-            if (nivel === 'CEO') perfilAcessoEl.value = 'super_admin';
+            if (nivel === 'CEO') perfilAcessoEl.value = 'owner';
             else if (nivel === 'Diretoria') perfilAcessoEl.value = 'admin';
-            else perfilAcessoEl.value = 'usuario';
+            else if (departamento === 'analista_financeiro') perfilAcessoEl.value = 'finance';
+            else if (nivel === 'Departamento' || departamento) perfilAcessoEl.value = 'ops';
+            else perfilAcessoEl.value = 'viewer';
         }
         if (departamentoWrapper && departamentoEl) {
             const isDepartamento = nivel === 'Departamento';
             departamentoWrapper.classList.toggle('hidden', !isDepartamento);
             if (!isDepartamento) departamentoEl.value = '';
         }
-        const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'usuario';
+        const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'viewer';
         const modCheckboxes = document.querySelectorAll('.modulo-check');
         const timeCheckboxes = document.querySelectorAll('.time-check');
-        const isFullAccess = perfil === 'super_admin' || perfil === 'admin';
+        const isFullAccess = perfil === 'owner' || perfil === 'admin';
+        const defaultModules = {
+            owner: ['social_media', 'trafego_pago', 'automacoes', 'clientes', 'financeiro'],
+            admin: ['social_media', 'trafego_pago', 'automacoes', 'clientes', 'financeiro'],
+            finance: ['financeiro', 'clientes'],
+            ops: ['social_media', 'trafego_pago', 'automacoes', 'clientes'],
+            viewer: ['social_media', 'trafego_pago', 'automacoes', 'clientes']
+        };
         
         modCheckboxes.forEach(cb => {
             if (isFullAccess) {
                 cb.checked = true;
                 cb.disabled = true;
+            } else if (perfil === 'finance') {
+                cb.checked = defaultModules.finance.includes(cb.value);
+                cb.disabled = true;
+            } else if (perfil === 'viewer') {
+                cb.checked = defaultModules.viewer.includes(cb.value);
+                cb.disabled = true;
+            } else if (perfil === 'ops') {
+                cb.checked = defaultModules.ops.includes(cb.value);
+                cb.disabled = false;
             } else {
                 cb.disabled = false;
             }
@@ -69,12 +96,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function applyModulePermissions(permissoes = []) {
         const modCheckboxes = document.querySelectorAll('.modulo-check');
-        const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'usuario';
-        const isFullAccess = perfil === 'super_admin' || perfil === 'admin';
+        const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'viewer';
+        const isFullAccess = perfil === 'owner' || perfil === 'admin';
+        const defaultModules = {
+            finance: ['financeiro', 'clientes'],
+            ops: ['social_media', 'trafego_pago', 'automacoes', 'clientes'],
+            viewer: ['social_media', 'trafego_pago', 'automacoes', 'clientes']
+        };
 
         modCheckboxes.forEach(cb => {
             if (isFullAccess) {
                 cb.checked = true;
+                cb.disabled = true;
+            } else if (perfil === 'finance') {
+                cb.checked = defaultModules.finance.includes(cb.value);
+                cb.disabled = true;
+            } else if (perfil === 'viewer') {
+                cb.checked = defaultModules.viewer.includes(cb.value);
                 cb.disabled = true;
             } else {
                 cb.checked = permissoes.includes(cb.value);
@@ -276,7 +314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!pErr) profile = p;
             } catch (ignore) { console.warn('Erro ao buscar profile, tentando fallback...'); }
 
-            if (profile && profile.role === 'super_admin') {
+            if (profile && profile.role === 'owner') {
                 if (allowSuper) { return session; }
             }
 
@@ -286,7 +324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .eq('email', session.user.email)
                 .maybeSingle();
 
-            if (colab && colab.perfil_acesso === 'super_admin') {
+            if (colab && colab.perfil_acesso === 'owner') {
                 if (allowSuper) { return session; }
             }
             
@@ -410,7 +448,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         items.forEach(c => {
             const tipo = c.tipo_documento === 'CNPJ' ? 'CNPJ' : 'CPF';
             const docMask = tipo === 'CNPJ' ? formatCNPJ(c.documento) : formatCPF(c.documento);
-            const hierarquia = c.nivel_hierarquico || (c.perfil_acesso === 'super_admin' ? 'CEO' : c.perfil_acesso === 'admin' ? 'Diretoria' : 'Departamento');
+            const roleMap = {
+                owner: 'CEO',
+                admin: 'Diretoria',
+                finance: 'Financeiro',
+                ops: 'Operação',
+                viewer: 'Visualização'
+            };
+            const normalizedRole = c.perfil_acesso === 'super_admin' ? 'owner' : c.perfil_acesso === 'usuario' ? 'viewer' : c.perfil_acesso;
+            const hierarquia = c.nivel_hierarquico || roleMap[normalizedRole] || 'Departamento';
             const departamento = c.departamento ? departamentoLabels[c.departamento] || c.departamento : '—';
             const salarioNum = Number(c.salario);
             const salarioDisplay = Number.isFinite(salarioNum)
@@ -421,8 +467,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const regimeBadge = `<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">${c.regime}</span>`;
             
             let perfilClass = 'bg-gray-100 text-gray-700 border-gray-200';
-            if (c.perfil_acesso === 'admin') perfilClass = 'bg-purple-50 text-purple-700 border-purple-100';
-            if (c.perfil_acesso === 'super_admin') perfilClass = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+            if (normalizedRole === 'owner') perfilClass = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+            if (normalizedRole === 'admin') perfilClass = 'bg-purple-50 text-purple-700 border-purple-100';
+            if (normalizedRole === 'finance') perfilClass = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+            if (normalizedRole === 'ops') perfilClass = 'bg-blue-50 text-blue-700 border-blue-100';
             
             const perfilBadge = `<span class="px-2 py-1 rounded-full text-xs font-medium border ${perfilClass}">${hierarquia}</span>`;
 
@@ -449,20 +497,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${salarioDisplay}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${c.email}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-center">
-                    ${c.contrato_url 
-                        ? `<a href="${c.contrato_url}" target="_blank" class="text-[var(--color-primary)] hover:text-indigo-800 transition-colors" title="Ver Contrato"><i class="fas fa-file-contract text-lg"></i></a>` 
+                    ${(window.hasPermission && window.hasPermission('contracts.read') && c.contrato_url)
+                        ? `<a href="${c.contrato_url}" target="_blank" class="text-[var(--color-primary)] hover:text-indigo-800 transition-colors" title="Ver Contrato"><i class="fas fa-file-contract text-lg"></i></a>`
                         : '<span class="text-gray-300">—</span>'
                     }
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div class="flex items-center justify-end gap-2">
-                        <button onclick="editColaborador('${c.id}')" class="p-2 text-gray-400 hover:text-[var(--color-primary)] hover:bg-indigo-50 rounded-lg transition-colors" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="deleteColaborador('${c.id}')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
+                    ${window.hasPermission && window.hasPermission('colaboradores.manage')
+                        ? `<div class="flex items-center justify-end gap-2">
+                            <button onclick="editColaborador('${c.id}')" class="p-2 text-gray-400 hover:text-[var(--color-primary)] hover:bg-indigo-50 rounded-lg transition-colors" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteColaborador('${c.id}')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Excluir">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>`
+                        : '<span class="text-gray-300">—</span>'
+                    }
                 </td>
             `;
             tableBody.appendChild(row);
@@ -472,6 +523,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (form) {
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (!window.hasPermission || !window.hasPermission('colaboradores.manage')) {
+                alert('Sem permissão.');
+                return;
+            }
             const btn = document.getElementById('btn-save-colaborador');
             const original = btn.innerText;
             try {
@@ -619,6 +674,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     window.deleteColaborador = async (id) => {
+        if (!window.hasPermission || !window.hasPermission('colaboradores.manage')) {
+            alert('Sem permissão.');
+            return;
+        }
         if (!confirm('Tem certeza que deseja excluir este colaborador?')) return;
         try {
             const { error } = await window.supabaseClient.from('colaboradores').delete().eq('id', id);
@@ -633,6 +692,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const { data, error } = await window.supabaseClient.from('colaboradores').select('*').eq('id', id).single();
             if (error) throw error;
+            const normalizeRole = (value) => {
+                const raw = String(value || '').trim().toLowerCase();
+                if (raw === 'owner' || raw === 'super_admin') return 'owner';
+                if (raw === 'admin') return 'admin';
+                if (raw === 'finance' || raw === 'financeiro') return 'finance';
+                if (raw === 'ops' || raw === 'operacao' || raw === 'operacional' || raw === 'departamento') return 'ops';
+                if (raw === 'viewer' || raw === 'usuario' || raw === 'colaborador') return 'viewer';
+                return 'viewer';
+            };
             document.getElementById('nome').value = data.nome || '';
             document.getElementById('tipo_documento').value = data.tipo_documento || 'CPF';
             document.getElementById('documento').value = data.tipo_documento === 'CNPJ' ? formatCNPJ(data.documento) : formatCPF(data.documento);
@@ -644,8 +712,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (nivelHierarquicoEl) {
                 let nivel = data.nivel_hierarquico;
                 if (!nivel) {
-                    if (data.perfil_acesso === 'super_admin') nivel = 'CEO';
-                    else if (data.perfil_acesso === 'admin') nivel = 'Diretoria';
+                    const normalizedRole = normalizeRole(data.perfil_acesso);
+                    if (normalizedRole === 'owner') nivel = 'CEO';
+                    else if (normalizedRole === 'admin') nivel = 'Diretoria';
+                    else if (normalizedRole === 'finance') nivel = 'Departamento';
+                    else if (normalizedRole === 'ops') nivel = 'Departamento';
                     else nivel = 'Departamento';
                 }
                 nivelHierarquicoEl.value = nivel;
@@ -654,7 +725,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (salarioEl) salarioEl.value = data.salario ?? '';
             if (diaVencimentoPagamentoEl) diaVencimentoPagamentoEl.value = data.dia_vencimento_pagamento ? String(data.dia_vencimento_pagamento).padStart(2, '0') : '';
             if (ativoEl) ativoEl.value = data.ativo === false ? 'false' : 'true';
-            document.getElementById('perfil_acesso').value = data.perfil_acesso || 'usuario';
+            document.getElementById('perfil_acesso').value = normalizeRole(data.perfil_acesso);
             
             updatePermissionsUI();
             applyModulePermissions(data.permissoes || []);
@@ -662,10 +733,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Preencher permissões de times
             const timesAcesso = data.times_acesso || [];
             const timeCheckboxes = document.querySelectorAll('.time-check');
-            const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'usuario';
+            const perfil = perfilAcessoEl ? perfilAcessoEl.value : 'viewer';
             
             timeCheckboxes.forEach(cb => {
-                if (perfil === 'super_admin' || perfil === 'admin') {
+                if (perfil === 'owner' || perfil === 'admin') {
                     cb.checked = true;
                     cb.disabled = true;
                 } else {
