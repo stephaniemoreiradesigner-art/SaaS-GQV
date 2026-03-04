@@ -532,6 +532,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 btn.innerText = 'Salvando...';
                 btn.disabled = true;
+                if (contratoInput && contratoInput.files && contratoInput.files[0]) {
+                    if (!window.hasPermission || !window.hasPermission('contracts.update')) {
+                        alert('Sem permissão para enviar contrato.');
+                        btn.innerText = original;
+                        btn.disabled = false;
+                        return;
+                    }
+                }
                 const { data: { user } } = await window.supabaseClient.auth.getUser();
                 const tenantId = Number(user?.user_metadata?.tenant_id ?? user?.app_metadata?.tenant_id);
                 const tipo = document.getElementById('tipo_documento').value;

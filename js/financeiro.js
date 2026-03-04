@@ -58,12 +58,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             waits++;
         }
 
-        const userRole = window.currentUserData?.perfil_acesso || 'usuario';
-        const permissoes = Array.isArray(window.currentUserData?.permissoes) ? window.currentUserData.permissoes : [];
-        const hasPermission = ['super_admin', 'admin', 'financeiro'].includes(userRole) || permissoes.includes('financeiro');
+        const canRead = typeof window.hasPermission === 'function'
+            ? window.hasPermission('finance.read')
+            : false;
 
-        if (!hasPermission) {
-            alert('Você não tem permissão para acessar o módulo Financeiro.');
+        if (!canRead) {
+            alert('Sem permissão para acessar Financeiro.');
             window.location.href = 'dashboard.html';
             return false;
         }
@@ -129,8 +129,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         // Toggle Form
-        if(btnNew) {
+        if (btnNew) {
+            if (typeof window.hasPermission === 'function' && !window.hasPermission('finance.update')) {
+                btnNew.style.display = 'none';
+            }
             btnNew.addEventListener('click', () => {
+                if (typeof window.hasPermission === 'function' && !window.hasPermission('finance.update')) {
+                    alert('Sem permissão para editar Financeiro.');
+                    return;
+                }
                 currentEditId = null; // Reset para modo criação
                 form.reset();
                 document.getElementById('arquivo_url').value = '';
@@ -184,6 +191,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(form) {
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                if (typeof window.hasPermission === 'function' && !window.hasPermission('finance.update')) {
+                    alert('Sem permissão para editar Financeiro.');
+                    return;
+                }
                 
                 const desc = document.getElementById('desc').value;
                 const valor = parseFloat(document.getElementById('valor').value);
@@ -367,6 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0';
+                    const canUpdate = typeof window.hasPermission !== 'function' || window.hasPermission('finance.update');
                     
                     // Tratamento seguro de valores
                     const valorNum = parseFloat(t.valor);
@@ -430,14 +442,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ${t.tipo === 'saida' ? '-' : '+'} ${valorFormatado}
                         </td>
                         <td class="p-4 text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                <button class="p-1.5 text-gray-400 hover:text-[var(--color-primary)] hover:bg-purple-50 rounded transition-colors" onclick="editTransaction(${t.id})" title="Editar">
-                                    <i class="fas fa-pencil-alt"></i>
-                                </button>
-                                <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" onclick="deleteTransaction(${t.id})" title="Excluir">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
+                            ${canUpdate ? `
+                                <div class="flex items-center justify-end gap-2">
+                                    <button class="p-1.5 text-gray-400 hover:text-[var(--color-primary)] hover:bg-purple-50 rounded transition-colors" onclick="editTransaction(${t.id})" title="Editar">
+                                        <i class="fas fa-pencil-alt"></i>
+                                    </button>
+                                    <button class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" onclick="deleteTransaction(${t.id})" title="Excluir">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            ` : '<span class="text-gray-300">—</span>'}
                         </td>
                     `;
                     tableBody.appendChild(row);
@@ -553,6 +567,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Função global para editar (dentro do escopo para acessar variáveis)
         window.editTransaction = async (id) => {
             try {
+                if (typeof window.hasPermission === 'function' && !window.hasPermission('finance.update')) {
+                    alert('Sem permissão para editar Financeiro.');
+                    return;
+                }
                 const { data, error } = await window.supabaseClient
                     .from('financeiro')
                     .select('*')
@@ -603,6 +621,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.deleteTransaction = async (id) => {
             if (!window.supabaseClient) {
                 alert('Erro de conexão. Recarregue a página.');
+                return;
+            }
+            if (typeof window.hasPermission === 'function' && !window.hasPermission('finance.update')) {
+                alert('Sem permissão para editar Financeiro.');
                 return;
             }
 
