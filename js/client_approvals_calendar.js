@@ -104,6 +104,17 @@
         return parsed.toLocaleString('pt-BR');
     };
 
+    const sortCandidates = [
+        'position',
+        'ordem',
+        'sequencia',
+        'index',
+        'post_index',
+        'day_index',
+        'sort_order',
+        'created_at'
+    ];
+
     const parseNumeric = (value) => {
         const raw = String(value || '').trim();
         if (!raw) return null;
@@ -124,6 +135,37 @@
 
     const getSupabaseClient = async () => {
         return window.clientSession?.getSupabaseClient?.();
+    };
+
+    const detectSortColumn = async (supabase, calendarId) => {
+        for (const column of sortCandidates) {
+            const { error } = await supabase
+                .from('social_posts')
+                .select(`id,${column}`)
+                .eq('calendar_id', calendarId)
+                .limit(1);
+            if (!error) return column;
+        }
+        return 'created_at';
+    };
+
+    const fetchOrderedPosts = async (supabase, calendarId) => {
+        const detectedColumn = await detectSortColumn(supabase, calendarId);
+        const candidates = [detectedColumn, ...sortCandidates.filter((column) => column !== detectedColumn)];
+        let lastError = null;
+        for (const column of candidates) {
+            const { data, error } = await supabase
+                .from('social_posts')
+                .select('id, tema, legenda, data_agendada, formato, hora_agendada, plataforma')
+                .eq('calendar_id', calendarId)
+                .order(column, { ascending: true });
+            if (!error) {
+                return { posts: Array.isArray(data) ? data : [], sortColumn: column, error: null };
+            }
+            lastError = error;
+            console.warn('[PORTAL] falha ordenacao posts', { column, error });
+        }
+        return { posts: [], sortColumn: detectedColumn, error: lastError };
     };
 
     const safeMaybeSingle = async (table, columns, field, value) => {
@@ -267,11 +309,7 @@
 
         const supabase = await getSupabaseClient();
         if (!supabase) return;
-        const { data, error } = await supabase
-            .from('social_posts')
-            .select('id, tema, legenda, data_agendada, formato, hora_agendada, plataforma')
-            .eq('calendar_id', calendar.id)
-            .order('data_agendada', { ascending: true });
+        const { posts, sortColumn, error } = await fetchOrderedPosts(supabase, calendar.id);
         if (postsLoading) postsLoading.classList.add('hidden');
         if (error) {
             console.error('[PORTAL] erro ao carregar posts do calendario', error);
@@ -281,12 +319,14 @@
             }
             return;
         }
-        const posts = Array.isArray(data) ? data : [];
         if (!posts.length) {
             if (postsEmpty) postsEmpty.classList.remove('hidden');
             return;
         }
-        posts.forEach((post) => {
+        if (sortColumn) {
+            state.currentSortColumn = sortColumn;
+        }
+        posts.forEach((post, index) => {
             const row = document.createElement('div');
             row.className = 'border border-gray-200 rounded-xl p-4 flex flex-col gap-2';
             const dateLabel = post.data_agendada ? new Date(`${post.data_agendada}T00:00:00`).toLocaleDateString('pt-BR') : 'Sem data';
@@ -294,6 +334,7 @@
             const formatLabel = post.formato || 'Formato não informado';
             row.innerHTML = `
                 <div class="flex items-center justify-between text-xs text-gray-500">
+                    <span>Post #${index + 1}</span>
                     <span>${dateLabel}${timeLabel ? ` • ${timeLabel}` : ''}</span>
                     <span>${formatLabel}</span>
                 </div>
