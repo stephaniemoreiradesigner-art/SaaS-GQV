@@ -3070,9 +3070,30 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/social/approval-batch' && request.method === 'GET') {
         try {
-            const authContext = await getAuthContext(request, response);
-            if (!authContext) return;
-            const { tenantId } = authContext;
+            const clientContext = await attachClientContext(request, response);
+            if (!clientContext) return;
+            const clientIdRaw = String(parsedUrl.query.client_id || parsedUrl.query.clientId || '').trim();
+            let requestedClientId = null;
+            if (clientIdRaw) {
+                if (/^\d+$/.test(clientIdRaw)) {
+                    requestedClientId = Math.trunc(Number(clientIdRaw));
+                } else {
+                    console.warn('invalid_client_id_query', { clientIdRaw });
+                }
+            }
+            const contextTenantRaw = clientContext?.tenant?.id ?? clientContext?.membership?.tenant_id ?? null;
+            const contextTenantId = Number.isFinite(Number(contextTenantRaw)) ? Math.trunc(Number(contextTenantRaw)) : null;
+            if (!contextTenantId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'missing_tenant' }));
+                return;
+            }
+            if (requestedClientId !== null && requestedClientId !== contextTenantId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_client_id' }));
+                return;
+            }
+            const tenantId = contextTenantId;
 
             const month = String(parsedUrl.query.month || '').trim();
             if (!month || !/^\d{4}-\d{2}$/.test(month)) {
@@ -3299,9 +3320,30 @@ const server = http.createServer(async (request, response) => {
 
     if (pathname === '/api/client/social/pending-posts' && request.method === 'GET') {
         try {
-            const authContext = await getAuthContext(request, response);
-            if (!authContext) return;
-            const { tenantId } = authContext;
+            const clientContext = await attachClientContext(request, response);
+            if (!clientContext) return;
+            const clientIdRaw = String(parsedUrl.query.client_id || parsedUrl.query.clientId || '').trim();
+            let requestedClientId = null;
+            if (clientIdRaw) {
+                if (/^\d+$/.test(clientIdRaw)) {
+                    requestedClientId = Math.trunc(Number(clientIdRaw));
+                } else {
+                    console.warn('invalid_client_id_query', { clientIdRaw });
+                }
+            }
+            const contextTenantRaw = clientContext?.tenant?.id ?? clientContext?.membership?.tenant_id ?? null;
+            const contextTenantId = Number.isFinite(Number(contextTenantRaw)) ? Math.trunc(Number(contextTenantRaw)) : null;
+            if (!contextTenantId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'missing_tenant' }));
+                return;
+            }
+            if (requestedClientId !== null && requestedClientId !== contextTenantId) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'invalid_client_id' }));
+                return;
+            }
+            const tenantId = contextTenantId;
 
             const from = String(parsedUrl.query.from || '').trim();
             const to = String(parsedUrl.query.to || '').trim();
