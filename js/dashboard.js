@@ -61,6 +61,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v); 
     } 
 
+    const toBigIntSafe = (v) => { 
+      if (v === null || v === undefined) return null; 
+      const n = Number(v); 
+      return Number.isFinite(n) ? Math.trunc(n) : null; 
+    }; 
+
     async function getCurrentTenantId(user) { 
       if (!user) return null; 
       const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id; 
@@ -118,14 +124,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
+        const tenantIdBigint = toBigIntSafe(window.currentUserData?.tenant_id || window.currentTenantId || localStorage.getItem('tenant_id')); 
         const payload = { 
           titulo, 
           concluido: false, 
           user_id: userId, 
           tenant_id_uuid: tenantUuid 
         }; 
-        delete payload.tenant_id; 
-        console.log('[Lembretes] payload', payload); 
+        if (tenantIdBigint !== null) payload.tenant_id = tenantIdBigint; 
+        console.log('[LEMBRETES] payload antes do save:', JSON.stringify(payload, null, 2)); 
 
         const { error } = await window.supabaseClient 
           .from('lembretes') 
@@ -177,9 +184,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         } 
         if (!userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
+        const payload = { concluido: !!checked }; 
+        console.log('[LEMBRETES] payload antes do save:', JSON.stringify(payload, null, 2)); 
+
         const { error } = await window.supabaseClient 
           .from('lembretes') 
-          .update({ concluido: !!checked }) 
+          .update(payload) 
           .eq('id', id) 
           .eq('tenant_id_uuid', tenantUuid) 
           .eq('user_id', userId); 
