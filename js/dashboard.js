@@ -106,10 +106,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           user_id: userId, 
           tenant_id_uuid: tenantUuid 
         }; 
+        delete payload.tenant_id; 
+        console.log('[Lembretes] payload', payload); 
 
         const { error } = await window.supabaseClient 
           .from('lembretes') 
-          .insert(payload); 
+          .insert([payload]); 
 
         if (error) throw error; 
 
