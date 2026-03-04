@@ -17,6 +17,79 @@ var socialPostsCache = [];
 var lastSeasonalDates = [];
 var currentPostProps = null;
 let socialMediaPermission = null;
+const SOCIAL_MEDIA_STATE_KEY = 'social_media_state_v1';
+const socialMediaStateDefaults = { clientId: null, period: '30d', platform: 'instagram' };
+const storedSocialMediaState = (() => {
+    try {
+        const raw = localStorage.getItem(SOCIAL_MEDIA_STATE_KEY);
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+})();
+window.socialMediaState = window.socialMediaState || {
+    ...socialMediaStateDefaults,
+    ...storedSocialMediaState
+};
+
+function persistSocialMediaState() {
+    try {
+        localStorage.setItem(SOCIAL_MEDIA_STATE_KEY, JSON.stringify(window.socialMediaState || socialMediaStateDefaults));
+    } catch {}
+}
+
+function normalizeSocialPeriod(value) {
+    const raw = String(value || '').trim().toLowerCase();
+    if (['7d', 'last7', 'last_7', 'last_7d', 'last_7_days', '7'].includes(raw)) return '7d';
+    if (['30d', 'last30', 'last_30', 'last_30d', 'last_30_days', '30'].includes(raw)) return '30d';
+    if (['90d', 'last90', 'last_90', 'last_90d', 'last_90_days', '90'].includes(raw)) return '90d';
+    return '30d';
+}
+
+window.getActiveClientId = function() {
+    return window.socialMediaState?.clientId || currentClienteId || '';
+};
+
+window.setActiveClientId = function(id) {
+    const value = String(id || '').trim();
+    const normalized = value || null;
+    window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+    window.socialMediaState.clientId = normalized;
+    currentClienteId = normalized;
+    persistSocialMediaState();
+    const select = getSocialClientSelect();
+    if (select && normalized) select.value = String(normalized);
+    const insightsSelect = document.getElementById('insights-cliente');
+    if (insightsSelect && normalized) insightsSelect.value = String(normalized);
+    setClientRequiredMessage(!normalized);
+    if (typeof window.refreshOperationalHub === 'function') {
+        window.refreshOperationalHub();
+    }
+};
+
+window.getActivePeriod = function() {
+    return normalizeSocialPeriod(window.socialMediaState?.period);
+};
+
+window.setActivePeriod = function(period) {
+    const normalized = normalizeSocialPeriod(period);
+    window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+    window.socialMediaState.period = normalized;
+    persistSocialMediaState();
+    if (typeof window.refreshOperationalHub === 'function') {
+        window.refreshOperationalHub();
+    }
+};
+
+window.setActivePlatform = function(platform) {
+    const value = String(platform || '').trim().toLowerCase() || 'instagram';
+    window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+    window.socialMediaState.platform = value;
+    persistSocialMediaState();
+    if (typeof window.refreshOperationalHub === 'function') {
+        window.refreshOperationalHub();
+    }
+};
 
 // === Dashboard navigation shim (v1.1) ===
 function getSocialDashboardViews() {
@@ -49,21 +122,57 @@ if (typeof window.openSocialMediaTab !== 'function') {
                 el.style.display = 'none';
             });
 
-            const key =
-                (t === 'calendario' || t === 'calendar') ? 'calendar' :
-                (t === 'insights') ? 'insights' :
-                (t === 'diario' || t === 'diary') ? 'diary' :
-                (t === 'solicitacoes' || t === 'creative' || t === 'creative_requests') ? 'creative' :
-                'dashboard';
+            const key = normalizeSocialTabName(t);
 
-            const target = views[key] || views.dashboard;
+            const targetKey =
+                key === 'approvals' ? 'calendar' :
+                key === 'creatives' ? 'creative' :
+                key === 'diary' ? 'diary' :
+                key;
+            const target = views[targetKey] || views.dashboard;
             if (target) {
                 target.classList.remove('hidden');
                 target.style.display = '';
             }
 
-            if (key === 'calendar') {
+            if (key === 'calendar' || key === 'approvals') {
+                const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+                if (!activeClientId) {
+                    setClientRequiredMessage(true);
+                    if (typeof window.showSocialMediaHome === 'function') {
+                        window.showSocialMediaHome();
+                    }
+                    return;
+                }
+                loadClientContext(activeClientId);
                 setTimeout(forceCalendarRerender, 50);
+            }
+            if (key === 'approvals' && typeof window.sendWeekForApproval === 'function') {
+                setTimeout(() => {
+                    window.sendWeekForApproval();
+                }, 50);
+            }
+            if (key === 'insights') {
+                if (typeof window.__debugLoadClientes === 'function') {
+                    window.__debugLoadClientes();
+                }
+                const select = document.getElementById('insights-cliente');
+                if (select && select.value && typeof updateInsightsPlatforms === 'function') {
+                    updateInsightsPlatforms(select.value);
+                }
+            }
+            if (key === 'diary') {
+                if (typeof window.loadWorklogs === 'function') {
+                    window.loadWorklogs();
+                }
+            }
+            if (key === 'creatives') {
+                if (typeof window.initCreativeRequestsView === 'function') {
+                    window.initCreativeRequestsView();
+                }
+                if (typeof window.loadCreativeRequests === 'function') {
+                    window.loadCreativeRequests();
+                }
             }
 
             const url = new URL(window.location.href);
@@ -840,9 +949,9 @@ let socialMediaSupabaseReady = false;
 const tryLoadSocialMediaClients = () => {
     if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
     loadClientes();
-    const queryClientId = getClientIdFromQuery();
-    if (!queryClientId) return;
-    loadClientContext(queryClientId);
+    const activeClientId = window.getActiveClientId ? window.getActiveClientId() : '';
+    if (!activeClientId) return;
+    loadClientContext(activeClientId);
 };
 
 window.addEventListener('supabaseReady', () => {
@@ -853,9 +962,11 @@ window.addEventListener('supabaseReady', () => {
 document.addEventListener('DOMContentLoaded', async () => {
     socialMediaDomReady = true;
     const queryClientId = getClientIdFromQuery();
+    const storedClientId = window.getActiveClientId ? window.getActiveClientId() : '';
     if (queryClientId) {
-        currentClienteId = String(queryClientId);
-        setClientRequiredMessage(false);
+        window.setActiveClientId(queryClientId);
+    } else if (storedClientId) {
+        window.setActiveClientId(storedClientId);
     } else {
         setClientRequiredMessage(true);
     }
@@ -965,6 +1076,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (initialTab === 'dashboard') {
         if (typeof window.showSocialMediaHome === 'function') {
             window.showSocialMediaHome();
+        }
+        if (typeof window.refreshOperationalHub === 'function') {
+            window.refreshOperationalHub();
         }
     } else if (typeof window.openSocialMediaTab === 'function') {
         window.openSocialMediaTab(initialTab);
@@ -1891,17 +2005,18 @@ function normalizeMonthValue(value) {
 function resolveSelectedClientId(value) {
     const direct = String(value || '').trim();
     if (direct) return direct;
-    if (currentClienteId) return String(currentClienteId);
+    const active = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+    if (active) return String(active);
     return '';
 }
 
 function normalizeSocialTabName(value) {
     const raw = String(value || '').toLowerCase();
     if (raw === 'calendar' || raw === 'calendario') return 'calendar';
-    if (raw === 'approvals' || raw === 'aprovals' || raw === 'aprovacoes' || raw === 'aprovações') return 'calendar';
+    if (raw === 'approvals' || raw === 'aprovals' || raw === 'aprovacoes' || raw === 'aprovações') return 'approvals';
     if (raw === 'insights') return 'insights';
-    if (raw === 'diary' || raw === 'diario' || raw === 'diário' || raw === 'logs') return 'logs';
-    if (raw === 'creatives' || raw === 'criativos' || raw === 'creative' || raw === 'creative_requests' || raw === 'creative-requests') return 'creative-requests';
+    if (raw === 'diary' || raw === 'diario' || raw === 'diário' || raw === 'logs') return 'diary';
+    if (raw === 'creatives' || raw === 'criativos' || raw === 'creative' || raw === 'creative_requests' || raw === 'creative-requests') return 'creatives';
     return 'dashboard';
 }
 
@@ -1911,13 +2026,11 @@ function bindSocialClientSelect() {
     select.addEventListener('change', () => {
         const value = select.value;
         if (value) {
-            currentClienteId = String(value);
-            setClientRequiredMessage(false);
+            window.setActiveClientId(value);
             loadClientContext(value);
             updateGenerateButtonState();
         } else {
-            currentClienteId = null;
-            setClientRequiredMessage(true);
+            window.setActiveClientId(null);
             updateGenerateButtonState();
         }
     });
@@ -1927,7 +2040,7 @@ function handleSocialHomeAction(action) {
     const target = String(action || '').trim();
     if (!target) return;
     if (target === 'calendar-generate') {
-        if (!currentClienteId) {
+        if (!window.getActiveClientId || !window.getActiveClientId()) {
             setClientRequiredMessage(true);
             return;
         }
@@ -1941,7 +2054,7 @@ function handleSocialHomeAction(action) {
     }
     if (target === 'posts-approve') {
         if (typeof window.openSocialMediaTab === 'function') {
-            window.openSocialMediaTab('calendar');
+            window.openSocialMediaTab('approvals');
         }
         if (typeof window.sendWeekForApproval === 'function') {
             setTimeout(() => {
@@ -1958,13 +2071,13 @@ function handleSocialHomeAction(action) {
     }
     if (target === 'diary') {
         if (typeof window.openSocialMediaTab === 'function') {
-            window.openSocialMediaTab('logs');
+            window.openSocialMediaTab('diary');
         }
         return;
     }
     if (target === 'creatives') {
         if (typeof window.openSocialMediaTab === 'function') {
-            window.openSocialMediaTab('creative-requests');
+            window.openSocialMediaTab('creatives');
         }
     }
 }
@@ -2282,8 +2395,10 @@ async function improveCopyWithAI() {
 }
 
 async function loadClientes() {
-    const select = getSocialClientSelect();
-    if (!select) {
+    const mainSelect = getSocialClientSelect();
+    const insightsSelect = document.getElementById('insights-cliente');
+    const selects = [mainSelect, insightsSelect].filter(Boolean);
+    if (!selects.length) {
         console.warn('[SocialMedia] select de cliente não encontrado no DOM.');
         return;
     }
@@ -2299,9 +2414,11 @@ async function loadClientes() {
         console.log('[SocialMedia] Iniciando carregamento de clientes...');
 
         // indicador visual
-        if (select.options.length > 0 && select.options[0]) {
-            select.options[0].text = 'Carregando...';
-        }
+        selects.forEach((select) => {
+            if (select.options.length > 0 && select.options[0]) {
+                select.options[0].text = 'Carregando...';
+            }
+        });
 
         // Busca nome_fantasia e nome_empresa (fallback), pois ambientes podem ter schema diferente
         const { data, error } = await window.supabaseClient
@@ -2320,7 +2437,9 @@ async function loadClientes() {
         console.log(`[SocialMedia] Clientes carregados: ${uniqueRows.length}`);
 
         // reset options
-        select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+        selects.forEach((select) => {
+            select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+        });
 
         clientDataMap = clientDataMap || {};
         uniqueRows.forEach(c => {
@@ -2334,22 +2453,32 @@ async function loadClientes() {
             const opt = document.createElement('option');
             opt.value = c.id;
             opt.textContent = label;
-            select.appendChild(opt);
+            selects.forEach((select) => {
+                const clone = opt.cloneNode(true);
+                select.appendChild(clone);
+            });
         });
 
         if (uniqueRows.length === 0) {
-            const opt = document.createElement('option');
-            opt.disabled = true;
-            opt.textContent = 'Nenhum cliente encontrado';
-            select.appendChild(opt);
+            selects.forEach((select) => {
+                const opt = document.createElement('option');
+                opt.disabled = true;
+                opt.textContent = 'Nenhum cliente encontrado';
+                select.appendChild(opt);
+            });
         }
-        if (currentClienteId) {
-            select.value = String(currentClienteId);
+        const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+        if (activeClientId) {
+            selects.forEach((select) => {
+                select.value = String(activeClientId);
+            });
         }
 
     } catch (err) {
         console.error('[SocialMedia] Erro crítico ao carregar clientes:', err);
-        select.innerHTML = '<option value="">Erro ao carregar</option>';
+        selects.forEach((select) => {
+            select.innerHTML = '<option value="">Erro ao carregar</option>';
+        });
     }
 }
 
@@ -2370,7 +2499,7 @@ async function loadClientContext(clientId) {
         checkSelection();
         updateCalendarConnections(currentClienteId);
     } catch (err) {
-        console.error('[SocialMedia] Erro ao carregar cliente:', err);
+        console.error('[SocialMedia] loadClientContext failed', err);
     }
 }
 

@@ -235,6 +235,10 @@ window.setOperationalPeriod = function(period) {
         const selectedPeriod = normalized;
         localStorage.setItem(HUB_PERIOD_STORAGE_KEY, selectedPeriod);
     } catch {}
+    if (typeof window.setActivePeriod === 'function') {
+        const mapped = normalized === 'last_90d' ? '90d' : normalized === 'last_7d' ? '7d' : '30d';
+        window.setActivePeriod(mapped);
+    }
     loadOperationalDashboard();
 };
 
@@ -242,125 +246,19 @@ async function loadOperationalDashboard() {
     const statusEl = document.getElementById('operational-status');
     const kpisEl = document.getElementById('operational-kpis');
     if (!statusEl || !kpisEl) return;
-
-    statusEl.textContent = 'Carregando visão operacional...';
+    if (typeof window.refreshOperationalHub === 'function') {
+        await window.refreshOperationalHub();
+        return;
+    }
+    statusEl.textContent = 'Selecione um cliente para ver o hub operacional.';
     kpisEl.innerHTML = '';
-
-    const tenantId = getOperationalTenantId();
-    const params = new URLSearchParams();
-    params.set('scope', operationalHubState.scope);
-    params.set('period', operationalHubState.period);
-    if (tenantId && operationalHubState.scope === 'cliente') {
-        params.set('tenant_id', tenantId);
-    }
-
-    try {
-        const auth = await getDashboardAuthHeaders();
-        if (!auth.token) {
-            statusEl.textContent = 'Sessão não encontrada. Faça login novamente.';
-            return;
-        }
-        const res = await fetch(`${window.API_BASE_URL}/api/social/dashboard?${params.toString()}`, {
-            method: 'GET',
-            headers: auth.headers
-        });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-            const message = data?.error || 'Erro ao carregar o hub operacional';
-            statusEl.textContent = message;
-            return;
-        }
-
-        const formatNumber = (value) => new Intl.NumberFormat('pt-BR').format(Number(value || 0));
-        const formatRate = (value) => {
-            const num = Number(value || 0);
-            if (!Number.isFinite(num)) return '0%';
-            return `${num}%`;
-        };
-        const scopeLabel = operationalHubState.scope === 'agencia' ? 'Agência' : 'Cliente';
-        statusEl.textContent = `Escopo: ${scopeLabel} • Período: ${formatPeriodLabel(operationalHubState.period)}`;
-
-        const production = data?.kpis?.production || {};
-        const approval = data?.kpis?.approval || {};
-        const execution = data?.kpis?.execution || {};
-        const post = data?.kpis?.post || {};
-
-        kpisEl.innerHTML = `
-            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-xs font-bold text-gray-500 uppercase">Produção</h3>
-                    <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Equipe</span>
-                </div>
-                <div class="space-y-2 text-sm text-gray-700">
-                    <div class="flex items-center justify-between"><span>Rascunhos</span><span class="font-semibold">${formatNumber(production.draft_posts)}</span></div>
-                    <div class="flex items-center justify-between"><span>Em criação</span><span class="font-semibold">${formatNumber(production.designing)}</span></div>
-                    <div class="flex items-center justify-between"><span>Sem criativo</span><span class="font-semibold">${formatNumber(production.no_creative)}</span></div>
-                </div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-xs font-bold text-gray-500 uppercase">Aprovação</h3>
-                    <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Cliente</span>
-                </div>
-                <div class="space-y-2 text-sm text-gray-700">
-                    <div class="flex items-center justify-between"><span>Aguardando</span><span class="font-semibold">${formatNumber(approval.awaiting)}</span></div>
-                    <div class="flex items-center justify-between"><span>Reprovados</span><span class="font-semibold">${formatNumber(approval.rejected)}</span></div>
-                    <div class="flex items-center justify-between"><span>Travados +3d</span><span class="font-semibold">${formatNumber(approval.stuck_approval)}</span></div>
-                    <button type="button" onclick="openCreativeRequestsPending()" class="flex items-center justify-between w-full text-left hover:text-[var(--color-primary)] transition-colors">
-                        <span>Criativos pendentes</span>
-                        <span class="font-semibold">${formatNumber(approval.creative_requests_pending)}</span>
-                    </button>
-                </div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-xs font-bold text-gray-500 uppercase">Execução</h3>
-                    <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Publicação</span>
-                </div>
-                <div class="space-y-2 text-sm text-gray-700">
-                    <div class="flex items-center justify-between"><span>Agendados</span><span class="font-semibold">${formatNumber(execution.scheduled)}</span></div>
-                    <div class="flex items-center justify-between"><span>Publicados</span><span class="font-semibold">${formatNumber(execution.published)}</span></div>
-                    <div class="flex items-center justify-between"><span>Publicado hoje</span><span class="font-semibold">${formatNumber(execution.publishing_today)}</span></div>
-                </div>
-            </div>
-            <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-xs font-bold text-gray-500 uppercase">Pós</h3>
-                    <span class="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Impacto</span>
-                </div>
-                <div class="space-y-2 text-sm text-gray-700">
-                    <div class="flex items-center justify-between"><span>Alcance</span><span class="font-semibold">${formatNumber(post.reach)}</span></div>
-                    <div class="flex items-center justify-between"><span>Taxa engajamento</span><span class="font-semibold">${formatRate(post.engagement_rate)}</span></div>
-                </div>
-            </div>
-        `;
-    } catch (error) {
-        statusEl.textContent = error.message || 'Erro ao carregar o hub operacional';
-    }
 }
 
 // Insights Logic
 async function loadInsightsClients() {
-    const select = document.getElementById('insights-cliente');
-    if (!select || select.options.length > 1) return; // Already loaded
-
-    try {
-        const { data: clients, error } = await window.supabaseClient
-            .from('clientes')
-            .select('id, nome_fantasia, nome_empresa')
-            .eq('is_demo', false)
-            .order('nome_fantasia');
-
-        if (error) throw error;
-
-        clients.forEach(client => {
-            const option = document.createElement('option');
-            option.value = client.id;
-            option.textContent = client.nome_fantasia || client.nome_empresa;
-            select.appendChild(option);
-        });
-    } catch (error) {
-        console.error('Error loading clients for insights:', error);
+    if (typeof window.__debugLoadClientes === 'function') {
+        await window.__debugLoadClientes();
+        return;
     }
 }
 
@@ -435,10 +333,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const select = document.getElementById('insights-cliente');
     if (!select) return;
     select.addEventListener('change', (event) => {
-        updateInsightsPlatforms(event.target.value);
+        const value = event.target.value;
+        if (typeof window.setActiveClientId === 'function') {
+            window.setActiveClientId(value);
+        }
+        if (typeof updateInsightsPlatforms === 'function') {
+            updateInsightsPlatforms(value);
+        }
+        if (typeof window.refreshOperationalHub === 'function') {
+            window.refreshOperationalHub();
+        }
     });
-    if (select.value) {
+    const activeId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+    if (activeId) {
+        select.value = activeId;
+    }
+    if (select.value && typeof updateInsightsPlatforms === 'function') {
         updateInsightsPlatforms(select.value);
+    }
+    const platformSelect = document.getElementById('insights-platform');
+    if (platformSelect) {
+        if (window.socialMediaState?.platform) {
+            platformSelect.value = window.socialMediaState.platform;
+        }
+        platformSelect.addEventListener('change', (event) => {
+            if (typeof window.setActivePlatform === 'function') {
+                window.setActivePlatform(event.target.value);
+            } else if (window.socialMediaState) {
+                window.socialMediaState.platform = event.target.value;
+            }
+            if (typeof window.refreshOperationalHub === 'function') {
+                window.refreshOperationalHub();
+            }
+        });
+    }
+    const periodSelect = document.getElementById('insights-periodo');
+    if (periodSelect) {
+        const activePeriod = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
+        periodSelect.value = activePeriod === '7d' ? 'last_7_days' : activePeriod === '90d' ? 'last_90_days' : 'last_30_days';
+        periodSelect.addEventListener('change', (event) => {
+            const raw = event.target.value;
+            const normalized = raw === 'last_7_days' ? '7d' : raw === 'last_90_days' ? '90d' : '30d';
+            if (typeof window.setActivePeriod === 'function') {
+                window.setActivePeriod(normalized);
+            }
+            if (typeof window.refreshOperationalHub === 'function') {
+                window.refreshOperationalHub();
+            }
+        });
     }
 });
 
@@ -448,13 +390,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof HUB_PERIOD_STORAGE_KEY === 'undefined') {
         console.error('HUB_PERIOD_STORAGE_KEY não definido');
     }
-    const savedPeriod = localStorage.getItem(HUB_PERIOD_STORAGE_KEY) || '30d';
-    let normalized = 'last_7d';
-    if (savedPeriod === 'last7' || savedPeriod === 'last_7' || savedPeriod === 'last_7d' || savedPeriod === '7d') normalized = 'last_7d';
-    else if (savedPeriod === 'last30' || savedPeriod === 'last_30' || savedPeriod === 'last_30d' || savedPeriod === '30d') normalized = 'last_30d';
-    else if (savedPeriod === 'last90' || savedPeriod === 'last_90' || savedPeriod === 'last_90d' || savedPeriod === '90d') normalized = 'last_90d';
-    else if (savedPeriod === 'month') normalized = 'month';
-    operationalHubState.period = normalized;
+    const activePeriod = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
+    operationalHubState.period = activePeriod === '90d' ? 'last_90d' : activePeriod === '7d' ? 'last_7d' : 'last_30d';
     const periodSelect = document.getElementById('hub-period-select');
     if (periodSelect) {
         if (operationalHubState.period === 'last_30d') periodSelect.value = '30d';
@@ -1795,6 +1732,103 @@ window.saveCreativeRequestResponse = async function() {
 window.updateCreativeRequestStatus = async function(status) {
     if (!status) return;
     await submitCreativeRequestUpdate({ status });
+};
+
+function mapPeriodToInsightsOption(period) {
+    if (period === '7d') return 'last_7_days';
+    if (period === '90d') return 'last_90_days';
+    return 'last_30_days';
+}
+
+function formatActivePeriodLabel(period) {
+    if (period === '7d') return 'Últimos 7 dias';
+    if (period === '90d') return 'Últimos 90 dias';
+    return 'Últimos 30 dias';
+}
+
+function resolveInsightsPlatformData(platforms, platform) {
+    if (!platforms) return null;
+    if (platform && platforms[platform]) return platforms[platform];
+    const firstKey = Object.keys(platforms)[0];
+    return firstKey ? platforms[firstKey] : null;
+}
+
+window.refreshOperationalHub = async function() {
+    const statusEl = document.getElementById('operational-status');
+    const kpisEl = document.getElementById('operational-kpis');
+    if (!statusEl || !kpisEl) return;
+    const clientId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+    const period = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
+    const platform = window.socialMediaState?.platform || 'instagram';
+    if (!clientId) {
+        statusEl.textContent = 'Selecione um cliente para ver o hub operacional.';
+        kpisEl.innerHTML = '';
+        return;
+    }
+    statusEl.textContent = 'Carregando visão operacional...';
+    kpisEl.innerHTML = '';
+    if (typeof window.__debugLoadClientes === 'function') {
+        await window.__debugLoadClientes();
+    }
+    const clientSelect = document.getElementById('insights-cliente');
+    if (clientSelect) clientSelect.value = String(clientId);
+    const platformSelect = document.getElementById('insights-platform');
+    if (platformSelect) platformSelect.value = platform;
+    const periodSelect = document.getElementById('insights-periodo');
+    if (periodSelect) periodSelect.value = mapPeriodToInsightsOption(period);
+    if (typeof window.loadInsights === 'function') {
+        await window.loadInsights();
+    } else {
+        statusEl.textContent = 'Insights indisponível.';
+        return;
+    }
+    const platforms = window.currentReportData?.platforms || null;
+    const data = resolveInsightsPlatformData(platforms, platform);
+    if (!data) {
+        statusEl.textContent = 'Sem dados de insights para o período.';
+        return;
+    }
+    const platformLabel = platform === 'facebook' ? 'Facebook' : platform === 'instagram' ? 'Instagram' : 'Geral';
+    statusEl.textContent = `${platformLabel} • ${formatActivePeriodLabel(period)}`;
+    const followers = data.followers || '0';
+    const newFollowers = data.newFollowers || '0';
+    const reach = data.reach || '0';
+    const engagement = data.engagement || '0%';
+    const postsCount = String(data.postsCount || '0');
+    kpisEl.innerHTML = `
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-gray-500 uppercase">Seguidores</h3>
+                <span class="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">${platformLabel}</span>
+            </div>
+            <div class="text-2xl font-semibold text-gray-900">${followers}</div>
+            <div class="text-xs text-gray-500 mt-1">Novos: ${newFollowers}</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-gray-500 uppercase">Alcance</h3>
+                <span class="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">Período</span>
+            </div>
+            <div class="text-2xl font-semibold text-gray-900">${reach}</div>
+            <div class="text-xs text-gray-500 mt-1">Posts: ${postsCount}</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-gray-500 uppercase">Engajamento</h3>
+                <span class="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">Taxa</span>
+            </div>
+            <div class="text-2xl font-semibold text-gray-900">${engagement}</div>
+            <div class="text-xs text-gray-500 mt-1">Interações agregadas</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-gray-500 uppercase">Impressões</h3>
+                <span class="text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">Visibilidade</span>
+            </div>
+            <div class="text-2xl font-semibold text-gray-900">${data.impressions || '0'}</div>
+            <div class="text-xs text-gray-500 mt-1">Cliques: ${data.profileViews || '0'}</div>
+        </div>
+    `;
 };
 
 })();

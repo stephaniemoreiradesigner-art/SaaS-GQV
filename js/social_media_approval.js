@@ -2,6 +2,11 @@
 const POST_STATUS = window.POST_STATUS;
 const POST_STATUS_LABEL = window.POST_STATUS_LABEL || {};
 
+function getApprovalClientId() {
+    if (typeof window.getActiveClientId === 'function') return window.getActiveClientId();
+    return window.socialMediaState?.clientId || '';
+}
+
 async function loadApprovalClients() {
     const select = document.getElementById('approval-client-select');
     if (!select || select.options.length > 1) return;
@@ -87,7 +92,8 @@ function showApprovalFeedback(message, type = 'success') {
 }
 
 async function sendMonthlyApproval() {
-    if (!currentClienteId || !currentMonth) {
+    const activeClientId = getApprovalClientId();
+    if (!activeClientId || !currentMonth) {
         alert('Selecione um cliente e um mês primeiro.');
         return;
     }
@@ -137,7 +143,8 @@ window.sendForApproval = async function() {
         await window.sendCalendarForApproval(calendarId);
         return;
     }
-    if (!currentClienteId || !currentMonth) {
+    const activeClientId = getApprovalClientId();
+    if (!activeClientId || !currentMonth) {
         alert('Selecione um cliente e um mês primeiro.');
         return;
     }
@@ -145,12 +152,13 @@ window.sendForApproval = async function() {
 }
 
 window.sendWeekForApproval = function() {
-    if (!currentClienteId) {
+    const activeClientId = getApprovalClientId();
+    if (!activeClientId) {
         alert('Selecione um cliente primeiro.');
         return;
     }
     const select = document.getElementById('approval-client-select');
-    if (select) select.value = currentClienteId;
+    if (select) select.value = activeClientId;
     const range = getWeekRangeFromCalendar();
     if (range) {
         const startInput = document.getElementById('approval-date-start');
@@ -164,11 +172,13 @@ window.sendWeekForApproval = function() {
 async function handleApprovalDateSelection() {
     const select = document.getElementById('approval-client-select');
     if (select && select.value) {
-        if (currentClienteId !== select.value) {
-            currentClienteId = select.value;
+        if (getApprovalClientId() !== select.value) {
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(select.value);
+            }
             // Atualiza select principal da tela
             const mainSelect = document.getElementById('select-cliente');
-            if (mainSelect) mainSelect.value = currentClienteId;
+            if (mainSelect) mainSelect.value = select.value;
             
             // Se possível, atualiza o calendário de fundo
             if (typeof loadCalendarData === 'function') {
@@ -180,7 +190,7 @@ async function handleApprovalDateSelection() {
                  loadCalendarData();
             }
         }
-    } else if (!currentClienteId) {
+    } else if (!getApprovalClientId()) {
         return alert('Selecione um cliente.');
     }
 
@@ -191,10 +201,11 @@ async function handleApprovalDateSelection() {
     if (startDate > endDate) return alert('A data inicial não pode ser maior que a final.');
 
     try {
+        const activeClientId = getApprovalClientId();
         const { data: posts, error } = await window.supabaseClient
             .from('social_posts')
             .select('*')
-            .eq('cliente_id', currentClienteId)
+            .eq('cliente_id', activeClientId)
             .gte('data_agendada', startDate)
             .lte('data_agendada', endDate)
             .order('data_agendada', { ascending: true });
@@ -343,7 +354,8 @@ window.sendOnlyCompleteWeek = async function() {
 }
 
 async function sendWeeklyApproval() {
-    if (!currentClienteId || !approvalRangeFrom || !approvalRangeTo) {
+    const activeClientId = getApprovalClientId();
+    if (!activeClientId || !approvalRangeFrom || !approvalRangeTo) {
         alert('Selecione um cliente e um período primeiro.');
         return;
     }
