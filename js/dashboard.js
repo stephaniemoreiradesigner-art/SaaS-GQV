@@ -57,142 +57,160 @@ document.addEventListener('DOMContentLoaded', async () => {
         return session?.user || null;
     }
 
-    async function getCurrentTenantId(user) {
-        if (!user) return null;
-        const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id;
-        if (metaTenant) return String(metaTenant);
+    async function getCurrentTenantId(user) { 
+      if (!user) return null; 
+      const metaTenant = user.user_metadata?.tenant_id ?? user.app_metadata?.tenant_id; 
+      if (metaTenant) return String(metaTenant); 
 
-        const { data: profile } = await window.supabaseClient
-            .from('profiles')
-            .select('tenant_id')
-            .eq('id', user.id)
-            .maybeSingle();
+      const { data: profile } = await window.supabaseClient 
+        .from('profiles') 
+        .select('tenant_id') 
+        .eq('id', user.id) 
+        .maybeSingle(); 
 
-        return profile?.tenant_id ? String(profile.tenant_id) : null;
-    }
+      return profile?.tenant_id ? String(profile.tenant_id) : null; 
+    } 
 
-    async function getChecklistContext() {
-        const user = await getCurrentSessionUser();
-        const tenantId = window.currentTenantId || window.currentUserData?.tenant_id || localStorage.getItem('tenant_id');
-        const usuarioId = window.currentUserData?.id || window.currentUserData?.user_id || user?.id;
-        const resolvedTenant = tenantId || (user ? await getCurrentTenantId(user) : null);
-        return { tenantId: resolvedTenant, usuarioId, user };
-    }
+    async function getChecklistContext() { 
+      const user = await getCurrentSessionUser(); 
 
-    window.addTodo = async function() {
-        const input = document.getElementById('new-todo');
-        const texto = input.value.trim();
-        if (!texto) return;
+      // Preferir tenant UUID se existir no estado global 
+      const tenantUuid = 
+        window.currentTenantId || 
+        window.currentUserData?.tenant_id_uuid || 
+        window.currentUserData?.tenant_id || 
+        localStorage.getItem('tenant_id') || 
+        (user ? await getCurrentTenantId(user) : null); 
 
-        try {
-            const { tenantId, usuarioId } = await getChecklistContext();
-            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
-            const payload = {
-                tenant_id: tenantId,
-                usuario_id: usuarioId,
-                texto,
-                concluido: false
-            };
+      const userId = 
+        window.currentUserData?.id || 
+        window.currentUserData?.user_id || 
+        user?.id || 
+        null; 
 
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .insert(payload);
+      return { tenantUuid, userId }; 
+    } 
 
-            if (error) throw error;
-            input.value = '';
-            loadLembretes(); // Recarrega a lista
-        } catch (e) {
-            console.error('[Lembretes] insert error', e);
-            alert('Falha ao salvar checklist');
-        }
-    };
+    window.addTodo = async function () { 
+      const input = document.getElementById('new-todo'); 
+      const titulo = input?.value?.trim(); 
+      if (!titulo) return; 
 
-    window.deleteTodo = async function(id) {
-        if(!confirm('Excluir este lembrete?')) return;
-        try {
-            const { tenantId, usuarioId } = await getChecklistContext();
-            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .delete()
-                .eq('id', id)
-                .eq('tenant_id', tenantId)
-                .eq('usuario_id', usuarioId);
+      try { 
+        const { tenantUuid, userId } = await getChecklistContext(); 
+        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
-            if (error) throw error;
-            loadLembretes();
-        } catch (e) {
-            console.error('Erro ao excluir:', e);
-        }
-    };
+        const payload = { 
+          titulo, 
+          concluido: false, 
+          user_id: userId, 
+          tenant_id_uuid: tenantUuid 
+        }; 
 
-    window.toggleTodo = async function(id, checked) {
-        try {
-            const { tenantId, usuarioId } = await getChecklistContext();
-            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
-            const payload = checked
-                ? { concluido: true, concluido_em: new Date().toISOString() }
-                : { concluido: false, concluido_em: null };
-            const { error } = await window.supabaseClient
-                .from('lembretes')
-                .update(payload)
-                .eq('id', id)
-                .eq('tenant_id', tenantId)
-                .eq('usuario_id', usuarioId);
+        const { error } = await window.supabaseClient 
+          .from('lembretes') 
+          .insert(payload); 
 
-            if (error) throw error;
-            loadLembretes();
-        } catch (e) {
-            console.error('Erro ao atualizar:', e);
-        }
-    };
+        if (error) throw error; 
 
-    // Helper interno para carregar lembretes manuais
-    async function loadLembretes() {
-        const list = document.getElementById('todo-list');
-        if (!list) return;
+        input.value = ''; 
+        await loadLembretes(); 
+      } catch (e) { 
+        console.error('[Lembretes] insert error', e); 
+        alert('Falha ao salvar checklist'); 
+      } 
+    }; 
 
-        try {
-            list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>';
-            const { tenantId, usuarioId } = await getChecklistContext();
-            if (!tenantId || !usuarioId) throw new Error('Checklist sem contexto de usuário/tenant');
+    window.deleteTodo = async function (id) { 
+      if (!confirm('Excluir este item do checklist?')) return; 
 
-            const { data: todos, error } = await window.supabaseClient
-                .from('lembretes')
-                .select('id, texto, concluido, created_at, concluido_em, tenant_id, usuario_id')
-                .eq('tenant_id', tenantId)
-                .eq('usuario_id', usuarioId)
-                .order('concluido', { ascending: true })
-                .order('created_at', { ascending: false });
+      try { 
+        const { tenantUuid, userId } = await getChecklistContext(); 
+        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
 
-            if (error) throw error;
+        const { error } = await window.supabaseClient 
+          .from('lembretes') 
+          .delete() 
+          .eq('id', id) 
+          .eq('tenant_id_uuid', tenantUuid) 
+          .eq('user_id', userId); 
 
-            list.innerHTML = '';
-            if (!todos || todos.length === 0) {
-                list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Nenhum checklist</li>';
-                return;
-            }
+        if (error) throw error; 
 
-            todos.forEach(todo => {
-                const li = document.createElement('li');
-                const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50';
-                li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`;
-                li.innerHTML = `
-                    <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
-                           ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)">
-                    <span class="flex-1 text-sm font-medium">${todo.texto}</span>
-                    <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
-                            onclick="deleteTodo('${todo.id}')" title="Excluir">
-                        <i class="fas fa-trash-alt text-xs"></i>
-                    </button>
-                `;
-                list.appendChild(li);
-            });
-        } catch (e) {
-            console.error('Erro ao carregar lembretes:', e);
-            list.innerHTML = '<li class="text-red-500 text-center py-2 text-sm">Erro ao carregar</li>';
-        }
-    }
+        await loadLembretes(); 
+      } catch (e) { 
+        console.error('[Lembretes] delete error', e); 
+        alert('Falha ao excluir checklist'); 
+      } 
+    }; 
+
+    window.toggleTodo = async function (id, checked) { 
+      try { 
+        const { tenantUuid, userId } = await getChecklistContext(); 
+        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+
+        const { error } = await window.supabaseClient 
+          .from('lembretes') 
+          .update({ concluido: !!checked }) 
+          .eq('id', id) 
+          .eq('tenant_id_uuid', tenantUuid) 
+          .eq('user_id', userId); 
+
+        if (error) throw error; 
+
+        await loadLembretes(); 
+      } catch (e) { 
+        console.error('[Lembretes] toggle error', e); 
+        alert('Falha ao atualizar checklist'); 
+      } 
+    }; 
+
+    async function loadLembretes() { 
+      const list = document.getElementById('todo-list'); 
+      if (!list) return; 
+
+      try { 
+        list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Carregando...</li>'; 
+
+        const { tenantUuid, userId } = await getChecklistContext(); 
+        if (!tenantUuid || !userId) throw new Error('Checklist sem contexto (tenant/user)'); 
+
+        const { data: todos, error } = await window.supabaseClient 
+          .from('lembretes') 
+          .select('id, titulo, concluido, created_at, user_id, tenant_id_uuid') 
+          .eq('tenant_id_uuid', tenantUuid) 
+          .eq('user_id', userId) 
+          .order('concluido', { ascending: true }) 
+          .order('created_at', { ascending: false }); 
+
+        if (error) throw error; 
+
+        list.innerHTML = ''; 
+        if (!todos || todos.length === 0) { 
+          list.innerHTML = '<li class="text-center text-gray-400 py-4 italic text-sm">Nenhum item no checklist</li>'; 
+          return; 
+        } 
+
+        todos.forEach(todo => { 
+          const li = document.createElement('li'); 
+          const completedClass = todo.concluido ? 'line-through text-gray-400 bg-gray-50' : 'text-gray-700 hover:bg-gray-50'; 
+          li.className = `flex items-center gap-3 p-3 border-b border-gray-100 last:border-0 transition-colors ${completedClass}`; 
+          li.innerHTML = ` 
+            <input type="checkbox" class="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary cursor-pointer" 
+                   ${todo.concluido ? 'checked' : ''} onchange="toggleTodo('${todo.id}', this.checked)"> 
+            <span class="flex-1 text-sm font-medium">${todo.titulo}</span> 
+            <button class="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors" 
+                    onclick="deleteTodo('${todo.id}')" title="Excluir"> 
+              <i class="fas fa-trash-alt text-xs"></i> 
+            </button> 
+          `; 
+          list.appendChild(li); 
+        }); 
+      } catch (e) { 
+        console.error('[Lembretes] load error', e); 
+        list.innerHTML = '<li class="text-red-500 text-center py-2 text-sm">Erro ao carregar</li>'; 
+      } 
+    } 
 
     // --- NOVA FUNÇÃO: Agenda do Dia (Sistema) ---
     async function loadSystemAgenda() {
