@@ -29,15 +29,7 @@
             <div class="max-w-6xl mx-auto space-y-8">
                 <div class="flex flex-col gap-4">
                     <h1 class="text-2xl font-bold text-gray-900">Aprovação de Calendário</h1>
-                    <div class="flex flex-col gap-3">
-                        <div class="flex flex-col gap-2 max-w-xs">
-                            <label for="calendar-month-input" class="text-sm font-medium text-gray-700">Selecione o mês</label>
-                            <input id="calendar-month-input" type="month" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300">
-                        </div>
-                        <button id="client-approval-batch-btn" type="button" class="hidden w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">
-                            Aprovar Post(s)
-                        </button>
-                    </div>
+                    <p class="text-sm text-gray-500">Revise os calendários aguardando aprovação.</p>
                 </div>
                 <div id="calendar-error-state" class="hidden">
                     <div class="max-w-2xl bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
@@ -46,6 +38,7 @@
                     </div>
                 </div>
 
+                <div id="calendar-loading" class="text-sm text-gray-500">Carregando calendários...</div>
                 <div id="calendar-empty-state" class="hidden">
                     <div class="max-w-md mx-auto bg-white border border-gray-200 rounded-xl p-8 text-center text-gray-600">
                         <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
@@ -53,23 +46,11 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         </div>
-                        <p class="text-base font-semibold text-gray-700">Não há calendário pronto para o período</p>
-                        <p class="text-sm text-gray-500 mt-2">Assim que o time liberar conteúdos para este mês, eles aparecerão aqui.</p>
+                        <p class="text-base font-semibold text-gray-700">Nada pendente de aprovação</p>
+                        <p class="text-sm text-gray-500 mt-2">Quando houver novos calendários, eles aparecerão aqui.</p>
                     </div>
                 </div>
-
-                <div id="calendar-container" class="space-y-4">
-                    <div class="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden text-xs text-gray-500">
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Dom</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Seg</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Ter</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Qua</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Qui</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Sex</div>
-                        <div class="bg-gray-50 px-3 py-2 text-center font-semibold">Sáb</div>
-                    </div>
-                    <div id="client-calendar-grid" class="grid grid-cols-7 gap-px bg-gray-200 rounded-xl overflow-hidden"></div>
-                </div>
+                <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
             </div>
         </main>
     </div>
@@ -89,40 +70,23 @@
                 </button>
             </div>
             <div class="px-6 py-4 space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Data</p>
-                        <p id="client-calendar-modal-date"></p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Plataforma</p>
-                        <p id="client-calendar-modal-platform"></p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Formato</p>
-                        <p id="client-calendar-modal-format"></p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Tema</p>
-                        <p id="client-calendar-modal-theme"></p>
-                    </div>
+                <div class="text-sm text-gray-600">
+                    <span class="text-xs uppercase tracking-wide text-gray-400">Período</span>
+                    <p id="client-calendar-modal-period" class="font-medium text-gray-800"></p>
                 </div>
                 <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Legenda</p>
-                    <p id="client-calendar-modal-caption" class="text-sm text-gray-700 whitespace-pre-wrap"></p>
+                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-2">Posts</p>
+                    <div id="client-calendar-posts-loading" class="text-sm text-gray-500">Carregando posts...</div>
+                    <div id="client-calendar-posts-empty" class="hidden text-sm text-gray-500">Nenhum post encontrado.</div>
+                    <div id="client-calendar-posts-list" class="space-y-3"></div>
                 </div>
                 <div>
-                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Motivo do ajuste</p>
-                    <textarea id="client-calendar-modal-reason" rows="3" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder="Escreva o motivo do ajuste"></textarea>
-                </div>
-                <div id="client-calendar-modal-media" class="hidden">
-                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-2">Mídia</p>
-                    <div id="client-calendar-modal-media-list" class="space-y-2"></div>
+                    <p class="text-xs uppercase tracking-wide text-gray-400 mb-1">Comentário</p>
+                    <textarea id="client-calendar-approval-comment" rows="3" class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder="Comentário opcional"></textarea>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-gray-100 flex flex-wrap justify-end gap-3">
-                <button id="client-calendar-modal-changes" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Solicitar Ajustes</button>
-                <button id="client-calendar-modal-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar Conteúdo</button>
+                <button id="client-calendar-modal-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar Calendário</button>
             </div>
         </div>
     </div>
