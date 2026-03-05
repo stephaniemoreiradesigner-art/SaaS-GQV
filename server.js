@@ -1,9 +1,18 @@
+require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
 const axios = require('axios');
+const express = require('express');
+const v2Router = require('./src/v2/routes/index.js');
+
+// Configuração do App Express v2
+const app = express();
+app.use(express.json()); // Parse JSON bodies
+app.use('/api/v2', v2Router); // Mount v2 router
+
 
 const PORT = process.env.PORT || 3000;
 const CALENDAR_STATUS_VALUES = {
@@ -1524,6 +1533,17 @@ const server = http.createServer(async (request, response) => {
 
     const parsedUrl = url.parse(request.url, true);
     const pathname = parsedUrl.pathname;
+
+    // --- API V2 (Express) ---
+    if (pathname && pathname.startsWith('/api/v2')) {
+        // Log para debug
+        console.log(`[API v2] ${request.method} ${pathname}`);
+        
+        // Delegar para Express
+        // O Express cuidará do parsing de body, rotas e resposta final
+        app(request, response);
+        return;
+    }
 
     if (request.method === 'HEAD') {
         if (pathname === '/api/health' || pathname === '/api/oauth/meta/callback' || pathname === '/api/oauth/google/callback') {
