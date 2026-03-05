@@ -25,19 +25,23 @@ const tenantContext = async (req, res, next) => {
     // 3. Se não, usa o primeiro tenant encontrado em memberships
 
     if (requestedTenantId) {
-      const membership = memberships.find(m => String(m.tenant_id) === String(requestedTenantId));
+      // Hardening: Apenas admin da plataforma pode forçar tenant via header
+      const isPlatformAdmin = profile?.role === 'super_admin'; 
       
-      if (membership) {
-        activeTenantId = membership.tenant_id;
-        activeRole = membership.role;
-      } else if (profile && String(profile.tenant_id) === String(requestedTenantId)) {
-        activeTenantId = profile.tenant_id;
-        activeRole = profile.role;
-      } else {
-        // Se for admin global, talvez possa acessar? Por enquanto bloqueamos.
-        return res.status(403).json({ error: 'Acesso negado ao tenant solicitado' });
+      if (!isPlatformAdmin) {
+         console.warn(`[TenantContext] Tentativa de switch de tenant por usuário não-admin: ${userId}`);
+         return res.status(403).json({ 
+             error: 'Uso de X-Tenant-ID restrito a administradores da plataforma',
+             code: 'FORBIDDEN_HEADER'
+         });
       }
+
+      console.log(`[TenantContext] Admin ${userId} acessando tenant ${requestedTenantId}`);
+      activeTenantId = requestedTenantId;
+      activeRole = 'super_admin'; 
+      
     } else {
+      // Resolução padrão segura
       if (profile && profile.tenant_id) {
         activeTenantId = profile.tenant_id;
         activeRole = profile.role;

@@ -3,8 +3,7 @@ const router = express.Router();
 
 const authMiddleware = require('../middlewares/authMiddleware');
 const tenantContext = require('../middlewares/tenantContext');
-// const rbacGuard = require('../core/rbacGuard');
-// const planGuard = require('../core/planGuard');
+const testRouter = require('./test.routes');
 
 // Health check (Público)
 router.get('/health', (req, res) => {
@@ -15,7 +14,10 @@ router.get('/health', (req, res) => {
   });
 });
 
-// Middlewares globais para rotas protegidas
+// Rotas de Teste e Validação
+router.use('/test', testRouter);
+
+// Middlewares globais para rotas protegidas (A partir daqui)
 // Todas as rotas abaixo requerem autenticação e contexto de tenant
 router.use(authMiddleware);
 router.use(tenantContext);

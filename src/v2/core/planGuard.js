@@ -1,18 +1,21 @@
+const { hasFeature, getEntitlements } = require('./fakeEntitlements');
+
 const planGuard = (featureKey) => {
   return async (req, res, next) => {
     try {
-      // TODO: Implementar verificação real de plano/features
-      // Por enquanto, apenas loga e permite
-      // No futuro, verificar req.tenant.plan ou tabela subscriptions
+      const tenantId = req.tenantId || 'default';
+      const entitlements = getEntitlements(tenantId);
       
-      console.log(`[PlanGuard] Verificando feature: ${featureKey} para tenant: ${req.tenantId}`);
+      console.log(`[PlanGuard] Verificando feature '${featureKey}' para tenant '${tenantId}' (Plan: ${entitlements.plan})`);
       
-      // Simulação: Bloquear feature 'premium_analytics' para tenant ID 0 (exemplo)
-      if (featureKey === 'premium_analytics' && req.tenantId === '0') {
-          return res.status(403).json({ 
-              error: 'Feature não disponível no plano atual',
-              code: 'PLAN_LIMIT_REACHED'
-          });
+      if (!hasFeature(tenantId, featureKey)) {
+        console.warn(`[PlanGuard] BLOQUEADO: Tenant '${tenantId}' não tem feature '${featureKey}'`);
+        return res.status(403).json({ 
+            error: `Feature '${featureKey}' não disponível no plano '${entitlements.plan}'`,
+            code: 'PLAN_LIMIT_REACHED',
+            required_feature: featureKey,
+            current_plan: entitlements.plan
+        });
       }
 
       next();

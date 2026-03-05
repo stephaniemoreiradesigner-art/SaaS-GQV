@@ -1,6 +1,7 @@
 const permissions = {
   'super_admin': ['*'],
   'admin': ['*'],
+  'owner': ['*'], // Adicionado para suportar termo 'owner' como super usuário
   'colaborador': ['read:dashboard', 'write:posts', 'read:tenant'],
   'social_media': ['read:dashboard', 'write:posts', 'read:tenant'],
   'gestor_trafego': ['read:dashboard', 'write:ads', 'read:tenant'],
