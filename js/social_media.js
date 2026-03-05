@@ -2518,10 +2518,20 @@ async function loadClientes() {
             });
         }
         const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
-        if (activeClientId) {
+        if (activeClientId && uniqueRows.some(c => String(c.id) === String(activeClientId))) {
             selects.forEach((select) => {
                 select.value = String(activeClientId);
             });
+            // Se o cliente ativo estiver na lista, carregar contexto
+            loadClientContext(activeClientId);
+        } else {
+             // Estado vazio: nenhum cliente selecionado
+            selects.forEach((select) => {
+                select.value = '';
+            });
+            window.setActiveClientId('');
+            currentClienteId = '';
+            checkSelection(); // Desabilita botões
         }
 
     } catch (err) {
@@ -2617,7 +2627,7 @@ async function loadCalendarData() {
         const { data, error } = await window.supabaseClient
             .from('social_posts')
             .select('*')
-            .eq('cliente_id', parseInt(currentClienteId) || currentClienteId)
+            .eq('cliente_id', currentClienteId) // UUID
             .gte('data_agendada', startDate)
             .lte('data_agendada', endDate);
             
@@ -3198,8 +3208,7 @@ Regras obrigatórias:
             return y === year && m === month;
         };
 
-        const clienteIdNum = Number(currentClienteId);
-        const clienteIdValue = Number.isFinite(clienteIdNum) ? clienteIdNum : currentClienteId;
+        const clienteIdValue = currentClienteId; // UUID
 
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
@@ -3725,11 +3734,7 @@ async function generateSinglePostAI(date, format) {
             throw new Error('A IA não retornou um formato válido. Tente novamente.');
         }
 
-        let finalClienteId = currentClienteId;
-        // Validação robusta de ID
-        if (currentClienteId && !isNaN(currentClienteId) && !currentClienteId.toString().includes('-')) {
-            finalClienteId = parseInt(currentClienteId);
-        }
+        let finalClienteId = currentClienteId; // UUID
 
         const newPost = {
             cliente_id: finalClienteId,

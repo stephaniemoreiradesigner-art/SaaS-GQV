@@ -22,11 +22,11 @@
             return false;
         }
         const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
+            .from('colaboradores')
+            .select('perfil_acesso')
+            .eq('user_id', session.user.id)
             .maybeSingle();
-        const normalizedRole = String(profile?.role || '').trim().toLowerCase();
+        const normalizedRole = String(profile?.perfil_acesso || '').trim().toLowerCase();
         const isClientRole = normalizedRole === 'client' || normalizedRole === 'cliente';
         if (error || !isClientRole) {
             alert('Acesso restrito ao painel do cliente.');

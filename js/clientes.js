@@ -359,14 +359,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         if (!colab) {
-            const { data: profile } = await window.supabaseClient
-                .from('profiles')
-                .select('role')
-                .eq('id', user.id)
-                .single();
-            
-            if (profile && normalizeRole(profile.role) === 'owner') return { role: 'owner', times: [], email: user.email, colabId: null };
-            
+            // Se não achou colab, usuário pode não ter acesso ou estar sem cadastro na tabela colaboradores
+            // Mantém comportamento seguro de viewer sem times
             return { role: 'viewer', times: [], email: user.email, colabId: null };
         }
         

@@ -303,29 +303,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const allowSuper = (window.SUPERADMIN_EMAILS || []).includes(session.user.email);
             if (allowSuper) { return session; }
             
-            // Tenta buscar profile, mas não trava se der erro 500
-            let profile = null;
-            try {
-                const { data: p, error: pErr } = await window.supabaseClient
-                    .from('profiles')
-                    .select('role')
-                    .eq('id', session.user.id)
-                    .maybeSingle(); // maybeSingle evita erro se não achar
-                if (!pErr) profile = p;
-            } catch (ignore) { console.warn('Erro ao buscar profile, tentando fallback...'); }
-
-            if (profile && profile.role === 'owner') {
-                if (allowSuper) { return session; }
-            }
-
+            // Tenta buscar colab direto
             const { data: colab } = await window.supabaseClient
                 .from('colaboradores')
                 .select('perfil_acesso,email')
-                .eq('email', session.user.email)
+                .eq('user_id', session.user.id)
                 .maybeSingle();
 
             if (colab && colab.perfil_acesso === 'owner') {
                 if (allowSuper) { return session; }
+            }
+            
+            // Fallback busca por email se não achou por ID
+            if (!colab) {
+                 const { data: colabEmail } = await window.supabaseClient
+                    .from('colaboradores')
+                    .select('perfil_acesso,email')
+                    .eq('email', session.user.email)
+                    .maybeSingle();
+                 if (colabEmail && colabEmail.perfil_acesso === 'owner' && allowSuper) return session;
             }
             
             // Se chegou aqui, é um usuário normal ou a verificação falhou parcialmente.

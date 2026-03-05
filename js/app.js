@@ -877,17 +877,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            const { data: profile } = await window.supabaseClient
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
-
             // Busca dados ricos do colaborador
             const { data: colab } = await window.supabaseClient
                 .from('colaboradores')
                 .select('*')
-                .eq('email', session.user.email)
+                .eq('user_id', session.user.id) // Busca por user_id é mais seguro
                 .maybeSingle();
 
             // Atualiza Sidebar

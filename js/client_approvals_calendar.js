@@ -199,19 +199,17 @@
         }
         const clientMembership = await safeMaybeSingle('client_memberships', 'tenant_id, client_id', 'user_id', user.id);
         const portalLink = await safeMaybeSingle('client_portal_users', 'tenant_id, client_id', 'user_id', user.id);
-        const profile = await safeMaybeSingle('profiles', 'tenant_id, client_id', 'id', user.id);
+        // Profiles removido
         const membership = await safeMaybeSingle('memberships', 'tenant_id', 'user_id', user.id);
         const metaTenant = getMetaValue(user, ['tenant_id']);
         const metaClient = getMetaValue(user, ['client_id', 'cliente_id']);
         const tenantId = clientMembership?.tenant_id
             || portalLink?.tenant_id
-            || profile?.tenant_id
             || membership?.tenant_id
             || metaTenant
             || null;
         const clientId = clientMembership?.client_id
             || portalLink?.client_id
-            || profile?.client_id
             || metaClient
             || null;
         const resolvedClientId = clientId || tenantId;
