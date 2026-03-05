@@ -1519,7 +1519,7 @@ const appendQuery = (baseUrl, params) => {
     return `${baseUrl}${separator}${query}`;
 };
 
-const server = http.createServer(async (request, response) => {
+const legacyHandler = async (request, response) => {
     // CORS Headers para permitir desenvolvimento local
     response.setHeader('Access-Control-Allow-Origin', 'https://gestaoquevende.cloud');
     response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
@@ -1534,7 +1534,9 @@ const server = http.createServer(async (request, response) => {
     const parsedUrl = url.parse(request.url, true);
     const pathname = parsedUrl.pathname;
 
+    /*
     // --- API V2 (Express) ---
+    // REMOVIDO: O Express agora é o handler principal e o legacyHandler é chamado como middleware.
     if (pathname && pathname.startsWith('/api/v2')) {
         // Log para debug
         console.log(`[API v2] ${request.method} ${pathname}`);
@@ -1544,6 +1546,7 @@ const server = http.createServer(async (request, response) => {
         app(request, response);
         return;
     }
+    */
 
     if (request.method === 'HEAD') {
         if (pathname === '/api/health' || pathname === '/api/oauth/meta/callback' || pathname === '/api/oauth/google/callback') {
@@ -9382,7 +9385,19 @@ const server = http.createServer(async (request, response) => {
             response.end(content, 'utf-8');
         }
     });
+};
+
+// Integração do Legado como Middleware do Express
+// Isso garante que o Express seja o handler principal, mas rotas antigas continuem funcionando
+app.use(async (req, res, next) => {
+    // Se o Express já enviou headers (rota tratada), não faz nada
+    if (res.headersSent) return next();
+    
+    // Executa handler legado
+    await legacyHandler(req, res);
 });
+
+const server = http.createServer(app);
 
 server.listen(PORT, '127.0.0.1', () => {
     console.log(`\n=== SERVIDOR VIBECODE INICIADO ===`);
