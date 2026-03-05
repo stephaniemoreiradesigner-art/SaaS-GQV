@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS public.client_editorial_profiles (
     produto_servico text,
     diferenciais text,
     palavras_proibidas text,
+    persona_briefing text,
+    client_insights text,
+    visual_identity text,
+    brand_kit_url text,
+    reference_doc_url text,
+    ai_memory_summary text,
+    ai_memory_updated_at timestamptz,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );

@@ -5396,7 +5396,7 @@ const server = http.createServer(async (request, response) => {
                         await appendCalendarLog(errorLogContext.calendarId, 'Carregando briefing');
                     }
                     const clientParams = new URLSearchParams();
-                    clientParams.set('select', 'id,persona_briefing,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at,client_insights,visual_identity,identidade_visual,nome_empresa');
+                    clientParams.set('select', 'id,nome_empresa,nome_fantasia');
                     clientParams.set('id', `eq.${clientId}`);
                     clientParams.set('limit', '1');
                     const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
@@ -5415,7 +5415,7 @@ const server = http.createServer(async (request, response) => {
                     // Carregar Perfil Editorial
                     let editorialProfile = null;
                     const editorialParams = new URLSearchParams();
-                    editorialParams.set('select', 'nicho_atuacao,publico_alvo,objetivos,tom_de_voz,restricoes,produto_servico,diferenciais,palavras_proibidas');
+                    editorialParams.set('select', 'nicho_atuacao,publico_alvo,objetivos,tom_de_voz,restricoes,produto_servico,diferenciais,palavras_proibidas,persona_briefing,client_insights,visual_identity,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at');
                     editorialParams.set('cliente_id', `eq.${clientId}`);
                     editorialParams.set('limit', '1');
                     const editorialUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_editorial_profiles?${editorialParams.toString()}`;
@@ -5514,20 +5514,29 @@ const server = http.createServer(async (request, response) => {
                     }
                 }
 
-                const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
-                const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
-                const contextText = contextLink ? `Link de contexto: ${contextLink}.` : 'Sem link de contexto.';
-                const personaBriefing = String(clientProfile?.persona_briefing || '').trim();
-                const brandKitUrl = String(clientProfile?.brand_kit_url || '').trim();
-                const referenceDocUrl = String(clientProfile?.reference_doc_url || '').trim();
-                const memorySummary = String(clientProfile?.ai_memory_summary || '').trim();
-                const clientInsights = String(clientProfile?.client_insights || '').trim();
-                const resolvedVisualIdentity = String(clientProfile?.visual_identity || clientProfile?.identidade_visual || visualIdentity || '').trim();
-                const resolvedClientName = String(clientProfile?.nome_empresa || clientName || '').trim();
+                const personaBriefing = editorialProfile?.persona_briefing || '';
+                const brandKitUrl = editorialProfile?.brand_kit_url || '';
+                const referenceDocUrl = editorialProfile?.reference_doc_url || '';
+                const aiMemorySummary = editorialProfile?.ai_memory_summary || '';
+                const aiMemoryUpdatedAt = editorialProfile?.ai_memory_updated_at || '';
+                const clientInsights = editorialProfile?.client_insights || '';
+                
+                // Fallbacks seguros
+                const resolvedVisualIdentity = String(editorialProfile?.visual_identity || visualIdentity || '').trim();
+                const resolvedClientName = String(clientProfile?.nome_empresa || clientProfile?.nome_fantasia || clientName || '').trim();
                 const resolvedNiche = String(editorialProfile?.nicho_atuacao || niche || 'Geral').trim();
                 const includeLinkedinValue = includeLinkedin;
                 const includeTiktokValue = includeTiktok;
                 const includeMetaValue = includeMeta;
+
+                const seasonalText = seasonalDates.length ? `Datas sazonais do mês: ${seasonalDates.join(', ')}.` : 'Não há datas sazonais obrigatórias.';
+                const platformsText = platforms.length ? `Plataformas ativas: ${platforms.join(', ')}.` : 'Plataformas ativas: não informadas.';
+                const contextText = contextLink ? `Link de contexto: ${contextLink}.` : 'Sem link de contexto.';
+                const personaBriefingValue = String(personaBriefing || '').trim();
+                const brandKitUrlValue = String(brandKitUrl || '').trim();
+                const referenceDocUrlValue = String(referenceDocUrl || '').trim();
+                const memorySummaryValue = String(aiMemorySummary || '').trim();
+                const clientInsightsValue = String(clientInsights || '').trim();
 
                 const weekInfo = weekContext
                     ? `Semana ${weekContext.week_index || ''} (${weekContext.start_date || ''} a ${weekContext.end_date || ''}).`
@@ -5546,12 +5555,12 @@ const server = http.createServer(async (request, response) => {
                     platformsText,
                     seasonalText,
                     contextText,
-                    personaBriefing ? `Persona/Briefing: ${personaBriefing}.` : 'Persona/Briefing não informado.',
-                    brandKitUrl ? `Brand kit (URL): ${brandKitUrl}.` : 'Brand kit não informado.',
-                    referenceDocUrl ? `Documento de referência (URL): ${referenceDocUrl}.` : 'Documento de referência não informado.',
-                    clientInsights ? `Insights do cliente: ${clientInsights}.` : 'Insights do cliente não informados.',
+                    personaBriefingValue ? `Persona/Briefing: ${personaBriefingValue}.` : 'Persona/Briefing não informado.',
+                    brandKitUrlValue ? `Brand kit (URL): ${brandKitUrlValue}.` : 'Brand kit não informado.',
+                    referenceDocUrlValue ? `Documento de referência (URL): ${referenceDocUrlValue}.` : 'Documento de referência não informado.',
+                    clientInsightsValue ? `Insights do cliente: ${clientInsightsValue}.` : 'Insights do cliente não informados.',
                     resolvedVisualIdentity ? `Identidade visual: ${resolvedVisualIdentity}.` : 'Identidade visual não informada.',
-                    memorySummary ? `Memória anterior: ${memorySummary}.` : 'Sem memória anterior.',
+                    memorySummaryValue ? `Memória anterior: ${memorySummaryValue}.` : 'Sem memória anterior.',
                     historySummary ? `Histórico recente: ${historySummary}.` : 'Sem histórico recente.',
                     includeMetaValue ? 'Captions.meta é a legenda principal para Meta (Instagram/Facebook).' : 'Meta não ativo.',
                     includeLinkedinValue ? 'Captions.linkedin deve existir para LinkedIn (string).' : 'LinkedIn não ativo.',

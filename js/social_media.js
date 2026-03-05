@@ -2518,14 +2518,17 @@ async function loadClientes() {
             });
         }
         const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
-        if (activeClientId && uniqueRows.some(c => String(c.id) === String(activeClientId))) {
-            selects.forEach((select) => {
-                select.value = String(activeClientId);
-            });
-            // Se o cliente ativo estiver na lista, carregar contexto
-            loadClientContext(activeClientId);
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlClientId = urlParams.get('cliente_id') || urlParams.get('clientId');
+
+        // Prioridade para URL, senão começa vazio
+        if (urlClientId && uniqueRows.some(c => String(c.id) === String(urlClientId))) {
+             selects.forEach((select) => {
+                 select.value = String(urlClientId);
+             });
+             loadClientContext(urlClientId);
         } else {
-             // Estado vazio: nenhum cliente selecionado
+             // Estado vazio: nenhum cliente selecionado por padrão (exceto se URL mandar)
             selects.forEach((select) => {
                 select.value = '';
             });
@@ -2549,7 +2552,7 @@ async function loadClientContext(clientId) {
         const [clientRes, editorialRes] = await Promise.all([
             window.supabaseClient
                 .from('clientes')
-                .select('id, nome_fantasia, nome_empresa, plataformas_social, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
+                .select('id, nome_fantasia, nome_empresa, plataformas_social, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
                 .eq('id', clientId)
                 .maybeSingle(),
             window.supabaseClient
@@ -2972,7 +2975,7 @@ Nicho: ${client.editorial_profile?.nicho_atuacao || 'Geral'}
 Plataformas ativas: ${platforms.join(', ')}
 Quantidade de posts: ${postsCount}
 Datas sazonais (se houver): ${seasonalDates && seasonalDates.length ? JSON.stringify(seasonalDates) : 'nenhuma'}
-Identidade visual (se houver): ${client.visual_identity || client.identidade_visual || 'não informada'}
+Identidade visual (se houver): ${client.editorial_profile?.visual_identity || 'não informada'}
 
 Regras obrigatórias:
 - Responda APENAS com JSON válido.
@@ -3021,7 +3024,7 @@ Regras obrigatórias:
                 posts_count: postsCount,
                 seasonal_dates: seasonalDates,
                 context_link: contextLink,
-                visual_identity: client.visual_identity || client.identidade_visual || null,
+                visual_identity: client.editorial_profile?.visual_identity || null,
                 force: forceGeneration,
                 messages
             };
