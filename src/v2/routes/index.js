@@ -4,6 +4,7 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/authMiddleware');
 const tenantContext = require('../middlewares/tenantContext');
 const testRouter = require('./test.routes');
+const platformRouter = require('../modules/platform/platform.routes');
 
 // Health check (Público)
 router.get('/health', (req, res) => {
@@ -14,27 +15,27 @@ router.get('/health', (req, res) => {
   });
 });
 
+// Rotas de Plataforma (Bootstrap) - Requer Auth, mas NÃO Tenant Context
+router.use('/platform', authMiddleware, platformRouter);
+
 // Rotas de Teste e Validação
 router.use('/test', testRouter);
 
-// Middlewares globais para rotas protegidas (A partir daqui)
+// Middlewares globais para rotas protegidas DE TENANT (A partir daqui)
 // Todas as rotas abaixo requerem autenticação e contexto de tenant
 router.use(authMiddleware);
 router.use(tenantContext);
 
 // Endpoint piloto: Contexto do usuário/tenant
 router.get('/me/tenant', (req, res) => {
+  const tenant = req.tenant || {};
   res.status(200).json({
     user_id: req.user.id,
-    tenant_id: req.tenantId,
-    collaborator_id: req.collaboratorId,
-    role: req.userRole,
-    email: req.user.email,
-    profile: req.profile
+    tenant_id: tenant.tenant_id,
+    membership_id: tenant.membership_id,
+    roles: tenant.roles,
+    email: req.user.email
   });
 });
-
-// Exemplo de uso de Guards (comentado para referência)
-// router.get('/admin/stats', rbacGuard('read:dashboard'), planGuard('analytics'), (req, res) => { ... });
 
 module.exports = router;
