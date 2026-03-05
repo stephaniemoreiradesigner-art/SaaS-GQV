@@ -207,7 +207,11 @@ if (typeof window.openSocialMediaTab !== 'function') {
 
 function getClientIdFromQuery() {
     const params = new URLSearchParams(window.location.search || '');
-    return params.get('clientId') || params.get('id') || '';
+    const raw = params.get('cliente_id') || params.get('clientId') || params.get('id') || params.get('tenant_id') || '';
+    const value = String(raw || '').trim();
+    if (!value) return '';
+    if (!/^\d+$/.test(value)) return '';
+    return value;
 }
 
 function getSocialClientSelect() {

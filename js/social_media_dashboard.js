@@ -190,17 +190,18 @@ async function getDashboardAuthHeaders() {
 
 function getOperationalTenantId() {
     const params = new URLSearchParams(window.location.search || '');
-    const queryClientId = params.get('clientId') || params.get('id') || '';
-    if (queryClientId) return String(queryClientId);
+    const raw = params.get('cliente_id') || params.get('clientId') || params.get('id') || params.get('tenant_id') || '';
+    const queryClientId = String(raw || '').trim();
+    if (queryClientId && /^\d+$/.test(queryClientId)) return queryClientId;
     const hubClient = String(window.operationalHubState?.clientId || '').trim();
-    if (hubClient) return hubClient;
+    if (hubClient && /^\d+$/.test(hubClient)) return hubClient;
     const hubSelect = document.getElementById('hub-client-select');
-    if (hubSelect && hubSelect.value) return String(hubSelect.value);
-    if (window.currentClienteId) return String(window.currentClienteId);
+    if (hubSelect && hubSelect.value && /^\d+$/.test(String(hubSelect.value))) return String(hubSelect.value);
+    if (window.currentClienteId && /^\d+$/.test(String(window.currentClienteId))) return String(window.currentClienteId);
     const selectCalendar = document.getElementById('select-cliente');
-    if (selectCalendar && selectCalendar.value) return String(selectCalendar.value);
+    if (selectCalendar && selectCalendar.value && /^\d+$/.test(String(selectCalendar.value))) return String(selectCalendar.value);
     const selectInsights = document.getElementById('insights-cliente');
-    if (selectInsights && selectInsights.value) return String(selectInsights.value);
+    if (selectInsights && selectInsights.value && /^\d+$/.test(String(selectInsights.value))) return String(selectInsights.value);
     return '';
 }
 
@@ -1572,7 +1573,6 @@ window.loadCreativeRequests = async function() {
         url.searchParams.set('scope', scope);
         if (scope === 'agencia' && clientSelect?.value) {
             url.searchParams.set('cliente_id', clientSelect.value);
-            url.searchParams.set('tenant_id', clientSelect.value);
         }
         if (statusSelect?.value && statusSelect.value !== 'pending') {
             url.searchParams.set('status', statusSelect.value);

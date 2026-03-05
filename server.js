@@ -2854,18 +2854,21 @@ const server = http.createServer(async (request, response) => {
             const authContext = await getAuthContext(request, response);
             if (!authContext) return;
 
-            const clientId = String(parsedUrl.query.client_id || '').trim();
+            const clientIdRaw = String(parsedUrl.query.cliente_id || parsedUrl.query.client_id || parsedUrl.query.tenant_id || '').trim();
             const month = String(parsedUrl.query.month || '').trim();
-            if (!clientId || !/^\d+$/.test(clientId)) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'cliente_invalido' }));
-                return;
-            }
             if (!month || !/^\d{4}-\d{2}$/.test(month)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'mes_invalido' }));
                 return;
             }
+            if (!clientIdRaw) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_id_obrigatorio' }));
+                return;
+            }
+            const resolved = await resolveTenantAndClient(request, response, clientIdRaw);
+            if (!resolved) return;
+            const { clienteId } = resolved;
 
             const [year, monthValue] = month.split('-').map(Number);
             const lastDay = new Date(year, monthValue, 0).getDate();
@@ -2874,8 +2877,7 @@ const server = http.createServer(async (request, response) => {
 
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id,tenant_id)');
-            params.set('social_calendars.cliente_id', `eq.${clientId}`);
-            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
+            params.set('social_calendars.cliente_id', `eq.${clienteId}`);
             params.set('data_agendada', `gte.${startDate}`);
             params.append('data_agendada', `lte.${endDate}`);
             params.set('order', 'data_agendada.asc');
@@ -2941,18 +2943,21 @@ const server = http.createServer(async (request, response) => {
                 return;
             }
 
-            const clientId = String(body?.client_id || '').trim();
+            const clientIdRaw = String(body?.cliente_id || body?.client_id || body?.tenant_id || '').trim();
             const month = String(body?.month || '').trim();
-            if (!clientId || !/^\d+$/.test(clientId)) {
-                response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'cliente_invalido' }));
-                return;
-            }
             if (!month || !/^\d{4}-\d{2}$/.test(month)) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
                 response.end(JSON.stringify({ error: 'mes_invalido' }));
                 return;
             }
+            if (!clientIdRaw) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ error: 'cliente_id_obrigatorio' }));
+                return;
+            }
+            const resolved = await resolveTenantAndClient(request, response, clientIdRaw);
+            if (!resolved) return;
+            const { clienteId } = resolved;
 
             const [year, monthValue] = month.split('-').map(Number);
             const lastDay = new Date(year, monthValue, 0).getDate();
@@ -2961,8 +2966,7 @@ const server = http.createServer(async (request, response) => {
 
             const params = new URLSearchParams();
             params.set('select', 'id,tema,legenda,data_agendada,plataformas,formato,status,approval_group_id,feedback_ajuste,data_envio_aprovacao,social_calendars!inner(cliente_id,tenant_id)');
-            params.set('social_calendars.cliente_id', `eq.${clientId}`);
-            params.set('social_calendars.tenant_id', `eq.${tenantId}`);
+            params.set('social_calendars.cliente_id', `eq.${clienteId}`);
             params.set('data_agendada', `gte.${startDate}`);
             params.append('data_agendada', `lte.${endDate}`);
             params.set('order', 'data_agendada.asc');
@@ -6721,37 +6725,33 @@ const server = http.createServer(async (request, response) => {
             const isSuperAdmin = role === 'super_admin';
             const scopeParam = String(parsedUrl.query.scope || 'client').trim().toLowerCase();
             const scope = scopeParam === 'agency' && isSuperAdmin ? 'agency' : 'client';
-            const tenantParam = String(parsedUrl.query.tenant_id || '').trim();
+            const clientParamRaw = String(parsedUrl.query.cliente_id || parsedUrl.query.client_id || parsedUrl.query.tenant_id || '').trim();
             const periodParam = String(parsedUrl.query.period || 'last7').trim().toLowerCase();
             const period = ['last7', 'last30', 'month'].includes(periodParam) ? periodParam : 'last7';
 
-            let tenantId = authContext.tenantId;
-            if (scope === 'client') {
-                if (tenantParam) {
-                    if (!/^\d+$/.test(tenantParam)) {
-                        response.writeHead(400, { 'Content-Type': 'application/json' });
-                        response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
-                        return;
-                    }
-                    if (!isSuperAdmin && String(tenantParam) !== String(tenantId)) {
-                        response.writeHead(403, { 'Content-Type': 'application/json' });
-                        response.end(JSON.stringify({ error: 'tenant_sem_permissao', message: 'Sem permissão para acessar este tenant.' }));
-                        return;
-                    }
-                    tenantId = tenantParam;
-                }
-                if (!tenantId || !/^\d+$/.test(String(tenantId))) {
-                    response.writeHead(400, { 'Content-Type': 'application/json' });
-                    response.end(JSON.stringify({ error: 'tenant_id_obrigatorio' }));
-                    return;
-                }
-            } else if (tenantParam && !/^\d+$/.test(tenantParam)) {
+            const normalizedClientParam = clientParamRaw && /^\d+$/.test(clientParamRaw) ? clientParamRaw : '';
+            if (clientParamRaw && !normalizedClientParam) {
                 response.writeHead(400, { 'Content-Type': 'application/json' });
-                response.end(JSON.stringify({ error: 'tenant_id_invalido' }));
+                response.end(JSON.stringify({ error: 'cliente_id_invalido' }));
                 return;
             }
+            let clientId = '';
+            const profileClientId = String(authContext.profile?.client_id || '').trim();
+            if (/^\d+$/.test(profileClientId)) clientId = profileClientId;
+            const profileTenantNumeric = String(authContext.profile?.tenant_id || '').trim();
+            if (!clientId && /^\d+$/.test(profileTenantNumeric)) clientId = profileTenantNumeric;
+            if (scope === 'client') {
+                if (normalizedClientParam) clientId = normalizedClientParam;
+                if (!clientId) {
+                    response.writeHead(400, { 'Content-Type': 'application/json' });
+                    response.end(JSON.stringify({ error: 'cliente_id_obrigatorio' }));
+                    return;
+                }
+            } else if (normalizedClientParam) {
+                clientId = normalizedClientParam;
+            }
 
-            const cacheKey = [authContext.user?.id || '', scope, tenantParam || tenantId || '', period].join('|');
+            const cacheKey = [authContext.user?.id || '', scope, clientId || '', period].join('|');
             const now = Date.now();
             const cached = socialDashboardCache.get(cacheKey);
             if (cached && now - cached.timestamp < SOCIAL_DASHBOARD_CACHE_TTL) {
@@ -6774,11 +6774,9 @@ const server = http.createServer(async (request, response) => {
             const endStr = endDate.toISOString().slice(0, 10);
 
             const postsParams = new URLSearchParams();
-            postsParams.set('select', 'id,status,data_agendada,data_envio_aprovacao,created_at,social_calendars!inner(tenant_id)');
-            if (scope === 'client') {
-                postsParams.set('social_calendars.tenant_id', `eq.${tenantId}`);
-            } else if (tenantParam) {
-                postsParams.set('social_calendars.tenant_id', `eq.${tenantParam}`);
+            postsParams.set('select', 'id,status,data_agendada,data_envio_aprovacao,created_at,social_calendars!inner(cliente_id)');
+            if (clientId) {
+                postsParams.set('social_calendars.cliente_id', `eq.${clientId}`);
             }
             postsParams.append('data_agendada', `gte.${startStr}`);
             postsParams.append('data_agendada', `lte.${endStr}`);
@@ -6814,10 +6812,8 @@ const server = http.createServer(async (request, response) => {
                 creativesUploadedParams.set('select', 'post_id');
                 creativesUploadedParams.set('status', 'eq.uploaded');
                 creativesUploadedParams.set('post_id', `in.(${postIds.join(',')})`);
-                if (scope === 'client') {
-                    creativesUploadedParams.set('tenant_id', `eq.${tenantId}`);
-                } else if (tenantParam) {
-                    creativesUploadedParams.set('tenant_id', `eq.${tenantParam}`);
+                if (clientId) {
+                    creativesUploadedParams.set('tenant_id', `eq.${clientId}`);
                 }
                 const uploadedRes = await supabaseServiceRest(`/rest/v1/social_creatives?${creativesUploadedParams.toString()}`);
                 if (uploadedRes.status < 400) {
@@ -6832,10 +6828,8 @@ const server = http.createServer(async (request, response) => {
             creativesParams.set('status', 'eq.designing');
             creativesParams.append('created_at', `gte.${startDate.toISOString()}`);
             creativesParams.append('created_at', `lte.${endDate.toISOString()}`);
-            if (scope === 'client') {
-                creativesParams.set('tenant_id', `eq.${tenantId}`);
-            } else if (tenantParam) {
-                creativesParams.set('tenant_id', `eq.${tenantParam}`);
+            if (clientId) {
+                creativesParams.set('tenant_id', `eq.${clientId}`);
             }
             const creativesRes = await supabaseServiceRest(`/rest/v1/social_creatives?${creativesParams.toString()}`);
             if (creativesRes.status >= 400) {
@@ -6851,10 +6845,8 @@ const server = http.createServer(async (request, response) => {
             requestsParams.set('status', 'in.(requested,needs_revision)');
             requestsParams.append('created_at', `gte.${startDate.toISOString()}`);
             requestsParams.append('created_at', `lte.${endDate.toISOString()}`);
-            if (scope === 'client') {
-                requestsParams.set('tenant_id', `eq.${tenantId}`);
-            } else if (tenantParam) {
-                requestsParams.set('tenant_id', `eq.${tenantParam}`);
+            if (clientId) {
+                requestsParams.set('tenant_id', `eq.${clientId}`);
             }
             const requestsRes = await supabaseServiceRest(`/rest/v1/creative_requests?${requestsParams.toString()}`);
             if (requestsRes.status >= 400) {
@@ -6867,7 +6859,7 @@ const server = http.createServer(async (request, response) => {
             const payload = {
                 scope,
                 period,
-                tenant_id: scope === 'client' ? tenantId : (tenantParam || null),
+                cliente_id: clientId || null,
                 range: { start: startStr, end: endStr },
                 kpis: {
                     production: {
