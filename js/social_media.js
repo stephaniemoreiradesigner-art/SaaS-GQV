@@ -971,43 +971,37 @@ async function uploadMediaFiles(files, { clientId, month, postId, source }) {
 let socialMediaDomReady = false;
 let socialMediaSupabaseReady = false;
 
-const tryLoadSocialMediaClients = () => {
-    if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
+const bootSocialMedia = () => {
+    if (window.__GQV_SM_BOOTED__) return;
+    window.__GQV_SM_BOOTED__ = true;
+    console.info('[SocialMedia] boot');
     loadClientes();
     const activeClientId = window.getActiveClientId ? window.getActiveClientId() : '';
     if (!activeClientId) return;
     loadClientContext(activeClientId);
 };
 
-window.addEventListener('supabaseReady', () => {
-    socialMediaSupabaseReady = true;
-    tryLoadSocialMediaClients();
-});
+const maybeBootSocialMedia = () => {
+    if (!socialMediaDomReady || !socialMediaSupabaseReady) return;
+    bootSocialMedia();
+};
 
-document.addEventListener('DOMContentLoaded', async () => {
-    socialMediaDomReady = true;
-    const queryClientId = getClientIdFromQuery();
-    const storedClientId = window.getActiveClientId ? window.getActiveClientId() : '';
-    if (queryClientId) {
-        window.setActiveClientId(queryClientId);
-    } else if (storedClientId) {
-        window.setActiveClientId(storedClientId);
-    } else {
-        setClientRequiredMessage(true);
-    }
+const bindSocialMediaAuthOnce = () => {
+    if (window.__GQV_SM_AUTH_BOUND__) return;
+    window.__GQV_SM_AUTH_BOUND__ = true;
+    if (!window.supabaseClient?.auth?.onAuthStateChange) return;
+    window.supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN') {
+            socialMediaSupabaseReady = true;
+            maybeBootSocialMedia();
+        }
+    });
+};
+
+const bindSocialMediaUIOnce = () => {
+    if (window.__GQV_SM_UI_BOUND__) return;
+    window.__GQV_SM_UI_BOUND__ = true;
     bindSocialClientSelect();
-
-    if (window.supabaseClient) {
-        socialMediaSupabaseReady = true;
-        tryLoadSocialMediaClients();
-    } else {
-        setTimeout(() => {
-            if (window.supabaseClient) {
-                socialMediaSupabaseReady = true;
-                tryLoadSocialMediaClients();
-            }
-        }, 800);
-    }
     initCalendar();
     ensureSocialMediaPermission().then(updateGenerateButtonState);
 
@@ -1033,34 +1027,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnDelete = document.getElementById('btn-delete-calendar');
     if (btnDelete) btnDelete.addEventListener('click', deleteCalendar);
 
-        const { modal: modalGeneration } =
-            typeof getGenerationModalElements === "function"
-                ? getGenerationModalElements()
-                : { modal: null };
+    const { modal: modalGeneration } =
+        typeof getGenerationModalElements === "function"
+            ? getGenerationModalElements()
+            : { modal: null };
 
-        if (modalGeneration) {
-            modalGeneration.addEventListener("click", (e) => {
-                if (e.target === modalGeneration) window.closeGenerationModal();
-            });
-        }
-
-        const btnGenerationCancel = document.getElementById("btn-generation-cancel");
-        if (btnGenerationCancel)
-            btnGenerationCancel.addEventListener("click", window.closeGenerationModal);
-
-        const btnGenerationClose = document.getElementById("btn-generation-close");
-        if (btnGenerationClose)
-            btnGenerationClose.addEventListener("click", window.closeGenerationModal);
-
-        document.addEventListener("click", (e) => {
-            const target =
-                e.target && e.target.closest
-                    ? e.target.closest("[data-close-generation]")
-                    : null;
-            if (!target) return;
-            e.preventDefault();
-            window.closeGenerationModal();
+    if (modalGeneration) {
+        modalGeneration.addEventListener("click", (e) => {
+            if (e.target === modalGeneration) window.closeGenerationModal();
         });
+    }
+
+    const btnGenerationCancel = document.getElementById("btn-generation-cancel");
+    if (btnGenerationCancel)
+        btnGenerationCancel.addEventListener("click", window.closeGenerationModal);
+
+    const btnGenerationClose = document.getElementById("btn-generation-close");
+    if (btnGenerationClose)
+        btnGenerationClose.addEventListener("click", window.closeGenerationModal);
+
+    document.addEventListener("click", (e) => {
+        const target =
+            e.target && e.target.closest
+                ? e.target.closest("[data-close-generation]")
+                : null;
+        if (!target) return;
+        e.preventDefault();
+        window.closeGenerationModal();
+    });
 
     const btnGenerationConfirm = document.getElementById('btn-generation-confirm');
     if (btnGenerationConfirm) {
@@ -1108,6 +1102,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (typeof window.openSocialMediaTab === 'function') {
         window.openSocialMediaTab(initialTab);
     }
+};
+
+window.addEventListener('supabaseReady', async () => {
+    socialMediaSupabaseReady = true;
+    bindSocialMediaAuthOnce();
+    const sessionResult = await window.supabaseClient?.auth?.getSession?.();
+    if (sessionResult?.data?.session) {
+        maybeBootSocialMedia();
+    }
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+    socialMediaDomReady = true;
+    const queryClientId = getClientIdFromQuery();
+    const storedClientId = window.getActiveClientId ? window.getActiveClientId() : '';
+    if (queryClientId) {
+        window.setActiveClientId(queryClientId);
+    } else if (storedClientId) {
+        window.setActiveClientId(storedClientId);
+    } else {
+        setClientRequiredMessage(true);
+    }
+    bindSocialMediaUIOnce();
+    if (window.supabaseClient) {
+        socialMediaSupabaseReady = true;
+        bindSocialMediaAuthOnce();
+        const sessionResult = await window.supabaseClient?.auth?.getSession?.();
+        if (sessionResult?.data?.session) {
+            maybeBootSocialMedia();
+        }
+    }
+    maybeBootSocialMedia();
 });
 
 // Expor initCalendar globalmente
@@ -2430,8 +2456,7 @@ async function loadClientes() {
 
     // Retry se o Supabase não estiver pronto
     if (!window.supabaseClient) {
-        console.warn('[SocialMedia] Supabase ainda não inicializado, tentando novamente em 500ms...');
-        setTimeout(loadClientes, 500);
+        console.warn('[SocialMedia] Supabase ainda não inicializado.');
         return;
     }
 

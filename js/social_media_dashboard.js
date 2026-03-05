@@ -334,62 +334,62 @@ async function updateInsightsPlatforms(clientId) {
     if (btn) btn.disabled = false;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+const bindSocialMediaDashboardUIOnce = () => {
+    if (window.__GQV_SM_DASHBOARD_UI_BOUND__) return;
+    window.__GQV_SM_DASHBOARD_UI_BOUND__ = true;
     const select = document.getElementById('insights-cliente');
-    if (!select) return;
-    select.addEventListener('change', (event) => {
-        const value = event.target.value;
-        if (typeof window.setActiveClientId === 'function') {
-            window.setActiveClientId(value);
-        }
-        if (typeof updateInsightsPlatforms === 'function') {
-            updateInsightsPlatforms(value);
-        }
-        if (typeof window.refreshOperationalHub === 'function') {
-            window.refreshOperationalHub();
-        }
-    });
-    const activeId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
-    if (activeId) {
-        select.value = activeId;
-    }
-    if (select.value && typeof updateInsightsPlatforms === 'function') {
-        updateInsightsPlatforms(select.value);
-    }
-    const platformSelect = document.getElementById('insights-platform');
-    if (platformSelect) {
-        if (window.socialMediaState?.platform) {
-            platformSelect.value = window.socialMediaState.platform;
-        }
-        platformSelect.addEventListener('change', (event) => {
-            if (typeof window.setActivePlatform === 'function') {
-                window.setActivePlatform(event.target.value);
-            } else if (window.socialMediaState) {
-                window.socialMediaState.platform = event.target.value;
+    if (select) {
+        select.addEventListener('change', (event) => {
+            const value = event.target.value;
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(value);
+            }
+            if (typeof updateInsightsPlatforms === 'function') {
+                updateInsightsPlatforms(value);
             }
             if (typeof window.refreshOperationalHub === 'function') {
                 window.refreshOperationalHub();
             }
         });
-    }
-    const periodSelect = document.getElementById('insights-periodo');
-    if (periodSelect) {
-        const activePeriod = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
-        periodSelect.value = activePeriod === '7d' ? 'last_7_days' : activePeriod === '90d' ? 'last_90_days' : 'last_30_days';
-        periodSelect.addEventListener('change', (event) => {
-            const raw = event.target.value;
-            const normalized = raw === 'last_7_days' ? '7d' : raw === 'last_90_days' ? '90d' : '30d';
-            if (typeof window.setActivePeriod === 'function') {
-                window.setActivePeriod(normalized);
+        const activeId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+        if (activeId) {
+            select.value = activeId;
+        }
+        if (select.value && typeof updateInsightsPlatforms === 'function') {
+            updateInsightsPlatforms(select.value);
+        }
+        const platformSelect = document.getElementById('insights-platform');
+        if (platformSelect) {
+            if (window.socialMediaState?.platform) {
+                platformSelect.value = window.socialMediaState.platform;
             }
-            if (typeof window.refreshOperationalHub === 'function') {
-                window.refreshOperationalHub();
-            }
-        });
+            platformSelect.addEventListener('change', (event) => {
+                if (typeof window.setActivePlatform === 'function') {
+                    window.setActivePlatform(event.target.value);
+                } else if (window.socialMediaState) {
+                    window.socialMediaState.platform = event.target.value;
+                }
+                if (typeof window.refreshOperationalHub === 'function') {
+                    window.refreshOperationalHub();
+                }
+            });
+        }
+        const periodSelect = document.getElementById('insights-periodo');
+        if (periodSelect) {
+            const activePeriod = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
+            periodSelect.value = activePeriod === '7d' ? 'last_7_days' : activePeriod === '90d' ? 'last_90_days' : 'last_30_days';
+            periodSelect.addEventListener('change', (event) => {
+                const raw = event.target.value;
+                const normalized = raw === 'last_7_days' ? '7d' : raw === 'last_90_days' ? '90d' : '30d';
+                if (typeof window.setActivePeriod === 'function') {
+                    window.setActivePeriod(normalized);
+                }
+                if (typeof window.refreshOperationalHub === 'function') {
+                    window.refreshOperationalHub();
+                }
+            });
+        }
     }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
     const hub = document.getElementById('operational-hub');
     if (!hub) return;
     if (typeof HUB_PERIOD_STORAGE_KEY === 'undefined') {
@@ -409,6 +409,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateOperationalScopeButtons();
     loadOperationalDashboard();
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    bindSocialMediaDashboardUIOnce();
 });
 
 async function loadLogsClients() {
