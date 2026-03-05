@@ -2538,7 +2538,7 @@ async function loadClientContext(clientId) {
     try {
         const { data, error } = await window.supabaseClient
             .from('clientes')
-            .select('id, nome_fantasia, nome_empresa, plataformas_social, nicho_atuacao, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
+            .select('id, nome_fantasia, nome_empresa, plataformas_social, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
             .eq('id', clientId)
             .maybeSingle();
         if (error) throw error;
@@ -2946,7 +2946,7 @@ async function generateCalendarLegacy(config = {}) {
         const calendarPrompt = `
 Crie um calendário editorial para o cliente ${client.nome_empresa}.
 Mês de referência: ${currentMonth}
-Nicho: ${client.nicho_atuacao || 'Geral'}
+Nicho: ${client.niche || 'Geral'}
 Plataformas ativas: ${platforms.join(', ')}
 Quantidade de posts: ${postsCount}
 Datas sazonais (se houver): ${seasonalDates && seasonalDates.length ? JSON.stringify(seasonalDates) : 'nenhuma'}
@@ -2993,7 +2993,7 @@ Regras obrigatórias:
                 request_id: requestId,
                 client_id: currentClienteId,
                 client_name: client.nome_empresa,
-                niche: client.nicho_atuacao || 'Geral',
+                niche: client.niche || 'Geral',
                 month: currentMonth,
                 platforms,
                 posts_count: postsCount,
@@ -3631,7 +3631,7 @@ async function generateSinglePostAI(date, format) {
         Crie UM post para redes sociais para o cliente: ${client.nome_empresa}.
         Data: ${scheduledDate}
         Formato: ${format}
-        Nicho: ${client.nicho_atuacao || 'Geral'}
+        Nicho: ${client.niche || 'Geral'}
         
         Gere um objeto JSON com a seguinte estrutura:
         {

@@ -5396,7 +5396,7 @@ const server = http.createServer(async (request, response) => {
                         await appendCalendarLog(errorLogContext.calendarId, 'Carregando briefing');
                     }
                     const clientParams = new URLSearchParams();
-                    clientParams.set('select', 'id,persona_briefing,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at,client_insights,visual_identity,identidade_visual,nome_empresa,nicho_atuacao');
+                    clientParams.set('select', 'id,persona_briefing,brand_kit_url,reference_doc_url,ai_memory_summary,ai_memory_updated_at,client_insights,visual_identity,identidade_visual,nome_empresa');
                     clientParams.set('id', `eq.${clientId}`);
                     clientParams.set('limit', '1');
                     const clientUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/clientes?${clientParams.toString()}`;
@@ -5505,7 +5505,7 @@ const server = http.createServer(async (request, response) => {
                 const clientInsights = String(clientProfile?.client_insights || '').trim();
                 const resolvedVisualIdentity = String(clientProfile?.visual_identity || clientProfile?.identidade_visual || visualIdentity || '').trim();
                 const resolvedClientName = String(clientProfile?.nome_empresa || clientName || '').trim();
-                const resolvedNiche = String(clientProfile?.nicho_atuacao || niche || 'Geral').trim();
+                const resolvedNiche = String(niche || 'Geral').trim();
                 const includeLinkedinValue = includeLinkedin;
                 const includeTiktokValue = includeTiktok;
                 const includeMetaValue = includeMeta;
