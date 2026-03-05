@@ -2536,15 +2536,27 @@ async function loadClientContext(clientId) {
     if (!clientId) return;
     if (!window.supabaseClient) return;
     try {
-        const { data, error } = await window.supabaseClient
-            .from('clientes')
-            .select('id, nome_fantasia, nome_empresa, plataformas_social, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
-            .eq('id', clientId)
-            .maybeSingle();
-        if (error) throw error;
-        if (!data) return;
+        const [clientRes, editorialRes] = await Promise.all([
+            window.supabaseClient
+                .from('clientes')
+                .select('id, nome_fantasia, nome_empresa, plataformas_social, client_insights, insights, visual_identity, identidade_visual, link_briefing, link_persona, link_conteudos_anteriores, link_referencias, link_identidade_visual')
+                .eq('id', clientId)
+                .maybeSingle(),
+            window.supabaseClient
+                .from('client_editorial_profiles')
+                .select('*')
+                .eq('cliente_id', clientId)
+                .maybeSingle()
+        ]);
+
+        if (clientRes.error) throw clientRes.error;
+        if (!clientRes.data) return;
+
+        const data = clientRes.data;
+        const editorial = editorialRes.data || {};
+        
         clientDataMap = clientDataMap || {};
-        clientDataMap[data.id] = data;
+        clientDataMap[data.id] = { ...data, editorial_profile: editorial };
         currentClienteId = String(data.id);
         checkSelection();
         updateCalendarConnections(currentClienteId);
@@ -2946,7 +2958,7 @@ async function generateCalendarLegacy(config = {}) {
         const calendarPrompt = `
 Crie um calendário editorial para o cliente ${client.nome_empresa}.
 Mês de referência: ${currentMonth}
-Nicho: ${client.niche || 'Geral'}
+Nicho: ${client.editorial_profile?.nicho_atuacao || 'Geral'}
 Plataformas ativas: ${platforms.join(', ')}
 Quantidade de posts: ${postsCount}
 Datas sazonais (se houver): ${seasonalDates && seasonalDates.length ? JSON.stringify(seasonalDates) : 'nenhuma'}
@@ -2993,7 +3005,7 @@ Regras obrigatórias:
                 request_id: requestId,
                 client_id: currentClienteId,
                 client_name: client.nome_empresa,
-                niche: client.niche || 'Geral',
+                niche: client.editorial_profile?.nicho_atuacao || 'Geral',
                 month: currentMonth,
                 platforms,
                 posts_count: postsCount,
@@ -3631,7 +3643,7 @@ async function generateSinglePostAI(date, format) {
         Crie UM post para redes sociais para o cliente: ${client.nome_empresa}.
         Data: ${scheduledDate}
         Formato: ${format}
-        Nicho: ${client.niche || 'Geral'}
+        Nicho: ${client.editorial_profile?.nicho_atuacao || 'Geral'}
         
         Gere um objeto JSON com a seguinte estrutura:
         {

@@ -5412,6 +5412,25 @@ const server = http.createServer(async (request, response) => {
                         clientProfile = clientJson[0];
                     }
 
+                    // Carregar Perfil Editorial
+                    let editorialProfile = null;
+                    const editorialParams = new URLSearchParams();
+                    editorialParams.set('select', 'nicho_atuacao,publico_alvo,objetivos,tom_de_voz,restricoes,produto_servico,diferenciais,palavras_proibidas');
+                    editorialParams.set('cliente_id', `eq.${clientId}`);
+                    editorialParams.set('limit', '1');
+                    const editorialUrl = `${supabaseUrl.replace(/\/$/, '')}/rest/v1/client_editorial_profiles?${editorialParams.toString()}`;
+                    const editorialRes = await fetch(editorialUrl, {
+                        method: 'GET',
+                        headers: {
+                            apikey: serviceRoleKey,
+                            Authorization: `Bearer ${serviceRoleKey}`
+                        }
+                    });
+                    const editorialJson = await editorialRes.json().catch(() => null);
+                    if (editorialRes.ok && Array.isArray(editorialJson) && editorialJson.length) {
+                        editorialProfile = editorialJson[0];
+                    }
+
                     if (errorLogContext?.calendarId) {
                         await appendCalendarLog(errorLogContext.calendarId, 'Carregando histórico');
                     }
@@ -5505,7 +5524,7 @@ const server = http.createServer(async (request, response) => {
                 const clientInsights = String(clientProfile?.client_insights || '').trim();
                 const resolvedVisualIdentity = String(clientProfile?.visual_identity || clientProfile?.identidade_visual || visualIdentity || '').trim();
                 const resolvedClientName = String(clientProfile?.nome_empresa || clientName || '').trim();
-                const resolvedNiche = String(niche || 'Geral').trim();
+                const resolvedNiche = String(editorialProfile?.nicho_atuacao || niche || 'Geral').trim();
                 const includeLinkedinValue = includeLinkedin;
                 const includeTiktokValue = includeTiktok;
                 const includeMetaValue = includeMeta;
