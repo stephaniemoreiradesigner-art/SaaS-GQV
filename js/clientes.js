@@ -858,6 +858,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const socialMediaBtn = document.getElementById('client-view-social-media-btn');
     if (socialMediaBtn) {
         socialMediaBtn.onclick = () => {
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(cliente.id);
+            }
             const url = `/social_media.html?clientId=${encodeURIComponent(cliente.id)}&tab=calendar`;
             window.location.href = url;
         };

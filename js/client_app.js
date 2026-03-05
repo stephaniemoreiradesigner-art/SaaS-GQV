@@ -64,6 +64,27 @@
         return payload;
     };
 
+    window.setActiveClientId = (clienteId) => {
+        const value = String(clienteId || '').trim();
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed <= 0) return false;
+        const normalized = String(Math.trunc(parsed));
+        window.currentClienteId = normalized;
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', normalized);
+        return true;
+    };
+
+    window.getActiveClientId = () => {
+        const current = String(window.currentClienteId || '').trim();
+        if (current) return current;
+        const stored = String(localStorage.getItem('GQV_ACTIVE_CLIENT_ID') || '').trim();
+        if (stored) {
+            window.currentClienteId = stored;
+            return stored;
+        }
+        return '';
+    };
+
     window.clientApp = {
         getSupabaseClient,
         requireClientAuth,

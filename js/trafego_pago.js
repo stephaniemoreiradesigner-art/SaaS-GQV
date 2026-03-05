@@ -1032,7 +1032,11 @@ window.trackCampaignsToday = function() {
 
 window.initTrafegoPago = function() {
     const clientSelect = document.getElementById('filter-cliente');
-    const clientId = clientSelect?.value;
+    const activeClientId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+    const clientId = clientSelect?.value || activeClientId;
+    if (clientSelect && activeClientId && clientSelect.value !== activeClientId) {
+        clientSelect.value = activeClientId;
+    }
 
     if (!clientId) {
         // renderEmptyState(); 
@@ -1099,8 +1103,8 @@ window.loadTrafficClients = async function() {
                 select.value = currentValue;
             } 
             else if (select.id === 'filter-cliente') {
-                const savedClient = localStorage.getItem('last_traffic_client');
-                if (savedClient && uniqueClients.some(c => c.id === savedClient)) {
+                const savedClient = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+                if (savedClient && uniqueClients.some(c => String(c.id) === String(savedClient))) {
                     select.value = savedClient;
                     window.initTrafegoPago();
                 }
@@ -1392,6 +1396,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterSelect = document.getElementById('filter-cliente');
     if (filterSelect) {
         filterSelect.addEventListener('change', (event) => {
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(event.target.value);
+            }
             updateTrafficPlatformAvailability(event.target.value);
             clearCampaignConnectionCTA();
         });
@@ -1400,7 +1407,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportSelect = document.getElementById('report-client-select');
     if (reportSelect) {
         reportSelect.addEventListener('change', (event) => {
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(event.target.value);
+            }
             updateTrafficPlatformAvailability(event.target.value);
+        });
+    }
+
+    const logSelect = document.getElementById('log-cliente');
+    if (logSelect) {
+        logSelect.addEventListener('change', (event) => {
+            if (typeof window.setActiveClientId === 'function') {
+                window.setActiveClientId(event.target.value);
+            }
         });
     }
 });

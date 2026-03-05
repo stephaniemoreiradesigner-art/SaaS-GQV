@@ -32,6 +32,10 @@ const HUB_SCOPE_STORAGE_KEY = 'social_hub_selected_scope';
     }
 
     const operationalHubState = window.operationalHubState;
+    const getActiveClientId = () => {
+        if (typeof window.getActiveClientId === 'function') return window.getActiveClientId();
+        return '';
+    };
 
     window.setOperationalScope = function(scope) {
         operationalHubState.scope = scope === 'agencia' ? 'agencia' : 'cliente';
@@ -1483,7 +1487,8 @@ function renderCreativeRequestsList() {
     creativeRequestsState.list.forEach(item => {
         const createdAt = formatCreativeDate(item.created_at);
         const deadline = formatCreativeDate(item.deadline_date);
-        const clientName = creativeRequestsState.clientMap[String(item.tenant_id)] || `Cliente ${item.tenant_id || '-'}`;
+        const clientId = item.cliente_id || item.tenant_id;
+        const clientName = creativeRequestsState.clientMap[String(clientId)] || `Cliente ${clientId || '-'}`;
         const statusLabel = formatCreativeStatus(item.status);
         const formatLabel = item.format || '-';
         const row = document.createElement('tr');
@@ -1566,6 +1571,7 @@ window.loadCreativeRequests = async function() {
         const url = new URL(`${window.API_BASE_URL}/api/creative-requests`);
         url.searchParams.set('scope', scope);
         if (scope === 'agencia' && clientSelect?.value) {
+            url.searchParams.set('cliente_id', clientSelect.value);
             url.searchParams.set('tenant_id', clientSelect.value);
         }
         if (statusSelect?.value && statusSelect.value !== 'pending') {
@@ -1626,7 +1632,8 @@ window.openCreativeRequestModal = async function(requestId) {
         }
         creativeRequestsState.current = json?.data || null;
         const data = creativeRequestsState.current;
-        const clientName = creativeRequestsState.clientMap[String(data?.tenant_id)] || `Cliente ${data?.tenant_id || '-'}`;
+        const detailClientId = data?.cliente_id || data?.tenant_id;
+        const clientName = creativeRequestsState.clientMap[String(detailClientId)] || `Cliente ${detailClientId || '-'}`;
         const setText = (id, value) => {
             const el = document.getElementById(id);
             if (el) el.textContent = value ?? '-';

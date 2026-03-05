@@ -47,15 +47,35 @@ function normalizeSocialPeriod(value) {
 }
 
 window.getActiveClientId = function() {
-    return window.socialMediaState?.clientId || currentClienteId || '';
+    const fromState = String(window.socialMediaState?.clientId || '').trim();
+    const fromWindow = String(window.currentClienteId || '').trim();
+    const fromStorage = String(localStorage.getItem('GQV_ACTIVE_CLIENT_ID') || '').trim();
+    return fromState || fromWindow || fromStorage || '';
 };
 
 window.setActiveClientId = function(id) {
     const value = String(id || '').trim();
-    const normalized = value || null;
+    if (!value) {
+        window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+        window.socialMediaState.clientId = null;
+        currentClienteId = null;
+        window.currentClienteId = null;
+        localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
+        persistSocialMediaState();
+        setClientRequiredMessage(true);
+        if (typeof window.refreshOperationalHub === 'function') {
+            window.refreshOperationalHub();
+        }
+        return false;
+    }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return false;
+    const normalized = String(Math.trunc(parsed));
     window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
     window.socialMediaState.clientId = normalized;
     currentClienteId = normalized;
+    window.currentClienteId = normalized;
+    localStorage.setItem('GQV_ACTIVE_CLIENT_ID', normalized);
     persistSocialMediaState();
     const select = getSocialClientSelect();
     if (select && normalized) select.value = String(normalized);
@@ -65,6 +85,7 @@ window.setActiveClientId = function(id) {
     if (typeof window.refreshOperationalHub === 'function') {
         window.refreshOperationalHub();
     }
+    return true;
 };
 
 window.getActivePeriod = function() {

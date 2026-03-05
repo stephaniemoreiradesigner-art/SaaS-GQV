@@ -1,3 +1,8 @@
+const getActiveClientId = () => {
+    if (typeof window.getActiveClientId === 'function') return window.getActiveClientId();
+    return '';
+};
+
 // Define the SocialMediaApp namespace
 window.SocialMediaApp = {
     state: {

@@ -82,7 +82,11 @@
 
         window.CLIENT_CONTEXT = data || null;
         window.currentTenantId = data?.tenant?.id || null;
-        window.currentClientIds = data?.tenant?.id ? [data.tenant.id] : [];
+        const resolvedClientIds = Array.isArray(data?.client_ids)
+            ? data.client_ids
+            : (data?.client?.id ? [data.client.id] : (data?.tenant?.id ? [data.tenant.id] : []));
+        window.currentClientIds = resolvedClientIds;
+        window.currentClienteId = resolvedClientIds[0] || null;
         return data;
     };
 

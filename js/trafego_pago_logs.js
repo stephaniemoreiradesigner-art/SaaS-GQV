@@ -25,7 +25,8 @@ window.loadTrafficLogs = async function(clientIdOverride = null, containerId = n
 
     const isTable = targetContainer && targetContainer.tagName === 'TBODY';
 
-    const clienteId = clientIdOverride || document.getElementById('filter-cliente')?.value;
+    const activeClientId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
+    const clienteId = clientIdOverride || activeClientId || document.getElementById('filter-cliente')?.value;
     const statusFilter = document.getElementById('filter-status-log')?.value;
     const prioridadeFilter = document.getElementById('filter-prioridade-log')?.value;
 
