@@ -246,11 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (isDashboardPage) {
                     try {
                         const { data: profileData } = await window.supabaseClient
-                            .from('profiles')
-                            .select('role')
-                            .eq('id', session.user.id)
+                            .from('colaboradores')
+                            .select('perfil_acesso')
+                            .eq('user_id', session.user.id)
                             .maybeSingle();
-                        const normalizedRole = String(profileData?.role || '').trim().toLowerCase();
+                        const normalizedRole = String(profileData?.perfil_acesso || '').trim().toLowerCase();
                         if (normalizedRole === 'client' || normalizedRole === 'cliente') {
                             await window.supabaseClient.auth.signOut();
                             window.location.href = 'client_login.html';
@@ -328,9 +328,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Ouvinte de mudanças de estado
             window.supabaseClient.auth.onAuthStateChange((event, newSession) => {
-                console.log('🔄 Estado de Auth mudou:', event);
+                console.log('🔄 Estado de Auth mudou:', event, newSession?.user?.email);
                 if (event === 'SIGNED_OUT' && isRestrictedPage) {
                     window.location.href = 'index.html';
+                }
+                if (event === 'SIGNED_IN' && newSession) {
+                    if (typeof loadUserProfile === 'function') {
+                        loadUserProfile(newSession);
+                    }
                 }
             });
 
@@ -898,12 +903,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return '';
             };
 
-            let roleToApply = normalizeRole(profile && profile.role ? profile.role : null);
             const colabRole = normalizeRole(colab && colab.perfil_acesso ? colab.perfil_acesso : null);
-
-            if (colabRole) {
-                roleToApply = colabRole;
-            }
+            let roleToApply = colabRole;
 
             if (allowSuper) {
                 roleToApply = 'owner';
@@ -911,12 +912,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (!roleToApply) {
                 roleToApply = allowSuper ? 'owner' : 'viewer';
-            }
-
-            if (profile && profile.role !== roleToApply) {
-                await window.supabaseClient
-                    .from('profiles')
-                    .upsert({ id: session.user.id, role: roleToApply });
             }
 
             const legacyDefaults = {
