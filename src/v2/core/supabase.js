@@ -1,36 +1,36 @@
 const { createClient } = require('@supabase/supabase-js');
 
+// Helper para ler variáveis com fallback
+const getEnv = (key, fallbackKey) => {
+  return process.env[key] || (fallbackKey ? process.env[fallbackKey] : undefined);
+};
+
+// Resolução de credenciais
+const supabaseUrl = getEnv('SUPABASE_URL', 'SUPABASE_REST_URL');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY', 'SUPABASE_ANON');
+const supabaseServiceKey = getEnv('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_ROLE');
+
+// Log de status (apenas booleans para segurança)
+console.log('[Supabase v2] Config Check:', {
+  hasUrl: !!supabaseUrl,
+  hasAnonKey: !!supabaseAnonKey,
+  hasServiceKey: !!supabaseServiceKey
+});
+
 let supabase;
 
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('⚠️ Supabase credentials missing in environment variables. Using mock client.');
-  
-  // Mock client para permitir inicialização do servidor mesmo sem chaves
-  supabase = {
+// Precisamos da URL e da Service Key para operações privilegiadas (backend)
+if (supabaseUrl && supabaseServiceKey) {
+  supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
-      getUser: async () => ({ data: { user: null }, error: { message: 'Supabase not configured' } })
-    },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
-          maybeSingle: async () => ({ data: null, error: { message: 'Supabase not configured' } }),
-          then: (resolve) => resolve({ data: [], error: { message: 'Supabase not configured' } })
-        })
-      })
-    })
-  };
-} else {
-  supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+      autoRefreshToken: false,
+      persistSession: false
     }
-  );
+  });
+} else {
+  console.warn('⚠️ [Supabase v2] Credenciais incompletas. O cliente não foi inicializado corretamente.');
+  // Em vez de mock, deixamos undefined ou null para forçar erro explícito ao usar
+  supabase = null; 
 }
 
 module.exports = supabase;

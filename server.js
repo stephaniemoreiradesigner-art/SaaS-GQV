@@ -9384,10 +9384,13 @@ const server = http.createServer(async (request, response) => {
     });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
     console.log(`\n=== SERVIDOR VIBECODE INICIADO ===`);
-    console.log(`Local: http://localhost:${PORT}/`);
+    console.log(`Servidor rodando em http://localhost:${PORT}`);
     console.log(`Backend seguro ativo: API Proxies prontos.`);
     console.log('OpenAI proxy routes enabled at /api/openai/proxy');
     console.log(`Pressione Ctrl+C para parar.\n`);
 });
+
+// Mantém o processo Node ativo em ambiente de desenvolvimento
+setInterval(() => {}, 10000);

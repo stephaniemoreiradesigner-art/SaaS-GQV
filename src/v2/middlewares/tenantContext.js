@@ -2,6 +2,10 @@ const supabase = require('../core/supabase');
 
 const tenantContext = async (req, res, next) => {
   try {
+    if (!supabase) {
+        return res.status(500).json({ error: 'Supabase not configured for v2' });
+    }
+
     const userId = req.user.id;
     const requestedTenantId = req.headers['x-tenant-id'];
 

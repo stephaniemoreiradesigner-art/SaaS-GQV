@@ -2,6 +2,11 @@ const supabase = require('../core/supabase');
 
 const authMiddleware = async (req, res, next) => {
   try {
+    if (!supabase) {
+        console.error('Supabase v2 client not initialized');
+        return res.status(500).json({ error: 'Supabase not configured for v2' });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ error: 'Missing authorization header' });
