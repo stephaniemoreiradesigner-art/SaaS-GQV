@@ -28,7 +28,7 @@ window.demoApp = (() => {
                     <button class="demo-modal-close" data-action="close-modal">&times;</button>
                 </div>
                 <div id="demo-modal-body"></div>
-                <div class="actions-row" style="margin-top: 16px; justify-content: flex-end;">
+                <div class="actions-row" id="demo-modal-actions" style="margin-top: 16px; justify-content: flex-end;">
                     <button class="btn btn-primary btn-sm" data-action="close-modal">Ok</button>
                 </div>
             </div>
@@ -41,8 +41,27 @@ window.demoApp = (() => {
         const modal = ensureModal();
         const titleEl = document.getElementById('demo-modal-title');
         const bodyEl = document.getElementById('demo-modal-body');
+        const actionsEl = document.getElementById('demo-modal-actions');
+        
         if (titleEl) titleEl.textContent = title;
         if (bodyEl) bodyEl.innerHTML = body;
+        // Restaurar botão padrão se necessário
+        if (actionsEl) {
+            actionsEl.innerHTML = '<button class="btn btn-primary btn-sm" data-action="close-modal">Ok</button>';
+        }
+        modal.classList.add('active');
+    };
+
+    const showCustomModal = (title, body, actionsHtml) => {
+        const modal = ensureModal();
+        const titleEl = document.getElementById('demo-modal-title');
+        const bodyEl = document.getElementById('demo-modal-body');
+        const actionsEl = document.getElementById('demo-modal-actions');
+        
+        if (titleEl) titleEl.textContent = title;
+        if (bodyEl) bodyEl.innerHTML = body;
+        if (actionsEl) actionsEl.innerHTML = actionsHtml;
+        
         modal.classList.add('active');
     };
 
@@ -458,12 +477,13 @@ window.demoApp = (() => {
         (data.painelCliente?.calendario || []).forEach(item => {
             const row = document.createElement('div');
             row.className = 'calendar-item';
+            row.dataset.postId = item.id; // Adicionado para facilitar acesso
             row.innerHTML = `
                 <div class="list-title">${item.data} • ${item.tema}</div>
                 <div class="list-subtitle">${item.status}</div>
                 <div class="actions-row" style="margin-top: 10px;">
-                    <button class="btn btn-primary btn-sm" data-action="aprovar-post">Aprovar</button>
-                    <button class="btn btn-sm" data-action="solicitar-ajuste">Solicitar ajuste</button>
+                    <button class="btn btn-primary btn-sm" data-action="aprovar-post" data-post-id="${item.id}">Aprovar</button>
+                    <button class="btn btn-sm" data-action="solicitar-ajuste" data-post-id="${item.id}">Solicitar ajuste</button>
                     <button class="btn btn-sm">Comentar</button>
                 </div>
             `;
@@ -478,12 +498,17 @@ window.demoApp = (() => {
         (data.painelCliente?.posts || []).forEach(post => {
             const card = document.createElement('div');
             card.className = 'card';
+            card.dataset.postId = post.id;
+            // Se tiver status definido (adicionado dinamicamente), mostra badge
+            const statusBadge = post.status ? `<span class="badge badge-warning" style="margin-bottom: 8px; display: inline-block;">${post.status}</span>` : '';
+            
             card.innerHTML = `
+                ${statusBadge}
                 <h3>${post.tema}</h3>
                 <p class="list-subtitle">${post.legenda}</p>
                 <div class="actions-row" style="margin-top: 10px;">
-                    <button class="btn btn-primary btn-sm" data-action="aprovar-post">Aprovar</button>
-                    <button class="btn btn-sm" data-action="solicitar-ajuste">Solicitar ajuste</button>
+                    <button class="btn btn-primary btn-sm" data-action="aprovar-post" data-post-id="${post.id}">Aprovar</button>
+                    <button class="btn btn-sm" data-action="solicitar-ajuste" data-post-id="${post.id}">Solicitar ajuste</button>
                 </div>
             `;
             list.appendChild(card);
@@ -532,11 +557,27 @@ window.demoApp = (() => {
         const setInsight = (key) => {
             const info = data.painelCliente?.redes?.[key];
             if (!info) return;
-            output.innerHTML = `
-                <div class="metric-card"><span class="metric-label">Alcance</span><span class="metric-value">${info.alcance}</span></div>
-                <div class="metric-card"><span class="metric-label">Engajamento</span><span class="metric-value">${info.engajamento}</span></div>
-                <div class="metric-card"><span class="metric-label">Seguidores</span><span class="metric-value">${info.seguidores}</span></div>
-            `;
+            
+            if (key === 'google') {
+                output.classList.remove('grid-3');
+                output.classList.add('grid-5');
+                output.innerHTML = `
+                    <div class="metric-card"><span class="metric-label">Impressões</span><span class="metric-value">${info.impressoes || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">Cliques</span><span class="metric-value">${info.cliques || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">CTR</span><span class="metric-value">${info.ctr || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">Conversões</span><span class="metric-value">${info.conversoes || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">CPC</span><span class="metric-value">${info.cpc || '-'}</span></div>
+                `;
+            } else {
+                output.classList.remove('grid-5');
+                output.classList.add('grid-3');
+                output.innerHTML = `
+                    <div class="metric-card"><span class="metric-label">Alcance</span><span class="metric-value">${info.alcance || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">Engajamento</span><span class="metric-value">${info.engajamento || '-'}</span></div>
+                    <div class="metric-card"><span class="metric-label">Seguidores</span><span class="metric-value">${info.seguidores || '-'}</span></div>
+                `;
+            }
+            
             buttons.forEach(btn => {
                 if (btn.dataset.insight === key) btn.classList.add('active');
                 else btn.classList.remove('active');
@@ -579,6 +620,64 @@ window.demoApp = (() => {
         }, 900);
     };
 
+    const handleRevisionRequest = (postId) => {
+        const id = Number(postId);
+        let itemTitle = 'o post';
+        
+        // Procurar no calendário
+        const calItem = (data.painelCliente?.calendario || []).find(i => i.id === id);
+        if (calItem) itemTitle = calItem.tema;
+        
+        // Procurar nos posts se não achou
+        let postItem = null;
+        if (!calItem) {
+            postItem = (data.painelCliente?.posts || []).find(i => i.id === id);
+            if (postItem) itemTitle = postItem.tema;
+        }
+
+        const body = `
+            <p class="list-subtitle" style="margin-bottom: 12px;">Descreva o que precisa ser ajustado em <strong>${itemTitle}</strong>:</p>
+            <textarea id="revision-text" class="form-control" rows="4" placeholder="Ex: Alterar a cor do fundo para azul..."></textarea>
+        `;
+        
+        const actions = `
+            <button class="btn btn-sm" data-action="close-modal" style="margin-right: 8px;">Cancelar</button>
+            <button class="btn btn-primary btn-sm" id="confirm-revision">Enviar Solicitação</button>
+        `;
+        
+        showCustomModal('Solicitar Ajuste', body, actions);
+        
+        const confirmBtn = document.getElementById('confirm-revision');
+        if (confirmBtn) {
+            confirmBtn.addEventListener('click', () => {
+                const textInput = document.getElementById('revision-text');
+                const text = textInput ? textInput.value : '';
+                
+                if (!text || !text.trim()) {
+                    alert('Por favor, descreva o ajuste.');
+                    return;
+                }
+                
+                // Atualizar dados no mock local
+                if (calItem) {
+                    calItem.status = 'Ajuste solicitado';
+                }
+                if (postItem) {
+                    postItem.status = 'Ajuste solicitado';
+                }
+                
+                // Feedback visual e fechamento
+                closeModal();
+                setTimeout(() => {
+                    showModal('Solicitação Enviada', 'O time foi notificado e fará os ajustes em breve.');
+                    // Atualizar a interface atual para refletir a mudança de status
+                    const currentHash = window.location.hash.replace('#/', '');
+                    initPage(currentHash);
+                }, 300);
+            });
+        }
+    };
+
     const bindActions = () => {
         document.addEventListener('click', (e) => {
             const target = e.target.closest('[data-action]');
@@ -597,7 +696,7 @@ window.demoApp = (() => {
             if (action === 'tp-report') handleTrafficReport();
             if (action === 'baixar-boleto') showModal('Boleto baixado', 'Download simulado do boleto.');
             if (action === 'aprovar-post') showModal('Post aprovado', 'A aprovação foi registrada.');
-            if (action === 'solicitar-ajuste') showModal('Ajuste solicitado', 'O time recebeu sua solicitação.');
+            if (action === 'solicitar-ajuste') handleRevisionRequest(target.dataset.postId);
             if (action === 'solicitar-campanha') showModal('Solicitação enviada', 'A campanha entrou na fila de atendimento.');
             if (action === 'cliente-atalho') {
                 const route = target.dataset.route || '#/dashboard';

@@ -54,6 +54,14 @@ const demoRouter = (() => {
 
     const handleNavigation = () => {
         const config = getConfig();
+        const hash = window.location.hash;
+        
+        // Se não houver hash, redirecionar para a rota padrão
+        if (!hash) {
+            window.location.hash = `#/${config.defaultRoute}`;
+            return;
+        }
+
         const routeKey = resolveRoute(config);
         loadPage(routeKey, config);
     };

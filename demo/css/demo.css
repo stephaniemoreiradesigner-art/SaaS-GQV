@@ -52,6 +52,10 @@ body {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.grid-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .stat-card {
     display: flex;
     flex-direction: column;

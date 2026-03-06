@@ -108,7 +108,7 @@ window.demoData = {
         redes: {
             instagram: { alcance: '58k', engajamento: '5,2%', seguidores: '12,4k' },
             facebook: { alcance: '34k', engajamento: '3,8%', seguidores: '8,1k' },
-            google: { alcance: '92k', engajamento: '6,1%', seguidores: '2,4k' },
+            google: { impressoes: '92k', cliques: '4.8k', ctr: '5,2%', conversoes: '184', cpc: 'R$ 2,35' },
             linkedin: { alcance: '18k', engajamento: '4,4%', seguidores: '3,2k' }
         },
         faturas: [
