@@ -3,6 +3,7 @@
 
 (function() {
     console.log('[SM-Dash] Inicializando controlador do Dashboard...');
+    window.__socialMediaDashboardActive = true; // Flag para evitar conflitos
 
     const SELECT_ID = 'social-client-select';
     const STORAGE_KEY = 'social_media_state_v1'; // Mantendo compatibilidade com social_media.js
@@ -84,6 +85,7 @@
         const select = document.getElementById(SELECT_ID);
         if (!select) return;
 
+        // Limpar e recriar
         select.innerHTML = '<option value="">Selecione o Cliente...</option>';
         
         clientes.forEach(client => {
@@ -93,13 +95,24 @@
             select.appendChild(option);
         });
 
-        // Restaurar seleção
+        // Restaurar seleção com persistência forçada
         if (state.clientId) {
             select.value = state.clientId;
-            // Verificar se o valor ainda é válido
-            if (!select.value && state.clientId) {
-                console.warn('[SM-Dash] ID salvo não encontrado na lista atual.');
+            
+            // Se falhar (value não bater com options), tenta encontrar manualmente
+            if (select.value !== state.clientId) {
+                const options = Array.from(select.options);
+                const match = options.find(opt => opt.value == state.clientId);
+                if (match) {
+                    match.selected = true;
+                    select.value = match.value; // Garante sync
+                } else {
+                    console.warn('[SM-Dash] ID salvo não encontrado na lista atual:', state.clientId);
+                }
             }
+            console.log('[SM HOTFIX] cliente restaurado no select:', select.value);
+        } else {
+            console.log('[SM HOTFIX] nenhum cliente selecionado inicialmente.');
         }
         
         updateButtonsState();
@@ -155,19 +168,49 @@
         // Listeners para os botões de ação
         document.querySelectorAll('button[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                if (!state.clientId) {
-                    alert('Por favor, selecione um cliente primeiro.');
-                    return;
-                }
+                // HOTFIX: Permitir gerar calendário mesmo sem cliente (vai pedir depois ou usar fallback)
+                // Mas para consistência, se não tiver cliente, avisa.
                 
                 const action = btn.getAttribute('data-action');
                 console.log('[SM-Dash] Ação disparada:', action);
+                
+                if (!state.clientId && action !== 'calendar-generate') {
+                    alert('Por favor, selecione um cliente primeiro.');
+                    return;
+                }
+
+                // HOTFIX: Se for calendar-generate, força abrir a aba
+                if (action === 'calendar-generate') {
+                    if (window.openSocialMediaTab) {
+                        window.openSocialMediaTab('calendar');
+                    } else {
+                        simpleTabSwitch('calendar');
+                    }
+                    
+                    // Pequeno delay para garantir que a aba abriu antes do modal
+                    setTimeout(() => {
+                        // Tenta abrir o modal de configuração se a função existir
+                        if (typeof window.openGenerationConfigModal === 'function') {
+                            window.openGenerationConfigModal();
+                        } else if (typeof window.openConfigModal === 'function') {
+                            window.openConfigModal();
+                        } else {
+                            console.warn('[SM-Dash] Modal function not found');
+                        }
+                    }, 100);
+                    return; 
+                }
+                
+                // Outras ações
+                if (!state.clientId) {
+                     alert('Por favor, selecione um cliente primeiro.');
+                     return;
+                }
                 
                 // Mapear ação para aba
                 let targetTabName = 'dashboard';
 
                 switch(action) {
-                    case 'calendar-generate':
                     case 'posts-approve':
                         targetTabName = 'calendar';
                         break;
@@ -187,13 +230,6 @@
                 } else {
                     console.warn('[SM-Dash] openSocialMediaTab não encontrada, usando fallback.');
                     simpleTabSwitch(targetTabName);
-                }
-
-                // Ação específica pós-abertura
-                if (action === 'calendar-generate') {
-                    setTimeout(() => {
-                        if(window.openConfigModal) window.openConfigModal();
-                    }, 500);
                 }
             });
         });
