@@ -56,10 +56,63 @@ body {
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+/* Fallback Styles */
+.logo-fallback {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-light);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-align: center;
+}
+.logo-fallback span {
+    color: var(--color-primary);
+}
+.avatar-fallback {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+/* Card Improvements */
+.card, .metric-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+    padding: 24px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover, .metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
 .stat-card {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    padding: 20px; /* Uniform padding */
+}
+
+.list-card {
+    padding: 16px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.list-card:last-child {
+    border-bottom: none;
 }
 
 .stat-title {
