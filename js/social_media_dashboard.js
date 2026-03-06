@@ -167,6 +167,12 @@
             if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
             window.currentClienteId = savedClientHotfix;
 
+            // [BRIDGE V2] Atualiza o contexto V2 se disponível
+            if (window.ClientContext && typeof window.ClientContext.setActiveClient === 'function') {
+                console.log('[SM-Dash] Sincronizando ClientContext v2:', savedClientHotfix);
+                window.ClientContext.setActiveClient(savedClientHotfix);
+            }
+
             // Dispara evento global
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
             
@@ -274,6 +280,11 @@
                     if (window.socialMediaState) window.socialMediaState.activeClientId = clientId;
                     if (window.socialMediaState) window.socialMediaState.clientId = clientId;
                     window.currentClienteId = clientId;
+                }
+
+                // [BRIDGE V2] Atualiza o contexto V2 na mudança manual
+                if (window.ClientContext && typeof window.ClientContext.setActiveClient === 'function') {
+                    window.ClientContext.setActiveClient(clientId);
                 }
 
                 // Atualiza UI imediatamente
