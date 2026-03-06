@@ -4,6 +4,16 @@
 
 // social_media.js - Lógica do Calendário Editorial com FullCalendar e Tailwind CSS
 
+if (typeof window.renderPlatformNotConnectedCTA !== 'function') {
+    window.renderPlatformNotConnectedCTA = function(clientId, platforms) {
+        return `<div class="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm border border-yellow-200">
+            <p class="font-bold"><i class="fas fa-exclamation-triangle"></i> Nenhuma conta conectada</p>
+            <p class="mt-1">Para gerar automaticamente, conecte: ${platforms}.</p>
+            <p class="mt-2 text-xs text-gray-600">Você ainda pode criar posts manualmente.</p>
+        </div>`;
+    };
+}
+
 // Variáveis Globais
 var calendar = null;
 var currentClienteId = null;
@@ -350,13 +360,14 @@ async function updateCalendarConnections(clientId) {
     const btnModalGenerate = document.getElementById('btn-modal-generate');
     const container = ensureCalendarCTAContainer();
 
+    // Permite abrir modal mesmo sem conexões (para manual)
     if (connectedPlatforms.length === 0) {
-        if (btnModalGenerate) btnModalGenerate.disabled = true;
+        // if (btnModalGenerate) btnModalGenerate.disabled = true; // REMOVIDO: Não bloquear botão
         if (container) {
             container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
             container.classList.remove('hidden');
         }
-        updateGenerateButtonState();
+        updateGenerateButtonState(); // Atualiza estado (vai habilitar se tiver permissão)
         return;
     }
 
@@ -974,11 +985,28 @@ let socialMediaSupabaseReady = false;
 const bootSocialMedia = () => {
     if (window.__GQV_SM_BOOTED__) return;
     window.__GQV_SM_BOOTED__ = true;
-    console.info('[SocialMedia] boot');
-    loadClientes();
+    console.info('[SocialMedia] boot (v2 - integrado com dashboard)');
+    
+    // REMOVIDO: loadClientes() -> gerenciado pelo dashboard.js
+    // loadClientes(); 
+
     const activeClientId = window.getActiveClientId ? window.getActiveClientId() : '';
-    if (!activeClientId) return;
-    loadClientContext(activeClientId);
+    if (activeClientId) {
+        loadClientContext(activeClientId);
+    }
+
+    // Escutar mudança de cliente vinda do dashboard
+    window.addEventListener('sm:clientChanged', (e) => {
+        const newClientId = e.detail?.clientId;
+        console.log('[SocialMedia] Cliente alterado via evento:', newClientId);
+        if (newClientId) {
+            window.setActiveClientId(newClientId);
+            loadClientContext(newClientId);
+        } else {
+            window.setActiveClientId(null);
+            checkSelection();
+        }
+    });
 };
 
 const maybeBootSocialMedia = () => {
@@ -2072,6 +2100,10 @@ function normalizeSocialTabName(value) {
 }
 
 function bindSocialClientSelect() {
+    // REMOVIDO: Conflito com social_media_dashboard.js
+    console.log('[SocialMedia] bindSocialClientSelect ignorado (gerenciado pelo dashboard)');
+    return;
+    /*
     const select = getSocialClientSelect();
     if (!select) return;
     select.addEventListener('change', () => {
@@ -2085,6 +2117,7 @@ function bindSocialClientSelect() {
             updateGenerateButtonState();
         }
     });
+    */
 }
 
 function handleSocialHomeAction(action) {
@@ -2446,7 +2479,12 @@ async function improveCopyWithAI() {
 }
 
 async function loadClientes() {
+    console.warn('[SocialMedia] loadClientes desativado em favor do social_media_dashboard.js');
+    return;
+
+    /* Lógica legada desativada
     const mainSelect = getSocialClientSelect();
+    ... */
     const insightsSelect = document.getElementById('insights-cliente');
     const selects = [mainSelect, insightsSelect].filter(Boolean);
     if (!selects.length) {
@@ -2760,27 +2798,34 @@ function updateWeeklyApproveState() {
 }
 
 async function handleGenerateClick() {
+    console.log('[SM] handleGenerateClick iniciado (fluxo manual permitido)');
     const hasPermission = await ensureSocialMediaPermission();
     if (!hasPermission) {
-        alert('Voce nao tem permissao para gerar calendario.');
+        alert('Você não tem permissão para gerar calendário.');
         return;
     }
-    if (!currentClienteId) {
+    
+    const activeId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+    if (!activeId) {
         setClientRequiredMessage(true);
         return;
     }
 
-    const connections = calendarConnectionsCache[currentClienteId] || await window.getConnectedPlatforms(currentClienteId);
-    calendarConnectionsCache[currentClienteId] = connections;
-    const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+    try {
+        const connections = calendarConnectionsCache[activeId] || await window.getConnectedPlatforms(activeId);
+        calendarConnectionsCache[activeId] = connections;
+        const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
 
-    if (connectedPlatforms.length === 0) {
-        const container = ensureCalendarCTAContainer();
-        if (container) {
-            container.innerHTML = window.renderPlatformNotConnectedCTA(currentClienteId, 'Instagram/Facebook/LinkedIn/TikTok');
-            container.classList.remove('hidden');
+        if (connectedPlatforms.length === 0) {
+            const container = ensureCalendarCTAContainer();
+            if (container) {
+                container.innerHTML = window.renderPlatformNotConnectedCTA(activeId, 'Instagram/Facebook/LinkedIn/TikTok');
+                container.classList.remove('hidden');
+            }
+            // Não retorna, permite abrir o modal
         }
-        return;
+    } catch (e) {
+        console.warn('[SM] Erro ao verificar plataformas (ignorado):', e);
     }
 
     openGenerationConfigModal();

@@ -80,6 +80,7 @@
 
     // Preencher o select
     function populateSelect(clientes) {
+        console.log('[SM] select populated by: social_media_dashboard.js');
         const select = document.getElementById(SELECT_ID);
         if (!select) return;
 
