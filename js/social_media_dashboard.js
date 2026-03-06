@@ -95,10 +95,10 @@
             select.appendChild(option);
         });
 
-        // Restaurar seleção com persistência forçada (HOTFIX)
+        // [SM ROOT FIX] Restaurar seleção com persistência forçada
         const savedClientHotfix = localStorage.getItem('sm_active_client');
         if (savedClientHotfix) {
-            console.log('[SM FINAL HOTFIX] saved client:', savedClientHotfix);
+            console.log('[SM ROOT FIX] saved client:', savedClientHotfix);
             state.clientId = savedClientHotfix;
             
             // Fase A: Aplicação imediata
@@ -121,11 +121,11 @@
                 const s = document.getElementById(SELECT_ID);
                 if (s && s.value !== savedClientHotfix) {
                      s.value = savedClientHotfix;
-                     console.log('[SM FINAL HOTFIX] restored select value (delayed):', s.value);
+                     console.log('[SM ROOT FIX] restored select value (delayed):', s.value);
                 }
             }, 100);
 
-            console.log('[SM FINAL HOTFIX] restored select value:', select.value);
+            console.log('[SM ROOT FIX] select.value final:', select.value);
             
             // Atualizar fonte de verdade global
             if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
@@ -135,7 +135,7 @@
             // Disparar evento para sincronizar outros módulos imediatamente
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
-            console.log('[SM FINAL HOTFIX] nenhum cliente selecionado inicialmente.');
+            console.log('[SM ROOT FIX] nenhum cliente selecionado inicialmente.');
         }
         
         updateButtonsState();
@@ -175,6 +175,11 @@
 
     // Inicializar listeners
     function initListeners() {
+        // [SM ROOT FIX] UI Bind Único
+        if (window.__GQV_SM_DASH_UI_BOUND) return;
+        window.__GQV_SM_DASH_UI_BOUND = true;
+        console.log('[SM ROOT FIX] UI bind único ok');
+
         const select = document.getElementById(SELECT_ID);
         if (select) {
             select.addEventListener('change', (e) => {

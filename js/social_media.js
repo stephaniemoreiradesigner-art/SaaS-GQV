@@ -983,9 +983,10 @@ let socialMediaDomReady = false;
 let socialMediaSupabaseReady = false;
 
 const bootSocialMedia = () => {
+    // [SM ROOT FIX] Guard Global para impedir boot duplo
     if (window.__GQV_SM_BOOTED__) return;
     window.__GQV_SM_BOOTED__ = true;
-    console.info('[SocialMedia] boot (v2 - integrado com dashboard)');
+    console.info('[SM ROOT FIX] boot único ok (v2)');
     
     // REMOVIDO: loadClientes() -> gerenciado pelo dashboard.js
     // loadClientes(); 
@@ -1027,8 +1028,11 @@ const bindSocialMediaAuthOnce = () => {
 };
 
 const bindSocialMediaUIOnce = () => {
+    // [SM ROOT FIX] Guard para listeners UI
     if (window.__GQV_SM_UI_BOUND__) return;
     window.__GQV_SM_UI_BOUND__ = true;
+    console.log('[SM ROOT FIX] UI bind único ok');
+
     bindSocialClientSelect();
     initCalendar();
     ensureSocialMediaPermission().then(updateGenerateButtonState);
@@ -2999,6 +3003,7 @@ async function generateCalendarLegacy(config = {}) {
             Object.keys(payload).forEach((k) => {
                 if (Array.isArray(payload[k])) summary[`${k}_length`] = payload[k].length;
             });
+            // [SM ROOT FIX] Proteção contra undefined chain
             if (payload?.choices?.[0]?.message?.content) {
                 summary.content_length = String(payload.choices[0].message.content).length;
             }
@@ -3205,7 +3210,12 @@ Regras obrigatórias:
             return;
         }
 
-        let content = data.choices[0].message.content;
+        let content = '';
+        if (data?.choices?.[0]?.message?.content) {
+             content = data.choices[0].message.content;
+        } else {
+             throw new Error('A IA não retornou conteúdo válido (choices missing).');
+        }
 
         let calendarPayload;
         try {
@@ -3803,7 +3813,8 @@ async function generateSinglePostAI(date, format) {
         }
         
         const data = await response.json();
-        const content = data.choices[0].message.content;
+        const content = data?.choices?.[0]?.message?.content || '';
+        if (!content) throw new Error('A IA não retornou conteúdo (payload vazio).');
         
         let jsonContent;
         try {
