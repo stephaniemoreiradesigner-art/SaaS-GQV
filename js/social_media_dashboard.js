@@ -5,16 +5,13 @@
     if (window.__GQV_SM_DASH_BOOTED__) return;
     window.__GQV_SM_DASH_BOOTED__ = true;
     console.log('[SM ROOT FIX] boot único ok');
-    console.log('[SM-Dash] Inicializando controlador do Dashboard...');
     window.__socialMediaDashboardActive = true;
 
     const SELECT_ID = 'social-client-select';
     const STORAGE_KEY = 'social_media_state_v1'; // Mantendo compatibilidade com social_media.js
 
     // Estado local
-    let state = {
-        clientId: null
-    };
+    let state = { clientId: null };
 
     // Função auxiliar para obter cliente Supabase
     function getSupabase() {
@@ -24,14 +21,15 @@
     // Carregar estado salvo
     function loadState() {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.clientId) {
-                    state.clientId = parsed.clientId;
-                    console.log('[SM-Dash] Cliente restaurado do storage:', state.clientId);
-                }
+            const savedHotfix = localStorage.getItem('sm_active_client');
+            if (savedHotfix) {
+                state.clientId = savedHotfix;
+                return;
             }
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return;
+            const parsed = JSON.parse(saved);
+            if (parsed.clientId) state.clientId = parsed.clientId;
         } catch (e) {
             console.error('[SM-Dash] Erro ao ler storage:', e);
         }
@@ -43,14 +41,9 @@
             const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             current.clientId = state.clientId;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-            
-            // Também salvar na chave legado/global se necessário
             localStorage.setItem('GQV_ACTIVE_CLIENT_ID', state.clientId || '');
-            
-            // Atualizar variáveis globais para outros scripts
             if (window.socialMediaState) window.socialMediaState.clientId = state.clientId;
             window.currentClienteId = state.clientId;
-            
         } catch (e) {
             console.error('[SM-Dash] Erro ao salvar storage:', e);
         }
@@ -84,7 +77,6 @@
 
     // Preencher o select
     function populateSelect(clientes) {
-        console.log('[SM] select populated by: social_media_dashboard.js');
         const select = document.getElementById(SELECT_ID);
         if (!select) return;
 
@@ -99,13 +91,13 @@
         });
 
         // [SM ROOT FIX] Restaurar seleção com persistência forçada
-        const savedClientHotfix = localStorage.getItem('sm_active_client');
+        const savedClientHotfix = state.clientId || localStorage.getItem('sm_active_client');
         if (savedClientHotfix) {
             console.log('[SM ROOT FIX] cliente restaurado:', savedClientHotfix);
             state.clientId = savedClientHotfix;
             localStorage.setItem('GQV_ACTIVE_CLIENT_ID', savedClientHotfix);
+            localStorage.setItem('sm_active_client', savedClientHotfix);
             
-            // Fase A: Aplicação imediata
             select.value = savedClientHotfix;
             
             // Se falhar (value não bater com options), tenta encontrar manualmente
@@ -120,12 +112,10 @@
                 }
             }
 
-            // Fase B: Reaplicação com delay para garantir UI
             setTimeout(() => {
                 const s = document.getElementById(SELECT_ID);
                 if (s && s.value !== savedClientHotfix) {
                      s.value = savedClientHotfix;
-                     console.log('[SM ROOT FIX] restored select value (delayed):', s.value);
                 }
             }, 100);
 
@@ -136,7 +126,6 @@
             window.currentClienteId = savedClientHotfix;
             console.log('[SM ROOT FIX] state activeClientId:', window.socialMediaState?.activeClientId ?? null);
 
-            // Disparar evento para sincronizar outros módulos imediatamente
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
             console.log('[SM ROOT FIX] nenhum cliente selecionado inicialmente.');
@@ -148,8 +137,6 @@
     // Atualizar estado dos botões
     function updateButtonsState() {
         const hasClient = !!state.clientId && state.clientId !== '';
-        console.log('[SM-Dash] Atualizando botões. Cliente selecionado:', hasClient);
-
         const buttons = document.querySelectorAll('button[data-action]');
         buttons.forEach(btn => {
             if (hasClient) {
@@ -161,14 +148,12 @@
             }
         });
         
-        // Esconder mensagem de "Selecione um cliente"
         const msg = document.getElementById('client-required-message');
         if (msg) {
             if (hasClient) msg.classList.add('hidden');
             else msg.classList.remove('hidden');
         }
 
-        // Atualizar Hub Operacional (Stub para manter layout)
         const hubStatus = document.getElementById('operational-status');
         if (hubStatus) {
             hubStatus.textContent = hasClient 
@@ -189,23 +174,24 @@
             select.addEventListener('change', (e) => {
                 const clientId = e.target.value;
                 state.clientId = clientId;
-                if (window.socialMediaState) window.socialMediaState.activeClientId = clientId;
-                if (window.socialMediaState) window.socialMediaState.clientId = clientId;
-                
-                // HOTFIX: Persistência reforçada
                 localStorage.setItem('sm_active_client', clientId);
-                console.log('[SM HOTFIX] cliente selecionado:', clientId);
+                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', clientId);
+                if (typeof window.setActiveClientId === 'function') {
+                    window.setActiveClientId(clientId);
+                } else {
+                    if (window.socialMediaState) window.socialMediaState.activeClientId = clientId;
+                    if (window.socialMediaState) window.socialMediaState.clientId = clientId;
+                    window.currentClienteId = clientId;
+                }
 
                 setTimeout(() => { 
                     const s = document.getElementById(SELECT_ID); 
                     if(s) s.value = clientId; 
                 }, 50);
                 
-                console.log('[SM-Dash] Novo cliente selecionado:', state.clientId);
                 saveState();
                 updateButtonsState();
                 
-                // Notificar outros componentes
                 window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
             });
         }
@@ -213,18 +199,13 @@
         // Listeners para os botões de ação
         document.querySelectorAll('button[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // HOTFIX: Permitir gerar calendário mesmo sem cliente (vai pedir depois ou usar fallback)
-                // Mas para consistência, se não tiver cliente, avisa.
-                
                 const action = btn.getAttribute('data-action');
-                console.log('[SM-Dash] Ação disparada:', action);
                 
                 if (!state.clientId && action !== 'calendar-generate') {
                     alert('Por favor, selecione um cliente primeiro.');
                     return;
                 }
 
-                // HOTFIX: Se for calendar-generate, força abrir a aba
                 if (action === 'calendar-generate') {
                     if (window.openSocialMediaTab) {
                         window.openSocialMediaTab('calendar');
@@ -232,9 +213,7 @@
                         simpleTabSwitch('calendar');
                     }
                     
-                    // Pequeno delay para garantir que a aba abriu antes do modal
                     setTimeout(() => {
-                        // Tenta abrir o modal de configuração se a função existir
                         if (typeof window.openGenerationConfigModal === 'function') {
                             window.openGenerationConfigModal();
                         } else if (typeof window.openConfigModal === 'function') {
@@ -246,13 +225,11 @@
                     return; 
                 }
                 
-                // Outras ações
                 if (!state.clientId) {
                      alert('Por favor, selecione um cliente primeiro.');
                      return;
                 }
                 
-                // Mapear ação para aba
                 let targetTabName = 'dashboard';
 
                 switch(action) {
@@ -280,7 +257,6 @@
         });
     }
 
-    // Navegação simples de fallback
     function simpleTabSwitch(tabName) {
         const views = {
             dashboard: document.getElementById('social-media-home'),
@@ -290,12 +266,10 @@
             creatives: document.getElementById('creative-requests-view')
         };
 
-        // Mapeamento de nomes
         let targetKey = tabName;
         if (tabName === 'logs') targetKey = 'diary';
         if (tabName === 'creative-requests') targetKey = 'creatives';
 
-        // Esconder tudo
         Object.values(views).forEach(el => {
             if (el) {
                 el.classList.add('hidden');
@@ -303,7 +277,6 @@
             }
         });
 
-        // Mostrar alvo
         let targetEl = null;
         if (targetKey === 'calendar') targetEl = views.calendar;
         else if (targetKey === 'insights') targetEl = views.insights;
@@ -317,13 +290,11 @@
         }
     }
 
-    // Inicialização principal
     function init() {
         loadState();
         fetchClients();
         initListeners();
         
-        // Forçar atualização inicial da UI
         updateButtonsState();
     }
 

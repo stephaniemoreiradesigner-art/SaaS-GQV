@@ -337,8 +337,7 @@ function updateGenerateButtonState() {
     const btnHeaderGenerate = document.getElementById('btn-header-generate');
     const btnModalGenerate = document.getElementById('btn-modal-generate');
     const hasClient = !!currentClienteId;
-    const hasPermission = socialMediaPermission === true;
-    const isEnabled = hasClient && hasPermission;
+    const isEnabled = hasClient;
     if (btnHeaderGenerate) btnHeaderGenerate.disabled = !isEnabled;
     if (btnModalGenerate) btnModalGenerate.disabled = !isEnabled;
 }
@@ -994,7 +993,6 @@ const bootSocialMedia = () => {
 
     window.addEventListener('sm:clientChanged', (e) => {
         const newClientId = e.detail?.clientId;
-        console.log('[SocialMedia] Cliente alterado via evento:', newClientId);
         if (newClientId) {
             window.setActiveClientId(newClientId);
             loadClientContext(newClientId);
@@ -1159,7 +1157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             maybeBootSocialMedia();
         }
     }
-    maybeBootSocialMedia();
 });
 
 // Expor initCalendar globalmente
