@@ -95,32 +95,47 @@
             select.appendChild(option);
         });
 
-        // Restaurar seleção com persistência forçada
+        // Restaurar seleção com persistência forçada (HOTFIX)
         const savedClientHotfix = localStorage.getItem('sm_active_client');
         if (savedClientHotfix) {
+            console.log('[SM FINAL HOTFIX] saved client:', savedClientHotfix);
             state.clientId = savedClientHotfix;
-        }
-
-        if (state.clientId) {
-            select.value = state.clientId;
+            
+            // Fase A: Aplicação imediata
+            select.value = savedClientHotfix;
             
             // Se falhar (value não bater com options), tenta encontrar manualmente
-            if (select.value !== state.clientId) {
+            if (select.value !== savedClientHotfix) {
                 const options = Array.from(select.options);
-                const match = options.find(opt => opt.value == state.clientId);
+                const match = options.find(opt => opt.value == savedClientHotfix);
                 if (match) {
                     match.selected = true;
                     select.value = match.value; // Garante sync
                 } else {
-                    console.warn('[SM-Dash] ID salvo não encontrado na lista atual:', state.clientId);
+                    console.warn('[SM-Dash] ID salvo não encontrado na lista atual:', savedClientHotfix);
                 }
             }
-            console.log('[SM HOTFIX] cliente restaurado no select:', select.value);
+
+            // Fase B: Reaplicação com delay para garantir UI
+            setTimeout(() => {
+                const s = document.getElementById(SELECT_ID);
+                if (s && s.value !== savedClientHotfix) {
+                     s.value = savedClientHotfix;
+                     console.log('[SM FINAL HOTFIX] restored select value (delayed):', s.value);
+                }
+            }, 100);
+
+            console.log('[SM FINAL HOTFIX] restored select value:', select.value);
             
+            // Atualizar fonte de verdade global
+            if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
+            if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
+            window.currentClienteId = savedClientHotfix;
+
             // Disparar evento para sincronizar outros módulos imediatamente
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
-            console.log('[SM HOTFIX] nenhum cliente selecionado inicialmente.');
+            console.log('[SM FINAL HOTFIX] nenhum cliente selecionado inicialmente.');
         }
         
         updateButtonsState();

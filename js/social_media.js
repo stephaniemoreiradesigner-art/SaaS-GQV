@@ -2805,34 +2805,38 @@ function updateWeeklyApproveState() {
 async function handleGenerateClick() {
     console.log('[SM] handleGenerateClick iniciado (fluxo manual permitido)');
     
-    // HOTFIX: Forçar abertura da aba de calendário
-    if (typeof window.openSocialMediaTab === 'function') {
-        window.openSocialMediaTab('calendar');
+    // HOTFIX: Forçar abertura da aba de calendário COM FALLBACK
+    try {
+        if (typeof window.openSocialMediaTab === 'function') {
+            window.openSocialMediaTab('calendar');
+        }
+        
+        // Fallback DOM explícito se a função falhar ou não atualizar visualmente
+        const home = document.getElementById('social-media-home');
+        const calView = document.getElementById('calendar-view');
+        if (home) home.classList.add('hidden');
+        if (calView) {
+            calView.classList.remove('hidden');
+            calView.style.display = ''; // Garante visibilidade
+            console.log('[SM FINAL HOTFIX] fallback calendar view ativado');
+        }
+    } catch (e) {
+        console.warn('[SM] Erro ao trocar abas:', e);
     }
     
     // Pequeno delay para garantir que a UI atualizou
     await new Promise(r => setTimeout(r, 50));
 
-    const hasPermission = await ensureSocialMediaPermission();
-    if (!hasPermission) {
-        // Se for super admin, pode passar direto
-        // Mas se ensureSocialMediaPermission retornou false, é porque falhou mesmo
-        // Vamos permitir abrir o modal mas com aviso? Não, melhor respeitar permissão.
-        // Mas o usuário pediu para "abrir a tela de calendário independentemente de Insights/Meta".
-        // Permissão é outra coisa.
-        // Vou manter o check de permissão, mas logar erro.
-        console.warn('[SM] Permissão negada, mas tentando abrir modal se for admin...');
-    }
-    
     const activeId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
     if (!activeId) {
         setClientRequiredMessage(true);
-        // Tenta abrir o modal mesmo assim? Não, precisa de cliente.
-        // Mas o usuário disse "O botão... continua sem abrir o fluxo".
-        // Se não tiver cliente, não tem como gerar.
-        // Vou alertar.
         alert('Selecione um cliente para continuar.');
         return;
+    }
+
+    const hasPermission = await ensureSocialMediaPermission();
+    if (!hasPermission) {
+         console.warn('[SM] Permissão negada, mas tentando abrir modal se for admin...');
     }
 
     // Tenta verificar conexões, mas não bloqueia
