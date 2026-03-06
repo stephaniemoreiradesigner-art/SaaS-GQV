@@ -1,3 +1,6 @@
+if (window.location.pathname.includes('social_media.html')) {
+    console.warn('[SM FIX] social_media_app.js desativado no social_media.html');
+} else {
 const getActiveClientId = () => {
     if (typeof window.getActiveClientId === 'function') return window.getActiveClientId();
     return '';
@@ -102,3 +105,4 @@ window.operationalHubState = SocialMediaApp.state;
 
 // Initialize the app
 SocialMediaApp.init();
+}
