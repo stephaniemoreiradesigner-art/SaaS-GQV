@@ -118,7 +118,11 @@
         });
 
         // [SM ROOT FIX] Restaurar seleção com persistência forçada
-        const savedClientHotfix = state.clientId || localStorage.getItem('selectedClientId');
+        const savedClientHotfix = state.clientId || 
+                                localStorage.getItem('selectedClientId') || 
+                                localStorage.getItem('sm_active_client') || 
+                                localStorage.getItem('GQV_ACTIVE_CLIENT_ID');
+
         if (savedClientHotfix) {
             console.log('[SM ROOT FIX] cliente restaurado:', savedClientHotfix);
             state.clientId = savedClientHotfix;
@@ -128,6 +132,7 @@
             localStorage.setItem('GQV_ACTIVE_CLIENT_ID', savedClientHotfix);
             localStorage.setItem('sm_active_client', savedClientHotfix);
             
+            // Tenta setar valor direto
             select.value = savedClientHotfix;
             
             // Se falhar (value não bater com options), tenta encontrar manualmente
@@ -139,11 +144,17 @@
                     select.value = match.value; // Garante sync
                 } else {
                     console.warn('[SM-Dash] ID salvo não encontrado na lista atual:', savedClientHotfix);
-                    // Se não encontrou na lista (ex: cliente arquivado), talvez devêssemos limpar?
-                    // Por enquanto mantemos para evitar perda acidental se a lista demorar a carregar
                 }
             }
 
+            // [FIX CRÍTICO] Força atualização visual e global
+            if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
+            if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
+            window.currentClienteId = savedClientHotfix;
+
+            // Dispara evento global
+            window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
+            
             setTimeout(() => {
                 const s = document.getElementById(SELECT_ID);
                 if (s && s.value !== savedClientHotfix) {
@@ -151,15 +162,6 @@
                 }
                 updateClientNameUI(s); // Atualiza UI com nome
             }, 100);
-
-            console.log('[SM ROOT FIX] select.value final:', select.value);
-            
-            if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
-            if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
-            window.currentClienteId = savedClientHotfix;
-            
-            // Dispara evento global
-            window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
             console.log('[SM ROOT FIX] nenhum cliente selecionado inicialmente.');
             updateClientNameUI(select);

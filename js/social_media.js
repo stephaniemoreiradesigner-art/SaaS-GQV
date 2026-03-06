@@ -2483,110 +2483,12 @@ async function improveCopyWithAI() {
     }
 }
 
+/* [AUDITORIA] Função desativada para centralizar a responsabilidade no dashboard
 async function loadClientes() {
-    if (window.__socialMediaDashboardActive) {
-        console.warn('[SocialMedia] loadClientes bloqueado (dashboard ativo)');
-        return;
-    }
     console.warn('[SocialMedia] loadClientes desativado em favor do social_media_dashboard.js');
-    const mainSelect = getSocialClientSelect();
-    const insightsSelect = document.getElementById('insights-cliente');
-    const selects = [mainSelect, insightsSelect].filter(Boolean);
-    if (!selects.length) {
-        console.warn('[SocialMedia] select de cliente não encontrado no DOM.');
-        return;
-    }
-
-    // Retry se o Supabase não estiver pronto
-    if (!window.supabaseClient) {
-        console.warn('[SocialMedia] Supabase ainda não inicializado.');
-        return;
-    }
-
-    try {
-        console.log('[SocialMedia] Iniciando carregamento de clientes...');
-
-        // indicador visual
-        selects.forEach((select) => {
-            if (select.options.length > 0 && select.options[0]) {
-                select.options[0].text = 'Carregando...';
-            }
-        });
-
-        // Busca nome_fantasia e nome_empresa (fallback), pois ambientes podem ter schema diferente
-        const { data, error } = await window.supabaseClient
-            .from('clientes')
-            .select('id, nome_fantasia, nome_empresa, plataformas_social')
-            .order('nome_fantasia', { ascending: true });
-
-        if (error) {
-            console.error('[SocialMedia] Erro ao carregar clientes (Supabase):', error);
-            throw error;
-        }
-
-        const rows = Array.isArray(data) ? data : [];
-        const uniqueRows = Array.from(new Map(rows.map(c => [String(c.id), c])).values());
-
-        console.log(`[SocialMedia] Clientes carregados: ${uniqueRows.length}`);
-
-        // reset options
-        selects.forEach((select) => {
-            select.innerHTML = '<option value="">Selecione o Cliente...</option>';
-        });
-
-        clientDataMap = clientDataMap || {};
-        uniqueRows.forEach(c => {
-            clientDataMap[c.id] = c;
-
-            const label =
-                c.nome_fantasia ||
-                c.nome_empresa ||
-                `Cliente ${c.id}`;
-
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.textContent = label;
-            selects.forEach((select) => {
-                const clone = opt.cloneNode(true);
-                select.appendChild(clone);
-            });
-        });
-
-        if (uniqueRows.length === 0) {
-            selects.forEach((select) => {
-                const opt = document.createElement('option');
-                opt.disabled = true;
-                opt.textContent = 'Nenhum cliente encontrado';
-                select.appendChild(opt);
-            });
-        }
-        const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlClientId = urlParams.get('cliente_id') || urlParams.get('clientId');
-
-        // Prioridade para URL, senão começa vazio
-        if (urlClientId && uniqueRows.some(c => String(c.id) === String(urlClientId))) {
-             selects.forEach((select) => {
-                 select.value = String(urlClientId);
-             });
-             loadClientContext(urlClientId);
-        } else {
-             // Estado vazio: nenhum cliente selecionado por padrão (exceto se URL mandar)
-            selects.forEach((select) => {
-                select.value = '';
-            });
-            window.setActiveClientId('');
-            currentClienteId = '';
-            checkSelection(); // Desabilita botões
-        }
-
-    } catch (err) {
-        console.error('[SocialMedia] Erro crítico ao carregar clientes:', err);
-        selects.forEach((select) => {
-            select.innerHTML = '<option value="">Erro ao carregar</option>';
-        });
-    }
+    return;
 }
+*/
 
 async function loadClientContext(clientId) {
     if (!clientId) return;
