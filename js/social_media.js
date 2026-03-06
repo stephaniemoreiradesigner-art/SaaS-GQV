@@ -983,20 +983,15 @@ let socialMediaDomReady = false;
 let socialMediaSupabaseReady = false;
 
 const bootSocialMedia = () => {
-    // [SM ROOT FIX] Guard Global para impedir boot duplo
     if (window.__GQV_SM_BOOTED__) return;
     window.__GQV_SM_BOOTED__ = true;
     console.info('[SM ROOT FIX] boot único ok (v2)');
-    
-    // REMOVIDO: loadClientes() -> gerenciado pelo dashboard.js
-    // loadClientes(); 
 
     const activeClientId = window.getActiveClientId ? window.getActiveClientId() : '';
     if (activeClientId) {
         loadClientContext(activeClientId);
     }
 
-    // Escutar mudança de cliente vinda do dashboard
     window.addEventListener('sm:clientChanged', (e) => {
         const newClientId = e.detail?.clientId;
         console.log('[SocialMedia] Cliente alterado via evento:', newClientId);
@@ -1028,7 +1023,6 @@ const bindSocialMediaAuthOnce = () => {
 };
 
 const bindSocialMediaUIOnce = () => {
-    // [SM ROOT FIX] Guard para listeners UI
     if (window.__GQV_SM_UI_BOUND__) return;
     window.__GQV_SM_UI_BOUND__ = true;
     console.log('[SM ROOT FIX] UI bind único ok');
@@ -2104,7 +2098,6 @@ function normalizeSocialTabName(value) {
 }
 
 function bindSocialClientSelect() {
-    // REMOVIDO: Conflito com social_media_dashboard.js
     console.log('[SocialMedia] bindSocialClientSelect ignorado (gerenciado pelo dashboard)');
     return;
     /*
@@ -2483,7 +2476,6 @@ async function improveCopyWithAI() {
 }
 
 async function loadClientes() {
-    // DUPLA SEGURANÇA: Se o dashboard estiver ativo, mata essa função imediatamente
     if (window.__socialMediaDashboardActive) {
         console.warn('[SocialMedia] loadClientes bloqueado (dashboard ativo)');
         return;
@@ -3002,7 +2994,6 @@ async function generateCalendarLegacy(config = {}) {
             Object.keys(payload).forEach((k) => {
                 if (Array.isArray(payload[k])) summary[`${k}_length`] = payload[k].length;
             });
-            // [SM ROOT FIX] Proteção contra undefined chain
             if (payload?.choices?.[0]?.message?.content) {
                 summary.content_length = String(payload.choices[0].message.content).length;
             }
