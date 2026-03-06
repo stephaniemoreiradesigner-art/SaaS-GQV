@@ -2,9 +2,16 @@
 // Controlador do Dashboard de Social Media - Foco em Seleção de Cliente e Navegação
 
 (function() {
+    // [GUARD] Executar apenas na página de social media
+    if (!document.querySelector('body[data-page="social-dashboard"]') && !window.location.pathname.includes('social_media.html')) {
+        return;
+    }
+
+    // [GUARD] Idempotência Global
     if (window.__GQV_SM_DASH_BOOTED__) return;
     window.__GQV_SM_DASH_BOOTED__ = true;
-    console.log('[SM ROOT FIX] boot único ok');
+    
+    console.log('[SM] Dashboard Script Carregado (v:fix-calendar-entry-1)');
     window.__socialMediaDashboardActive = true;
 
     const SELECT_ID = 'social-client-select';
@@ -12,6 +19,77 @@
 
     // Estado local
     let state = { clientId: null };
+
+    // [NAVIGATION] Tornar openSocialMediaTab global e segura (ETAPA 2)
+    window.openSocialMediaTab = function(tab) {
+        console.log(`[SM] openSocialMediaTab chamado para: ${tab}`);
+        
+        const views = {
+            dashboard: document.getElementById('social-media-home'),
+            calendar: document.getElementById('calendar-view'),
+            insights: document.getElementById('insights-view'),
+            diary: document.getElementById('logs-view'),
+            creative: document.getElementById('creative-requests-view')
+        };
+
+        // Normalização
+        let targetKey = String(tab || 'dashboard').toLowerCase();
+        if (targetKey === 'logs') targetKey = 'diary';
+        if (targetKey === 'creatives') targetKey = 'creative';
+        if (targetKey === 'approvals') targetKey = 'calendar'; // Aprovação agora vive no calendário ou view própria? Legado redireciona para calendar.
+
+        // Esconder tudo
+        Object.values(views).forEach(el => {
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('flex'); // Remove flex se tiver
+                el.style.display = 'none'; // Garante hide
+            }
+        });
+
+        // Mostrar alvo
+        let targetEl = null;
+        if (targetKey === 'calendar') targetEl = views.calendar;
+        else if (targetKey === 'insights') targetEl = views.insights;
+        else if (targetKey === 'diary') targetEl = views.diary;
+        else if (targetKey === 'creative') targetEl = views.creative;
+        else targetEl = views.dashboard; // Fallback
+
+        if (targetEl) {
+            targetEl.classList.remove('hidden');
+            targetEl.style.display = ''; // Remove inline style
+            if (targetKey !== 'dashboard') {
+                targetEl.classList.add('flex'); // Views internas geralmente são flex column
+            }
+        }
+
+        // Lógica específica por aba
+        if (targetKey === 'calendar') {
+            console.log('[SM] Abrindo calendário manual');
+            // Atualizar hash
+            const url = new URL(window.location.href);
+            url.hash = `#tab=calendar`;
+            window.history.replaceState({}, '', url.toString());
+
+            // Tentar renderizar calendário se instância existir
+            if (window.forceCalendarRerender) {
+                setTimeout(window.forceCalendarRerender, 100);
+            }
+        } else if (targetKey === 'dashboard') {
+             const url = new URL(window.location.href);
+             url.hash = ''; // Limpa hash na home
+             window.history.replaceState({}, '', url.toString());
+        } else {
+             const url = new URL(window.location.href);
+             url.hash = `#tab=${targetKey}`;
+             window.history.replaceState({}, '', url.toString());
+        }
+    };
+
+    // Expor showSocialMediaHome também
+    window.showSocialMediaHome = function() {
+        window.openSocialMediaTab('dashboard');
+    };
 
     // Função auxiliar para obter cliente Supabase
     function getSupabase() {

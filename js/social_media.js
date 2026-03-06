@@ -336,10 +336,17 @@ async function ensureSocialMediaPermission() {
 function updateGenerateButtonState() {
     const btnHeaderGenerate = document.getElementById('btn-header-generate');
     const btnModalGenerate = document.getElementById('btn-modal-generate');
-    const hasClient = !!currentClienteId;
-    const isEnabled = hasClient;
-    if (btnHeaderGenerate) btnHeaderGenerate.disabled = !isEnabled;
-    if (btnModalGenerate) btnModalGenerate.disabled = !isEnabled;
+    const hasClient = !!currentClienteId; // Única condição necessária
+    
+    // [SM FIX] Forçar habilitação se tiver cliente, ignorando status de conexão
+    if (btnHeaderGenerate) {
+        btnHeaderGenerate.disabled = !hasClient;
+        if (hasClient) btnHeaderGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+    if (btnModalGenerate) {
+        btnModalGenerate.disabled = !hasClient;
+         if (hasClient) btnModalGenerate.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
 }
 
 async function updateCalendarConnections(clientId) {
@@ -349,33 +356,39 @@ async function updateCalendarConnections(clientId) {
             container.innerHTML = '';
             container.classList.add('hidden');
         }
+        updateGenerateButtonState();
         return;
     }
 
-    const connections = await window.getConnectedPlatforms(clientId);
-    calendarConnectionsCache[clientId] = connections;
-    const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
-
-    const btnModalGenerate = document.getElementById('btn-modal-generate');
-    const container = ensureCalendarCTAContainer();
-
-    // Permite abrir modal mesmo sem conexões (para manual)
-    if (connectedPlatforms.length === 0) {
-        // if (btnModalGenerate) btnModalGenerate.disabled = true; // REMOVIDO: Não bloquear botão
-        if (container) {
-            container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
-            container.classList.remove('hidden');
-        }
-        updateGenerateButtonState(); // Atualiza estado (vai habilitar se tiver permissão)
-        return;
+    // [SM FIX] Não bloquear botão se falhar conexão
+    // Apenas buscamos para info, mas o botão deve ficar ativo se tiver cliente
+    try {
+        const connections = await window.getConnectedPlatforms(clientId);
+        calendarConnectionsCache[clientId] = connections;
+    } catch (e) {
+        console.warn('[SM] Erro ao buscar conexões (não bloqueante):', e);
     }
 
-    if (container) {
-        container.innerHTML = '';
-        container.classList.add('hidden');
-    }
-
+    // Sempre libera o botão se tiver cliente
     updateGenerateButtonState();
+
+    /* [SM FIX] Lógica de bloqueio removida - Calendário manual sempre permitido
+    const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+    
+    const container = ensureCalendarCTAContainer();
+    if (connectedPlatforms.length === 0) {
+        if (container) {
+            // container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
+            // container.classList.remove('hidden');
+        }
+        // Não retorna early, deixa continuar
+    } else {
+        if (container) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+        }
+    }
+    */
 }
 
 // --- Modal: Configurar Geração (compatível com IDs antigos e novos)
@@ -991,9 +1004,18 @@ let socialMediaDomReady = false;
 let socialMediaSupabaseReady = false;
 
 const bootSocialMedia = () => {
-    if (window.__GQV_SM_BOOTED__) return;
+    // [SM FIX] Idempotência: Se já bootou via Dashboard ou V2, não faz full re-render
+    // Mas ainda precisa carregar listeners de calendário se estiver na aba calendário
+    if (window.__GQV_SM_BOOTED__) {
+        console.log('[SM] Boot ignorado (já inicializado por Dashboard/V2)');
+        // Apenas garante que listeners de calendário estejam ativos se necessário
+        if (window.location.hash.includes('calendar')) {
+             bindSocialMediaUIOnce(); 
+        }
+        return;
+    }
     window.__GQV_SM_BOOTED__ = true;
-    console.info('[SM ROOT FIX] boot único ok (v2)');
+    console.info('[SM] Boot Inicial (Legacy)');
 
     const activeClientId = window.getActiveClientId ? window.getActiveClientId() : '';
     if (activeClientId) {
