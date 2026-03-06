@@ -3,6 +3,7 @@
 // Responsável por gerenciar quem é o cliente ativo e notificar interessados.
 
 (function(global) {
+    console.log('[V2] clientContext carregado');
     const STORAGE_KEY = 'GQV_ACTIVE_CLIENT_ID';
     const LISTENERS = new Set();
     

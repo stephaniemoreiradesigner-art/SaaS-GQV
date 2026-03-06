@@ -5,6 +5,24 @@
 
 (function(global) {
     if (global.SocialMediaCore) return;
+    console.log('[V2] social_media_core carregado');
+
+    // [DEBUG] Marcador visual de carregamento V2
+    if (!document.getElementById('v2-debug-marker')) {
+        const marker = document.createElement('div');
+        marker.id = 'v2-debug-marker';
+        marker.style.position = 'fixed';
+        marker.style.bottom = '10px';
+        marker.style.right = '10px';
+        marker.style.background = '#000';
+        marker.style.color = '#0f0';
+        marker.style.padding = '4px 8px';
+        marker.style.fontSize = '10px';
+        marker.style.zIndex = '99999';
+        marker.style.pointerEvents = 'none';
+        marker.innerText = '[V2 ATIVO]';
+        document.body.appendChild(marker);
+    }
 
     const SocialMediaCore = {
         /**
