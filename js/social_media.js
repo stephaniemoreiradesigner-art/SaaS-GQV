@@ -1111,6 +1111,7 @@ const bindSocialMediaUIOnce = () => {
         });
     }
 
+    /* [AUDITORIA] Listener removido pois social_media_dashboard.js já gerencia os cliques da Home
     const home = document.getElementById('social-media-home');
     if (home) {
         home.addEventListener('click', (event) => {
@@ -1120,6 +1121,7 @@ const bindSocialMediaUIOnce = () => {
             }
         });
     }
+    */
 
     const urlParams = new URLSearchParams(window.location.search || '');
     const tabParam = urlParams.get('tab');
