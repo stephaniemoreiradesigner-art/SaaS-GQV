@@ -545,6 +545,9 @@ function renderProgressLog(text) {
     const content = document.getElementById('generation-log-content');
     if (!content) return;
     const fullText = String(text || '');
+    if (fullText.length > 0) {
+        setGenerationLogContentVisible(true);
+    }
     if (fullText.length < progressLastLogLength) {
         content.innerHTML = '';
         progressLastLogLength = 0;

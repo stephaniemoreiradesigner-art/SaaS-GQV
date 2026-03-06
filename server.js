@@ -5319,6 +5319,21 @@ const legacyHandler = async (request, response) => {
             };
             const sendError = async (errorCode, message, details, extraPayload = null) => {
                 console.error(`[openai/proxy][${requestId}]`, { error_code: errorCode, message, details });
+                
+                // Tenta logar no banco se tivermos contexto
+                try {
+                    if (errorLogContext?.calendarId) {
+                        const safeMsg = String(message || "Erro desconhecido");
+                        await appendCalendarLog(
+                            errorLogContext.calendarId,
+                            `ERRO [${errorCode}]: ${safeMsg}`,
+                            { status: "erro" } // Opcional: define status como erro no calendário
+                        );
+                    }
+                } catch (logError) {
+                    console.error('[openai/proxy] Falha ao salvar log de erro no banco:', logError);
+                }
+
                 sendJson(500, {
                     error: true,
                     message: message || 'Erro no proxy OpenAI.',

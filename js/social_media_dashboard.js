@@ -59,11 +59,19 @@
         }
 
         try {
-            const { data: clientes, error } = await supabase
+            let query = supabase
                 .from('clientes')
                 .select('id, nome_fantasia, razao_social')
-                .eq('ativo', true)
-                .order('nome_fantasia');
+                .eq('ativo', true);
+
+            // [FILTRO DEMO]
+            // Se NÃO estiver em modo demo, filtra fora os clientes marcados como is_demo
+            const isDemoMode = String(localStorage.getItem('demo_mode')) === 'true';
+            if (!isDemoMode) {
+                query = query.neq('is_demo', true);
+            }
+
+            const { data: clientes, error } = await query.order('nome_fantasia');
 
             if (error) throw error;
 
