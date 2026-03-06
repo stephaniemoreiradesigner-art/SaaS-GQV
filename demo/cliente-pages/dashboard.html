@@ -1,12 +1,12 @@
 <div class="card">
-    <h2>Painel do Cliente</h2>
-    <div class="tabs">
-        <a class="tab-link" href="#/cliente-dashboard">Dashboard</a>
-        <a class="tab-link" href="#/cliente-calendario">Calendário</a>
-        <a class="tab-link" href="#/cliente-posts">Posts</a>
-        <a class="tab-link" href="#/cliente-campanhas">Campanhas</a>
-        <a class="tab-link" href="#/cliente-insights">Insights</a>
-        <a class="tab-link" href="#/cliente-financeiro">Financeiro</a>
+    <div class="toolbar">
+        <div>
+            <h2>Dashboard do Cliente</h2>
+            <p class="list-subtitle">Acompanhamento dos conteúdos e mídia</p>
+        </div>
+        <div class="toolbar-actions">
+            <button class="btn btn-primary btn-sm" data-action="baixar-boleto">Baixar boleto</button>
+        </div>
     </div>
     <div class="grid grid-4" style="margin-top: 20px;">
         <div class="metric-card">
@@ -26,7 +26,8 @@
             <span class="metric-value"><span data-client="fatura">0</span> dias</span>
         </div>
     </div>
-    <div style="margin-top: 20px;">
-        <button class="btn btn-primary btn-sm" data-action="baixar-boleto"><i class="fas fa-download"></i> Baixar boleto</button>
-    </div>
+</div>
+<div class="card">
+    <h3 class="section-title">Hub de atalhos</h3>
+    <div class="grid grid-2" id="client-shortcuts"></div>
 </div>

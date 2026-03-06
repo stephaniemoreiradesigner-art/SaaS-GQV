@@ -1,8 +1,44 @@
 <div class="card">
-    <h2>Tráfego Pago</h2>
+    <div class="toolbar">
+        <div>
+            <h2>Tráfego Pago</h2>
+            <p class="list-subtitle">Painel executivo com métricas e campanhas</p>
+        </div>
+        <div class="toolbar-actions">
+            <select id="tp-period" class="form-control">
+                <option value="7d">Últimos 7 dias</option>
+                <option value="30d" selected>Últimos 30 dias</option>
+                <option value="90d">Últimos 90 dias</option>
+            </select>
+            <select id="tp-network" class="form-control">
+                <option value="meta">Meta</option>
+                <option value="google">Google</option>
+                <option value="linkedin">LinkedIn</option>
+            </select>
+            <button class="btn btn-primary btn-sm" data-action="tp-report">Gerar relatório</button>
+        </div>
+    </div>
     <div class="grid grid-4" id="trafego-metrics" style="margin-top: 20px;"></div>
 </div>
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="section-title">Campanhas em execução</h3>
+        <div class="grid" id="trafego-campanhas" style="margin-top: 20px;"></div>
+    </div>
+    <div class="card">
+        <h3 class="section-title">Top performance</h3>
+        <div class="grid" id="trafego-criativos" style="margin-top: 20px;"></div>
+    </div>
+</div>
 <div class="card">
-    <h3>Campanhas em execução</h3>
-    <div class="grid" id="trafego-campanhas" style="margin-top: 20px;"></div>
+    <div class="toolbar">
+        <div>
+            <h3 class="section-title">Relatório executivo</h3>
+            <p class="list-subtitle">Simulação para apresentação comercial</p>
+        </div>
+        <div class="toolbar-actions">
+            <button class="btn btn-sm" data-action="tp-report">Atualizar relatório</button>
+        </div>
+    </div>
+    <div id="tp-report" class="detail-box"></div>
 </div>

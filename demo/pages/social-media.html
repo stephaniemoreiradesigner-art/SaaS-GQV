@@ -1,13 +1,55 @@
 <div class="card">
-    <h2>Social Media</h2>
-    <div class="grid grid-2" style="margin-top: 20px;">
+    <div class="toolbar">
         <div>
-            <h3>Calendário de conteúdo</h3>
-            <div class="calendar-list" id="social-media-posts"></div>
+            <h2>Social Media</h2>
+            <p class="list-subtitle">Hub de calendário, aprovações, insights e relatórios</p>
         </div>
-        <div>
-            <h3>Detalhes do post</h3>
-            <div class="detail-box" id="social-media-detail">Selecione um post para ver detalhes.</div>
+        <div class="toolbar-actions">
+            <button class="btn btn-primary btn-sm" data-action="sm-calendar">Criar calendário</button>
+            <button class="btn btn-sm" data-action="sm-report">Gerar relatório</button>
         </div>
     </div>
+    <div class="grid grid-3" id="sm-hub-cards" style="margin-top: 20px;"></div>
+</div>
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="section-title">Calendário de conteúdo</h3>
+        <div class="calendar-list" id="social-media-posts"></div>
+    </div>
+    <div class="card">
+        <h3 class="section-title">Detalhe e ajustes</h3>
+        <div id="social-media-detail" class="detail-box">
+            <div class="sm-edit-field">
+                <label>Tema</label>
+                <input id="sm-edit-tema" class="form-control" placeholder="Tema do post">
+            </div>
+            <div class="sm-edit-field">
+                <label>Legenda</label>
+                <textarea id="sm-edit-legenda" class="form-control" rows="4" placeholder="Legenda do post"></textarea>
+            </div>
+            <div class="sm-edit-field">
+                <label>Status</label>
+                <select id="sm-edit-status" class="form-control"></select>
+            </div>
+            <div class="actions-row">
+                <button class="btn btn-primary btn-sm" data-action="sm-save">Salvar ajuste</button>
+                <button class="btn btn-sm" data-action="sm-send-approval">Enviar para aprovação</button>
+                <button class="btn btn-sm" data-action="sm-approve">Marcar aprovado</button>
+                <button class="btn btn-sm" data-action="sm-report">Gerar relatório</button>
+            </div>
+            <div style="margin-top: 12px;" class="detail-row" id="sm-detail-extra"></div>
+        </div>
+    </div>
+</div>
+<div class="card">
+    <div class="toolbar">
+        <div>
+            <h3 class="section-title">Relatórios e análises</h3>
+            <p class="list-subtitle">Geração simulada com base no conteúdo atual</p>
+        </div>
+        <div class="toolbar-actions">
+            <button class="btn btn-sm" data-action="sm-report">Atualizar relatório</button>
+        </div>
+    </div>
+    <div id="sm-report" class="detail-box"></div>
 </div>

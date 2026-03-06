@@ -1,61 +1,68 @@
 const demoRouter = (() => {
-    const routes = {
-        home: 'pages/home.html',
-        clientes: 'pages/clientes.html',
-        tarefas: 'pages/tarefas.html',
-        'social-media': 'pages/social-media.html',
-        'trafego-pago': 'pages/trafego-pago.html',
-        financeiro: 'pages/financeiro.html',
-        colaboradores: 'pages/colaboradores.html',
-        configuracoes: 'pages/configuracoes.html',
-        'cliente-dashboard': 'cliente/dashboard.html',
-        'cliente-calendario': 'cliente/calendario.html',
-        'cliente-posts': 'cliente/posts.html',
-        'cliente-campanhas': 'cliente/campanhas.html',
-        'cliente-insights': 'cliente/insights.html',
-        'cliente-financeiro': 'cliente/financeiro.html'
+    const defaultConfig = {
+        routes: {
+            home: 'pages/home.html',
+            clientes: 'pages/clientes.html',
+            tarefas: 'pages/tarefas.html',
+            'social-media': 'pages/social-media.html',
+            'trafego-pago': 'pages/trafego-pago.html',
+            financeiro: 'pages/financeiro.html',
+            colaboradores: 'pages/colaboradores.html',
+            configuracoes: 'pages/configuracoes.html'
+        },
+        defaultRoute: 'home',
+        linkSelector: '.sidebar-menu a',
+        activeClass: 'active'
     };
 
     const app = document.getElementById('app');
 
-    const resolveRoute = () => {
-        const hash = window.location.hash || '#/home';
-        const key = hash.replace('#/', '');
-        return routes[key] ? key : 'home';
+    const getConfig = () => {
+        return window.demoRouterConfig || defaultConfig;
     };
 
-    const setActiveLink = (routeKey) => {
-        document.querySelectorAll('.sidebar-menu a').forEach(link => {
+    const resolveRoute = (config) => {
+        const hash = window.location.hash || `#/${config.defaultRoute}`;
+        const key = hash.replace('#/', '');
+        return config.routes[key] ? key : config.defaultRoute;
+    };
+
+    const setActiveLink = (routeKey, config) => {
+        const links = document.querySelectorAll(config.linkSelector);
+        links.forEach(link => {
             const linkRoute = link.getAttribute('data-route');
-            if (linkRoute === routeKey) link.classList.add('active');
-            else link.classList.remove('active');
+            if (linkRoute === routeKey) link.classList.add(config.activeClass);
+            else link.classList.remove(config.activeClass);
         });
     };
 
-    const loadPage = async (routeKey) => {
-        const path = routes[routeKey];
+    const loadPage = async (routeKey, config) => {
+        const path = config.routes[routeKey];
         if (!path) return;
         try {
             const response = await fetch(path, { cache: 'no-cache' });
             const html = await response.text();
-            app.innerHTML = html;
-            setActiveLink(routeKey);
+            if (app) app.innerHTML = html;
+            setActiveLink(routeKey, config);
             if (window.demoApp && typeof window.demoApp.initPage === 'function') {
                 window.demoApp.initPage(routeKey);
             }
         } catch (e) {
-            app.innerHTML = '<div class="card">Falha ao carregar a página da demo.</div>';
+            if (app) app.innerHTML = '<div class="card">Falha ao carregar a página da demo.</div>';
         }
     };
 
     const handleNavigation = () => {
-        const routeKey = resolveRoute();
-        loadPage(routeKey);
+        const config = getConfig();
+        const routeKey = resolveRoute(config);
+        loadPage(routeKey, config);
     };
 
     const bindMenu = () => {
-        document.querySelectorAll('.sidebar-menu a').forEach(link => {
-            link.addEventListener('click', (e) => {
+        const config = getConfig();
+        const links = document.querySelectorAll(config.linkSelector);
+        links.forEach(link => {
+            link.addEventListener('click', () => {
                 const routeKey = link.getAttribute('data-route');
                 if (!routeKey) return;
                 window.location.hash = `#/${routeKey}`;

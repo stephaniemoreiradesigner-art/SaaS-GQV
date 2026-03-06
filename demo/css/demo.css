@@ -216,6 +216,142 @@ body {
     background: #fff;
 }
 
+.section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 12px;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pill {
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(111, 66, 193, 0.1);
+    color: var(--color-primary);
+}
+
+.status-chip {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f8f9fa;
+    color: #495057;
+}
+
+.sm-post-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sm-post-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sm-edit-field {
+    margin-bottom: 12px;
+}
+
+.sm-edit-field label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 6px;
+}
+
+.demo-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+}
+
+.demo-modal.active {
+    display: flex;
+}
+
+.demo-modal-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.15);
+}
+
+.demo-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.demo-modal-title {
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.demo-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.demo-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.client-sidebar {
+    width: 240px;
+}
+
+.client-menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    color: rgba(255,255,255,0.85);
+    border-left: 4px solid transparent;
+}
+
+.client-menu a.active,
+.client-menu a:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-left-color: var(--color-primary);
+}
+
 @media (max-width: 1100px) {
     .grid-4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));

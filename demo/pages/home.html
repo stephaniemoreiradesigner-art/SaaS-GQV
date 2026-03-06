@@ -1,5 +1,14 @@
 <div class="card">
-    <h2>Visão geral</h2>
+    <div class="toolbar">
+        <div>
+            <h2>Visão geral da operação</h2>
+            <p class="list-subtitle">Resumo executivo baseado no fluxo real da agência</p>
+        </div>
+        <div class="toolbar-actions">
+            <span class="pill">Operação em ritmo</span>
+            <button class="btn btn-sm">Atualizar visão</button>
+        </div>
+    </div>
     <div class="grid grid-4" style="margin-top: 20px;">
         <div class="card stat-card">
             <span class="stat-title">Clientes ativos</span>
@@ -17,5 +26,16 @@
             <span class="stat-title">Campanhas ativas</span>
             <span class="stat-value" data-home="campanhas">0</span>
         </div>
+    </div>
+</div>
+<div class="grid grid-2">
+    <div class="card">
+        <h3 class="section-title">Atividades recentes</h3>
+        <div class="calendar-list" id="home-activities"></div>
+    </div>
+    <div class="card">
+        <h3 class="section-title">Visão da operação</h3>
+        <div class="grid grid-2" id="home-operation"></div>
+        <div style="margin-top: 16px;" class="detail-box" id="home-executive"></div>
     </div>
 </div>
