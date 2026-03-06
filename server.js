@@ -9354,6 +9354,14 @@ const legacyHandler = async (request, response) => {
         filePath = './index.html';
     }
 
+    // [FIX] Demo routes mapping (fixes EISDIR)
+    if (resolvedPathname === '/demo' || resolvedPathname === '/demo/') {
+        filePath = './demo/index.html';
+    }
+    if (resolvedPathname === '/demo/cliente' || resolvedPathname === '/demo/cliente/') {
+        filePath = './demo/cliente.html';
+    }
+
     const isClientRoute = resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname.startsWith('/client/');
     if (isClientRoute) {
         if (resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname === '/client/home') {
