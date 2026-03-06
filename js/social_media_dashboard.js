@@ -96,6 +96,11 @@
         });
 
         // Restaurar seleção com persistência forçada
+        const savedClientHotfix = localStorage.getItem('sm_active_client');
+        if (savedClientHotfix) {
+            state.clientId = savedClientHotfix;
+        }
+
         if (state.clientId) {
             select.value = state.clientId;
             
@@ -111,6 +116,9 @@
                 }
             }
             console.log('[SM HOTFIX] cliente restaurado no select:', select.value);
+            
+            // Disparar evento para sincronizar outros módulos imediatamente
+            window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
             console.log('[SM HOTFIX] nenhum cliente selecionado inicialmente.');
         }
@@ -155,7 +163,18 @@
         const select = document.getElementById(SELECT_ID);
         if (select) {
             select.addEventListener('change', (e) => {
-                state.clientId = e.target.value;
+                const clientId = e.target.value;
+                state.clientId = clientId;
+                
+                // HOTFIX: Persistência reforçada
+                localStorage.setItem('sm_active_client', clientId);
+                console.log('[SM HOTFIX] cliente selecionado:', clientId);
+
+                setTimeout(() => { 
+                    const s = document.getElementById(SELECT_ID); 
+                    if(s) s.value = clientId; 
+                }, 50);
+                
                 console.log('[SM-Dash] Novo cliente selecionado:', state.clientId);
                 saveState();
                 updateButtonsState();
