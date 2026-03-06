@@ -1,0 +1,32 @@
+<div class="card">
+    <h2>Painel do Cliente</h2>
+    <div class="tabs">
+        <a class="tab-link" href="#/cliente-dashboard">Dashboard</a>
+        <a class="tab-link" href="#/cliente-calendario">Calendário</a>
+        <a class="tab-link" href="#/cliente-posts">Posts</a>
+        <a class="tab-link" href="#/cliente-campanhas">Campanhas</a>
+        <a class="tab-link" href="#/cliente-insights">Insights</a>
+        <a class="tab-link" href="#/cliente-financeiro">Financeiro</a>
+    </div>
+    <div class="grid grid-4" style="margin-top: 20px;">
+        <div class="metric-card">
+            <span class="metric-label">Calendário para aprovação</span>
+            <span class="metric-value" data-client="calendario">0</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Posts para aprovação</span>
+            <span class="metric-value" data-client="posts">0</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Campanhas ativas</span>
+            <span class="metric-value" data-client="campanhas">0</span>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Próxima fatura em</span>
+            <span class="metric-value"><span data-client="fatura">0</span> dias</span>
+        </div>
+    </div>
+    <div style="margin-top: 20px;">
+        <button class="btn btn-primary btn-sm" data-action="baixar-boleto"><i class="fas fa-download"></i> Baixar boleto</button>
+    </div>
+</div>

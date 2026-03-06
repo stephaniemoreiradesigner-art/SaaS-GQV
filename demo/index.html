@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Local - SaaS GQV</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="css/demo.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="../assets/logo.png" alt="Logo">
+            </div>
+            <ul class="sidebar-menu">
+                <li><a href="#/home" data-route="home"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="#/clientes" data-route="clientes"><i class="fas fa-users"></i> Clientes</a></li>
+                <li><a href="#/tarefas" data-route="tarefas"><i class="fas fa-tasks"></i> Tarefas</a></li>
+                <li><a href="#/social-media" data-route="social-media"><i class="fas fa-hashtag"></i> Social Media</a></li>
+                <li><a href="#/trafego-pago" data-route="trafego-pago"><i class="fas fa-bullhorn"></i> Tráfego Pago</a></li>
+                <li><a href="#/financeiro" data-route="financeiro"><i class="fas fa-chart-line"></i> Financeiro</a></li>
+                <li><a href="#/colaboradores" data-route="colaboradores"><i class="fas fa-user-friends"></i> Colaboradores</a></li>
+                <li><a href="#/configuracoes" data-route="configuracoes"><i class="fas fa-cog"></i> Configurações</a></li>
+                <li><a href="#/cliente-dashboard" data-route="cliente-dashboard"><i class="fas fa-id-card"></i> Painel do Cliente</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <div class="user-profile-container">
+                    <img class="user-avatar-sidebar" src="../assets/user.png" alt="Usuário">
+                    <span class="user-name-sidebar">Demo Local</span>
+                </div>
+                <button class="btn-logout-sidebar" title="Sair">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+        <main class="main-content">
+            <header class="demo-topbar">
+                <div class="demo-topbar-left">
+                    <h1 class="demo-title">SaaS GQV - Demo Local</h1>
+                    <span class="demo-subtitle">Sem backend, dados simulados</span>
+                </div>
+                <div class="demo-topbar-actions">
+                    <button class="btn btn-primary btn-sm"><i class="fas fa-play"></i> Apresentar</button>
+                </div>
+            </header>
+            <section class="content-area">
+                <div id="app"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/mock-data.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
