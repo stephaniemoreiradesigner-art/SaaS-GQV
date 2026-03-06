@@ -77,7 +77,15 @@
             return;
         }
 
+        // [PROTEÇÃO] Evitar buscar se já populou (mas permitir refresh se vazio)
+        const select = document.getElementById(SELECT_ID);
+        if (select && select.options.length > 1) {
+             console.log('[SM-Dash] Select já populado, ignorando fetchClients.');
+             return;
+        }
+
         try {
+            console.log('[SM-Dash] Buscando clientes...');
             let query = supabase
                 .from('clientes')
                 .select('id, nome_fantasia, razao_social')
@@ -94,18 +102,22 @@
 
             if (error) throw error;
 
+            console.log('[SM-Dash] Clientes recebidos:', clientes?.length || 0);
             populateSelect(clientes || []);
         } catch (err) {
             console.error('[SM-Dash] Erro ao buscar clientes:', err);
-            const select = document.getElementById(SELECT_ID);
             if (select) select.innerHTML = '<option value="">Erro ao carregar clientes</option>';
         }
     }
 
     // Preencher o select
     function populateSelect(clientes) {
+        console.log('[SM-Dash] populateSelect chamado com:', clientes);
         const select = document.getElementById(SELECT_ID);
-        if (!select) return;
+        if (!select) {
+            console.warn('[SM-Dash] Select não encontrado no DOM:', SELECT_ID);
+            return;
+        }
 
         // Limpar e recriar
         select.innerHTML = '<option value="">Selecione o Cliente...</option>';
@@ -113,8 +125,11 @@
         clientes.forEach(client => {
             const option = document.createElement('option');
             option.value = client.id;
-            option.textContent = client.nome_fantasia || client.razao_social || `Cliente ${client.id}`;
+            // Fallback robusto para nome
+            const label = client.nome_fantasia || client.razao_social || `Cliente ${client.id}`;
+            option.textContent = label;
             select.appendChild(option);
+            // console.log('[SM-Dash] Option adicionada:', label, client.id);
         });
 
         // [SM ROOT FIX] Restaurar seleção com persistência forçada
