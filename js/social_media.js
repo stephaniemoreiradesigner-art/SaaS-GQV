@@ -394,6 +394,12 @@ function getGenerationModalElements() {
 }
 
 window.openGenerationConfigModal = function () {
+    const activeClientId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+    if (!activeClientId) {
+        alert("Por favor, selecione um cliente antes de configurar a geração.");
+        return;
+    }
+
     const { modal, content } = getGenerationModalElements();
     if (!modal) return;
 

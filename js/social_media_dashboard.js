@@ -21,11 +21,24 @@
     // Carregar estado salvo
     function loadState() {
         try {
-            const savedHotfix = localStorage.getItem('sm_active_client');
-            if (savedHotfix) {
-                state.clientId = savedHotfix;
+            // Tenta recuperar da chave solicitada pelo usuário, com fallbacks para compatibilidade
+            const savedId = localStorage.getItem('selectedClientId') || 
+                           localStorage.getItem('sm_active_client') || 
+                           localStorage.getItem('GQV_ACTIVE_CLIENT_ID');
+
+            if (savedId) {
+                state.clientId = savedId;
+                // Sincroniza todas as chaves para garantir consistência
+                localStorage.setItem('selectedClientId', savedId);
+                localStorage.setItem('sm_active_client', savedId);
+                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', savedId);
+                
+                // Atualiza globais
+                if (window.socialMediaState) window.socialMediaState.clientId = savedId;
+                window.currentClienteId = savedId;
                 return;
             }
+            
             const saved = localStorage.getItem(STORAGE_KEY);
             if (!saved) return;
             const parsed = JSON.parse(saved);
@@ -41,7 +54,13 @@
             const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
             current.clientId = state.clientId;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-            localStorage.setItem('GQV_ACTIVE_CLIENT_ID', state.clientId || '');
+            
+            // Persistência robusta em múltiplas chaves
+            const val = state.clientId || '';
+            localStorage.setItem('selectedClientId', val);
+            localStorage.setItem('sm_active_client', val);
+            localStorage.setItem('GQV_ACTIVE_CLIENT_ID', val);
+            
             if (window.socialMediaState) window.socialMediaState.clientId = state.clientId;
             window.currentClienteId = state.clientId;
         } catch (e) {
@@ -99,10 +118,13 @@
         });
 
         // [SM ROOT FIX] Restaurar seleção com persistência forçada
-        const savedClientHotfix = state.clientId || localStorage.getItem('sm_active_client');
+        const savedClientHotfix = state.clientId || localStorage.getItem('selectedClientId');
         if (savedClientHotfix) {
             console.log('[SM ROOT FIX] cliente restaurado:', savedClientHotfix);
             state.clientId = savedClientHotfix;
+            
+            // Garante consistência
+            localStorage.setItem('selectedClientId', savedClientHotfix);
             localStorage.setItem('GQV_ACTIVE_CLIENT_ID', savedClientHotfix);
             localStorage.setItem('sm_active_client', savedClientHotfix);
             
@@ -117,6 +139,8 @@
                     select.value = match.value; // Garante sync
                 } else {
                     console.warn('[SM-Dash] ID salvo não encontrado na lista atual:', savedClientHotfix);
+                    // Se não encontrou na lista (ex: cliente arquivado), talvez devêssemos limpar?
+                    // Por enquanto mantemos para evitar perda acidental se a lista demorar a carregar
                 }
             }
 
@@ -125,6 +149,7 @@
                 if (s && s.value !== savedClientHotfix) {
                      s.value = savedClientHotfix;
                 }
+                updateClientNameUI(s); // Atualiza UI com nome
             }, 100);
 
             console.log('[SM ROOT FIX] select.value final:', select.value);
@@ -132,14 +157,52 @@
             if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
             if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
             window.currentClienteId = savedClientHotfix;
-            console.log('[SM ROOT FIX] state activeClientId:', window.socialMediaState?.activeClientId ?? null);
-
+            
+            // Dispara evento global
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
         } else {
             console.log('[SM ROOT FIX] nenhum cliente selecionado inicialmente.');
+            updateClientNameUI(select);
         }
         
         updateButtonsState();
+    }
+
+    // Função auxiliar para atualizar o nome do cliente na UI
+    function updateClientNameUI(selectElement) {
+        if (!selectElement) return;
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const clientNameDisplay = document.getElementById('selected-client-name-display');
+        
+        // Se não existir o elemento, cria (ou injeta em algum lugar apropriado)
+        // Vamos tentar achar o header do "Cliente ativo" para injetar se precisar
+        if (!clientNameDisplay) {
+            // Opcional: injetar dinamicamente se não existir no HTML
+            // Mas o usuário pediu para "Sincronização de UI".
+            // Vamos procurar o container do select e adicionar um texto abaixo se não houver
+            const container = selectElement.parentElement;
+            if (container) {
+                const display = document.createElement('div');
+                display.id = 'selected-client-name-display';
+                display.className = 'mt-2 text-sm font-semibold text-primary';
+                container.appendChild(display);
+                
+                if (selectedOption && selectedOption.value) {
+                    display.textContent = `Cliente Selecionado: ${selectedOption.text}`;
+                    display.classList.remove('hidden');
+                } else {
+                    display.classList.add('hidden');
+                }
+                return;
+            }
+        } else {
+            if (selectedOption && selectedOption.value) {
+                clientNameDisplay.textContent = `Cliente Selecionado: ${selectedOption.text}`;
+                clientNameDisplay.classList.remove('hidden');
+            } else {
+                clientNameDisplay.classList.add('hidden');
+            }
+        }
     }
 
     // Atualizar estado dos botões
@@ -182,8 +245,12 @@
             select.addEventListener('change', (e) => {
                 const clientId = e.target.value;
                 state.clientId = clientId;
+                
+                // Salvar em todas as chaves
+                localStorage.setItem('selectedClientId', clientId);
                 localStorage.setItem('sm_active_client', clientId);
                 localStorage.setItem('GQV_ACTIVE_CLIENT_ID', clientId);
+                
                 if (typeof window.setActiveClientId === 'function') {
                     window.setActiveClientId(clientId);
                 } else {
@@ -192,10 +259,8 @@
                     window.currentClienteId = clientId;
                 }
 
-                setTimeout(() => { 
-                    const s = document.getElementById(SELECT_ID); 
-                    if(s) s.value = clientId; 
-                }, 50);
+                // Atualiza UI imediatamente
+                updateClientNameUI(select);
                 
                 saveState();
                 updateButtonsState();
@@ -207,14 +272,23 @@
         // Listeners para os botões de ação
         document.querySelectorAll('button[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const action = btn.getAttribute('data-action');
+                // Previne comportamento padrão se necessário (embora sejam buttons type=button geralmente)
+                e.preventDefault();
                 
-                if (!state.clientId && action !== 'calendar-generate') {
-                    alert('Por favor, selecione um cliente primeiro.');
+                const action = btn.getAttribute('data-action');
+                console.log(`[SM-Dash] Ação clicada: ${action}, Cliente: ${state.clientId}`);
+                
+                // Validação robusta
+                if (!state.clientId || state.clientId === '') {
+                    alert('Por favor, selecione um cliente antes de prosseguir.');
+                    // Tenta focar no select para ajudar o usuário
+                    if (select) select.focus();
                     return;
                 }
 
                 if (action === 'calendar-generate') {
+                    console.log(`[SM-Dash] Iniciando geração para o cliente: [${state.clientId}]`);
+                    
                     if (window.openSocialMediaTab) {
                         window.openSocialMediaTab('calendar');
                     } else {
@@ -231,11 +305,6 @@
                         }
                     }, 100);
                     return; 
-                }
-                
-                if (!state.clientId) {
-                     alert('Por favor, selecione um cliente primeiro.');
-                     return;
                 }
                 
                 let targetTabName = 'dashboard';
