@@ -6,8 +6,8 @@
     <title>Clientes - Gestão Que Vende</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="js/theme.js"></script>
-    <script src="js/app.js"></script>
+    <script src="../js/theme.js"></script>
+    <script src="../js/app.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased">
@@ -16,7 +16,7 @@
         <!-- Sidebar -->
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
             <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
-                <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+                <img src="../assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
             </div>
             
             <nav class="flex-1 overflow-y-auto py-6 space-y-1">
@@ -79,7 +79,7 @@
         <main class="flex-1 flex flex-col overflow-hidden relative">
             <!-- Mobile Header -->
             <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-                <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
+                <img src="../assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
                 <button class="text-gray-500 hover:text-primary" onclick="document.querySelector('aside').classList.toggle('hidden')">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
@@ -618,8 +618,8 @@
         }
     </script>
 
-    <script src="js/logbook.js"></script>
-    <script src="js/clientes.js"></script>
-    <script src="js/client_app.js"></script>
+    <script src="../js/logbook.js"></script>
+    <script src="../js/clientes.js"></script>
+    <script src="../js/client_app.js"></script>
 </body>
 </html>

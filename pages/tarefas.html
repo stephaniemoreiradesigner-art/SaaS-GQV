@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tarefas - Gestão Que Vende</title>
-    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="js/theme.js"></script>
+    <script src="../js/theme.js"></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <style>
         /* FullCalendar Customization Overrides */
@@ -77,7 +77,7 @@
         <!-- Sidebar -->
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex z-20">
             <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
-                <img src="assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
+                <img src="../assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
             </div>
             
             <nav class="flex-1 overflow-y-auto py-6 space-y-1">
@@ -125,7 +125,7 @@
 
         <div class="p-4 border-t border-gray-100">
             <div class="flex items-center gap-3 mb-3">
-                <img id="user-avatar-sidebar" src="assets/avatar_placeholder.png" alt="User" class="h-9 w-9 rounded-full object-cover border border-gray-200">
+                <img id="user-avatar-sidebar" src="../assets/avatar_placeholder.png" alt="User" class="h-9 w-9 rounded-full object-cover border border-gray-200">
                 <div class="flex-1 min-w-0">
                     <p id="user-name-sidebar" class="text-sm font-medium text-gray-700 truncate">Carregando...</p>
                     <p class="text-xs text-gray-500">Online</p>
@@ -141,7 +141,7 @@
         <main class="flex-1 flex flex-col overflow-hidden relative bg-gray-50">
             <!-- Mobile Header -->
             <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 z-10">
-                <img src="assets/logo.png" id="logo-mobile" class="h-8 w-auto object-contain" alt="Logo">
+                <img src="../assets/logo.png" id="logo-mobile" class="h-8 w-auto object-contain" alt="Logo">
                 <button class="text-gray-500 hover:text-[var(--color-primary)]" onclick="document.querySelector('aside').classList.toggle('hidden'); document.querySelector('aside').classList.toggle('fixed'); document.querySelector('aside').classList.toggle('inset-0'); document.querySelector('aside').classList.toggle('z-50');">
                     <i class="fas fa-bars text-xl"></i>
                 </button>
@@ -205,7 +205,7 @@
                             
                             <!-- Informações Fixas (Criador) -->
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6 flex items-center gap-4">
-                                <img id="creator-avatar" src="assets/avatar-placeholder.png" alt="Criador" class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm">
+                                <img id="creator-avatar" src="../assets/avatar-placeholder.png" alt="Criador" class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm">
                                 <div>
                                     <strong id="creator-name" class="block text-[var(--color-primary)] font-semibold">Carregando...</strong>
                                     <span id="creation-date" class="text-sm text-gray-500">Carregando data...</span>
@@ -305,9 +305,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/components/sidebar.js"></script>
-    <script src="js/app.js"></script>
-    <script src="js/notifications.js"></script>
-    <script src="js/tarefas.js"></script>
+    <script src="../js/components/sidebar.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/notifications.js"></script>
+    <script src="../js/tarefas.js"></script>
 </body>
 </html>
