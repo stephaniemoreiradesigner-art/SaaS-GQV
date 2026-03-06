@@ -2489,11 +2489,7 @@ async function loadClientes() {
         return;
     }
     console.warn('[SocialMedia] loadClientes desativado em favor do social_media_dashboard.js');
-    return;
-
-    /* Lógica legada desativada
     const mainSelect = getSocialClientSelect();
-    ... */
     const insightsSelect = document.getElementById('insights-cliente');
     const selects = [mainSelect, insightsSelect].filter(Boolean);
     if (!selects.length) {
@@ -2807,63 +2803,66 @@ function updateWeeklyApproveState() {
 }
 
 async function handleGenerateClick() {
-    console.log('[SM] handleGenerateClick iniciado (fluxo manual permitido)');
-    
-    // HOTFIX: Forçar abertura da aba de calendário COM FALLBACK
     try {
+        console.log('[SM] handleGenerateClick iniciado (fluxo manual permitido)');
+        const activeId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
+        if (!activeId) {
+            setClientRequiredMessage(true);
+            console.warn('[SM ROOT FIX] sem cliente ativo');
+            return;
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            url.hash = 'tab=calendar';
+            window.history.replaceState({}, '', url.toString());
+        } catch (e) {
+            console.warn('[SM ROOT FIX] falha ao atualizar hash:', e);
+        }
+
         if (typeof window.openSocialMediaTab === 'function') {
             window.openSocialMediaTab('calendar');
         }
-        
-        // Fallback DOM explícito se a função falhar ou não atualizar visualmente
+
         const home = document.getElementById('social-media-home');
         const calView = document.getElementById('calendar-view');
         if (home) home.classList.add('hidden');
         if (calView) {
             calView.classList.remove('hidden');
-            calView.style.display = ''; // Garante visibilidade
-            console.log('[SM FINAL HOTFIX] fallback calendar view ativado');
+            calView.style.display = '';
+            console.log('[SM ROOT FIX] fallback calendar view ativado');
         }
-    } catch (e) {
-        console.warn('[SM] Erro ao trocar abas:', e);
-    }
-    
-    // Pequeno delay para garantir que a UI atualizou
-    await new Promise(r => setTimeout(r, 50));
 
-    const activeId = window.getActiveClientId ? window.getActiveClientId() : currentClienteId;
-    if (!activeId) {
-        setClientRequiredMessage(true);
-        alert('Selecione um cliente para continuar.');
-        return;
-    }
+        await new Promise(r => setTimeout(r, 50));
 
-    const hasPermission = await ensureSocialMediaPermission();
-    if (!hasPermission) {
-         console.warn('[SM] Permissão negada, mas tentando abrir modal se for admin...');
-    }
+        const hasPermission = await ensureSocialMediaPermission();
+        if (!hasPermission) {
+            console.warn('[SM] Permissão negada, mas tentando abrir modal se for admin...');
+        }
 
-    // Tenta verificar conexões, mas não bloqueia
-    try {
-        if (calendarConnectionsCache) {
-             const connections = calendarConnectionsCache[activeId] || await window.getConnectedPlatforms(activeId);
-             calendarConnectionsCache[activeId] = connections;
-             
-             // Atualiza UI se necessário
-             const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
-             if (connectedPlatforms.length === 0) {
-                const container = ensureCalendarCTAContainer();
-                if (container) {
-                    container.innerHTML = window.renderPlatformNotConnectedCTA(activeId, 'Instagram/Facebook/LinkedIn/TikTok');
-                    container.classList.remove('hidden');
+        try {
+            if (calendarConnectionsCache) {
+                const connections = calendarConnectionsCache[activeId] || await window.getConnectedPlatforms(activeId);
+                calendarConnectionsCache[activeId] = connections;
+                const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
+                if (connectedPlatforms.length === 0) {
+                    const container = ensureCalendarCTAContainer();
+                    if (container) {
+                        container.innerHTML = window.renderPlatformNotConnectedCTA(activeId, 'Instagram/Facebook/LinkedIn/TikTok');
+                        container.classList.remove('hidden');
+                    }
                 }
-             }
+            }
+        } catch (e) {
+            console.warn('[SM] Erro ao verificar plataformas (ignorado):', e);
         }
-    } catch (e) {
-        console.warn('[SM] Erro ao verificar plataformas (ignorado):', e);
-    }
 
-    openGenerationConfigModal();
+        if (typeof openGenerationConfigModal === 'function') {
+            openGenerationConfigModal();
+        }
+    } catch (err) {
+        console.warn('[SM ROOT FIX] erro no clique de gerar calendário:', err);
+    }
 }
 
 async function deleteCalendar() {

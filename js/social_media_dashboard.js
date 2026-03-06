@@ -2,8 +2,11 @@
 // Controlador do Dashboard de Social Media - Foco em Seleção de Cliente e Navegação
 
 (function() {
+    if (window.__GQV_SM_DASH_BOOTED__) return;
+    window.__GQV_SM_DASH_BOOTED__ = true;
+    console.log('[SM ROOT FIX] boot único ok');
     console.log('[SM-Dash] Inicializando controlador do Dashboard...');
-    window.__socialMediaDashboardActive = true; // Flag para evitar conflitos
+    window.__socialMediaDashboardActive = true;
 
     const SELECT_ID = 'social-client-select';
     const STORAGE_KEY = 'social_media_state_v1'; // Mantendo compatibilidade com social_media.js
@@ -98,8 +101,9 @@
         // [SM ROOT FIX] Restaurar seleção com persistência forçada
         const savedClientHotfix = localStorage.getItem('sm_active_client');
         if (savedClientHotfix) {
-            console.log('[SM ROOT FIX] saved client:', savedClientHotfix);
+            console.log('[SM ROOT FIX] cliente restaurado:', savedClientHotfix);
             state.clientId = savedClientHotfix;
+            localStorage.setItem('GQV_ACTIVE_CLIENT_ID', savedClientHotfix);
             
             // Fase A: Aplicação imediata
             select.value = savedClientHotfix;
@@ -127,10 +131,10 @@
 
             console.log('[SM ROOT FIX] select.value final:', select.value);
             
-            // Atualizar fonte de verdade global
             if (window.socialMediaState) window.socialMediaState.activeClientId = savedClientHotfix;
             if (window.socialMediaState) window.socialMediaState.clientId = savedClientHotfix;
             window.currentClienteId = savedClientHotfix;
+            console.log('[SM ROOT FIX] state activeClientId:', window.socialMediaState?.activeClientId ?? null);
 
             // Disparar evento para sincronizar outros módulos imediatamente
             window.dispatchEvent(new CustomEvent('sm:clientChanged', { detail: { clientId: state.clientId } }));
@@ -185,6 +189,8 @@
             select.addEventListener('change', (e) => {
                 const clientId = e.target.value;
                 state.clientId = clientId;
+                if (window.socialMediaState) window.socialMediaState.activeClientId = clientId;
+                if (window.socialMediaState) window.socialMediaState.clientId = clientId;
                 
                 // HOTFIX: Persistência reforçada
                 localStorage.setItem('sm_active_client', clientId);
