@@ -6,7 +6,13 @@ const url = require('url');
 const crypto = require('crypto');
 const axios = require('axios');
 const express = require('express');
-const v2Router = require('./src/v2/routes/index.js');
+const v2RoutesPath = fs.existsSync(path.join(__dirname, 'src', 'v2', 'routes', 'index.js'))
+    ? path.join(__dirname, 'src', 'v2', 'routes', 'index.js')
+    : path.join(__dirname, '..', 'src', 'v2', 'routes', 'index.js');
+const v2Router = require(v2RoutesPath);
+const baseRoot = fs.existsSync(path.join(__dirname, 'v2'))
+    ? __dirname
+    : path.join(__dirname, '..');
 
 // Configuração do App Express v2
 const app = express();
@@ -9389,20 +9395,20 @@ const legacyHandler = async (request, response) => {
     // --- ARQUIVOS ESTÁTICOS ---
     
     // Remove query string para encontrar o arquivo
-    let filePath = '.' + resolvedPathname;
+    let filePath = path.join(baseRoot, resolvedPathname.replace(/^\/+/, ''));
     if (resolvedPathname === '/dashboard.html') {
-        filePath = './v2/agency/index.html';
+        filePath = path.join(baseRoot, 'v2', 'agency', 'index.html');
     }
-    if (filePath === './') {
-        filePath = './v2/agency/login.html';
+    if (filePath === baseRoot) {
+        filePath = path.join(baseRoot, 'v2', 'agency', 'login.html');
     }
 
     // [FIX] Demo routes mapping (fixes EISDIR)
     if (resolvedPathname === '/demo' || resolvedPathname === '/demo/') {
-        filePath = './demo/index.html';
+        filePath = path.join(baseRoot, 'demo', 'index.html');
     }
     if (resolvedPathname === '/demo/cliente' || resolvedPathname === '/demo/cliente/') {
-        filePath = './demo/cliente.html';
+        filePath = path.join(baseRoot, 'demo', 'cliente.html');
     }
 
     const extname = String(path.extname(filePath)).toLowerCase();
