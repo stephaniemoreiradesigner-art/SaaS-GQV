@@ -3388,6 +3388,19 @@ async function generateCalendar(config = {}) {
         return;
     }
 
+    if (!currentMonth) {
+        const inputMes = document.getElementById('input-mes');
+        currentMonth = inputMes?.value || currentMonth;
+    }
+
+    if (typeof window.createSocialCalendar === 'function') {
+        const draftId = await window.createSocialCalendar({
+            clientId: currentClienteId,
+            month: currentMonth
+        });
+        if (!draftId) return;
+    }
+
     if (!clientDataMap[currentClienteId]) {
         await loadClientContext(currentClienteId);
     }
