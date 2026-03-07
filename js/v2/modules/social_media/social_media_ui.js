@@ -24,7 +24,29 @@
             const valContent = postToEdit ? (postToEdit.legenda || postToEdit.conteudo || '') : '';
             const valDate = postToEdit ? (postToEdit.data_postagem || postToEdit.data_agendada || '').split('T')[0] : '';
             const valPlatform = postToEdit && postToEdit.plataformas && postToEdit.plataformas[0] ? postToEdit.plataformas[0] : 'instagram';
+            const valStatus = postToEdit ? (postToEdit.status || 'rascunho') : 'rascunho';
             const postId = postToEdit ? postToEdit.id : '';
+
+            // Controle de Status (Aparece apenas na edição ou se já quiser criar com status)
+            const statusControl = `
+                <div class="mt-2 pt-2 border-t border-gray-100">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Status de Aprovação</label>
+                    <div class="flex gap-2">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="status" value="rascunho" class="form-radio text-gray-500 h-4 w-4" ${valStatus === 'rascunho' ? 'checked' : ''}>
+                            <span class="ml-1 text-xs text-gray-600">Rascunho</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="status" value="pendente_aprovacao" class="form-radio text-yellow-500 h-4 w-4" ${valStatus === 'pendente_aprovacao' ? 'checked' : ''}>
+                            <span class="ml-1 text-xs text-yellow-600">Pendente</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="status" value="aprovado" class="form-radio text-green-500 h-4 w-4" ${valStatus === 'aprovado' ? 'checked' : ''}>
+                            <span class="ml-1 text-xs text-green-600">Aprovado</span>
+                        </label>
+                    </div>
+                </div>
+            `;
 
             container.innerHTML = `
                 <div class="bg-white p-4 rounded-lg border ${isEdit ? 'border-purple-300 ring-2 ring-purple-100' : 'border-gray-200'} mb-6 shadow-sm transition-all">
@@ -62,6 +84,9 @@
                             
                             ${deleteBtn}
                         </div>
+                        
+                        ${statusControl}
+                        
                         <div id="v2-form-feedback" class="text-xs mt-2 hidden"></div>
                     </form>
                 </div>
@@ -144,7 +169,7 @@
                 const title = post.titulo || post.tema || 'Sem título';
                 const content = post.legenda || post.conteudo || '';
                 
-                const statusColor = status === 'aprovado' ? 'green' : (status === 'agendado' ? 'blue' : 'gray');
+                const statusColor = status === 'aprovado' ? 'green' : (status === 'agendado' ? 'blue' : (status === 'pendente_aprovacao' ? 'yellow' : 'gray'));
 
                 // Detectar plataformas (pode vir array jsonb ou colunas booleanas)
                 let platformsHtml = '';
@@ -240,6 +265,7 @@
                 let color = '#9ca3af'; // gray (rascunho)
                 if (status === 'aprovado') color = '#10b981'; // green
                 if (status === 'agendado') color = '#3b82f6'; // blue
+                if (status === 'pendente_aprovacao') color = '#eab308'; // yellow
 
                 // Título com ícone (HTML não é suportado nativamente no title v5+, usa-se eventContent)
                 const title = post.titulo || post.tema || 'Sem título';

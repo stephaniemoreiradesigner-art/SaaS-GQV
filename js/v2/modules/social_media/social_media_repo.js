@@ -196,6 +196,39 @@
         },
 
         /**
+         * Atualiza o status de um post
+         * @param {string} postId
+         * @param {string} newStatus (rascunho, pendente_aprovacao, aprovado)
+         * @returns {Promise<boolean>} Sucesso
+         */
+        updatePostStatus: async function(postId, newStatus) {
+            if (!global.supabaseClient || !postId || !newStatus) return false;
+
+            try {
+                // Tenta atualizar em 'social_posts'
+                let { error } = await global.supabaseClient
+                    .from('social_posts')
+                    .update({ status: newStatus })
+                    .eq('id', postId);
+
+                if (!error) return true;
+
+                // Fallback 'posts'
+                console.warn('[SocialMediaRepo] updatePostStatus falhou em social_posts, tentando posts...');
+                const { error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .update({ status: newStatus })
+                    .eq('id', postId);
+
+                if (fbError) throw fbError;
+                return true;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao atualizar status:', err);
+                return false;
+            }
+        },
+
+        /**
          * Busca posts de um cliente em um intervalo de datas
          * @param {string} clientId
          * @param {string} startDate (YYYY-MM-DD)

@@ -134,7 +134,7 @@
                 legenda: formData.get('legenda'),
                 plataforma: formData.get('plataforma'),
                 data_postagem: formData.get('data_postagem') || null,
-                status: 'rascunho'
+                status: formData.get('status') || 'rascunho'
             };
 
             global.SocialMediaUI.setFormLoading(true);
