@@ -5,41 +5,62 @@
 (function(global) {
     const SocialMediaUI = {
         /**
-         * Renderiza o formulário de criação rápida
+         * Renderiza o formulário de criação/edição
+         * @param {Object} [postToEdit] - Dados do post se for edição
          */
-        renderCreateForm: function() {
+        renderCreateForm: function(postToEdit = null) {
             const container = document.getElementById('v2-social-create-area');
             if (!container) return;
 
+            const isEdit = !!postToEdit;
+            const title = isEdit ? 'Editar Post (V2)' : 'Novo Post Manual (V2)';
+            const btnText = isEdit ? 'Atualizar Post' : 'Salvar Rascunho';
+            const btnIcon = isEdit ? 'fa-check' : 'fa-save';
+            const cancelBtn = isEdit ? `<button type="button" id="v2-btn-cancel" class="px-3 py-2 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 transition-colors mr-2">Cancelar</button>` : '';
+            const deleteBtn = isEdit ? `<button type="button" id="v2-btn-delete" class="px-3 py-2 bg-red-100 text-red-600 rounded text-sm hover:bg-red-200 transition-colors ml-auto"><i class="fas fa-trash"></i> Excluir</button>` : '';
+
+            // Valores iniciais
+            const valTitle = postToEdit ? (postToEdit.titulo || postToEdit.tema || '') : '';
+            const valContent = postToEdit ? (postToEdit.legenda || postToEdit.conteudo || '') : '';
+            const valDate = postToEdit ? (postToEdit.data_postagem || postToEdit.data_agendada || '').split('T')[0] : '';
+            const valPlatform = postToEdit && postToEdit.plataformas && postToEdit.plataformas[0] ? postToEdit.plataformas[0] : 'instagram';
+            const postId = postToEdit ? postToEdit.id : '';
+
             container.innerHTML = `
-                <div class="bg-white p-4 rounded-lg border border-gray-200 mb-6 shadow-sm">
+                <div class="bg-white p-4 rounded-lg border ${isEdit ? 'border-purple-300 ring-2 ring-purple-100' : 'border-gray-200'} mb-6 shadow-sm transition-all">
                     <h4 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                        <i class="fas fa-pen-nib text-purple-600"></i> Novo Post Manual (V2)
+                        <i class="fas fa-pen-nib text-purple-600"></i> ${title}
                     </h4>
-                    <form id="v2-create-post-form" class="space-y-3">
+                    <form id="v2-create-post-form" class="space-y-3" data-mode="${isEdit ? 'edit' : 'create'}" data-post-id="${postId}">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <input type="text" name="titulo" placeholder="Título / Tema" required 
+                            <input type="text" name="titulo" value="${valTitle}" placeholder="Título / Tema" required 
                                 class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm focus:ring-purple-500 focus:border-purple-500">
                             
                             <select name="plataforma" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm">
-                                <option value="instagram">Instagram</option>
-                                <option value="facebook">Facebook</option>
-                                <option value="linkedin">LinkedIn</option>
-                                <option value="tiktok">TikTok</option>
+                                <option value="instagram" ${valPlatform === 'instagram' ? 'selected' : ''}>Instagram</option>
+                                <option value="facebook" ${valPlatform === 'facebook' ? 'selected' : ''}>Facebook</option>
+                                <option value="linkedin" ${valPlatform === 'linkedin' ? 'selected' : ''}>LinkedIn</option>
+                                <option value="tiktok" ${valPlatform === 'tiktok' ? 'selected' : ''}>TikTok</option>
                             </select>
                         </div>
                         
                         <textarea name="legenda" rows="2" placeholder="Legenda ou ideia inicial..." 
-                            class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm focus:ring-purple-500 focus:border-purple-500"></textarea>
+                            class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm focus:ring-purple-500 focus:border-purple-500">${valContent}</textarea>
                         
-                        <div class="flex justify-between items-center">
-                            <input type="date" name="data_postagem" class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs">
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <input type="date" name="data_postagem" value="${valDate}" class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs">
+                            
+                            <div class="flex-1"></div>
+                            
+                            ${cancelBtn}
                             
                             <button type="submit" id="v2-btn-save" class="px-4 py-2 bg-purple-600 text-white rounded text-sm font-medium hover:bg-purple-700 transition-colors flex items-center gap-2">
-                                <span class="hidden md:inline">Salvar Rascunho</span>
+                                <span class="hidden md:inline">${btnText}</span>
                                 <span class="md:hidden">Salvar</span>
-                                <i class="fas fa-save"></i>
+                                <i class="fas ${btnIcon}"></i>
                             </button>
+                            
+                            ${deleteBtn}
                         </div>
                         <div id="v2-form-feedback" class="text-xs mt-2 hidden"></div>
                     </form>
@@ -90,7 +111,31 @@
 
             posts.forEach(post => {
                 const card = document.createElement('div');
-                card.className = 'bg-white p-4 rounded shadow-sm border border-gray-100 hover:shadow-md transition-shadow';
+                card.className = 'bg-white p-4 rounded shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer hover:border-purple-200 relative group';
+                
+                // Tooltip de edição
+                const editHint = document.createElement('div');
+                editHint.className = 'absolute top-2 right-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity';
+                editHint.innerHTML = '<i class="fas fa-pencil-alt"></i> Editar';
+                card.appendChild(editHint);
+
+                // Evento de clique para edição
+                card.addEventListener('click', (e) => {
+                    // Evitar conflito se clicar em botões internos futuros
+                    if (e.target.closest('button')) return;
+                    
+                    // Dispara evento customizado para o Core ouvir
+                    const event = new CustomEvent('v2:post-click', { detail: { post } });
+                    document.dispatchEvent(event);
+                    
+                    // Feedback visual
+                    document.querySelectorAll('#v2-social-feed > div > div').forEach(d => d.classList.remove('ring-2', 'ring-purple-400'));
+                    card.classList.add('ring-2', 'ring-purple-400');
+                    
+                    // Scroll suave para o form
+                    const formArea = document.getElementById('v2-social-create-area');
+                    if(formArea) formArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
                 
                 // Compatibilidade de campos entre tabelas (posts vs social_posts)
                 const dateRaw = post.data_postagem || post.data_agendada;
@@ -113,7 +158,7 @@
                     if (post.linkedin) platformsHtml += '<i class="fab fa-linkedin"></i> ';
                 }
 
-                card.innerHTML = `
+                card.innerHTML += `
                     <div class="flex justify-between items-start mb-2">
                         <span class="text-xs font-bold text-gray-500">${date}</span>
                         <span class="px-2 py-0.5 text-xs rounded-full bg-${statusColor}-100 text-${statusColor}-800 capitalize">${status}</span>

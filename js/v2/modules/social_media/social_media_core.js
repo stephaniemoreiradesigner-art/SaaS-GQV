@@ -31,7 +31,32 @@
             document.addEventListener('submit', (e) => {
                 if (e.target && e.target.id === 'v2-create-post-form') {
                     e.preventDefault();
-                    this.handleCreatePost(e.target);
+                    this.handleCreateOrUpdatePost(e.target);
+                }
+            });
+
+            // Delegate para botão cancelar
+            document.addEventListener('click', (e) => {
+                if (e.target && e.target.id === 'v2-btn-cancel') {
+                    this.cancelEdit();
+                }
+            });
+
+            // Delegate para botão deletar
+            document.addEventListener('click', (e) => {
+                if (e.target && e.target.closest('#v2-btn-delete')) {
+                    const form = document.getElementById('v2-create-post-form');
+                    const postId = form ? form.dataset.postId : null;
+                    if (postId) {
+                        this.handleDeletePost(postId);
+                    }
+                }
+            });
+
+            // Ouvir clique no card para edição
+            document.addEventListener('v2:post-click', (e) => {
+                if (e.detail && e.detail.post) {
+                    this.startEdit(e.detail.post);
                 }
             });
 
@@ -76,13 +101,25 @@
             }
         },
 
-        handleCreatePost: async function(form) {
+        startEdit: function(post) {
+            console.log('[SocialMediaCore V2] Iniciando edição do post:', post.id);
+            global.SocialMediaUI.renderCreateForm(post);
+        },
+
+        cancelEdit: function() {
+            global.SocialMediaUI.renderCreateForm(null); // Volta para modo create
+        },
+
+        handleCreateOrUpdatePost: async function(form) {
             if (!this.currentClientId) {
                 global.SocialMediaUI.showFeedback('Selecione um cliente primeiro.', 'error');
                 return;
             }
 
+            const mode = form.dataset.mode; // 'create' ou 'edit'
+            const postId = form.dataset.postId;
             const formData = new FormData(form);
+            
             const input = {
                 cliente_id: this.currentClientId,
                 titulo: formData.get('titulo'),
@@ -92,14 +129,26 @@
                 status: 'rascunho'
             };
 
-            console.log('[SocialMediaCore V2] Salvando post...', input);
             global.SocialMediaUI.setFormLoading(true);
 
             try {
-                await global.SocialMediaRepo.createPost(input);
-                global.SocialMediaUI.showFeedback('Rascunho salvo com sucesso!', 'success');
+                if (mode === 'edit' && postId) {
+                    console.log('[SocialMediaCore V2] Atualizando post...', postId);
+                    await global.SocialMediaRepo.updatePost(postId, input);
+                    global.SocialMediaUI.showFeedback('Post atualizado com sucesso!', 'success');
+                } else {
+                    console.log('[SocialMediaCore V2] Criando post...', input);
+                    await global.SocialMediaRepo.createPost(input);
+                    global.SocialMediaUI.showFeedback('Rascunho salvo com sucesso!', 'success');
+                }
+                
                 global.SocialMediaUI.clearForm();
                 
+                // Se estava editando, volta para modo criar
+                if (mode === 'edit') {
+                    setTimeout(() => this.cancelEdit(), 1000);
+                }
+
                 // Recarregar lista
                 const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
                 global.SocialMediaUI.renderFeed(posts, this.currentClientName);
@@ -107,6 +156,33 @@
             } catch (err) {
                 console.error('[SocialMediaCore V2] Erro ao salvar:', err);
                 global.SocialMediaUI.showFeedback('Erro ao salvar. Verifique o console.', 'error');
+            } finally {
+                global.SocialMediaUI.setFormLoading(false);
+            }
+        },
+
+        handleDeletePost: async function(postId) {
+            if (!confirm('Tem certeza que deseja excluir este post?')) return;
+
+            global.SocialMediaUI.setFormLoading(true); // Bloqueia UI
+            
+            try {
+                console.log('[SocialMediaCore V2] Excluindo post...', postId);
+                const success = await global.SocialMediaRepo.deletePost(postId);
+                
+                if (success) {
+                    global.SocialMediaUI.showFeedback('Post excluído.', 'success');
+                    this.cancelEdit(); // Limpa form
+                    
+                    // Recarregar lista
+                    const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
+                    global.SocialMediaUI.renderFeed(posts, this.currentClientName);
+                } else {
+                    global.SocialMediaUI.showFeedback('Erro ao excluir.', 'error');
+                }
+            } catch (err) {
+                console.error('[SocialMediaCore V2] Erro ao excluir:', err);
+                global.SocialMediaUI.showFeedback('Erro crítico ao excluir.', 'error');
             } finally {
                 global.SocialMediaUI.setFormLoading(false);
             }

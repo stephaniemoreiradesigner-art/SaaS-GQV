@@ -81,6 +81,88 @@
         },
 
         /**
+         * Atualiza um post existente
+         * @param {string} postId
+         * @param {Object} input - Dados para atualizar
+         * @returns {Promise<Object>} Resultado da operação
+         */
+        updatePost: async function(postId, input) {
+            if (!global.supabaseClient || !postId) return null;
+
+            // Mapeamento de campos para update
+            const dbPayload = {};
+            if (input.titulo !== undefined) dbPayload.tema = input.titulo;
+            if (input.legenda !== undefined) dbPayload.legenda = input.legenda;
+            if (input.data_postagem !== undefined) dbPayload.data_agendada = input.data_postagem;
+            if (input.status !== undefined) dbPayload.status = input.status;
+            if (input.plataforma !== undefined) dbPayload.plataformas = [input.plataforma];
+            
+            // Campos fallback
+            const fallbackPayload = {};
+            if (input.titulo !== undefined) fallbackPayload.titulo = input.titulo;
+            if (input.legenda !== undefined) fallbackPayload.conteudo = input.legenda;
+            if (input.data_postagem !== undefined) fallbackPayload.data_postagem = input.data_postagem;
+            if (input.status !== undefined) fallbackPayload.status = input.status;
+
+            try {
+                // Tenta atualizar em 'social_posts' primeiro
+                let { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .update(dbPayload)
+                    .eq('id', postId)
+                    .select();
+
+                if (!error) return data;
+
+                // Se falhar, tenta 'posts'
+                console.warn('[SocialMediaRepo] Update em social_posts falhou, tentando posts...');
+                const { data: fbData, error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .update(fallbackPayload)
+                    .eq('id', postId)
+                    .select();
+
+                if (fbError) throw fbError;
+                return fbData;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao atualizar post:', err);
+                throw err;
+            }
+        },
+
+        /**
+         * Exclui um post
+         * @param {string} postId
+         * @returns {Promise<boolean>} Sucesso ou falha
+         */
+        deletePost: async function(postId) {
+            if (!global.supabaseClient || !postId) return false;
+
+            try {
+                // Tenta deletar de 'social_posts'
+                let { error } = await global.supabaseClient
+                    .from('social_posts')
+                    .delete()
+                    .eq('id', postId);
+
+                if (!error) return true;
+
+                // Se falhar, tenta 'posts'
+                console.warn('[SocialMediaRepo] Delete em social_posts falhou, tentando posts...');
+                const { error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .delete()
+                    .eq('id', postId);
+
+                if (fbError) throw fbError;
+                return true;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao excluir post:', err);
+                return false;
+            }
+        },
+
+        /**
          * Busca posts de um cliente específico
          * @param {string} clientId 
          * @returns {Promise<Array>} Lista de posts
