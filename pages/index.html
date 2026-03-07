@@ -136,6 +136,7 @@
             };
 
             updateDemoBadge();
+            const dashboardUrl = `dashboard.html?v=20260307`;
 
             // Verificar sessão existente
             try {
@@ -143,7 +144,7 @@
                 if (data.session) {
                     setDemoState(isDemoEmail(data.session?.user?.email));
                     console.log('Sessão ativa, redirecionando...');
-                    window.location.href = 'dashboard.html';
+                    window.location.href = dashboardUrl;
                     return;
                 }
             } catch (err) {
@@ -180,10 +181,10 @@
                             const params = new URLSearchParams();
                             params.append('access_token', data.session.access_token);
                             params.append('refresh_token', data.session.refresh_token);
-                            window.location.href = 'dashboard.html?' + params.toString();
+                            window.location.href = `${dashboardUrl}&${params.toString()}`;
                         } else {
                             setDemoState(isDemoEmail(email));
-                            window.location.href = 'dashboard.html';
+                            window.location.href = dashboardUrl;
                         }
 
                     } catch (error) {
