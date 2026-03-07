@@ -9446,10 +9446,11 @@ app.use(async (req, res, next) => {
 });
 
 const server = http.createServer(app);
+const HOST = '0.0.0.0';
 
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, HOST, () => {
     console.log(`\n=== SERVIDOR VIBECODE INICIADO ===`);
-    console.log(`Servidor rodando em http://localhost:${PORT}`);
+    console.log(`Servidor rodando em http://${HOST}:${PORT}`);
     console.log(`Backend seguro ativo: API Proxies prontos.`);
     console.log('OpenAI proxy routes enabled at /api/openai/proxy');
     console.log(`Pressione Ctrl+C para parar.\n`);
