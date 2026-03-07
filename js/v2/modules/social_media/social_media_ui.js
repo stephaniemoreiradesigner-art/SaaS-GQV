@@ -25,13 +25,14 @@
             const valDate = postToEdit ? (postToEdit.data_postagem || postToEdit.data_agendada || '').split('T')[0] : '';
             const valPlatform = postToEdit && postToEdit.plataformas && postToEdit.plataformas[0] ? postToEdit.plataformas[0] : 'instagram';
             const valStatus = postToEdit ? (postToEdit.status || 'rascunho') : 'rascunho';
+            const valFeedback = postToEdit ? (postToEdit.feedback_aprovacao || '') : '';
             const postId = postToEdit ? postToEdit.id : '';
 
             // Controle de Status (Aparece apenas na edição ou se já quiser criar com status)
             const statusControl = `
                 <div class="mt-2 pt-2 border-t border-gray-100">
                     <label class="block text-xs font-semibold text-gray-600 mb-1">Status de Aprovação</label>
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 mb-3">
                         <label class="inline-flex items-center cursor-pointer">
                             <input type="radio" name="status" value="rascunho" class="form-radio text-gray-500 h-4 w-4" ${valStatus === 'rascunho' ? 'checked' : ''}>
                             <span class="ml-1 text-xs text-gray-600">Rascunho</span>
@@ -45,6 +46,10 @@
                             <span class="ml-1 text-xs text-green-600">Aprovado</span>
                         </label>
                     </div>
+                    
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Comentários / Feedback</label>
+                    <textarea name="feedback" rows="2" placeholder="Observações sobre a aprovação..." 
+                        class="w-full px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-sm text-gray-700 focus:ring-yellow-500 focus:border-yellow-500">${valFeedback}</textarea>
                 </div>
             `;
 
@@ -183,6 +188,11 @@
                     if (post.linkedin) platformsHtml += '<i class="fab fa-linkedin"></i> ';
                 }
 
+                // Indicador de comentário
+                const commentIcon = post.feedback_aprovacao 
+                    ? `<span class="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded ml-2" title="Possui feedback"><i class="fas fa-comment-dots"></i></span>` 
+                    : '';
+
                 card.innerHTML += `
                     <div class="flex justify-between items-start mb-2">
                         <span class="text-xs font-bold text-gray-500">${date}</span>
@@ -190,8 +200,9 @@
                     </div>
                     <h5 class="font-medium text-gray-800 mb-2 line-clamp-2" title="${title}">${title}</h5>
                     <p class="text-sm text-gray-600 line-clamp-3 mb-3">${content}</p>
-                    <div class="flex gap-2 text-xs text-gray-400">
-                        ${platformsHtml || '<i class="fas fa-share-alt"></i>'}
+                    <div class="flex gap-2 text-xs text-gray-400 items-center">
+                        <div>${platformsHtml || '<i class="fas fa-share-alt"></i>'}</div>
+                        ${commentIcon}
                     </div>
                 `;
                 grid.appendChild(card);

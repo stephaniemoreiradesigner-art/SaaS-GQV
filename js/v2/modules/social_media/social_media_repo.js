@@ -96,6 +96,7 @@
             if (input.data_postagem !== undefined) dbPayload.data_agendada = input.data_postagem;
             if (input.status !== undefined) dbPayload.status = input.status;
             if (input.plataforma !== undefined) dbPayload.plataformas = [input.plataforma];
+            if (input.feedback !== undefined) dbPayload.feedback_aprovacao = input.feedback;
             
             // Campos fallback
             const fallbackPayload = {};
@@ -103,6 +104,7 @@
             if (input.legenda !== undefined) fallbackPayload.conteudo = input.legenda;
             if (input.data_postagem !== undefined) fallbackPayload.data_postagem = input.data_postagem;
             if (input.status !== undefined) fallbackPayload.status = input.status;
+            if (input.feedback !== undefined) fallbackPayload.feedback_aprovacao = input.feedback;
 
             try {
                 // Tenta atualizar em 'social_posts' primeiro
@@ -224,6 +226,39 @@
                 return true;
             } catch (err) {
                 console.error('[SocialMediaRepo] Falha ao atualizar status:', err);
+                return false;
+            }
+        },
+
+        /**
+         * Atualiza apenas o feedback/comentário de um post
+         * @param {string} postId
+         * @param {string} comment
+         * @returns {Promise<boolean>} Sucesso
+         */
+        updatePostFeedback: async function(postId, comment) {
+            if (!global.supabaseClient || !postId) return false;
+
+            try {
+                // Tenta atualizar em 'social_posts'
+                let { error } = await global.supabaseClient
+                    .from('social_posts')
+                    .update({ feedback_aprovacao: comment })
+                    .eq('id', postId);
+
+                if (!error) return true;
+
+                // Fallback 'posts'
+                console.warn('[SocialMediaRepo] updatePostFeedback falhou em social_posts, tentando posts...');
+                const { error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .update({ feedback_aprovacao: comment })
+                    .eq('id', postId);
+
+                if (fbError) throw fbError;
+                return true;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao atualizar feedback:', err);
                 return false;
             }
         },
