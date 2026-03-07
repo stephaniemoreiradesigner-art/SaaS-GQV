@@ -213,6 +213,84 @@
             // Ocultar form se não tiver cliente
             const formContainer = document.getElementById('v2-social-create-area');
             if (formContainer) formContainer.innerHTML = ''; 
+        },
+
+        /**
+         * Renderiza o Calendário Visual (FullCalendar)
+         * @param {Array} posts 
+         */
+        renderCalendar: function(posts) {
+            const container = document.getElementById('v2-social-calendar');
+            if (!container) return; // Se não houver container de calendário, ignora
+
+            // Limpa para evitar duplicidade se já houver instância (embora FullCalendar gerencie bem)
+            container.innerHTML = '';
+
+            if (typeof FullCalendar === 'undefined') {
+                container.innerHTML = '<div class="text-red-500">Biblioteca FullCalendar não carregada.</div>';
+                return;
+            }
+
+            // Mapeia posts para eventos do FullCalendar
+            const events = posts.map(post => {
+                const date = post.data_agendada || post.data_postagem;
+                if (!date) return null;
+
+                const status = post.status || 'rascunho';
+                let color = '#9ca3af'; // gray (rascunho)
+                if (status === 'aprovado') color = '#10b981'; // green
+                if (status === 'agendado') color = '#3b82f6'; // blue
+
+                // Título com ícone (HTML não é suportado nativamente no title v5+, usa-se eventContent)
+                const title = post.titulo || post.tema || 'Sem título';
+                
+                // Plataforma
+                let platformIcon = '';
+                const platforms = post.plataformas || [];
+                if (platforms.includes('instagram') || post.instagram) platformIcon = 'instagram';
+                else if (platforms.includes('facebook') || post.facebook) platformIcon = 'facebook';
+                else if (platforms.includes('linkedin') || post.linkedin) platformIcon = 'linkedin';
+
+                return {
+                    id: post.id,
+                    title: title,
+                    start: date,
+                    backgroundColor: color,
+                    borderColor: color,
+                    extendedProps: {
+                        post: post,
+                        platformIcon: platformIcon
+                    }
+                };
+            }).filter(Boolean);
+
+            const calendar = new FullCalendar.Calendar(container, {
+                initialView: 'dayGridMonth',
+                locale: 'pt-br',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,listWeek'
+                },
+                events: events,
+                height: 600,
+                eventClick: (info) => {
+                    // Dispara evento de edição igual ao clique na lista
+                    const event = new CustomEvent('v2:post-click', { detail: { post: info.event.extendedProps.post } });
+                    document.dispatchEvent(event);
+                },
+                eventContent: function(arg) {
+                    // Custom render para ícones
+                    const icon = arg.event.extendedProps.platformIcon 
+                        ? `<i class="fab fa-${arg.event.extendedProps.platformIcon} mr-1"></i>` 
+                        : '';
+                    return { html: `<div class="fc-event-main-frame text-xs truncate">${icon} ${arg.event.title}</div>` };
+                }
+            });
+
+            calendar.render();
+            // Salva referência global se precisar acessar depois (opcional)
+            global.v2CalendarInstance = calendar; 
         }
     };
 

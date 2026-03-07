@@ -94,6 +94,7 @@
             try {
                 const posts = await global.SocialMediaRepo.getPostsByClient(clientId);
                 global.SocialMediaUI.renderFeed(posts, clientName);
+                global.SocialMediaUI.renderCalendar(posts); // Renderiza também o calendário
             } catch (err) {
                 console.error('[SocialMediaCore V2] Erro no fluxo de carga:', err);
                 const container = document.getElementById('v2-social-feed');
@@ -152,6 +153,7 @@
                 // Recarregar lista
                 const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
                 global.SocialMediaUI.renderFeed(posts, this.currentClientName);
+                global.SocialMediaUI.renderCalendar(posts); // Atualiza calendário
                 
             } catch (err) {
                 console.error('[SocialMediaCore V2] Erro ao salvar:', err);
@@ -177,6 +179,7 @@
                     // Recarregar lista
                     const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
                     global.SocialMediaUI.renderFeed(posts, this.currentClientName);
+                    global.SocialMediaUI.renderCalendar(posts); // Atualiza calendário
                 } else {
                     global.SocialMediaUI.showFeedback('Erro ao excluir.', 'error');
                 }

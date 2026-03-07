@@ -163,7 +163,47 @@
         },
 
         /**
-         * Busca posts de um cliente específico
+         * Busca posts de um cliente em um intervalo de datas
+         * @param {string} clientId
+         * @param {string} startDate (YYYY-MM-DD)
+         * @param {string} endDate (YYYY-MM-DD)
+         * @returns {Promise<Array>} Lista de posts
+         */
+        getPostsByDateRange: async function(clientId, startDate, endDate) {
+            if (!global.supabaseClient || !clientId) return [];
+
+            try {
+                // Tenta 'social_posts'
+                let { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_agendada', startDate)
+                    .lte('data_agendada', endDate)
+                    .order('data_agendada', { ascending: true });
+
+                if (!error) return data;
+
+                // Fallback 'posts'
+                console.warn('[SocialMediaRepo] getPostsByDateRange falhou em social_posts, tentando posts...');
+                const { data: fbData, error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_postagem', startDate)
+                    .lte('data_postagem', endDate)
+                    .order('data_postagem', { ascending: true });
+
+                if (fbError) throw fbError;
+                return fbData || [];
+            } catch (err) {
+                console.error('[SocialMediaRepo] Erro ao buscar range:', err);
+                return [];
+            }
+        },
+
+        /**
+         * Busca posts de um cliente específico (Todos)
          * @param {string} clientId 
          * @returns {Promise<Array>} Lista de posts
          */
