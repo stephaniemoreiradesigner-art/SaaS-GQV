@@ -236,26 +236,42 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <p class="text-xs uppercase text-slate-400">Visão geral</p>
-                                <div class="mt-4 space-y-3">
-                                    <div class="flex items-center justify-between text-sm text-slate-600">
-                                        <span>Calendários rascunho</span>
-                                        <span id="social-count-draft" class="font-semibold text-slate-900">0</span>
-                                    </div>
-                                    <div class="flex items-center justify-between text-sm text-slate-600">
-                                        <span>Aguardando aprovação</span>
-                                        <span id="social-count-pending" class="font-semibold text-slate-900">0</span>
-                                    </div>
-                                    <div class="flex items-center justify-between text-sm text-slate-600">
-                                        <span>Aprovados</span>
-                                        <span id="social-count-approved" class="font-semibold text-slate-900">0</span>
+                        <div class="flex flex-wrap gap-2">
+                            <button data-social-tab="overview" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white">Visão Geral</button>
+                            <button data-social-tab="calendar" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Calendário</button>
+                            <button data-social-tab="posts" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Posts</button>
+                            <button data-social-tab="approvals" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Aprovações</button>
+                            <button data-social-tab="insights" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Insights</button>
+                        </div>
+
+                        <div id="social-tab-overview" class="social-tab space-y-6">
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <p class="text-xs uppercase text-slate-400">Visão geral</p>
+                                    <div class="mt-4 space-y-3">
+                                        <div class="flex items-center justify-between text-sm text-slate-600">
+                                            <span>Calendários rascunho</span>
+                                            <span id="social-count-draft" class="font-semibold text-slate-900">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm text-slate-600">
+                                            <span>Aguardando aprovação</span>
+                                            <span id="social-count-pending" class="font-semibold text-slate-900">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm text-slate-600">
+                                            <span>Aprovados</span>
+                                            <span id="social-count-approved" class="font-semibold text-slate-900">0</span>
+                                        </div>
                                     </div>
                                 </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2">
+                                    <h3 class="text-sm font-semibold text-slate-700 mb-2">Resumo do cliente</h3>
+                                    <p class="text-sm text-slate-500">Acompanhe o fluxo do calendário do cliente ativo e avance no planejamento mensal.</p>
+                                </div>
                             </div>
+                        </div>
 
-                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2">
+                        <div id="social-tab-calendar" class="social-tab space-y-6 hidden">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-sm font-semibold text-slate-700">Calendários recentes</h3>
                                     <span class="text-xs text-slate-400">Selecione um calendário para avançar</span>
@@ -263,9 +279,6 @@
                                 <div id="social-calendar-list" class="space-y-3"></div>
                                 <div id="social-calendar-empty" class="text-sm text-slate-500 hidden">Nenhum calendário criado ainda.</div>
                             </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                                 <h3 class="text-sm font-semibold text-slate-700 mb-4">Gerar calendário</h3>
                                 <form id="social-calendar-form" class="space-y-4">
@@ -287,11 +300,29 @@
                                     </button>
                                 </form>
                             </div>
+                        </div>
 
+                        <div id="social-tab-posts" class="social-tab space-y-6 hidden">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                                <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-pen-nib"></i></div>
+                                <h2 class="text-2xl font-bold text-slate-800 mb-2">Posts</h2>
+                                <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                            </div>
+                        </div>
+
+                        <div id="social-tab-approvals" class="social-tab space-y-6 hidden">
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                                 <h3 class="text-sm font-semibold text-slate-700 mb-4">Aprovações</h3>
                                 <div class="space-y-3" id="social-approvals-list"></div>
                                 <div id="social-approvals-empty" class="text-sm text-slate-500 hidden">Nenhum calendário aguardando aprovação.</div>
+                            </div>
+                        </div>
+
+                        <div id="social-tab-insights" class="social-tab space-y-6 hidden">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                                <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-chart-line"></i></div>
+                                <h2 class="text-2xl font-bold text-slate-800 mb-2">Insights</h2>
+                                <p class="text-sm text-slate-500">Em construção... 🛠️</p>
                             </div>
                         </div>
                     </div>
@@ -445,6 +476,8 @@
         const socialSendApprovalBtn = document.getElementById('social-send-approval');
         const socialApprovalsList = document.getElementById('social-approvals-list');
         const socialApprovalsEmpty = document.getElementById('social-approvals-empty');
+        const socialTabButtons = document.querySelectorAll('[data-social-tab]');
+        const socialTabSections = document.querySelectorAll('.social-tab');
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
         const clientsSearchInput = document.getElementById('clients-search');
         const clientsClearBtn = document.getElementById('clients-clear');
@@ -476,6 +509,21 @@
         const hubFilesBtn = document.getElementById('hub-files-btn');
         const hubFilesCard = document.getElementById('hub-files-card');
 
+        let activeSocialTab = 'overview';
+        const setSocialTab = (tabName) => {
+            activeSocialTab = tabName;
+            socialTabButtons.forEach((btn) => {
+                const isActive = btn.dataset.socialTab === tabName;
+                btn.classList.toggle('bg-slate-900', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('border-slate-200', !isActive);
+                btn.classList.toggle('text-slate-600', !isActive);
+            });
+            socialTabSections.forEach((section) => {
+                section.classList.toggle('hidden', section.id !== `social-tab-${tabName}`);
+            });
+        };
+
         const setActiveView = (moduleName, options = {}) => {
             const views = document.querySelectorAll('.v2-view');
             views.forEach(view => view.classList.add('hidden'));
@@ -487,6 +535,9 @@
             });
             if (window.WorkspaceState && moduleName !== 'construction' && !options.skipStateSync) {
                 window.WorkspaceState.setActiveModule(moduleName);
+            }
+            if (moduleName === 'social' && socialTabButtons.length) {
+                setSocialTab(activeSocialTab || 'overview');
             }
         };
 
@@ -935,6 +986,14 @@
         document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
             btn.addEventListener('click', () => setActiveView('approvals'));
         });
+        if (socialTabButtons.length) {
+            socialTabButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.socialTab || 'overview';
+                    setSocialTab(tab);
+                });
+            });
+        }
 
         if (socialCalendarForm) {
             socialCalendarForm.addEventListener('submit', async (event) => {
