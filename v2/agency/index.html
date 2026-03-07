@@ -230,9 +230,6 @@
                             </div>
                             <div class="flex items-center gap-3">
                                 <span id="social-calendar-status" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem calendário</span>
-                                <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
-                                    Enviar para Aprovação
-                                </button>
                             </div>
                         </div>
 
@@ -271,34 +268,45 @@
                         </div>
 
                         <div id="social-tab-calendar" class="social-tab space-y-6 hidden">
-                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-sm font-semibold text-slate-700">Calendários recentes</h3>
-                                    <span class="text-xs text-slate-400">Selecione um calendário para avançar</span>
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                    <div class="flex items-center gap-2">
+                                        <button id="social-month-prev" class="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800">
+                                            <i class="fas fa-chevron-left"></i>
+                                        </button>
+                                        <div>
+                                            <p class="text-xs uppercase tracking-widest text-slate-400">Mês atual</p>
+                                            <p id="social-month-label" class="text-lg font-semibold text-slate-900">Mês</p>
+                                        </div>
+                                        <button id="social-month-next" class="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800">
+                                            <i class="fas fa-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button id="social-generate-ai" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Gerar sugestões com IA</button>
+                                        <button id="social-new-post" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Novo post manual</button>
+                                        <button id="social-save-draft" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar rascunho</button>
+                                        <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>Enviar para aprovação</button>
+                                    </div>
                                 </div>
-                                <div id="social-calendar-list" class="space-y-3"></div>
-                                <div id="social-calendar-empty" class="text-sm text-slate-500 hidden">Nenhum calendário criado ainda.</div>
+                                <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-4">
+                                    <div>
+                                        <p class="text-sm text-slate-500">Clique em um dia para adicionar um post ou selecione um card para editar.</p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs uppercase tracking-widest text-slate-400 mb-1">Briefing/Objetivo</label>
+                                        <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary mb-2" placeholder="Objetivo do mês">
+                                        <textarea id="social-briefing" rows="2" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Briefing curto para sugestões"></textarea>
+                                    </div>
+                                </div>
+                                <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
                             </div>
+
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <h3 class="text-sm font-semibold text-slate-700 mb-4">Gerar calendário</h3>
-                                <form id="social-calendar-form" class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Mês/Período</label>
-                                        <input id="social-period" type="month" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
-                                        <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Crescer audiência">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Briefing curto</label>
-                                        <textarea id="social-briefing" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Resumo rápido do que precisa aparecer no mês"></textarea>
-                                    </div>
-                                    <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
-                                    <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
-                                        Gerar Calendário
-                                    </button>
-                                </form>
+                                <div class="grid grid-cols-7 gap-2 text-xs uppercase tracking-widest text-slate-400 mb-3">
+                                    <div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div><div>Dom</div>
+                                </div>
+                                <div id="social-calendar-grid" class="grid grid-cols-7 gap-2"></div>
                             </div>
                         </div>
 
@@ -384,6 +392,73 @@
             </main>
         </div>
     </div>
+    <div id="social-post-drawer" class="fixed inset-0 bg-slate-900/40 hidden items-center justify-end">
+        <div class="w-full max-w-xl h-full bg-white border-l border-slate-200 shadow-xl flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Post do calendário</p>
+                    <h3 id="social-post-title" class="text-lg font-semibold text-slate-900">Novo post</h3>
+                </div>
+                <button id="social-post-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                    <input id="social-post-date" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tema</label>
+                    <input id="social-post-theme" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Tema do post">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Legenda</label>
+                    <textarea id="social-post-caption" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">CTA</label>
+                        <input id="social-post-cta" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Saiba mais">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Canal</label>
+                        <select id="social-post-channel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="instagram">Instagram</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="linkedin">LinkedIn</option>
+                            <option value="tiktok">TikTok</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Hashtags</label>
+                    <input id="social-post-hashtags" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="#hashtag1 #hashtag2">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sugestão de criativo</label>
+                    <input id="social-post-creative" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: carrossel com dicas">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                    <select id="social-post-status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="rascunho">Rascunho</option>
+                        <option value="aguardando_aprovacao">Aguardando aprovação</option>
+                        <option value="aprovado">Aprovado</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Observações</label>
+                    <textarea id="social-post-notes" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                </div>
+                <div id="social-post-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button id="social-post-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                <button id="social-post-save" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar</button>
+            </div>
+        </div>
+    </div>
     <div id="client-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
         <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -442,6 +517,7 @@
     <script src="/js/v2/shared/workspaceState.js"></script>
     <script src="/js/v2/modules/clientes/clientes_repo.js"></script>
     <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
+    <script src="/js/v2/modules/social_media/social_media_repo.js"></script>
     <script src="/js/v2/bootstrap.js"></script>
     <script>
         const navButtons = document.querySelectorAll('.v2-nav-btn');
@@ -463,19 +539,37 @@
         const dashboardPendencies = document.getElementById('dashboard-pendencies');
         const socialClientName = document.getElementById('social-client-name');
         const socialCalendarStatus = document.getElementById('social-calendar-status');
-        const socialCalendarList = document.getElementById('social-calendar-list');
-        const socialCalendarEmpty = document.getElementById('social-calendar-empty');
         const socialCountDraft = document.getElementById('social-count-draft');
         const socialCountPending = document.getElementById('social-count-pending');
         const socialCountApproved = document.getElementById('social-count-approved');
-        const socialCalendarForm = document.getElementById('social-calendar-form');
-        const socialPeriodInput = document.getElementById('social-period');
         const socialGoalInput = document.getElementById('social-goal');
         const socialBriefingInput = document.getElementById('social-briefing');
         const socialFeedback = document.getElementById('social-feedback');
         const socialSendApprovalBtn = document.getElementById('social-send-approval');
         const socialApprovalsList = document.getElementById('social-approvals-list');
         const socialApprovalsEmpty = document.getElementById('social-approvals-empty');
+        const socialCalendarGrid = document.getElementById('social-calendar-grid');
+        const socialMonthLabel = document.getElementById('social-month-label');
+        const socialMonthPrev = document.getElementById('social-month-prev');
+        const socialMonthNext = document.getElementById('social-month-next');
+        const socialGenerateAiBtn = document.getElementById('social-generate-ai');
+        const socialNewPostBtn = document.getElementById('social-new-post');
+        const socialSaveDraftBtn = document.getElementById('social-save-draft');
+        const socialPostDrawer = document.getElementById('social-post-drawer');
+        const socialPostClose = document.getElementById('social-post-close');
+        const socialPostCancel = document.getElementById('social-post-cancel');
+        const socialPostSave = document.getElementById('social-post-save');
+        const socialPostTitle = document.getElementById('social-post-title');
+        const socialPostDate = document.getElementById('social-post-date');
+        const socialPostTheme = document.getElementById('social-post-theme');
+        const socialPostCaption = document.getElementById('social-post-caption');
+        const socialPostCta = document.getElementById('social-post-cta');
+        const socialPostChannel = document.getElementById('social-post-channel');
+        const socialPostHashtags = document.getElementById('social-post-hashtags');
+        const socialPostCreative = document.getElementById('social-post-creative');
+        const socialPostStatus = document.getElementById('social-post-status');
+        const socialPostNotes = document.getElementById('social-post-notes');
+        const socialPostFeedback = document.getElementById('social-post-feedback');
         const socialTabButtons = document.querySelectorAll('[data-social-tab]');
         const socialTabSections = document.querySelectorAll('.social-tab');
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
@@ -672,8 +766,11 @@
         let currentClient = null;
         let socialState = {
             clientId: null,
-            calendars: [],
-            activeCalendar: null
+            calendarMonth: new Date().toISOString().slice(0, 7),
+            calendarId: null,
+            calendarStatus: null,
+            posts: [],
+            activePost: null
         };
 
         const SOCIAL_STATUS_LABELS = {
@@ -736,11 +833,12 @@
             if (hubPendencies) hubPendencies.textContent = hasClient ? '0' : '0';
             if (dashboardPendencies) dashboardPendencies.textContent = hasClient ? '0' : '0';
             if (clientOpenHub) clientOpenHub.disabled = !hasClient;
-            if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !hasClient || !socialState.activeCalendar;
-            if (socialCalendarForm) {
-                Array.from(socialCalendarForm.elements).forEach((el) => {
-                    el.disabled = !hasClient;
-                });
+            if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !hasClient || socialState.calendarStatus !== 'rascunho';
+            [socialGenerateAiBtn, socialNewPostBtn, socialSaveDraftBtn, socialMonthPrev, socialMonthNext].forEach((btn) => {
+                if (btn) btn.disabled = !hasClient;
+            });
+            if (!hasClient) {
+                closePostDrawer();
             }
             clientRequiredActions.forEach(btn => {
                 btn.disabled = !hasClient;
@@ -760,6 +858,17 @@
             }
         };
 
+        const setPostFeedback = (message, type = 'success') => {
+            if (!socialPostFeedback) return;
+            socialPostFeedback.textContent = message;
+            socialPostFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
+            if (type === 'error') {
+                socialPostFeedback.classList.add('bg-red-50', 'text-red-600');
+            } else {
+                socialPostFeedback.classList.add('bg-green-50', 'text-green-600');
+            }
+        };
+
         const formatPeriodLabel = (value) => {
             if (!value) return '';
             const parsed = new Date(`${value}-01T00:00:00`);
@@ -767,6 +876,8 @@
             const label = parsed.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             return label.charAt(0).toUpperCase() + label.slice(1);
         };
+
+        const formatMonthLabel = (month) => formatPeriodLabel(month);
 
         const getSupabaseClient = async () => {
             if (window.supabaseClient) return window.supabaseClient;
@@ -784,77 +895,66 @@
             return null;
         };
 
-        const renderSocialCalendars = () => {
-            if (!socialCalendarList || !socialCalendarEmpty) return;
-            socialCalendarList.innerHTML = '';
-            if (!socialState.calendars.length) {
-                socialCalendarEmpty.classList.remove('hidden');
-                return;
-            }
-            socialCalendarEmpty.classList.add('hidden');
-            socialState.calendars.forEach((calendar) => {
-                const row = document.createElement('button');
-                row.type = 'button';
-                row.className = 'w-full text-left border border-slate-200 rounded-xl px-4 py-3 bg-white hover:bg-slate-50 transition';
-                const label = formatPeriodLabel(calendar.mes_referencia);
-                const status = calendar.status || 'rascunho';
-                const statusLabel = SOCIAL_STATUS_LABELS[status] || status;
-                const statusStyle = SOCIAL_STATUS_STYLES[status] || 'bg-slate-100 text-slate-500';
-                row.innerHTML = `
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <p class="text-sm font-semibold text-slate-800">${label || 'Calendário'}</p>
-                            <p class="text-xs text-slate-500">Criado em ${calendar.created_at ? new Date(calendar.created_at).toLocaleDateString('pt-BR') : '-'}</p>
-                        </div>
-                        <span class="text-xs uppercase px-2 py-1 rounded-full ${statusStyle}">${statusLabel}</span>
-                    </div>
-                `;
-                row.addEventListener('click', () => {
-                    socialState.activeCalendar = calendar;
-                    updateSocialHeader();
-                });
-                socialCalendarList.appendChild(row);
-            });
+        const normalizePost = (post) => {
+            const date = post.data_agendada || post.data_postagem || post.data || post.date;
+            return {
+                id: post.id || null,
+                tempId: post.tempId || null,
+                date,
+                title: post.tema || post.titulo || post.title || 'Post',
+                status: post.status || 'rascunho',
+                platform: (Array.isArray(post.plataformas) ? post.plataformas[0] : post.plataforma) || post.platform || 'instagram',
+                caption: post.legenda || post.conteudo || post.caption || '',
+                cta: post.cta || '',
+                hashtags: post.hashtags || '',
+                creative: post.sugestao_criativo || post.criativo || post.creative || '',
+                notes: post.observacoes || post.feedback_aprovacao || post.notes || '',
+                source: post.tipo || post.source || 'manual',
+                isTemp: post.isTemp || false,
+                isDirty: post.isDirty || false
+            };
         };
 
-        const renderSocialApprovals = () => {
-            if (!socialApprovalsList || !socialApprovalsEmpty) return;
-            const pending = socialState.calendars.filter((calendar) => calendar.status === 'aguardando_aprovacao');
-            socialApprovalsList.innerHTML = '';
-            if (!pending.length) {
-                socialApprovalsEmpty.classList.remove('hidden');
-                return;
+        const getMonthStartEnd = (month) => {
+            const start = new Date(`${month}-01T00:00:00`);
+            const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+            const startDate = start.toISOString().slice(0, 10);
+            const endDate = end.toISOString().slice(0, 10);
+            return { start, end, startDate, endDate };
+        };
+
+        const getCalendarCells = (month) => {
+            const { start, end } = getMonthStartEnd(month);
+            const firstDayIndex = (start.getDay() + 6) % 7;
+            const totalDays = end.getDate();
+            const totalCells = Math.ceil((firstDayIndex + totalDays) / 7) * 7;
+            const cells = [];
+            for (let i = 0; i < totalCells; i += 1) {
+                const dayOffset = i - firstDayIndex;
+                const cellDate = new Date(start.getFullYear(), start.getMonth(), dayOffset + 1);
+                const inMonth = cellDate.getMonth() === start.getMonth();
+                cells.push({ date: cellDate, inMonth });
             }
-            socialApprovalsEmpty.classList.add('hidden');
-            pending.forEach((calendar) => {
-                const item = document.createElement('div');
-                item.className = 'border border-slate-200 rounded-xl p-4 bg-slate-50';
-                item.innerHTML = `
-                    <p class="text-sm font-semibold text-slate-800">${formatPeriodLabel(calendar.mes_referencia)}</p>
-                    <p class="text-xs text-slate-500">Status: Aguardando aprovação</p>
-                `;
-                socialApprovalsList.appendChild(item);
-            });
+            return cells;
         };
 
         const updateSocialOverview = () => {
-            const draftCount = socialState.calendars.filter((item) => item.status === 'rascunho').length;
-            const pendingCount = socialState.calendars.filter((item) => item.status === 'aguardando_aprovacao').length;
-            const approvedCount = socialState.calendars.filter((item) => item.status === 'aprovado').length;
+            const draftCount = socialState.posts.filter((item) => item.status === 'rascunho').length;
+            const pendingCount = socialState.posts.filter((item) => item.status === 'aguardando_aprovacao').length;
+            const approvedCount = socialState.posts.filter((item) => item.status === 'aprovado').length;
             if (socialCountDraft) socialCountDraft.textContent = draftCount;
             if (socialCountPending) socialCountPending.textContent = pendingCount;
             if (socialCountApproved) socialCountApproved.textContent = approvedCount;
         };
 
-        const updateSocialHeader = () => {
+        const updateCalendarStatus = (status) => {
             if (!socialCalendarStatus) return;
-            if (!socialState.activeCalendar) {
+            if (!status) {
                 socialCalendarStatus.textContent = 'Sem calendário';
                 socialCalendarStatus.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
                 if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = true;
                 return;
             }
-            const status = socialState.activeCalendar.status || 'rascunho';
             const statusLabel = SOCIAL_STATUS_LABELS[status] || status;
             const statusStyle = SOCIAL_STATUS_STYLES[status] || 'bg-slate-100 text-slate-500';
             socialCalendarStatus.textContent = statusLabel;
@@ -864,33 +964,372 @@
             }
         };
 
-        const loadSocialCalendars = async (clientId) => {
-            if (!clientId) {
-                socialState.calendars = [];
-                socialState.activeCalendar = null;
-                renderSocialCalendars();
-                renderSocialApprovals();
-                updateSocialOverview();
-                updateSocialHeader();
+        const renderSocialApprovals = () => {
+            if (!socialApprovalsList || !socialApprovalsEmpty) return;
+            const pending = socialState.posts.filter((calendar) => calendar.status === 'aguardando_aprovacao');
+            socialApprovalsList.innerHTML = '';
+            if (!pending.length) {
+                socialApprovalsEmpty.classList.remove('hidden');
                 return;
             }
+            socialApprovalsEmpty.classList.add('hidden');
+            pending.forEach((post) => {
+                const item = document.createElement('div');
+                item.className = 'border border-slate-200 rounded-xl p-4 bg-slate-50';
+                item.innerHTML = `
+                    <p class="text-sm font-semibold text-slate-800">${post.title}</p>
+                    <p class="text-xs text-slate-500">Data: ${post.date || '-'}</p>
+                `;
+                socialApprovalsList.appendChild(item);
+            });
+        };
+
+        const renderCalendarGrid = () => {
+            if (!socialCalendarGrid) return;
+            socialCalendarGrid.innerHTML = '';
+            const cells = getCalendarCells(socialState.calendarMonth);
+            const postsByDate = socialState.posts.reduce((acc, post) => {
+                const dateKey = post.date ? post.date.slice(0, 10) : null;
+                if (dateKey) {
+                    acc[dateKey] = acc[dateKey] || [];
+                    acc[dateKey].push(post);
+                }
+                return acc;
+            }, {});
+            cells.forEach((cell) => {
+                const day = cell.date.getDate();
+                const dateKey = cell.date.toISOString().slice(0, 10);
+                const dayPosts = postsByDate[dateKey] || [];
+                const wrapper = document.createElement('div');
+                wrapper.className = `border border-slate-200 rounded-xl p-2 min-h-[110px] flex flex-col gap-2 ${cell.inMonth ? 'bg-white' : 'bg-slate-50 text-slate-400'}`;
+                wrapper.dataset.date = dateKey;
+                const header = document.createElement('div');
+                header.className = 'text-xs font-semibold text-slate-500';
+                header.textContent = day;
+                wrapper.appendChild(header);
+                const list = document.createElement('div');
+                list.className = 'flex flex-col gap-1';
+                dayPosts.forEach((post) => {
+                    const card = document.createElement('button');
+                    const statusStyle = SOCIAL_STATUS_STYLES[post.status] || 'bg-slate-100 text-slate-500';
+                    card.className = 'text-left px-2 py-1 rounded-lg border border-slate-100 bg-slate-50 hover:bg-slate-100 transition';
+                    card.innerHTML = `
+                        <p class="text-xs font-semibold text-slate-700 truncate">${post.title}</p>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[10px] uppercase ${statusStyle} px-2 py-0.5 rounded-full">${SOCIAL_STATUS_LABELS[post.status] || post.status}</span>
+                            <span class="text-[10px] text-slate-400">${post.platform || ''}</span>
+                        </div>
+                    `;
+                    card.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        openPostDrawer(post);
+                    });
+                    list.appendChild(card);
+                });
+                wrapper.appendChild(list);
+                wrapper.addEventListener('click', () => {
+                    if (!cell.inMonth) return;
+                    createManualPost(dateKey);
+                });
+                socialCalendarGrid.appendChild(wrapper);
+            });
+        };
+
+        const openPostDrawer = (post) => {
+            if (!socialPostDrawer) return;
+            socialState.activePost = post;
+            if (socialPostTitle) socialPostTitle.textContent = post.title || 'Novo post';
+            if (socialPostDate) socialPostDate.value = post.date || '';
+            if (socialPostTheme) socialPostTheme.value = post.title || '';
+            if (socialPostCaption) socialPostCaption.value = post.caption || '';
+            if (socialPostCta) socialPostCta.value = post.cta || '';
+            if (socialPostChannel) socialPostChannel.value = post.platform || 'instagram';
+            if (socialPostHashtags) socialPostHashtags.value = post.hashtags || '';
+            if (socialPostCreative) socialPostCreative.value = post.creative || '';
+            if (socialPostStatus) socialPostStatus.value = post.status || 'rascunho';
+            if (socialPostNotes) socialPostNotes.value = post.notes || '';
+            const editable = socialState.calendarStatus !== 'aguardando_aprovacao';
+            [socialPostDate, socialPostTheme, socialPostCaption, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSave].forEach((el) => {
+                if (el) el.disabled = !editable;
+            });
+            if (socialPostFeedback) {
+                socialPostFeedback.classList.add('hidden');
+                socialPostFeedback.textContent = '';
+            }
+            socialPostDrawer.classList.remove('hidden');
+            socialPostDrawer.classList.add('flex');
+        };
+
+        const closePostDrawer = () => {
+            if (!socialPostDrawer) return;
+            socialPostDrawer.classList.add('hidden');
+            socialPostDrawer.classList.remove('flex');
+            socialState.activePost = null;
+        };
+
+        const applyPostForm = () => {
+            if (!socialState.activePost) return null;
+            const updated = {
+                ...socialState.activePost,
+                date: socialPostDate?.value || socialState.activePost.date,
+                title: socialPostTheme?.value.trim() || socialState.activePost.title,
+                caption: socialPostCaption?.value || '',
+                cta: socialPostCta?.value || '',
+                platform: socialPostChannel?.value || 'instagram',
+                hashtags: socialPostHashtags?.value || '',
+                creative: socialPostCreative?.value || '',
+                status: socialPostStatus?.value || 'rascunho',
+                notes: socialPostNotes?.value || '',
+                isDirty: true
+            };
+            socialState.posts = socialState.posts.map((post) => (post.tempId === updated.tempId || post.id === updated.id ? updated : post));
+            socialState.activePost = updated;
+            if (socialPostTitle) socialPostTitle.textContent = updated.title || 'Post';
+            return updated;
+        };
+
+        const createManualPost = (date) => {
+            if (!socialState.clientId) {
+                setSocialFeedback('Selecione um cliente antes de criar posts.', 'error');
+                return;
+            }
+            const tempId = `tmp-${Date.now()}`;
+            const post = normalizePost({
+                tempId,
+                date,
+                title: 'Novo post',
+                status: 'rascunho',
+                platform: 'instagram',
+                isTemp: true
+            });
+            socialState.posts.push(post);
+            updateSocialOverview();
+            renderCalendarGrid();
+            openPostDrawer(post);
+        };
+
+        const generateAiSuggestions = () => {
+            if (!socialState.clientId) {
+                setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
+                return;
+            }
+            const goal = socialGoalInput?.value.trim() || '';
+            const briefing = socialBriefingInput?.value.trim() || '';
+            if (!goal && !briefing) {
+                setSocialFeedback('Informe objetivo ou briefing para gerar sugestões.', 'error');
+                return;
+            }
+            const suggestions = [
+                `Dica prática: ${goal || 'conteúdo educativo'}`,
+                `Bastidores do cliente`,
+                `Prova social do mês`,
+                `Oferta especial`,
+                `Checklist rápido`,
+                `Pergunta interativa`
+            ];
+            const { start } = getMonthStartEnd(socialState.calendarMonth);
+            suggestions.forEach((title, index) => {
+                const day = Math.min(1 + index * 4, new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate());
+                const date = new Date(start.getFullYear(), start.getMonth(), day).toISOString().slice(0, 10);
+                const tempId = `tmp-ai-${Date.now()}-${index}`;
+                socialState.posts.push(
+                    normalizePost({
+                        tempId,
+                        date,
+                        title,
+                        caption: briefing,
+                        status: 'rascunho',
+                        platform: 'instagram',
+                        source: 'ai',
+                        isTemp: true
+                    })
+                );
+            });
+            setSocialFeedback('Sugestões adicionadas ao calendário.');
+            updateSocialOverview();
+            renderCalendarGrid();
+        };
+
+        const loadCalendarMeta = async () => {
             const supabase = await getSupabaseClient();
-            if (!supabase) return;
+            if (!supabase || !socialState.clientId) return;
+            const { data } = await supabase
+                .from('social_calendars')
+                .select('id, status, mes_referencia')
+                .eq('cliente_id', socialState.clientId)
+                .eq('mes_referencia', `${socialState.calendarMonth}-01`)
+                .maybeSingle();
+            socialState.calendarId = data?.id || null;
+            socialState.calendarStatus = data?.status || null;
+            updateCalendarStatus(socialState.calendarStatus);
+        };
+
+        const loadSocialPosts = async () => {
+            if (!socialState.clientId) {
+                socialState.posts = [];
+                updateSocialOverview();
+                renderCalendarGrid();
+                renderSocialApprovals();
+                updateCalendarStatus(null);
+                return;
+            }
+            const { startDate, endDate } = getMonthStartEnd(socialState.calendarMonth);
+            const repo = window.SocialMediaRepo;
+            if (!repo?.getPostsByDateRange) {
+                setSocialFeedback('Repositório Social Media não disponível.', 'error');
+                return;
+            }
+            const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDate);
+            socialState.posts = (Array.isArray(data) ? data : []).map(normalizePost);
+            updateSocialOverview();
+            renderCalendarGrid();
+            renderSocialApprovals();
+        };
+
+        const refreshSocialMonth = async () => {
+            if (socialMonthLabel) socialMonthLabel.textContent = formatMonthLabel(socialState.calendarMonth);
+            await loadCalendarMeta();
+            await loadSocialPosts();
+        };
+
+        const shiftMonth = (delta) => {
+            const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
+            base.setMonth(base.getMonth() + delta);
+            socialState.calendarMonth = base.toISOString().slice(0, 7);
+            refreshSocialMonth();
+        };
+
+        const ensureCalendarDraft = async () => {
+            const supabase = await getSupabaseClient();
+            if (!supabase || !socialState.clientId) return null;
+            const payload = {
+                cliente_id: socialState.clientId,
+                mes_referencia: `${socialState.calendarMonth}-01`,
+                status: 'rascunho'
+            };
+            const goal = socialGoalInput?.value.trim();
+            const briefing = socialBriefingInput?.value.trim();
+            const tenantId = getTenantId();
+            if (goal) payload.objetivo = goal;
+            if (briefing) payload.briefing = briefing;
+            if (tenantId) payload.tenant_id = tenantId;
+            if (socialState.calendarId) {
+                const { data } = await supabase
+                    .from('social_calendars')
+                    .update(payload)
+                    .eq('id', socialState.calendarId)
+                    .select()
+                    .single();
+                socialState.calendarStatus = data?.status || 'rascunho';
+                updateCalendarStatus(socialState.calendarStatus);
+                return data;
+            }
             const { data, error } = await supabase
                 .from('social_calendars')
-                .select('id, mes_referencia, created_at, status, cliente_id')
-                .eq('cliente_id', clientId)
-                .order('created_at', { ascending: false });
+                .insert([payload])
+                .select()
+                .single();
             if (error) {
-                setSocialFeedback('Erro ao carregar calendários.', 'error');
+                const fallback = {
+                    cliente_id: socialState.clientId,
+                    mes_referencia: `${socialState.calendarMonth}-01`,
+                    status: 'rascunho'
+                };
+                const retry = await supabase.from('social_calendars').insert([fallback]).select().single();
+                if (retry.error) {
+                    setSocialFeedback('Não foi possível salvar o calendário.', 'error');
+                    return null;
+                }
+                socialState.calendarId = retry.data?.id || null;
+                socialState.calendarStatus = retry.data?.status || 'rascunho';
+                updateCalendarStatus(socialState.calendarStatus);
+                return retry.data;
+            }
+            socialState.calendarId = data?.id || null;
+            socialState.calendarStatus = data?.status || 'rascunho';
+            updateCalendarStatus(socialState.calendarStatus);
+            return data;
+        };
+
+        const saveDraft = async () => {
+            if (!socialState.clientId) {
+                setSocialFeedback('Selecione um cliente antes de salvar.', 'error');
                 return;
             }
-            socialState.calendars = Array.isArray(data) ? data : [];
-            socialState.activeCalendar = socialState.calendars[0] || null;
-            renderSocialCalendars();
-            renderSocialApprovals();
-            updateSocialOverview();
-            updateSocialHeader();
+            const calendar = await ensureCalendarDraft();
+            if (!calendar) return;
+            const repo = window.SocialMediaRepo;
+            if (!repo) {
+                setSocialFeedback('Repositório Social Media não disponível.', 'error');
+                return;
+            }
+            const createdPosts = [];
+            for (const post of socialState.posts) {
+                if (post.isTemp || !post.id) {
+                    const result = await repo.createPost({
+                        cliente_id: socialState.clientId,
+                        titulo: post.title,
+                        legenda: post.caption,
+                        plataforma: post.platform,
+                        data_postagem: post.date,
+                        status: post.status || 'rascunho',
+                        formato: post.creative,
+                        feedback: post.notes
+                    });
+                    createdPosts.push(result);
+                } else if (post.isDirty) {
+                    await repo.updatePost(post.id, {
+                        titulo: post.title,
+                        legenda: post.caption,
+                        plataforma: post.platform,
+                        data_postagem: post.date,
+                        status: post.status || 'rascunho',
+                        feedback: post.notes
+                    });
+                }
+            }
+            setSocialFeedback('Rascunho salvo com sucesso.');
+            await loadSocialPosts();
+            renderCalendarGrid();
+        };
+
+        const sendForApproval = async () => {
+            if (!socialState.clientId) {
+                setSocialFeedback('Selecione um cliente antes de enviar.', 'error');
+                return;
+            }
+            const pendingTemps = socialState.posts.some((post) => post.isTemp || !post.id);
+            if (pendingTemps) {
+                setSocialFeedback('Salve o rascunho antes de enviar.', 'error');
+                return;
+            }
+            const calendar = await ensureCalendarDraft();
+            if (!calendar?.id) return;
+            const supabase = await getSupabaseClient();
+            if (!supabase) {
+                setSocialFeedback('Falha ao conectar ao banco.', 'error');
+                return;
+            }
+            const { error } = await supabase
+                .from('social_calendars')
+                .update({ status: 'aguardando_aprovacao' })
+                .eq('id', calendar.id)
+                .eq('cliente_id', socialState.clientId);
+            if (error) {
+                setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
+                return;
+            }
+            if (window.SocialMediaRepo) {
+                for (const post of socialState.posts) {
+                    if (post.id) {
+                        await window.SocialMediaRepo.updatePostStatus(post.id, 'aguardando_aprovacao');
+                    }
+                }
+            }
+            socialState.calendarStatus = 'aguardando_aprovacao';
+            updateCalendarStatus(socialState.calendarStatus);
+            await loadSocialPosts();
+            setSocialFeedback('Calendário enviado para aprovação.');
         };
 
         const renderClientList = (clients) => {
@@ -954,7 +1393,7 @@
                 currentClient = allClients.find(client => client.id === clientId) || currentClient;
                 socialState.clientId = clientId;
                 updateClientUI(clientId, name);
-                loadSocialCalendars(clientId);
+                refreshSocialMonth();
             });
         } else {
             updateClientUI(null, '');
@@ -995,76 +1434,35 @@
             });
         }
 
-        if (socialCalendarForm) {
-            socialCalendarForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                if (!socialState.clientId) {
-                    setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
-                    return;
-                }
-                const period = socialPeriodInput?.value || '';
-                if (!period) {
-                    setSocialFeedback('Informe o mês/periodo.', 'error');
-                    return;
-                }
-                const supabase = await getSupabaseClient();
-                if (!supabase) {
-                    setSocialFeedback('Falha ao conectar ao banco.', 'error');
-                    return;
-                }
-                const payload = {
-                    cliente_id: socialState.clientId,
-                    mes_referencia: `${period}-01`,
-                    status: 'rascunho'
-                };
-                const goal = socialGoalInput?.value.trim();
-                const briefing = socialBriefingInput?.value.trim();
-                const tenantId = getTenantId();
-                if (goal) payload.objetivo = goal;
-                if (briefing) payload.briefing = briefing;
-                if (tenantId) payload.tenant_id = tenantId;
-                let { error } = await supabase.from('social_calendars').insert([payload]);
-                if (error) {
-                    const fallbackPayload = {
-                        cliente_id: socialState.clientId,
-                        mes_referencia: `${period}-01`,
-                        status: 'rascunho'
-                    };
-                    const retry = await supabase.from('social_calendars').insert([fallbackPayload]);
-                    error = retry.error;
-                }
-                if (error) {
-                    setSocialFeedback('Não foi possível salvar o calendário.', 'error');
-                    return;
-                }
-                setSocialFeedback('Calendário criado com sucesso.');
-                if (socialCalendarForm) socialCalendarForm.reset();
-                await loadSocialCalendars(socialState.clientId);
+        if (socialMonthPrev) socialMonthPrev.addEventListener('click', () => shiftMonth(-1));
+        if (socialMonthNext) socialMonthNext.addEventListener('click', () => shiftMonth(1));
+        if (socialGenerateAiBtn) socialGenerateAiBtn.addEventListener('click', generateAiSuggestions);
+        if (socialNewPostBtn) {
+            socialNewPostBtn.addEventListener('click', () => {
+                const today = new Date();
+                const monthBase = new Date(`${socialState.calendarMonth}-01T00:00:00`);
+                const inMonth = today.getFullYear() === monthBase.getFullYear() && today.getMonth() === monthBase.getMonth();
+                const date = inMonth ? today.toISOString().slice(0, 10) : monthBase.toISOString().slice(0, 10);
+                createManualPost(date);
             });
         }
+        if (socialSaveDraftBtn) socialSaveDraftBtn.addEventListener('click', saveDraft);
+        if (socialSendApprovalBtn) socialSendApprovalBtn.addEventListener('click', sendForApproval);
 
-        if (socialSendApprovalBtn) {
-            socialSendApprovalBtn.addEventListener('click', async () => {
-                if (!socialState.activeCalendar) {
-                    setSocialFeedback('Selecione um calendário.', 'error');
-                    return;
-                }
-                const supabase = await getSupabaseClient();
-                if (!supabase) {
-                    setSocialFeedback('Falha ao conectar ao banco.', 'error');
-                    return;
-                }
-                let { error } = await supabase
-                    .from('social_calendars')
-                    .update({ status: 'aguardando_aprovacao' })
-                    .eq('id', socialState.activeCalendar.id)
-                    .eq('cliente_id', socialState.clientId);
-                if (error) {
-                    setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
-                    return;
-                }
-                setSocialFeedback('Calendário enviado para aprovação.');
-                await loadSocialCalendars(socialState.clientId);
+        if (socialPostClose) socialPostClose.addEventListener('click', closePostDrawer);
+        if (socialPostCancel) socialPostCancel.addEventListener('click', closePostDrawer);
+        if (socialPostSave) {
+            socialPostSave.addEventListener('click', () => {
+                const updated = applyPostForm();
+                if (!updated) return;
+                setPostFeedback('Post atualizado.');
+                updateSocialOverview();
+                renderCalendarGrid();
+            });
+        }
+        if (socialPostDrawer) {
+            socialPostDrawer.addEventListener('click', (event) => {
+                if (event.target === socialPostDrawer) closePostDrawer();
             });
         }
 
@@ -1088,6 +1486,7 @@
         }
 
         loadClients();
+        refreshSocialMonth();
         setActiveView('clients');
     </script>
 </body>
