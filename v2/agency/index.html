@@ -67,6 +67,7 @@
                         <p id="active-client-name" class="text-sm font-semibold text-slate-800">Nenhum cliente selecionado</p>
                     </div>
                     <span id="active-client-id" class="hidden text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full"></span>
+                    <button id="header-select-client" class="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-600 hover:text-slate-800">Selecionar</button>
                 </div>
             </header>
 
@@ -76,30 +77,49 @@
                         <h2 class="text-2xl font-bold text-slate-900">Dashboard</h2>
                         <p class="text-sm text-slate-500">Visão geral da operação.</p>
                     </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
-                            <p id="dashboard-client-name" class="text-lg font-semibold text-slate-900 mt-2">Nenhum cliente selecionado</p>
-                            <p id="dashboard-client-status" class="text-sm text-slate-500 mt-1"></p>
+                    <div id="dashboard-empty" class="hidden bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-4">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-user-plus"></i>
                         </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <p class="text-xs uppercase text-slate-400">Pendências</p>
-                            <p id="dashboard-pendencies" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
-                            <p class="text-sm text-slate-500 mt-1">Resumo rápido em preparação</p>
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Nenhum cliente selecionado</h3>
+                            <p class="text-sm text-slate-500">Selecione ou crie um cliente para liberar os módulos principais da Agency V2.</p>
                         </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <p class="text-xs uppercase text-slate-400">Equipe responsável</p>
-                            <p id="dashboard-owner" class="text-lg font-semibold text-slate-900 mt-2">Não definido</p>
-                            <p class="text-sm text-slate-500 mt-1">Última atualização pendente</p>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            <button id="dashboard-new-client" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:text-slate-900">+ Novo cliente</button>
+                        </div>
+                        <div class="text-sm text-slate-500 space-y-1">
+                            <p>Módulos liberados após selecionar um cliente:</p>
+                            <p>Social Media · Performance · Aprovações · Portal do Cliente</p>
                         </div>
                     </div>
-                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Acesso rápido</p>
-                                <p class="text-sm text-slate-500">Use o cliente ativo para avançar no workflow.</p>
+                    <div id="dashboard-content" class="space-y-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
+                                <p id="dashboard-client-name" class="text-lg font-semibold text-slate-900 mt-2">Nenhum cliente selecionado</p>
+                                <p id="dashboard-client-status" class="text-sm text-slate-500 mt-1"></p>
                             </div>
-                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <p class="text-xs uppercase text-slate-400">Pendências</p>
+                                <p id="dashboard-pendencies" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
+                                <p class="text-sm text-slate-500 mt-1">Resumo rápido em preparação</p>
+                            </div>
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <p class="text-xs uppercase text-slate-400">Equipe responsável</p>
+                                <p id="dashboard-owner" class="text-lg font-semibold text-slate-900 mt-2">Não definido</p>
+                                <p class="text-sm text-slate-500 mt-1">Última atualização pendente</p>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs uppercase text-slate-400">Acesso rápido</p>
+                                    <p class="text-sm text-slate-500">Use o cliente ativo para avançar no workflow.</p>
+                                </div>
+                                <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -187,93 +207,138 @@
                 </section>
 
                 <section id="view-social" class="v2-view hidden space-y-6">
-                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div id="empty-social" class="hidden bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-3">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-hashtag"></i>
+                        </div>
                         <div>
-                            <p class="text-xs uppercase tracking-widest text-slate-400">Social Media V2</p>
-                            <h2 class="text-2xl font-bold text-slate-900">Gestão do calendário</h2>
-                            <p class="text-sm text-slate-500">Cliente: <span id="social-client-name">Nenhum cliente selecionado</span></p>
+                            <h3 class="text-lg font-semibold text-slate-900">Selecione um cliente para continuar</h3>
+                            <p class="text-sm text-slate-500">O módulo Social Media depende de um cliente ativo.</p>
                         </div>
-                        <div class="flex items-center gap-3">
-                            <span id="social-calendar-status" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem calendário</span>
-                            <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
-                                Enviar para Aprovação
-                            </button>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            <button id="social-new-client" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:text-slate-900">+ Novo cliente</button>
                         </div>
                     </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <p class="text-xs uppercase text-slate-400">Visão geral</p>
-                            <div class="mt-4 space-y-3">
-                                <div class="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Calendários rascunho</span>
-                                    <span id="social-count-draft" class="font-semibold text-slate-900">0</span>
-                                </div>
-                                <div class="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Aguardando aprovação</span>
-                                    <span id="social-count-pending" class="font-semibold text-slate-900">0</span>
-                                </div>
-                                <div class="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Aprovados</span>
-                                    <span id="social-count-approved" class="font-semibold text-slate-900">0</span>
-                                </div>
+                    <div id="social-content" class="space-y-6">
+                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase tracking-widest text-slate-400">Social Media V2</p>
+                                <h2 class="text-2xl font-bold text-slate-900">Gestão do calendário</h2>
+                                <p class="text-sm text-slate-500">Cliente: <span id="social-client-name">Nenhum cliente selecionado</span></p>
                             </div>
-                        </div>
-
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-sm font-semibold text-slate-700">Calendários recentes</h3>
-                                <span class="text-xs text-slate-400">Selecione um calendário para avançar</span>
-                            </div>
-                            <div id="social-calendar-list" class="space-y-3"></div>
-                            <div id="social-calendar-empty" class="text-sm text-slate-500 hidden">Nenhum calendário criado ainda.</div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Gerar calendário</h3>
-                            <form id="social-calendar-form" class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Mês/Período</label>
-                                    <input id="social-period" type="month" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
-                                    <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Crescer audiência">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Briefing curto</label>
-                                    <textarea id="social-briefing" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Resumo rápido do que precisa aparecer no mês"></textarea>
-                                </div>
-                                <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
-                                <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
-                                    Gerar Calendário
+                            <div class="flex items-center gap-3">
+                                <span id="social-calendar-status" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem calendário</span>
+                                <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
+                                    Enviar para Aprovação
                                 </button>
-                            </form>
+                            </div>
                         </div>
 
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Aprovações</h3>
-                            <div class="space-y-3" id="social-approvals-list"></div>
-                            <div id="social-approvals-empty" class="text-sm text-slate-500 hidden">Nenhum calendário aguardando aprovação.</div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <p class="text-xs uppercase text-slate-400">Visão geral</p>
+                                <div class="mt-4 space-y-3">
+                                    <div class="flex items-center justify-between text-sm text-slate-600">
+                                        <span>Calendários rascunho</span>
+                                        <span id="social-count-draft" class="font-semibold text-slate-900">0</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-sm text-slate-600">
+                                        <span>Aguardando aprovação</span>
+                                        <span id="social-count-pending" class="font-semibold text-slate-900">0</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-sm text-slate-600">
+                                        <span>Aprovados</span>
+                                        <span id="social-count-approved" class="font-semibold text-slate-900">0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-semibold text-slate-700">Calendários recentes</h3>
+                                    <span class="text-xs text-slate-400">Selecione um calendário para avançar</span>
+                                </div>
+                                <div id="social-calendar-list" class="space-y-3"></div>
+                                <div id="social-calendar-empty" class="text-sm text-slate-500 hidden">Nenhum calendário criado ainda.</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <h3 class="text-sm font-semibold text-slate-700 mb-4">Gerar calendário</h3>
+                                <form id="social-calendar-form" class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Mês/Período</label>
+                                        <input id="social-period" type="month" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
+                                        <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Crescer audiência">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Briefing curto</label>
+                                        <textarea id="social-briefing" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Resumo rápido do que precisa aparecer no mês"></textarea>
+                                    </div>
+                                    <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+                                    <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
+                                        Gerar Calendário
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <h3 class="text-sm font-semibold text-slate-700 mb-4">Aprovações</h3>
+                                <div class="space-y-3" id="social-approvals-list"></div>
+                                <div id="social-approvals-empty" class="text-sm text-slate-500 hidden">Nenhum calendário aguardando aprovação.</div>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 <section id="view-performance" class="v2-view hidden space-y-6">
-                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-bullhorn"></i></div>
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Performance</h2>
-                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    <div id="empty-performance" class="hidden bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-3">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Selecione um cliente para continuar</h3>
+                            <p class="text-sm text-slate-500">O módulo Performance depende de um cliente ativo.</p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            <button id="performance-new-client" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:text-slate-900">+ Novo cliente</button>
+                        </div>
+                    </div>
+                    <div id="performance-content" class="space-y-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                            <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-bullhorn"></i></div>
+                            <h2 class="text-2xl font-bold text-slate-800 mb-2">Performance</h2>
+                            <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                        </div>
                     </div>
                 </section>
 
                 <section id="view-approvals" class="v2-view hidden space-y-6">
-                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-check-circle"></i></div>
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Aprovações</h2>
-                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    <div id="empty-approvals" class="hidden bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-3">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">Selecione um cliente para continuar</h3>
+                            <p class="text-sm text-slate-500">O módulo Aprovações depende de um cliente ativo.</p>
+                        </div>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-3">
+                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                            <button id="approvals-new-client" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:text-slate-900">+ Novo cliente</button>
+                        </div>
+                    </div>
+                    <div id="approvals-content" class="space-y-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                            <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-check-circle"></i></div>
+                            <h2 class="text-2xl font-bold text-slate-800 mb-2">Aprovações</h2>
+                            <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                        </div>
                     </div>
                 </section>
 
@@ -382,6 +447,31 @@
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
         const clientsSearchInput = document.getElementById('clients-search');
         const clientsClearBtn = document.getElementById('clients-clear');
+        const dashboardEmpty = document.getElementById('dashboard-empty');
+        const dashboardContent = document.getElementById('dashboard-content');
+        const emptySocial = document.getElementById('empty-social');
+        const socialContent = document.getElementById('social-content');
+        const emptyPerformance = document.getElementById('empty-performance');
+        const performanceContent = document.getElementById('performance-content');
+        const emptyApprovals = document.getElementById('empty-approvals');
+        const approvalsContent = document.getElementById('approvals-content');
+        const clientsNewBtn = document.getElementById('clients-new-btn');
+        const dashboardNewClient = document.getElementById('dashboard-new-client');
+        const socialNewClient = document.getElementById('social-new-client');
+        const performanceNewClient = document.getElementById('performance-new-client');
+        const approvalsNewClient = document.getElementById('approvals-new-client');
+        const headerSelectClient = document.getElementById('header-select-client');
+        const clientModal = document.getElementById('client-modal');
+        const clientModalClose = document.getElementById('client-modal-close');
+        const clientCancelBtn = document.getElementById('client-cancel-btn');
+        const clientCreateForm = document.getElementById('client-create-form');
+        const clientSaveBtn = document.getElementById('client-save-btn');
+        const clientNameInput = document.getElementById('client-name');
+        const clientDocTypeInput = document.getElementById('client-doc-type');
+        const clientDocInput = document.getElementById('client-doc');
+        const clientEmailInput = document.getElementById('client-email');
+        const clientStatusInput = document.getElementById('client-status-input');
+        const clientCreateFeedback = document.getElementById('client-create-feedback');
 
         const setActiveView = (moduleName, options = {}) => {
             const views = document.querySelectorAll('.v2-view');
@@ -397,6 +487,35 @@
             }
         };
 
+        const openClientModal = () => {
+            if (!clientModal) return;
+            clientModal.classList.remove('hidden');
+            clientModal.classList.add('flex');
+            if (clientNameInput) clientNameInput.focus();
+        };
+
+        const closeClientModal = () => {
+            if (!clientModal) return;
+            clientModal.classList.add('hidden');
+            clientModal.classList.remove('flex');
+            if (clientCreateForm) clientCreateForm.reset();
+            if (clientCreateFeedback) {
+                clientCreateFeedback.classList.add('hidden');
+                clientCreateFeedback.textContent = '';
+            }
+        };
+
+        const setClientFeedback = (message, type = 'success') => {
+            if (!clientCreateFeedback) return;
+            clientCreateFeedback.textContent = message;
+            clientCreateFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
+            if (type === 'error') {
+                clientCreateFeedback.classList.add('bg-red-50', 'text-red-600');
+            } else {
+                clientCreateFeedback.classList.add('bg-green-50', 'text-green-600');
+            }
+        };
+
         navButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const moduleName = btn.dataset.module;
@@ -407,6 +526,64 @@
             window.WorkspaceState.subscribe((state) => {
                 const moduleName = state?.activeModule || 'dashboard';
                 setActiveView(moduleName, { skipStateSync: true });
+            });
+        }
+
+        [clientsNewBtn, dashboardNewClient, socialNewClient, performanceNewClient, approvalsNewClient].forEach((btn) => {
+            if (btn) btn.addEventListener('click', openClientModal);
+        });
+
+        if (headerSelectClient) {
+            headerSelectClient.addEventListener('click', () => setActiveView('clients'));
+        }
+
+        if (clientModalClose) clientModalClose.addEventListener('click', closeClientModal);
+        if (clientCancelBtn) clientCancelBtn.addEventListener('click', closeClientModal);
+        if (clientModal) {
+            clientModal.addEventListener('click', (event) => {
+                if (event.target === clientModal) {
+                    closeClientModal();
+                }
+            });
+        }
+
+        if (clientCreateForm) {
+            clientCreateForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const name = String(clientNameInput?.value || '').trim();
+                if (!name) {
+                    setClientFeedback('Informe o nome do cliente.', 'error');
+                    return;
+                }
+                if (clientSaveBtn) clientSaveBtn.disabled = true;
+                setClientFeedback('Salvando cliente...');
+                const payload = {
+                    nome: name,
+                    tipo_documento: clientDocTypeInput?.value || '',
+                    documento: clientDocInput?.value || '',
+                    email: clientEmailInput?.value || '',
+                    status: clientStatusInput?.value || 'ativo'
+                };
+                const result = window.ClientRepo?.createClient
+                    ? await window.ClientRepo.createClient(payload)
+                    : { data: null, error: new Error('ClientRepo indisponível') };
+                if (result.error) {
+                    setClientFeedback('Não foi possível salvar o cliente.', 'error');
+                    if (clientSaveBtn) clientSaveBtn.disabled = false;
+                    return;
+                }
+                const created = result.data || {};
+                const createdName = created.nome_fantasia || created.nome_empresa || created.nome || name;
+                const createdId = created.id || null;
+                await loadClients();
+                if (createdId && window.ClientContext) {
+                    window.ClientContext.setActiveClient({ id: createdId, name: createdName });
+                }
+                currentClient = createdId ? created : currentClient;
+                updateClientUI(createdId, createdName);
+                closeClientModal();
+                setActiveView('clients');
+                if (clientSaveBtn) clientSaveBtn.disabled = false;
             });
         }
 
@@ -452,6 +629,14 @@
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
                 activeClientId.classList.toggle('hidden', !hasClient);
             }
+            if (dashboardEmpty) dashboardEmpty.classList.toggle('hidden', hasClient);
+            if (dashboardContent) dashboardContent.classList.toggle('hidden', !hasClient);
+            if (emptySocial) emptySocial.classList.toggle('hidden', hasClient);
+            if (socialContent) socialContent.classList.toggle('hidden', !hasClient);
+            if (emptyPerformance) emptyPerformance.classList.toggle('hidden', hasClient);
+            if (performanceContent) performanceContent.classList.toggle('hidden', !hasClient);
+            if (emptyApprovals) emptyApprovals.classList.toggle('hidden', hasClient);
+            if (approvalsContent) approvalsContent.classList.toggle('hidden', !hasClient);
             if (hubEmpty) hubEmpty.classList.toggle('hidden', hasClient);
             if (clientSummary) {
                 clientSummary.textContent = hasClient

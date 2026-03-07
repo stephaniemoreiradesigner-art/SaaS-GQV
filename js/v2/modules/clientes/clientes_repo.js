@@ -31,6 +31,71 @@
             }
         },
 
+        createClient: async function(input) {
+            if (!global.supabaseClient) {
+                console.error('[ClientRepo] Supabase não inicializado');
+                return { data: null, error: new Error('Supabase não inicializado') };
+            }
+
+            const name = String(input?.nome || '').trim();
+            if (!name) {
+                return { data: null, error: new Error('Nome obrigatório') };
+            }
+
+            const tenantId = global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
+            const base = {
+                nome: name,
+                nome_fantasia: name,
+                nome_empresa: name,
+                email: input?.email ? String(input.email).trim() : null,
+                status: input?.status || 'ativo',
+                tipo_documento: input?.tipo_documento || null,
+                documento: input?.documento ? String(input.documento).trim() : null,
+                tenant_id: tenantId || null
+            };
+
+            const attempts = [
+                base,
+                {
+                    nome_fantasia: base.nome_fantasia,
+                    nome_empresa: base.nome_empresa,
+                    email: base.email,
+                    status: base.status,
+                    tenant_id: base.tenant_id
+                },
+                {
+                    nome: base.nome,
+                    email: base.email,
+                    status: base.status,
+                    tenant_id: base.tenant_id
+                },
+                {
+                    nome_fantasia: base.nome_fantasia,
+                    nome_empresa: base.nome_empresa,
+                    tenant_id: base.tenant_id
+                },
+                {
+                    nome: base.nome,
+                    tenant_id: base.tenant_id
+                }
+            ];
+
+            let lastError = null;
+            for (const payload of attempts) {
+                const { data, error } = await global.supabaseClient
+                    .from('clientes')
+                    .insert([payload])
+                    .select('*');
+                if (!error) {
+                    const created = Array.isArray(data) ? data[0] : data;
+                    return { data: created || null, error: null };
+                }
+                lastError = error;
+            }
+
+            return { data: null, error: lastError };
+        },
+
         /**
          * Busca um cliente específico pelo ID
          * @param {string} id 
