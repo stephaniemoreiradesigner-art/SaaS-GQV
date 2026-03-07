@@ -9365,6 +9365,9 @@ const legacyHandler = async (request, response) => {
     
     // Remove query string para encontrar o arquivo
     let filePath = '.' + resolvedPathname;
+    if (resolvedPathname === '/dashboard.html') {
+        filePath = './pages/dashboard.html';
+    }
     if (filePath === './') {
         filePath = './index.html';
     }
