@@ -182,6 +182,7 @@
                                 <button data-action="go-social" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Social Media</button>
                                 <button data-action="go-performance" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Performance</button>
                                 <button data-action="go-approvals" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Abrir Aprovações</button>
+                                <button id="hub-files-btn" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Arquivos</button>
                             </div>
                         </div>
                         <div id="hub-empty" class="text-sm text-slate-500 hidden">Selecione um cliente para liberar ações.</div>
@@ -198,7 +199,7 @@
                                 <p class="text-xs uppercase text-slate-400">Status</p>
                                 <p id="hub-status" class="text-base font-semibold text-slate-800 mt-2">Não definido</p>
                             </div>
-                            <div class="rounded-xl border border-slate-200 p-4">
+                            <div id="hub-files-card" class="rounded-xl border border-slate-200 p-4">
                                 <p class="text-xs uppercase text-slate-400">Arquivos</p>
                                 <p class="text-sm text-slate-500 mt-2">Central em construção</p>
                             </div>
@@ -472,6 +473,8 @@
         const clientEmailInput = document.getElementById('client-email');
         const clientStatusInput = document.getElementById('client-status-input');
         const clientCreateFeedback = document.getElementById('client-create-feedback');
+        const hubFilesBtn = document.getElementById('hub-files-btn');
+        const hubFilesCard = document.getElementById('hub-files-card');
 
         const setActiveView = (moduleName, options = {}) => {
             const views = document.querySelectorAll('.v2-view');
@@ -546,6 +549,11 @@
                 }
             });
         }
+        if (hubFilesBtn && hubFilesCard) {
+            hubFilesBtn.addEventListener('click', () => {
+                hubFilesCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        }
 
         if (clientCreateForm) {
             clientCreateForm.addEventListener('submit', async (event) => {
@@ -582,7 +590,7 @@
                 currentClient = createdId ? created : currentClient;
                 updateClientUI(createdId, createdName);
                 closeClientModal();
-                setActiveView('clients');
+                setActiveView('hub');
                 if (clientSaveBtn) clientSaveBtn.disabled = false;
             });
         }
