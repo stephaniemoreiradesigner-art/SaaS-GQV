@@ -50,9 +50,11 @@
         },
 
         notifyListeners() {
+            const snapshot = { ...currentState };
+            const event = { ...snapshot, payload: snapshot };
             LISTENERS.forEach(cb => {
                 try {
-                    cb(currentState);
+                    cb(event);
                 } catch (e) {
                     console.error('[WorkspaceState] Erro no listener:', e);
                 }

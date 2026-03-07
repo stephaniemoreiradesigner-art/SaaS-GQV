@@ -293,16 +293,6 @@
     <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
     <script src="/js/v2/bootstrap.js"></script>
     <script>
-        const views = {
-            dashboard: document.getElementById('view-dashboard'),
-            clients: document.getElementById('view-clients'),
-            hub: document.getElementById('view-hub'),
-            social: document.getElementById('view-social'),
-            performance: document.getElementById('view-performance'),
-            approvals: document.getElementById('view-approvals'),
-            settings: document.getElementById('view-settings')
-        };
-
         const navButtons = document.querySelectorAll('.v2-nav-btn');
         const hubClientName = document.getElementById('hub-client-name');
         const hubClientStatus = document.getElementById('hub-client-status');
@@ -339,15 +329,16 @@
         const clientsSearchInput = document.getElementById('clients-search');
         const clientsClearBtn = document.getElementById('clients-clear');
 
-        const setActiveView = (moduleName, label) => {
-            Object.values(views).forEach(view => view && view.classList.add('hidden'));
-            const view = views[moduleName] || views.clients;
+        const setActiveView = (moduleName, options = {}) => {
+            const views = document.querySelectorAll('.v2-view');
+            views.forEach(view => view.classList.add('hidden'));
+            const view = document.getElementById(`view-${moduleName}`) || document.getElementById('view-dashboard');
             if (view) view.classList.remove('hidden');
             navButtons.forEach(btn => {
                 btn.classList.toggle('bg-slate-100', btn.dataset.module === moduleName);
                 btn.classList.toggle('text-slate-900', btn.dataset.module === moduleName);
             });
-            if (window.WorkspaceState && moduleName !== 'construction') {
+            if (window.WorkspaceState && moduleName !== 'construction' && !options.skipStateSync) {
                 window.WorkspaceState.setActiveModule(moduleName);
             }
         };
@@ -358,6 +349,12 @@
                 setActiveView(moduleName);
             });
         });
+        if (window.WorkspaceState?.subscribe) {
+            window.WorkspaceState.subscribe((state) => {
+                const moduleName = state?.activeModule || 'dashboard';
+                setActiveView(moduleName, { skipStateSync: true });
+            });
+        }
 
         let allClients = [];
         let currentClient = null;
