@@ -111,6 +111,10 @@
                     </div>
                     <div class="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
                         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-sm font-semibold text-slate-700">Lista de clientes</h3>
+                                <button id="clients-new-btn" class="text-xs px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800">+ Novo Cliente</button>
+                            </div>
                             <div class="flex items-center gap-2 mb-4">
                                 <div class="relative flex-1">
                                     <i class="fas fa-search text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
@@ -281,6 +285,56 @@
                     </div>
                 </section>
             </main>
+        </div>
+    </div>
+    <div id="client-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
+        <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Clientes</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Novo Cliente</h3>
+                </div>
+                <button id="client-modal-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="client-create-form" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nome</label>
+                    <input id="client-name" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nome do cliente" required>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de documento</label>
+                        <select id="client-doc-type" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="cpf">CPF</option>
+                            <option value="cnpj">CNPJ</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Documento</label>
+                        <input id="client-doc" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="000.000.000-00">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                        <input id="client-email" type="email" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="cliente@email.com">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                        <select id="client-status-input" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <option value="ativo">Ativo</option>
+                            <option value="inativo">Inativo</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="client-create-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="button" id="client-cancel-btn" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                    <button type="submit" id="client-save-btn" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar</button>
+                </div>
+            </form>
         </div>
     </div>
 
