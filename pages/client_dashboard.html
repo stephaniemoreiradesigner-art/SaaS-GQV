@@ -3,62 +3,582 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel do Cliente - Gestão Que Vende</title>
+    <title>Portal do Cliente V2 - Gestão Que Vende</title>
     <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="js/theme.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gray-50 text-gray-800 antialiased font-sans">
-    <div class="min-h-screen flex flex-col">
-        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8">
-            <img src="assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
-            <button onclick="window.clientSession && window.clientSession.clientLogout()" class="text-sm px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition">Sair</button>
-        </header>
-
-        <main class="flex-1 px-4 py-10">
-            <div class="max-w-4xl mx-auto">
-                <h1 class="text-2xl font-bold text-gray-900 mb-6 text-center">Bem-vindo ao seu Painel</h1>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <a href="client_approvals_posts.html" class="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Aprovações pendentes</h2>
-                                <p class="text-sm text-gray-500 truncate">Revisar conteúdos aguardando</p>
-                            </div>
-                        </div>
-                    </a>
-                    <div class="bg-white border border-gray-200 rounded-xl p-6">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-bullhorn"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Solicitar campanha</h2>
-                                <p class="text-sm text-gray-500 truncate">Pedir novas campanhas</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white border border-gray-200 rounded-xl p-6">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                                <i class="fas fa-chart-line"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold text-gray-800 truncate">Métricas</h2>
-                                <p class="text-sm text-gray-500 truncate">Visão geral do desempenho</p>
-                            </div>
-                        </div>
-                    </div>
+<body class="bg-slate-100 text-slate-900 antialiased font-sans">
+    <div id="client-portal" class="min-h-screen flex">
+        <div id="portal-overlay" class="fixed inset-0 bg-black/40 hidden lg:hidden z-30"></div>
+        <aside id="portal-sidebar" class="fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-40 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200">
+            <div class="h-20 flex items-center gap-3 px-6 border-b border-slate-100">
+                <div class="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div>
+                    <p class="text-xs uppercase tracking-wider text-slate-400">Portal do Cliente</p>
+                    <p class="text-sm font-semibold" data-client-name>Cliente</p>
                 </div>
             </div>
-        </main>
+            <nav class="p-4 space-y-2 text-sm">
+                <button data-view="home" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-home text-slate-400"></i>
+                    Home
+                </button>
+                <button data-view="approvals-calendar" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-calendar-check text-slate-400"></i>
+                    Aprovar Calendários
+                </button>
+                <button data-view="approvals-posts" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-clapperboard text-slate-400"></i>
+                    Aprovar Posts
+                </button>
+                <button data-view="metrics" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-chart-line text-slate-400"></i>
+                    Métricas
+                </button>
+                <button data-view="requests" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-paper-plane text-slate-400"></i>
+                    Solicitações
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-100">
+                <button id="client-logout" class="w-full text-sm px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col min-h-screen lg:ml-72">
+            <header class="sticky top-0 z-20 bg-white border-b border-slate-200">
+                <div class="flex items-center justify-between px-4 md:px-8 py-4">
+                    <div class="flex items-center gap-3">
+                        <button id="portal-menu-toggle" class="lg:hidden w-10 h-10 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div>
+                            <h1 class="text-lg font-bold">Portal do Cliente V2</h1>
+                            <p class="text-sm text-slate-500">Bem-vindo, <span data-client-name>Cliente</span></p>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-400">
+                        MVP • 10/03/2026
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 px-4 md:px-8 py-6 space-y-8">
+                <section id="view-home" class="portal-view space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Home</h2>
+                        <p class="text-sm text-slate-500">Resumo rápido do seu status.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Aprovações pendentes</p>
+                            <p id="home-approvals" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Último calendário</p>
+                            <p id="home-calendar" class="text-base font-semibold text-slate-900 mt-2">Nenhum</p>
+                            <p id="home-calendar-status" class="text-xs text-slate-500 mt-1"></p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Métricas resumidas</p>
+                            <p id="home-metrics" class="text-base font-semibold text-slate-900 mt-2">Em breve</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Solicitações abertas</p>
+                            <p id="home-requests" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Aprovações</h3>
+                            <p class="text-sm text-slate-500">Revise calendários e posts em poucos cliques.</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Métricas</h3>
+                            <p class="text-sm text-slate-500">Cards e gráficos resumidos de performance.</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Solicitações</h3>
+                            <p class="text-sm text-slate-500">Envie campanhas e criativos direto para o time.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-approvals-calendar" class="portal-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Aprovação de Calendário</h2>
+                        <p class="text-sm text-slate-500">Visualize e aprove calendários enviados.</p>
+                    </div>
+                    <div id="calendar-error-state" class="hidden">
+                        <div class="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 text-sm">
+                            <div class="font-semibold" id="calendar-error-message">Erro ao carregar calendário. Tente novamente.</div>
+                            <div id="calendar-error-detail" class="hidden text-xs text-red-500 mt-1"></div>
+                        </div>
+                    </div>
+                    <div id="calendar-loading" class="text-sm text-slate-500">Carregando calendários...</div>
+                    <div id="calendar-empty-state" class="hidden text-sm text-slate-500">Nenhum calendário aguardando aprovação.</div>
+                    <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </section>
+
+                <section id="view-approvals-posts" class="portal-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Aprovação de Posts</h2>
+                        <p class="text-sm text-slate-500">Acompanhe e aprove conteúdos semanais.</p>
+                    </div>
+                    <div id="client-approvals-list" class="grid grid-cols-1 gap-4"></div>
+                    <div id="client-approvals-empty" class="hidden bg-white border border-slate-200 rounded-xl p-6 text-center text-sm text-slate-500">
+                        Nenhum item pendente por enquanto
+                    </div>
+                </section>
+
+                <section id="view-metrics" class="portal-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Métricas</h2>
+                        <p class="text-sm text-slate-500">Resumo executivo do desempenho.</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Investimento</p>
+                            <p class="text-xl font-semibold text-slate-900 mt-2">R$ 0</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Leads</p>
+                            <p class="text-xl font-semibold text-slate-900 mt-2">0</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">CTR</p>
+                            <p class="text-xl font-semibold text-slate-900 mt-2">0%</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">ROAS</p>
+                            <p class="text-xl font-semibold text-slate-900 mt-2">0.0x</p>
+                        </div>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <h3 class="text-sm font-semibold text-slate-700 mb-4">Evolução (30 dias)</h3>
+                        <div class="h-64">
+                            <canvas id="metrics-chart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-requests" class="portal-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Solicitações</h2>
+                        <p class="text-sm text-slate-500">Envie campanhas e criativos para o time.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Nova solicitação</h3>
+                            <form id="request-form" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+                                    <select id="request-type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <option value="solicitacao_campanha">Solicitação de Campanha</option>
+                                        <option value="solicitacao_criativo">Solicitação de Criativo</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                                    <input id="request-title" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Campanha de lançamento">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Detalhes</label>
+                                    <textarea id="request-details" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Explique o que precisa ser feito"></textarea>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Prazo</label>
+                                        <input id="request-deadline" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-700 mb-1">Etapa do funil</label>
+                                        <select id="request-funnel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                            <option value="">Selecione</option>
+                                            <option value="topo">Topo</option>
+                                            <option value="meio">Meio</option>
+                                            <option value="fundo">Fundo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="request-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+                                <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
+                                    Enviar solicitação
+                                </button>
+                            </form>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Últimas solicitações</h3>
+                            <div id="request-list" class="space-y-3"></div>
+                            <div id="request-empty" class="hidden text-sm text-slate-500">Nenhuma solicitação registrada.</div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
+
+    <div id="client-calendar-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 id="client-calendar-modal-title" class="text-lg font-semibold text-gray-900"></h2>
+                    <span id="client-calendar-modal-status" class="inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium"></span>
+                </div>
+                <button id="client-calendar-modal-close" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <p id="client-calendar-modal-period" class="font-medium text-gray-800"></p>
+                <div id="client-calendar-posts-loading" class="text-sm text-gray-500">Carregando posts...</div>
+                <div id="client-calendar-posts-empty" class="hidden text-sm text-gray-500">Nenhum post encontrado.</div>
+                <div id="client-calendar-posts-list" class="space-y-3"></div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
+                    <textarea id="client-calendar-approval-comment" rows="3" class="w-full rounded-lg border border-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button id="client-calendar-modal-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar Calendário</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="client-approval-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div>
+                    <h2 id="client-approval-title" class="text-lg font-semibold text-gray-900"></h2>
+                    <span id="client-approval-status" class="inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium"></span>
+                </div>
+                <button id="client-approval-close" class="text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <a id="client-approval-preview" href="#" target="_blank" class="text-sm text-primary hover:underline hidden">Abrir preview</a>
+                <div id="client-approval-media" class="hidden w-full h-64 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center text-gray-400 text-sm"></div>
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-gray-600">Versão atual: <span id="client-approval-version" class="font-semibold text-gray-800">-</span></div>
+                    <button id="client-approval-submit" class="px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition text-sm">Enviar para aprovação</button>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500 mb-2">Legenda</p>
+                    <p id="client-approval-caption" class="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3"></p>
+                </div>
+                <div class="space-y-4 border-t border-gray-100 pt-4">
+                    <div>
+                        <p class="text-xs uppercase text-gray-400 mb-2">Histórico de aprovações</p>
+                        <div id="client-approval-audit-approvals" class="space-y-3"></div>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase text-gray-400 mb-2">Versões</p>
+                        <div id="client-approval-audit-versions" class="space-y-3"></div>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase text-gray-400 mb-2">Comentários</p>
+                        <div id="client-approval-audit-comments" class="space-y-3"></div>
+                    </div>
+                </div>
+                <div class="space-y-3 border-t border-gray-100 pt-4">
+                    <textarea id="client-approval-comment-input" rows="3" class="w-full rounded-lg border border-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Escreva um comentário..."></textarea>
+                    <button id="client-approval-comment-btn" class="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition">Enviar comentário</button>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-gray-100 pt-4">
+                    <button id="client-approval-changes" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Solicitar ajustes</button>
+                    <button id="client-approval-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="js/client_session.js"></script>
+    <script src="js/client_approvals_calendar.js"></script>
+    <script src="js/client_approvals.js"></script>
+    <script>
+        const portalViews = Array.from(document.querySelectorAll('.portal-view'));
+        const portalNavButtons = Array.from(document.querySelectorAll('.portal-nav-btn'));
+        const overlay = document.getElementById('portal-overlay');
+        const sidebar = document.getElementById('portal-sidebar');
+        const toggleBtn = document.getElementById('portal-menu-toggle');
+
+        const setActiveView = (viewName) => {
+            portalViews.forEach(section => section.classList.toggle('hidden', section.id !== `view-${viewName}`));
+            portalNavButtons.forEach(btn => {
+                const isActive = btn.dataset.view === viewName;
+                btn.classList.toggle('bg-slate-100', isActive);
+                btn.classList.toggle('text-slate-900', isActive);
+            });
+        };
+
+        const toggleSidebar = (open) => {
+            if (!sidebar || !overlay) return;
+            const shouldOpen = typeof open === 'boolean' ? open : sidebar.classList.contains('-translate-x-full');
+            if (shouldOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        };
+
+        if (toggleBtn) toggleBtn.addEventListener('click', () => toggleSidebar());
+        if (overlay) overlay.addEventListener('click', () => toggleSidebar(false));
+
+        portalNavButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                setActiveView(btn.dataset.view);
+                toggleSidebar(false);
+            });
+        });
+
+        const updateClientName = (name) => {
+            const nodes = document.querySelectorAll('[data-client-name]');
+            nodes.forEach(node => { node.textContent = name || 'Cliente'; });
+        };
+
+        const setFeedback = (message, type = 'success') => {
+            const feedback = document.getElementById('request-feedback');
+            if (!feedback) return;
+            feedback.textContent = message;
+            feedback.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
+            if (type === 'error') {
+                feedback.classList.add('bg-red-50', 'text-red-600');
+            } else {
+                feedback.classList.add('bg-green-50', 'text-green-600');
+            }
+        };
+
+        const renderRequests = (items = []) => {
+            const list = document.getElementById('request-list');
+            const empty = document.getElementById('request-empty');
+            if (!list || !empty) return;
+            list.innerHTML = '';
+            if (!items.length) {
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            items.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'border border-slate-200 rounded-xl p-4 bg-slate-50';
+                const title = item.titulo || 'Solicitação';
+                const status = item.status || 'pendente';
+                const createdAt = item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '-';
+                row.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">${title}</p>
+                            <p class="text-xs text-slate-500">Criado em ${createdAt}</p>
+                        </div>
+                        <span class="text-xs uppercase text-slate-500 bg-white border border-slate-200 px-2 py-1 rounded-full">${status}</span>
+                    </div>
+                `;
+                list.appendChild(row);
+            });
+        };
+
+        const loadHomeStats = async (supabase, clientId) => {
+            const approvalsEl = document.getElementById('home-approvals');
+            const calendarEl = document.getElementById('home-calendar');
+            const calendarStatusEl = document.getElementById('home-calendar-status');
+            const requestsEl = document.getElementById('home-requests');
+
+            let approvalsCount = 0;
+            let requestsCount = 0;
+
+            if (supabase && clientId) {
+                try {
+                    const { count: calendarPending } = await supabase
+                        .from('social_calendars')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('cliente_id', clientId)
+                        .eq('status', 'aguardando_aprovacao');
+                    approvalsCount += calendarPending || 0;
+                } catch {}
+
+                const postStatuses = ['pendente_aprovacao', 'pendente_aprovação', 'aguardando_aprovacao'];
+                let postCount = null;
+                try {
+                    const { count } = await supabase
+                        .from('social_posts')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('cliente_id', clientId)
+                        .in('status', postStatuses);
+                    postCount = count;
+                } catch {}
+                if (postCount === null) {
+                    try {
+                        const { count } = await supabase
+                            .from('posts')
+                            .select('id', { count: 'exact', head: true })
+                            .eq('cliente_id', clientId)
+                            .in('status', postStatuses);
+                        postCount = count;
+                    } catch {}
+                }
+                approvalsCount += postCount || 0;
+
+                try {
+                    const { data } = await supabase
+                        .from('social_calendars')
+                        .select('mes_referencia,status,created_at')
+                        .eq('cliente_id', clientId)
+                        .order('mes_referencia', { ascending: false })
+                        .limit(1);
+                    const last = Array.isArray(data) ? data[0] : null;
+                    if (last && calendarEl) {
+                        calendarEl.textContent = last.mes_referencia || 'Calendário';
+                        if (calendarStatusEl) {
+                            calendarStatusEl.textContent = last.status ? `Status: ${last.status}` : '';
+                        }
+                    }
+                } catch {}
+
+                try {
+                    const { count } = await supabase
+                        .from('tarefas')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('cliente_id', clientId)
+                        .in('tipo', ['solicitacao_campanha', 'solicitacao_criativo'])
+                        .neq('status', 'concluido');
+                    requestsCount = count || 0;
+                } catch {}
+            }
+
+            if (approvalsEl) approvalsEl.textContent = approvalsCount;
+            if (requestsEl) requestsEl.textContent = requestsCount;
+        };
+
+        const setupRequestForm = async (supabase, clientId) => {
+            const form = document.getElementById('request-form');
+            if (!form || !supabase || !clientId) return;
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const type = document.getElementById('request-type').value;
+                const title = document.getElementById('request-title').value.trim();
+                const details = document.getElementById('request-details').value.trim();
+                const deadline = document.getElementById('request-deadline').value;
+                const funnel = document.getElementById('request-funnel').value;
+                if (!title || !details || !deadline) {
+                    setFeedback('Preencha título, detalhes e prazo.', 'error');
+                    return;
+                }
+                const userResult = await supabase.auth.getUser();
+                const userId = userResult?.data?.user?.id;
+                if (!userId) {
+                    setFeedback('Usuário não autenticado.', 'error');
+                    return;
+                }
+                const payload = {
+                    titulo: title,
+                    descricao: details,
+                    prazo_data: deadline,
+                    cliente_id: clientId,
+                    tipo: type,
+                    status: 'pendente',
+                    criado_por: userId
+                };
+                if (type === 'solicitacao_criativo') {
+                    payload.etapa_funil = funnel || null;
+                    payload.copy_legenda = details;
+                }
+                const { error } = await supabase.from('tarefas').insert(payload);
+                if (error) {
+                    setFeedback('Não foi possível enviar a solicitação.', 'error');
+                    return;
+                }
+                form.reset();
+                setFeedback('Solicitação enviada com sucesso.');
+                await loadRequests(supabase, clientId);
+                await loadHomeStats(supabase, clientId);
+            });
+        };
+
+        const loadRequests = async (supabase, clientId) => {
+            if (!supabase || !clientId) return;
+            try {
+                const userResult = await supabase.auth.getUser();
+                const userId = userResult?.data?.user?.id || null;
+                let query = supabase
+                    .from('tarefas')
+                    .select('id,titulo,status,created_at,criado_por')
+                    .eq('cliente_id', clientId)
+                    .in('tipo', ['solicitacao_campanha', 'solicitacao_criativo'])
+                    .order('created_at', { ascending: false })
+                    .limit(8);
+                if (userId) query = query.eq('criado_por', userId);
+                const { data } = await query;
+                renderRequests(data || []);
+            } catch {
+                renderRequests([]);
+            }
+        };
+
+        const initMetricsChart = () => {
+            const canvas = document.getElementById('metrics-chart');
+            if (!canvas || typeof Chart === 'undefined') return;
+            const ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Sem1', 'Sem2', 'Sem3', 'Sem4'],
+                    datasets: [{
+                        label: 'Resultados',
+                        data: [0, 0, 0, 0],
+                        borderColor: '#111827',
+                        backgroundColor: 'rgba(17,24,39,0.08)',
+                        tension: 0.35,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#9CA3AF' } },
+                        x: { ticks: { color: '#9CA3AF' } }
+                    }
+                }
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            setActiveView('home');
+            initMetricsChart();
+            const supabase = await window.clientSession?.getSupabaseClient?.();
+            const context = await window.clientSession?.ensureClientSession?.();
+            const clientId = context?.client?.id || context?.tenant?.id || window.currentClienteId;
+            const displayName = context?.client?.name
+                || context?.client?.nome_fantasia
+                || context?.tenant?.name
+                || context?.user?.email
+                || 'Cliente';
+            updateClientName(displayName);
+            if (supabase && clientId) {
+                await loadHomeStats(supabase, clientId);
+                await loadRequests(supabase, clientId);
+                await setupRequestForm(supabase, clientId);
+            }
+            const logoutBtn = document.getElementById('client-logout');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    await window.clientSession?.clientLogout?.();
+                });
+            }
+        });
+    </script>
 </body>
 </html>
