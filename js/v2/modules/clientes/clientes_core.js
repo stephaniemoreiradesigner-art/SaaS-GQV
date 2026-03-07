@@ -1,0 +1,77 @@
+// js/v2/modules/clientes/clientes_core.js
+// Núcleo do Módulo Clientes V2
+// Orquestra Repo, UI e Contexto
+
+(function(global) {
+    const ClientCore = {
+        initialized: false,
+
+        init: async function() {
+            if (this.initialized) return;
+            
+            console.log('[ClientCore V2] Inicializando...');
+
+            // Aguardar dependências globais
+            if (!global.ClientRepo || !global.ClientUI || !global.ClientContext) {
+                console.error('[ClientCore V2] Dependências não encontradas (Repo, UI ou Context).');
+                return;
+            }
+
+            // 1. Carregar Clientes
+            const clients = await global.ClientRepo.getClients();
+            console.log(`[ClientCore V2] ${clients.length} clientes carregados.`);
+
+            // 2. Renderizar UI
+            // Vamos renderizar, passando o callback de clique
+            global.ClientUI.renderClients(clients, this.handleClientSelection.bind(this));
+
+            // 3. Sincronizar estado inicial
+            const activeId = global.ClientContext.getActiveClient();
+            if (activeId) {
+                global.ClientUI.highlightActive(activeId);
+            }
+
+            // 4. Ouvir mudanças externas (para manter UI sincronizada se mudar por outro lugar)
+            global.addEventListener('gqv:client-changed', (e) => {
+                const newId = e.detail?.clientId;
+                if (newId) {
+                    global.ClientUI.highlightActive(newId);
+                }
+            });
+
+            this.initialized = true;
+        },
+
+        handleClientSelection: function(client) {
+            console.log('[ClientCore V2] Cliente selecionado:', client.nome_fantasia);
+            
+            // Atualizar o Contexto Global V2
+            // O Contexto vai disparar 'gqv:client-changed' e persistir no localStorage
+            if (global.ClientContext) {
+                global.ClientContext.setActiveClient(client.id);
+            } else {
+                console.error('[ClientCore V2] ClientContext não disponível!');
+            }
+        }
+    };
+
+    // Auto-inicialização quando o V2 estiver pronto
+    global.addEventListener('v2:ready', () => {
+        ClientCore.init();
+    });
+
+    // Fallback se o v2:ready já tiver passado
+    if (global.ClientContext && global.ClientContext.isReady) { // Assumindo propriedade isReady ou checando se existe
+        ClientCore.init();
+    } else {
+         // Se carregou depois do bootstrap, tenta iniciar brevemente
+         setTimeout(() => {
+             if (!ClientCore.initialized && global.ClientContext) {
+                 ClientCore.init();
+             }
+         }, 1000);
+    }
+
+    global.ClientCore = ClientCore;
+
+})(window);

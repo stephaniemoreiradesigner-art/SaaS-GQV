@@ -87,6 +87,15 @@
 
             <div class="flex-1 overflow-y-auto p-6 md:p-8">
                 
+                <!-- AREA DE VALIDAÇÃO V2 -->
+                <div class="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h3 class="text-lg font-bold text-blue-800 mb-2">Módulo Clientes V2 (Preview)</h3>
+                    <p class="text-sm text-blue-600 mb-4">Esta lista é renderizada pelo novo núcleo V2 usando ClientContext compartilhado.</p>
+                    <div id="v2-clients-list" class="max-h-60 overflow-y-auto bg-white rounded border border-blue-100 p-2">
+                        <div class="text-gray-400 italic">Inicializando V2...</div>
+                    </div>
+                </div>
+
                 <!-- LISTA DE CLIENTES -->
                 <div id="lista-clientes-container">
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -621,5 +630,15 @@
     <script src="../js/logbook.js"></script>
     <script src="../js/clientes.js"></script>
     <script src="../js/client_app.js"></script>
+
+    <!-- SPRINT 1: Arquitetura V2 -->
+    <script src="../js/v2/shared/tenantContext.js"></script>
+    <script src="../js/v2/shared/clientContext.js"></script>
+    <script src="../js/v2/bootstrap.js"></script>
+    
+    <!-- SPRINT 1: Módulo Clientes V2 -->
+    <script src="../js/v2/modules/clientes/clientes_repo.js"></script>
+    <script src="../js/v2/modules/clientes/clientes_ui.js"></script>
+    <script src="../js/v2/modules/clientes/clientes_core.js"></script>
 </body>
 </html>
