@@ -5,6 +5,82 @@
 (function(global) {
     const SocialMediaRepo = {
         /**
+         * Cria um novo post manual
+         * @param {Object} input - Dados do post
+         * @returns {Promise<Object>} Resultado da operação
+         */
+        createPost: async function(input) {
+            if (!global.supabaseClient) {
+                throw new Error('Banco de dados não conectado');
+            }
+
+            // Validação mínima
+            if (!input.cliente_id) throw new Error('Cliente não identificado');
+            if (!input.titulo) throw new Error('Título é obrigatório');
+
+            const payload = {
+                cliente_id: input.cliente_id,
+                titulo: input.titulo, // ou 'tema' dependendo da tabela
+                legenda: input.legenda || '',
+                plataforma: input.plataforma || 'instagram', // array ou string dependendo do schema
+                data_postagem: input.data_postagem || null,
+                status: input.status || 'rascunho',
+                tipo: 'manual', // flag para identificar origem
+                criado_em: new Date().toISOString()
+            };
+
+            // Adapter para tabela real (assumindo 'posts' ou 'social_posts' baseado no legado)
+            // Se a tabela 'posts' falhou na leitura, provavelmente é 'social_posts' (visto no legado generateCalendar)
+            
+            let tableName = 'social_posts'; 
+            // Tentativa primária na tabela que vimos no legado (generateCalendar usa social_posts)
+
+            try {
+                // Adaptação de campos para social_posts (baseado no legado)
+                const dbPayload = {
+                    cliente_id: payload.cliente_id,
+                    tema: payload.titulo, // legado usa 'tema'
+                    legenda: payload.legenda,
+                    data_agendada: payload.data_postagem, // legado usa 'data_agendada'
+                    status: payload.status,
+                    plataformas: [payload.plataforma], // legado usa array jsonb
+                    formato: input.formato || 'estatico'
+                };
+
+                const { data, error } = await global.supabaseClient
+                    .from(tableName)
+                    .insert([dbPayload])
+                    .select()
+                    .single();
+
+                if (error) {
+                    // Se falhar, tenta tabela 'posts' (fallback genérico)
+                    console.warn(`[SocialMediaRepo] Erro em ${tableName}, tentando 'posts'...`, error);
+                    const fallbackPayload = {
+                        cliente_id: payload.cliente_id,
+                        titulo: payload.titulo,
+                        conteudo: payload.legenda,
+                        status: payload.status,
+                        data_postagem: payload.data_postagem
+                    };
+                    const { data: fbData, error: fbError } = await global.supabaseClient
+                        .from('posts')
+                        .insert([fallbackPayload])
+                        .select()
+                        .single();
+                    
+                    if (fbError) throw fbError;
+                    return fbData;
+                }
+
+                return data;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao criar post:', err);
+                throw err;
+            }
+        },
+
+        /**
          * Busca posts de um cliente específico
          * @param {string} clientId 
          * @returns {Promise<Array>} Lista de posts
@@ -13,29 +89,25 @@
             if (!global.supabaseClient || !clientId) return [];
 
             try {
-                // Buscando da tabela legacy 'calendario_posts' ou a que estiver em uso
-                // Baseado na análise anterior, a tabela parece ser 'calendario_posts' ou similar no JSON
-                // Vamos tentar buscar de 'posts' ou 'calendario' se existir, mas o legado usa JSON em 'social_media_calendars'
-                // ou tabela 'posts_social_media'.
-                
-                // [STRATEGY] Sprint 2 foca em ler o que existe. 
-                // Vamos assumir uma estrutura padrão baseada nos arquivos legados:
-                // Tabela: 'posts' (se houver migração) ou 'calendario_posts'
-                
-                // Buscando na tabela 'posts' (suposição baseada em padrões comuns, ajustaremos se falhar)
-                const { data, error } = await global.supabaseClient
+                // Tenta tabela 'social_posts' primeiro (mais provável ser a correta v2/legada)
+                let { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .order('data_agendada', { ascending: false });
+
+                if (!error) return data;
+
+                // Fallback para 'posts'
+                console.warn('[SocialMediaRepo] Tabela social_posts falhou, tentando posts...');
+                const { data: data2, error: error2 } = await global.supabaseClient
                     .from('posts')
                     .select('*')
                     .eq('cliente_id', clientId)
                     .order('data_postagem', { ascending: false });
 
-                if (error) {
-                    // Fallback para tabela legado se 'posts' não existir ou der erro
-                    console.warn('[SocialMediaRepo] Tabela posts falhou, tentando tabela legado...');
-                    return []; 
-                }
-                
-                return data || [];
+                if (error2) throw error2;
+                return data2 || [];
             } catch (error) {
                 console.error('[SocialMediaRepo] Erro ao buscar posts:', error);
                 return [];
