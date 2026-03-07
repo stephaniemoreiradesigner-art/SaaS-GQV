@@ -9350,15 +9350,15 @@ const legacyHandler = async (request, response) => {
 
     let resolvedPathname = pathname;
     if (resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname === '/client/home') {
-        resolvedPathname = '/client_dashboard.html';
+        resolvedPathname = '/v2/client/index.html';
     } else if (resolvedPathname === '/client/login' || resolvedPathname === '/client/login/') {
-        resolvedPathname = '/client_login.html';
+        resolvedPathname = '/v2/client/login.html';
     } else if (resolvedPathname === '/client/integrations' || resolvedPathname === '/client/integrations/') {
-        resolvedPathname = '/client_integrations.html';
+        resolvedPathname = '/v2/client/index.html';
     } else if (resolvedPathname === '/client/approvals/calendar' || resolvedPathname === '/client/approvals/calendar/') {
-        resolvedPathname = '/client_approvals_calendar.html';
+        resolvedPathname = '/v2/client/index.html';
     } else if (resolvedPathname === '/client/approvals/posts' || resolvedPathname === '/client/approvals/posts/') {
-        resolvedPathname = '/client_approvals_posts.html';
+        resolvedPathname = '/v2/client/index.html';
     }
 
     if (resolvedPathname === '/v2/agency' || resolvedPathname === '/v2/agency/') {
@@ -9382,13 +9382,16 @@ const legacyHandler = async (request, response) => {
     if (resolvedPathname === '/v2/client/update') {
         resolvedPathname = '/v2/client/update.html';
     }
+    if (resolvedPathname.startsWith('/client/')) {
+        resolvedPathname = '/v2/client/index.html';
+    }
 
     // --- ARQUIVOS ESTÁTICOS ---
     
     // Remove query string para encontrar o arquivo
     let filePath = '.' + resolvedPathname;
     if (resolvedPathname === '/dashboard.html') {
-        filePath = './pages/dashboard.html';
+        filePath = './v2/agency/index.html';
     }
     if (filePath === './') {
         filePath = './v2/agency/login.html';
@@ -9400,15 +9403,6 @@ const legacyHandler = async (request, response) => {
     }
     if (resolvedPathname === '/demo/cliente' || resolvedPathname === '/demo/cliente/') {
         filePath = './demo/cliente.html';
-    }
-
-    const isClientRoute = resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname.startsWith('/client/');
-    if (isClientRoute) {
-        if (resolvedPathname === '/client' || resolvedPathname === '/client/' || resolvedPathname === '/client/home') {
-            filePath = './client/index.html';
-        } else if (!path.extname(filePath)) {
-            filePath = `.${resolvedPathname}.html`;
-        }
     }
 
     const extname = String(path.extname(filePath)).toLowerCase();
