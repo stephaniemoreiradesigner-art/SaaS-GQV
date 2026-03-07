@@ -249,7 +249,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             let session = data.session;
 
             const path = window.location.pathname;
-            const isLoginPage = path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/');
+            const isV2AgencyPath = path.includes('/v2/agency');
+            const isV2ClientPath = path.includes('/v2/client');
+            const isV2AgencyLoginPage = path.includes('/v2/agency/login.html');
+            const isV2ClientLoginPage = path.includes('/v2/client/login.html');
+            const isV2AgencyIndex = path.includes('/v2/agency/index.html');
+            const isLegacyLoginPage = !isV2AgencyPath && !isV2ClientPath && (path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/'));
+            const isLoginPage = isV2AgencyLoginPage || isV2ClientLoginPage || isLegacyLoginPage;
             const isRestrictedPage = !isLoginPage;
             const isDashboardPage = path.includes('dashboard.html');
 
@@ -274,7 +280,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 
                 if (isLoginPage) {
-                    window.location.href = 'dashboard.html';
+                    if (isV2AgencyLoginPage) {
+                        window.location.href = '/v2/agency/index.html';
+                    } else {
+                        window.location.href = 'dashboard.html';
+                    }
                 } else {
                     // Carregar dados do usuário se estiver no dashboard
                     if (typeof loadUserProfile === 'function') loadUserProfile(session);
@@ -331,7 +341,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         } else {
                             console.warn('🚫 Acesso negado. Redirecionando para login...');
                             if (!window.location.search.includes('access_token')) {
-                                window.location.href = 'index.html';
+                                if (isV2AgencyIndex) {
+                                    window.location.href = '/v2/agency/login.html';
+                                } else {
+                                    window.location.href = 'index.html';
+                                }
                             }
                         }
                     }, 1000);

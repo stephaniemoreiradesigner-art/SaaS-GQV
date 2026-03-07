@@ -18,6 +18,16 @@
 
         console.log('[V2 Bootstrap] Supabase detectado. Inicializando contextos...');
 
+        const path = window.location.pathname || '';
+        if (path.includes('/v2/agency/index.html') && global.supabaseClient?.auth?.getSession) {
+            const { data } = await global.supabaseClient.auth.getSession();
+            if (!data?.session) {
+                console.warn('[V2 Bootstrap] Sessão ausente. Redirecionando para login da Agency V2.');
+                window.location.href = '/v2/agency/login.html';
+                return;
+            }
+        }
+
         // 2. Inicializar TenantContext (Async - vai ao banco)
         if (global.TenantContext) {
             await global.TenantContext.init();

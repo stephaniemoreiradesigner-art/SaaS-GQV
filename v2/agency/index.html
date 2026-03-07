@@ -564,6 +564,17 @@
                     return;
                 }
                 if (clientSaveBtn) clientSaveBtn.disabled = true;
+                if (window.supabaseClient?.auth?.getSession) {
+                    const { data } = await window.supabaseClient.auth.getSession();
+                    if (!data?.session) {
+                        setClientFeedback('Usuário não autenticado. Faça login novamente.', 'error');
+                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        setTimeout(() => {
+                            window.location.href = '/v2/agency/login.html';
+                        }, 1200);
+                        return;
+                    }
+                }
                 setClientFeedback('Salvando cliente...');
                 const payload = {
                     nome: name,
