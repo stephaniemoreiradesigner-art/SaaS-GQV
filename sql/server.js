@@ -9373,6 +9373,9 @@ const legacyHandler = async (request, response) => {
     if (resolvedPathname === '/v2/agency/login') {
         resolvedPathname = '/v2/agency/login.html';
     }
+    if (resolvedPathname === '/v2/agency/dashboard.html') {
+        resolvedPathname = '/v2/agency/index.html';
+    }
     if (resolvedPathname === '/v2/client' || resolvedPathname === '/v2/client/') {
         resolvedPathname = '/v2/client/index.html';
     }
