@@ -31,6 +31,7 @@
             </div>
             <button id="login-button" type="submit" class="w-full bg-slate-900 text-white font-semibold py-2 rounded-lg hover:bg-slate-800 transition">Entrar</button>
         </form>
+        <div id="login-feedback" class="hidden text-sm rounded-lg px-3 py-2 mt-3"></div>
         <div class="text-center mt-4 pt-4 border-t border-slate-100">
             <a href="/v2/client/login.html" class="text-sm text-slate-500 hover:text-primary transition-colors">
                 Sou cliente
@@ -47,7 +48,23 @@
                 const ok = await window.initSupabase();
                 if (ok && window.supabaseClient) return window.supabaseClient;
             }
+            if (window.supabaseClient) return window.supabaseClient;
+            await new Promise((resolve) => window.addEventListener('supabaseReady', resolve, { once: true }));
             return window.supabaseClient || null;
+        };
+
+        const setFeedback = (message, type = 'info') => {
+            const box = document.getElementById('login-feedback');
+            if (!box) return;
+            box.textContent = message;
+            box.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600', 'bg-slate-100', 'text-slate-600');
+            if (type === 'error') {
+                box.classList.add('bg-red-50', 'text-red-600');
+            } else if (type === 'success') {
+                box.classList.add('bg-green-50', 'text-green-600');
+            } else {
+                box.classList.add('bg-slate-100', 'text-slate-600');
+            }
         };
 
         document.addEventListener('DOMContentLoaded', async () => {
@@ -70,22 +87,31 @@
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value.trim();
                 if (!email || !password) {
-                    alert('Preencha e-mail e senha.');
+                    setFeedback('Preencha e-mail e senha.', 'error');
                     return;
                 }
                 button.disabled = true;
                 button.textContent = 'Entrando...';
+                setFeedback('Validando credenciais...');
                 try {
                     const client = await getSupabase();
                     if (!client) {
-                        alert('Falha ao conectar.');
+                        setFeedback('Falha ao conectar ao Supabase.', 'error');
                         return;
                     }
-                    const { error } = await client.auth.signInWithPassword({ email, password });
+                    console.log('[AgencyLogin] login attempt:', { email, passwordLength: password.length });
+                    const { data, error } = await client.auth.signInWithPassword({ email, password });
                     if (error) {
-                        alert('Falha no login.');
+                        console.error('[AgencyLogin] signIn error:', error);
+                        setFeedback(error?.message || 'Falha no login.', 'error');
                         return;
                     }
+                    const session = data?.session || (await client.auth.getSession())?.data?.session;
+                    if (!session) {
+                        setFeedback('Sessão não criada. Verifique o login.', 'error');
+                        return;
+                    }
+                    setFeedback('Login realizado com sucesso.', 'success');
                     window.location.href = '/v2/agency/index.html';
                 } finally {
                     button.disabled = false;
