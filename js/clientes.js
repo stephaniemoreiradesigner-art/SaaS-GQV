@@ -852,9 +852,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const socialMediaBtn = document.getElementById('client-view-social-media-btn');
     if (socialMediaBtn) {
         socialMediaBtn.onclick = () => {
-            if (typeof window.setActiveClientId === 'function') {
+            // [V2 Integration] Usar ClientContext se disponível
+            if (window.ClientContext && typeof window.ClientContext.setActiveClient === 'function') {
+                window.ClientContext.setActiveClient(cliente.id);
+            } else if (typeof window.setActiveClientId === 'function') {
                 window.setActiveClientId(cliente.id);
             }
+            
+            // Fallback storage direto
+            localStorage.setItem('GQV_ACTIVE_CLIENT_ID', cliente.id);
+            localStorage.setItem('selectedClientId', cliente.id);
+
             const url = `/social_media.html?clientId=${encodeURIComponent(cliente.id)}&tab=calendar`;
             window.location.href = url;
         };

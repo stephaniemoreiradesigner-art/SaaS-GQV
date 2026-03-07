@@ -378,7 +378,7 @@
         // Listeners para os botões de ação
         document.querySelectorAll('button[data-action]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                // Previne comportamento padrão se necessário (embora sejam buttons type=button geralmente)
+                // Previne comportamento padrão se necessário
                 e.preventDefault();
                 
                 const action = btn.getAttribute('data-action');
@@ -387,7 +387,6 @@
                 // Validação robusta
                 if (!state.clientId || state.clientId === '') {
                     alert('Por favor, selecione um cliente antes de prosseguir.');
-                    // Tenta focar no select para ajudar o usuário
                     if (select) select.focus();
                     return;
                 }
@@ -426,7 +425,7 @@
                         targetTabName = 'diary';
                         break;
                     case 'creatives':
-                        targetTabName = 'creatives'; // ou 'creative-requests'
+                        targetTabName = 'creatives';
                         break;
                 }
 
@@ -437,6 +436,27 @@
                     simpleTabSwitch(targetTabName);
                 }
             });
+        });
+
+        // [CONTEXT LISTENER] Escutar mudanças vindas do ClientContext (v2)
+        window.addEventListener('gqv:client-changed', (e) => {
+            const newClientId = e.detail?.clientId;
+            if (newClientId && newClientId !== state.clientId) {
+                console.log('[SM-Dash] Atualizando via gqv:client-changed:', newClientId);
+                state.clientId = newClientId;
+                
+                if (select) {
+                    select.value = newClientId;
+                    updateClientNameUI(select);
+                }
+                
+                updateButtonsState();
+                
+                // Atualiza storage local legado para garantir consistência
+                localStorage.setItem('selectedClientId', newClientId);
+                localStorage.setItem('sm_active_client', newClientId);
+                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', newClientId);
+            }
         });
     }
 
