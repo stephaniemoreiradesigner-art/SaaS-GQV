@@ -2,10 +2,10 @@
   "name": "saas-gqv-backend",
   "version": "1.0.0",
   "description": "Backend API for SaaS GQV Automations",
-  "main": "server.js",
+  "main": "sql/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "node sql/server.js",
+    "dev": "node sql/server.js",
     "lint": "eslint . --ext .js",
     "typecheck": "tsc -p tsconfig.json"
   },
