@@ -3,154 +3,367 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Gestão Que Vende</title>
-    <script src="../js/theme.js"></script>
+    <title>V2 Workspace - Gestão Que Vende</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet">
+    <script src="../js/theme.js"></script>
 </head>
-<body class="bg-gray-50 text-gray-800 antialiased">
-
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
-            <div class="h-20 flex items-center justify-center border-b border-gray-100 px-6">
+<body class="bg-slate-100 text-slate-900 antialiased font-sans">
+    <div class="flex min-h-screen">
+        <aside class="hidden lg:flex w-72 flex-col border-r border-slate-200 bg-white">
+            <div class="h-20 flex items-center justify-center border-b border-slate-100 px-6">
                 <img src="../assets/logo.png" id="logo-sidebar" alt="GQV Logo" class="h-10 w-auto object-contain">
             </div>
-            
-            <nav class="flex-1 overflow-y-auto py-6 space-y-1">
-                <a href="dashboard.html" class="flex items-center px-6 py-3 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-r-4 border-[var(--color-primary)] transition-colors">
-                    <i class="fas fa-home w-6 text-center"></i>
-                    <span class="font-medium ml-2">Home</span>
-                </a>
-                <a href="clientes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-users w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Clientes</span>
-                </a>
-                <a href="tarefas.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-tasks w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Tarefas</span>
-                </a>
-                <a href="social_media.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,social_media">
-                    <i class="fas fa-hashtag w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Social Media</span>
-                </a>
-                <a href="trafego_pago.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,trafego_pago">
-                    <i class="fas fa-bullhorn w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Tráfego Pago</span>
-                </a>
-                <a href="chat.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-comments w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Chat</span>
-                </a>
-                <a href="financeiro.html" class="restricted flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group" data-roles="super_admin,admin,financeiro">
-                    <i class="fas fa-dollar-sign w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Financeiro</span>
-                </a>
-                <a href="automacoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-robot w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Automações</span>
-                </a>
-                <a href="colaboradores.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-user-friends w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Colaboradores</span>
-                </a>
-                <a href="configuracoes.html" class="flex items-center px-6 py-3 text-gray-500 hover:text-[var(--color-secondary)] hover:bg-gray-50 transition-colors group">
-                    <i class="fas fa-cog w-6 text-center group-hover:text-[var(--color-secondary)] transition-colors"></i>
-                    <span class="font-medium ml-2">Configurações</span>
-                </a>
+            <div class="px-6 pt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Workspace V2</div>
+            <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+                <button data-module="clients" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-building text-slate-400"></i>
+                    <span>Clientes</span>
+                </button>
+                <button data-module="hub" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-th-large text-slate-400"></i>
+                    <span>Hub do Cliente</span>
+                </button>
+                <button data-module="social" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-hashtag text-slate-400"></i>
+                    <span>Social Media</span>
+                </button>
+                <button data-module="performance" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-bullhorn text-slate-400"></i>
+                    <span>Tráfego Pago</span>
+                </button>
+                <button data-module="client-panel" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-user-check text-slate-400"></i>
+                    <span>Painel do Cliente</span>
+                </button>
+                <div class="pt-5 text-xs font-semibold uppercase tracking-wider text-slate-400">Em construção</div>
+                <button data-module="construction" data-label="Financeiro" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-wallet text-slate-300"></i>
+                    <span>Financeiro</span>
+                </button>
+                <button data-module="construction" data-label="Tarefas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-list-check text-slate-300"></i>
+                    <span>Tarefas</span>
+                </button>
+                <button data-module="construction" data-label="Comercial" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-chart-line text-slate-300"></i>
+                    <span>Comercial</span>
+                </button>
+                <button data-module="construction" data-label="Relatórios" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-file-alt text-slate-300"></i>
+                    <span>Relatórios</span>
+                </button>
+                <button data-module="construction" data-label="Automações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-robot text-slate-300"></i>
+                    <span>Automações</span>
+                </button>
+                <button data-module="construction" data-label="Pessoas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-user-friends text-slate-300"></i>
+                    <span>Pessoas</span>
+                </button>
+                <button data-module="construction" data-label="Integrações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-plug text-slate-300"></i>
+                    <span>Integrações</span>
+                </button>
             </nav>
-
-            <div class="p-4 border-t border-gray-100">
-                <div class="flex items-center gap-3 mb-4">
-                    <img id="user-avatar-sidebar" class="w-10 h-10 rounded-full object-cover border border-gray-200" src="" alt="User">
-                    <div class="flex-1 min-w-0">
-                        <p id="user-name-sidebar" class="text-sm font-semibold text-gray-800 truncate">Carregando...</p>
-                    </div>
-                    <button id="btn-logout-sidebar" class="text-gray-400 hover:text-red-500 transition-colors" title="Sair">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                </div>
+            <div class="p-4 border-t border-slate-100">
+                <button id="btn-logout-sidebar" class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:text-red-500 hover:border-red-200 transition-colors">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Sair
+                </button>
             </div>
         </aside>
 
-        <!-- Main Content -->
-        <main class="flex-1 flex flex-col overflow-hidden relative">
-            <!-- Mobile Header -->
-            <div class="md:hidden h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4">
-                <img src="../assets/logo.png" id="logo-mobile" class="h-8" alt="Logo">
-                <button class="text-gray-500 hover:text-primary" onclick="document.querySelector('aside').classList.toggle('hidden')">
-                    <i class="fas fa-bars text-xl"></i>
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-6 md:p-8">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-                    <div class="flex items-center gap-3">
-                        <div class="w-1 h-8 bg-primary rounded-full"></div>
-                        <h2 class="text-2xl font-bold text-gray-800">Home</h2>
+        <div class="flex-1 flex flex-col min-h-screen">
+            <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+                <div class="flex items-center gap-3">
+                    <button class="lg:hidden text-slate-500" id="btn-toggle-sidebar">
+                        <i class="fas fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Workspace V2</p>
+                        <h1 class="text-lg font-semibold text-slate-900">Gestão Que Vende</h1>
                     </div>
                 </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    <!-- Lembretes -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <i class="fas fa-list-ul text-primary"></i> Lembretes
-                        </h3>
-                        
-                        <!-- Agenda do Dia (Sistema) -->
-                        <div id="system-reminders-container" class="mb-6 hidden">
-                            <h5 class="text-sm font-semibold text-primary uppercase tracking-wider mb-3 border-b border-gray-100 pb-2">
-                                <i class="far fa-calendar-alt mr-1"></i> Agenda de Hoje
-                            </h5>
-                            <ul class="space-y-2" id="system-reminders-list">
-                                <!-- Injetado via JS -->
-                            </ul>
-                        </div>
-
-                        <div class="flex gap-2 mb-4">
-                            <input type="text" id="new-todo" placeholder="Novo lembrete manual..." class="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
-                            <button onclick="addTodo()" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors">
-                                <i class="fas fa-plus"></i>
-                            </button>
-                        </div>
-                        <ul class="space-y-2 max-h-72 overflow-y-auto pr-2 custom-scrollbar" id="todo-list">
-                            <li class="text-center text-gray-400 py-4">Carregando...</li>
-                        </ul>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">Cliente ativo</p>
+                        <p id="active-client-name" class="text-sm font-semibold text-slate-800">Nenhum cliente selecionado</p>
                     </div>
-
-                    <!-- Minhas Reuniões -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" id="card-meetings">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                                <i class="fas fa-video text-primary"></i> Minhas Reuniões
-                            </h3>
-                            <button class="px-3 py-1.5 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary hover:text-white transition-all" onclick="window.location.href='tarefas.html?action=new&type=reuniao'">
-                                <i class="fas fa-plus mr-1"></i> Agendar
-                            </button>
-                        </div>
-                        <div class="space-y-3" id="my-meetings-list">
-                            <p class="text-center text-gray-400 py-4">Carregando reuniões...</p>
-                        </div>
-                    </div>
-
-                    <!-- Aniversariantes do Mês -->
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <i class="fas fa-birthday-cake text-pink-500"></i> Aniversariantes do Mês
-                        </h3>
-                        <div class="space-y-3" id="birthdays-month-list">
-                            <p class="text-center text-gray-400 py-4">Carregando aniversariantes...</p>
-                        </div>
-                    </div>
+                    <span id="active-client-id" class="hidden text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full"></span>
                 </div>
-            </div>
-        </main>
+            </header>
+
+            <main class="flex-1 overflow-y-auto p-6 lg:p-10">
+                <section id="view-clients" class="v2-view space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900">Clientes</h2>
+                            <p class="text-sm text-slate-500">Selecione um cliente para liberar os módulos.</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Lista de clientes</h3>
+                            <div id="v2-clients-list" class="space-y-2"></div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Resumo do cliente</h3>
+                            <div class="text-sm text-slate-500" id="client-summary">
+                                Selecione um cliente para visualizar o hub operacional.
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                                <div class="rounded-xl border border-slate-200 p-4">
+                                    <p class="text-xs uppercase text-slate-400">Social Media</p>
+                                    <p class="text-sm text-slate-600 mt-2">Calendário e posts</p>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 p-4">
+                                    <p class="text-xs uppercase text-slate-400">Tráfego Pago</p>
+                                    <p class="text-sm text-slate-600 mt-2">Métricas e campanhas</p>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 p-4">
+                                    <p class="text-xs uppercase text-slate-400">Painel do Cliente</p>
+                                    <p class="text-sm text-slate-600 mt-2">Aprovações</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-hub" class="v2-view hidden space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-900">Hub do Cliente</h2>
+                            <p class="text-sm text-slate-500">Operações rápidas por cliente ativo.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
+                                <p id="hub-client-name" class="text-lg font-semibold text-slate-900">Nenhum cliente selecionado</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <button data-action="go-social" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Social Media</button>
+                                <button data-action="go-performance" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Tráfego Pago</button>
+                                <button data-action="go-panel" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Painel do Cliente</button>
+                            </div>
+                        </div>
+                        <div id="hub-empty" class="mt-6 text-sm text-slate-500 hidden">
+                            Selecione um cliente para liberar ações.
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Social Media</p>
+                            <p class="text-base font-semibold text-slate-800 mt-2">Calendários pendentes</p>
+                            <p class="text-sm text-slate-500 mt-1">Sem dados integrados ainda.</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Tráfego Pago</p>
+                            <p class="text-base font-semibold text-slate-800 mt-2">Campanhas ativas</p>
+                            <p class="text-sm text-slate-500 mt-1">Integrações em evolução.</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Aprovações</p>
+                            <p class="text-base font-semibold text-slate-800 mt-2">Painel do cliente</p>
+                            <p class="text-sm text-slate-500 mt-1">Acesso disponível por login.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-social" class="v2-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Social Media</h2>
+                        <p class="text-sm text-slate-500">Feed, calendário e criação manual de posts.</p>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-[1.1fr_1fr] gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <div id="v2-social-create-area"></div>
+                            <div id="v2-social-feed"></div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <div id="v2-social-calendar"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-performance" class="v2-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Tráfego Pago</h2>
+                        <p class="text-sm text-slate-500">Métricas e campanhas organizadas por cliente.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Métricas</p>
+                            <p class="text-sm text-slate-500 mt-2">Aguardando integração.</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Campanhas</p>
+                            <p class="text-sm text-slate-500 mt-2">Aguardando integração.</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Integrações</p>
+                            <p class="text-sm text-slate-500 mt-2">Configuração em breve.</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-client-panel" class="v2-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Painel do Cliente</h2>
+                        <p class="text-sm text-slate-500">Área exclusiva para aprovações e acompanhamento.</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <p class="text-sm text-slate-500">Acesse o painel autenticado do cliente.</p>
+                        <div class="mt-4 flex flex-wrap gap-3">
+                            <a href="client_dashboard.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">
+                                <i class="fas fa-external-link-alt"></i>
+                                Abrir Painel do Cliente
+                            </a>
+                            <a href="client_login.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">
+                                <i class="fas fa-lock"></i>
+                                Login do Cliente
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-construction" class="v2-view hidden">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                        <div class="text-6xl text-slate-300 mb-5"><i class="fas fa-hard-hat"></i></div>
+                        <h2 id="construction-title" class="text-2xl font-bold text-slate-800 mb-2">Módulo em construção</h2>
+                        <p class="text-sm text-slate-500">Em construção... 🛠️ Este módulo será liberado em breve.</p>
+                    </div>
+                </section>
+            </main>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="../js/components/sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.js"></script>
     <script src="../js/app.js"></script>
-    <script src="../js/dashboard.js"></script>
+    <script src="../js/v2/shared/tenantContext.js"></script>
+    <script src="../js/v2/shared/clientContext.js"></script>
+    <script src="../js/v2/shared/workspaceState.js"></script>
+    <script src="../js/v2/modules/clientes/clientes_repo.js"></script>
+    <script src="../js/v2/modules/clientes/clientes_ui.js"></script>
+    <script src="../js/v2/modules/clientes/clientes_core.js"></script>
+    <script src="../js/v2/modules/social_media/social_media_repo.js"></script>
+    <script src="../js/v2/modules/social_media/social_media_ui.js"></script>
+    <script src="../js/v2/modules/social_media/social_media_core.js"></script>
+    <script src="../js/v2/performance/performance_core.js"></script>
+    <script src="../js/v2/bootstrap.js"></script>
+    <script>
+        const views = {
+            clients: document.getElementById('view-clients'),
+            hub: document.getElementById('view-hub'),
+            social: document.getElementById('view-social'),
+            performance: document.getElementById('view-performance'),
+            'client-panel': document.getElementById('view-client-panel'),
+            construction: document.getElementById('view-construction')
+        };
+
+        const navButtons = document.querySelectorAll('.v2-nav-btn');
+        const constructionTitle = document.getElementById('construction-title');
+        const hubClientName = document.getElementById('hub-client-name');
+        const hubEmpty = document.getElementById('hub-empty');
+        const activeClientName = document.getElementById('active-client-name');
+        const activeClientId = document.getElementById('active-client-id');
+        const clientSummary = document.getElementById('client-summary');
+        const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
+
+        const setActiveView = (moduleName, label) => {
+            Object.values(views).forEach(view => view && view.classList.add('hidden'));
+            const view = views[moduleName] || views.clients;
+            if (view) view.classList.remove('hidden');
+            navButtons.forEach(btn => {
+                btn.classList.toggle('bg-slate-100', btn.dataset.module === moduleName);
+                btn.classList.toggle('text-slate-900', btn.dataset.module === moduleName);
+            });
+            if (moduleName === 'construction' && constructionTitle) {
+                constructionTitle.textContent = label ? `${label}` : 'Módulo em construção';
+            }
+            if (window.WorkspaceState && moduleName !== 'construction') {
+                window.WorkspaceState.setActiveModule(moduleName);
+            }
+        };
+
+        navButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const moduleName = btn.dataset.module;
+                if (moduleName === 'construction') {
+                    setActiveView('construction', btn.dataset.label);
+                    return;
+                }
+                setActiveView(moduleName);
+            });
+        });
+
+        const updateClientUI = (id, name) => {
+            const hasClient = !!id;
+            const safeName = name || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
+            if (activeClientName) activeClientName.textContent = safeName;
+            if (hubClientName) hubClientName.textContent = safeName;
+            if (activeClientId) {
+                activeClientId.textContent = hasClient ? `ID ${id}` : '';
+                activeClientId.classList.toggle('hidden', !hasClient);
+            }
+            if (hubEmpty) hubEmpty.classList.toggle('hidden', hasClient);
+            if (clientSummary) {
+                clientSummary.textContent = hasClient
+                    ? 'Cliente ativo pronto para operação nos módulos prioritários.'
+                    : 'Selecione um cliente para visualizar o hub operacional.';
+            }
+            clientRequiredActions.forEach(btn => {
+                btn.disabled = !hasClient;
+                btn.classList.toggle('opacity-50', !hasClient);
+                btn.classList.toggle('cursor-not-allowed', !hasClient);
+            });
+        };
+
+        if (window.ClientContext) {
+            window.ClientContext.subscribe((clientId) => {
+                const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                updateClientUI(clientId, name);
+            });
+        } else {
+            updateClientUI(null, '');
+        }
+
+        document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('social'));
+        });
+        document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('performance'));
+        });
+        document.querySelectorAll('[data-action="go-panel"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('client-panel'));
+        });
+
+        const toggleBtn = document.getElementById('btn-toggle-sidebar');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const sidebar = document.querySelector('aside');
+                if (!sidebar) return;
+                sidebar.classList.toggle('hidden');
+            });
+        }
+
+        const logoutBtn = document.getElementById('btn-logout-sidebar');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (window.supabaseClient?.auth?.signOut) {
+                    await window.supabaseClient.auth.signOut();
+                }
+                window.location.href = 'index.html';
+            });
+        }
+
+        setActiveView('clients');
+    </script>
 </body>
 </html>
