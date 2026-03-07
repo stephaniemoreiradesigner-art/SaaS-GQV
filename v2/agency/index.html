@@ -183,10 +183,77 @@
                 </section>
 
                 <section id="view-social" class="v2-view hidden space-y-6">
-                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-hashtag"></i></div>
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Social Media</h2>
-                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div>
+                            <p class="text-xs uppercase tracking-widest text-slate-400">Social Media V2</p>
+                            <h2 class="text-2xl font-bold text-slate-900">Gestão do calendário</h2>
+                            <p class="text-sm text-slate-500">Cliente: <span id="social-client-name">Nenhum cliente selecionado</span></p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span id="social-calendar-status" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem calendário</span>
+                            <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
+                                Enviar para Aprovação
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Visão geral</p>
+                            <div class="mt-4 space-y-3">
+                                <div class="flex items-center justify-between text-sm text-slate-600">
+                                    <span>Calendários rascunho</span>
+                                    <span id="social-count-draft" class="font-semibold text-slate-900">0</span>
+                                </div>
+                                <div class="flex items-center justify-between text-sm text-slate-600">
+                                    <span>Aguardando aprovação</span>
+                                    <span id="social-count-pending" class="font-semibold text-slate-900">0</span>
+                                </div>
+                                <div class="flex items-center justify-between text-sm text-slate-600">
+                                    <span>Aprovados</span>
+                                    <span id="social-count-approved" class="font-semibold text-slate-900">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm lg:col-span-2">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-sm font-semibold text-slate-700">Calendários recentes</h3>
+                                <span class="text-xs text-slate-400">Selecione um calendário para avançar</span>
+                            </div>
+                            <div id="social-calendar-list" class="space-y-3"></div>
+                            <div id="social-calendar-empty" class="text-sm text-slate-500 hidden">Nenhum calendário criado ainda.</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Gerar calendário</h3>
+                            <form id="social-calendar-form" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Mês/Período</label>
+                                    <input id="social-period" type="month" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Objetivo</label>
+                                    <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Crescer audiência">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Briefing curto</label>
+                                    <textarea id="social-briefing" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Resumo rápido do que precisa aparecer no mês"></textarea>
+                                </div>
+                                <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+                                <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
+                                    Gerar Calendário
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Aprovações</h3>
+                            <div class="space-y-3" id="social-approvals-list"></div>
+                            <div id="social-approvals-empty" class="text-sm text-slate-500 hidden">Nenhum calendário aguardando aprovação.</div>
+                        </div>
                     </div>
                 </section>
 
@@ -253,6 +320,21 @@
         const dashboardClientStatus = document.getElementById('dashboard-client-status');
         const dashboardOwner = document.getElementById('dashboard-owner');
         const dashboardPendencies = document.getElementById('dashboard-pendencies');
+        const socialClientName = document.getElementById('social-client-name');
+        const socialCalendarStatus = document.getElementById('social-calendar-status');
+        const socialCalendarList = document.getElementById('social-calendar-list');
+        const socialCalendarEmpty = document.getElementById('social-calendar-empty');
+        const socialCountDraft = document.getElementById('social-count-draft');
+        const socialCountPending = document.getElementById('social-count-pending');
+        const socialCountApproved = document.getElementById('social-count-approved');
+        const socialCalendarForm = document.getElementById('social-calendar-form');
+        const socialPeriodInput = document.getElementById('social-period');
+        const socialGoalInput = document.getElementById('social-goal');
+        const socialBriefingInput = document.getElementById('social-briefing');
+        const socialFeedback = document.getElementById('social-feedback');
+        const socialSendApprovalBtn = document.getElementById('social-send-approval');
+        const socialApprovalsList = document.getElementById('social-approvals-list');
+        const socialApprovalsEmpty = document.getElementById('social-approvals-empty');
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
         const clientsSearchInput = document.getElementById('clients-search');
         const clientsClearBtn = document.getElementById('clients-clear');
@@ -279,6 +361,24 @@
 
         let allClients = [];
         let currentClient = null;
+        let socialState = {
+            clientId: null,
+            calendars: [],
+            activeCalendar: null
+        };
+
+        const SOCIAL_STATUS_LABELS = {
+            rascunho: 'Rascunho',
+            aguardando_aprovacao: 'Aguardando aprovação',
+            aprovado: 'Aprovado',
+            rejeitado: 'Rejeitado'
+        };
+        const SOCIAL_STATUS_STYLES = {
+            rascunho: 'bg-amber-100 text-amber-700',
+            aguardando_aprovacao: 'bg-blue-100 text-blue-700',
+            aprovado: 'bg-emerald-100 text-emerald-700',
+            rejeitado: 'bg-rose-100 text-rose-700'
+        };
 
         const getClientStatusLabel = (client) => {
             if (!client) return 'Não definido';
@@ -296,6 +396,7 @@
             if (activeClientName) activeClientName.textContent = safeName;
             if (hubClientName) hubClientName.textContent = safeName;
             if (dashboardClientName) dashboardClientName.textContent = safeName;
+            if (socialClientName) socialClientName.textContent = safeName;
             if (activeClientId) {
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
                 activeClientId.classList.toggle('hidden', !hasClient);
@@ -318,11 +419,161 @@
             if (hubPendencies) hubPendencies.textContent = hasClient ? '0' : '0';
             if (dashboardPendencies) dashboardPendencies.textContent = hasClient ? '0' : '0';
             if (clientOpenHub) clientOpenHub.disabled = !hasClient;
+            if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !hasClient || !socialState.activeCalendar;
+            if (socialCalendarForm) {
+                Array.from(socialCalendarForm.elements).forEach((el) => {
+                    el.disabled = !hasClient;
+                });
+            }
             clientRequiredActions.forEach(btn => {
                 btn.disabled = !hasClient;
                 btn.classList.toggle('opacity-50', !hasClient);
                 btn.classList.toggle('cursor-not-allowed', !hasClient);
             });
+        };
+
+        const setSocialFeedback = (message, type = 'success') => {
+            if (!socialFeedback) return;
+            socialFeedback.textContent = message;
+            socialFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
+            if (type === 'error') {
+                socialFeedback.classList.add('bg-red-50', 'text-red-600');
+            } else {
+                socialFeedback.classList.add('bg-green-50', 'text-green-600');
+            }
+        };
+
+        const formatPeriodLabel = (value) => {
+            if (!value) return '';
+            const parsed = new Date(`${value}-01T00:00:00`);
+            if (Number.isNaN(parsed.getTime())) return value;
+            const label = parsed.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        };
+
+        const getSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            return window.supabaseClient || null;
+        };
+
+        const getTenantId = () => {
+            if (window.TenantContext?.getTenantId) {
+                return window.TenantContext.getTenantId();
+            }
+            return null;
+        };
+
+        const renderSocialCalendars = () => {
+            if (!socialCalendarList || !socialCalendarEmpty) return;
+            socialCalendarList.innerHTML = '';
+            if (!socialState.calendars.length) {
+                socialCalendarEmpty.classList.remove('hidden');
+                return;
+            }
+            socialCalendarEmpty.classList.add('hidden');
+            socialState.calendars.forEach((calendar) => {
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = 'w-full text-left border border-slate-200 rounded-xl px-4 py-3 bg-white hover:bg-slate-50 transition';
+                const label = formatPeriodLabel(calendar.mes_referencia);
+                const status = calendar.status || 'rascunho';
+                const statusLabel = SOCIAL_STATUS_LABELS[status] || status;
+                const statusStyle = SOCIAL_STATUS_STYLES[status] || 'bg-slate-100 text-slate-500';
+                row.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">${label || 'Calendário'}</p>
+                            <p class="text-xs text-slate-500">Criado em ${calendar.created_at ? new Date(calendar.created_at).toLocaleDateString('pt-BR') : '-'}</p>
+                        </div>
+                        <span class="text-xs uppercase px-2 py-1 rounded-full ${statusStyle}">${statusLabel}</span>
+                    </div>
+                `;
+                row.addEventListener('click', () => {
+                    socialState.activeCalendar = calendar;
+                    updateSocialHeader();
+                });
+                socialCalendarList.appendChild(row);
+            });
+        };
+
+        const renderSocialApprovals = () => {
+            if (!socialApprovalsList || !socialApprovalsEmpty) return;
+            const pending = socialState.calendars.filter((calendar) => calendar.status === 'aguardando_aprovacao');
+            socialApprovalsList.innerHTML = '';
+            if (!pending.length) {
+                socialApprovalsEmpty.classList.remove('hidden');
+                return;
+            }
+            socialApprovalsEmpty.classList.add('hidden');
+            pending.forEach((calendar) => {
+                const item = document.createElement('div');
+                item.className = 'border border-slate-200 rounded-xl p-4 bg-slate-50';
+                item.innerHTML = `
+                    <p class="text-sm font-semibold text-slate-800">${formatPeriodLabel(calendar.mes_referencia)}</p>
+                    <p class="text-xs text-slate-500">Status: Aguardando aprovação</p>
+                `;
+                socialApprovalsList.appendChild(item);
+            });
+        };
+
+        const updateSocialOverview = () => {
+            const draftCount = socialState.calendars.filter((item) => item.status === 'rascunho').length;
+            const pendingCount = socialState.calendars.filter((item) => item.status === 'aguardando_aprovacao').length;
+            const approvedCount = socialState.calendars.filter((item) => item.status === 'aprovado').length;
+            if (socialCountDraft) socialCountDraft.textContent = draftCount;
+            if (socialCountPending) socialCountPending.textContent = pendingCount;
+            if (socialCountApproved) socialCountApproved.textContent = approvedCount;
+        };
+
+        const updateSocialHeader = () => {
+            if (!socialCalendarStatus) return;
+            if (!socialState.activeCalendar) {
+                socialCalendarStatus.textContent = 'Sem calendário';
+                socialCalendarStatus.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
+                if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = true;
+                return;
+            }
+            const status = socialState.activeCalendar.status || 'rascunho';
+            const statusLabel = SOCIAL_STATUS_LABELS[status] || status;
+            const statusStyle = SOCIAL_STATUS_STYLES[status] || 'bg-slate-100 text-slate-500';
+            socialCalendarStatus.textContent = statusLabel;
+            socialCalendarStatus.className = `text-xs uppercase px-3 py-1 rounded-full ${statusStyle}`;
+            if (socialSendApprovalBtn) {
+                socialSendApprovalBtn.disabled = status !== 'rascunho';
+            }
+        };
+
+        const loadSocialCalendars = async (clientId) => {
+            if (!clientId) {
+                socialState.calendars = [];
+                socialState.activeCalendar = null;
+                renderSocialCalendars();
+                renderSocialApprovals();
+                updateSocialOverview();
+                updateSocialHeader();
+                return;
+            }
+            const supabase = await getSupabaseClient();
+            if (!supabase) return;
+            const { data, error } = await supabase
+                .from('social_calendars')
+                .select('id, mes_referencia, created_at, status, cliente_id')
+                .eq('cliente_id', clientId)
+                .order('created_at', { ascending: false });
+            if (error) {
+                setSocialFeedback('Erro ao carregar calendários.', 'error');
+                return;
+            }
+            socialState.calendars = Array.isArray(data) ? data : [];
+            socialState.activeCalendar = socialState.calendars[0] || null;
+            renderSocialCalendars();
+            renderSocialApprovals();
+            updateSocialOverview();
+            updateSocialHeader();
         };
 
         const renderClientList = (clients) => {
@@ -384,7 +635,9 @@
             window.ClientContext.subscribe((clientId) => {
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
                 currentClient = allClients.find(client => client.id === clientId) || currentClient;
+                socialState.clientId = clientId;
                 updateClientUI(clientId, name);
+                loadSocialCalendars(clientId);
             });
         } else {
             updateClientUI(null, '');
@@ -416,6 +669,79 @@
         document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
             btn.addEventListener('click', () => setActiveView('approvals'));
         });
+
+        if (socialCalendarForm) {
+            socialCalendarForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                if (!socialState.clientId) {
+                    setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
+                    return;
+                }
+                const period = socialPeriodInput?.value || '';
+                if (!period) {
+                    setSocialFeedback('Informe o mês/periodo.', 'error');
+                    return;
+                }
+                const supabase = await getSupabaseClient();
+                if (!supabase) {
+                    setSocialFeedback('Falha ao conectar ao banco.', 'error');
+                    return;
+                }
+                const payload = {
+                    cliente_id: socialState.clientId,
+                    mes_referencia: `${period}-01`,
+                    status: 'rascunho'
+                };
+                const goal = socialGoalInput?.value.trim();
+                const briefing = socialBriefingInput?.value.trim();
+                const tenantId = getTenantId();
+                if (goal) payload.objetivo = goal;
+                if (briefing) payload.briefing = briefing;
+                if (tenantId) payload.tenant_id = tenantId;
+                let { error } = await supabase.from('social_calendars').insert([payload]);
+                if (error) {
+                    const fallbackPayload = {
+                        cliente_id: socialState.clientId,
+                        mes_referencia: `${period}-01`,
+                        status: 'rascunho'
+                    };
+                    const retry = await supabase.from('social_calendars').insert([fallbackPayload]);
+                    error = retry.error;
+                }
+                if (error) {
+                    setSocialFeedback('Não foi possível salvar o calendário.', 'error');
+                    return;
+                }
+                setSocialFeedback('Calendário criado com sucesso.');
+                if (socialCalendarForm) socialCalendarForm.reset();
+                await loadSocialCalendars(socialState.clientId);
+            });
+        }
+
+        if (socialSendApprovalBtn) {
+            socialSendApprovalBtn.addEventListener('click', async () => {
+                if (!socialState.activeCalendar) {
+                    setSocialFeedback('Selecione um calendário.', 'error');
+                    return;
+                }
+                const supabase = await getSupabaseClient();
+                if (!supabase) {
+                    setSocialFeedback('Falha ao conectar ao banco.', 'error');
+                    return;
+                }
+                let { error } = await supabase
+                    .from('social_calendars')
+                    .update({ status: 'aguardando_aprovacao' })
+                    .eq('id', socialState.activeCalendar.id)
+                    .eq('cliente_id', socialState.clientId);
+                if (error) {
+                    setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
+                    return;
+                }
+                setSocialFeedback('Calendário enviado para aprovação.');
+                await loadSocialCalendars(socialState.clientId);
+            });
+        }
 
         const toggleBtn = document.getElementById('btn-toggle-sidebar');
         if (toggleBtn) {
