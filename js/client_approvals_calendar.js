@@ -7,6 +7,20 @@
     };
 
     const CALENDAR_STATUS_LABEL = window.CALENDAR_STATUS_LABEL || {};
+    const STATUS_LABELS = {
+        rascunho: 'Rascunho',
+        aguardando_aprovacao: 'Aguardando aprovação',
+        aprovado: 'Aprovado',
+        rejeitado: 'Rejeitado',
+        ajuste_solicitado: 'Ajuste solicitado'
+    };
+    const STATUS_STYLES = {
+        rascunho: 'bg-gray-100 text-gray-700 border border-gray-200',
+        aguardando_aprovacao: 'bg-yellow-50 text-yellow-700 border border-yellow-100',
+        aprovado: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+        rejeitado: 'bg-rose-50 text-rose-700 border border-rose-100',
+        ajuste_solicitado: 'bg-blue-50 text-blue-700 border border-blue-100'
+    };
 
     const setLoadingState = (visible) => {
         const loadingEl = document.getElementById('calendar-loading');
@@ -225,6 +239,10 @@
         return { clientId: resolvedClientId, tenantId: resolvedTenantId };
     };
 
+    const resolveStatusLabel = (status) => {
+        return CALENDAR_STATUS_LABEL?.[status] || STATUS_LABELS[status] || 'Aguardando aprovação';
+    };
+
     const renderCalendars = (items) => {
         const list = document.getElementById('calendar-list');
         if (!list) return;
@@ -234,13 +252,18 @@
             card.className = 'bg-white border border-gray-200 rounded-2xl p-5 shadow-sm flex flex-col gap-3';
             const monthLabel = formatMonthLabel(calendar.mes_referencia);
             const createdLabel = formatDateTime(calendar.created_at);
-            const statusLabel = CALENDAR_STATUS_LABEL?.[calendar.status] || 'Aguardando Aprovação';
+            const statusLabel = resolveStatusLabel(calendar.status);
+            const goal = calendar.objetivo || calendar.goal || '';
+            const briefing = calendar.briefing || calendar.resumo || '';
+            const statusStyle = STATUS_STYLES[calendar.status] || STATUS_STYLES.aguardando_aprovacao;
             card.innerHTML = `
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold">${monthLabel || 'Calendário'}</h3>
-                    <span class="text-xs px-2 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100">${statusLabel}</span>
+                    <span class="text-xs px-2 py-1 rounded-full ${statusStyle}">${statusLabel}</span>
                 </div>
                 <p class="text-xs text-gray-500">Criado em ${createdLabel || '-'}</p>
+                ${goal ? `<p class="text-sm text-gray-700"><span class="font-semibold">Objetivo:</span> ${goal}</p>` : ''}
+                ${briefing ? `<p class="text-sm text-gray-700 whitespace-pre-wrap"><span class="font-semibold">Briefing:</span> ${briefing}</p>` : ''}
                 <button type="button" data-calendar-id="${calendar.id}" class="portal-open-calendar w-fit px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Abrir</button>
             `;
             list.appendChild(card);
@@ -252,7 +275,7 @@
         if (!supabase) return null;
         let query = supabase
             .from('social_calendars')
-            .select('id, mes_referencia, created_at, status, cliente_id')
+            .select('id, mes_referencia, created_at, status, cliente_id, objetivo, briefing, approval_comment')
             .eq('cliente_id', state.clientId)
             .eq('status', 'aguardando_aprovacao')
             .order('created_at', { ascending: false });
@@ -263,12 +286,28 @@
         if (error && state.tenantId) {
             const retry = await supabase
                 .from('social_calendars')
-                .select('id, mes_referencia, created_at, status, cliente_id')
+                .select('id, mes_referencia, created_at, status, cliente_id, objetivo, briefing, approval_comment')
                 .eq('cliente_id', state.clientId)
                 .eq('status', 'aguardando_aprovacao')
                 .order('created_at', { ascending: false });
             if (!retry.error) {
                 data = retry.data;
+                error = null;
+            }
+        }
+        if (error && String(error.message || '').includes('column')) {
+            let fallbackQuery = supabase
+                .from('social_calendars')
+                .select('id, mes_referencia, created_at, status, cliente_id')
+                .eq('cliente_id', state.clientId)
+                .eq('status', 'aguardando_aprovacao')
+                .order('created_at', { ascending: false });
+            if (state.tenantId) {
+                fallbackQuery = fallbackQuery.eq('tenant_id', state.tenantId);
+            }
+            const fallback = await fallbackQuery;
+            if (!fallback.error) {
+                data = fallback.data;
                 error = null;
             }
         }
@@ -287,17 +326,22 @@
         const titleEl = document.getElementById('client-calendar-modal-title');
         const statusEl = document.getElementById('client-calendar-modal-status');
         const periodEl = document.getElementById('client-calendar-modal-period');
+        const goalEl = document.getElementById('client-calendar-modal-goal');
+        const briefingEl = document.getElementById('client-calendar-modal-briefing');
         const postsLoading = document.getElementById('client-calendar-posts-loading');
         const postsEmpty = document.getElementById('client-calendar-posts-empty');
         const postsList = document.getElementById('client-calendar-posts-list');
         const commentEl = document.getElementById('client-calendar-approval-comment');
         if (titleEl) titleEl.textContent = formatMonthLabel(calendar.mes_referencia) || 'Calendário';
         if (statusEl) {
-            const label = CALENDAR_STATUS_LABEL?.[calendar.status] || 'Aguardando Aprovação';
-            statusEl.className = 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700';
+            const label = resolveStatusLabel(calendar.status);
+            const statusStyle = STATUS_STYLES[calendar.status] || STATUS_STYLES.aguardando_aprovacao;
+            statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${statusStyle}`;
             statusEl.textContent = label.toUpperCase();
         }
         if (periodEl) periodEl.textContent = formatMonthLabel(calendar.mes_referencia);
+        if (goalEl) goalEl.textContent = calendar.objetivo || calendar.goal || 'Não informado';
+        if (briefingEl) briefingEl.textContent = calendar.briefing || calendar.resumo || 'Não informado';
         if (commentEl) commentEl.value = '';
         if (postsList) postsList.innerHTML = '';
         if (postsEmpty) postsEmpty.classList.add('hidden');
@@ -351,47 +395,78 @@
         state.current = null;
     };
 
-    const approveCalendar = async () => {
-        if (!state.current) return;
+    const updateCalendarStatus = async (status, comment) => {
+        if (!state.current) return false;
         const supabase = await getSupabaseClient();
-        if (!supabase) return;
-        const commentEl = document.getElementById('client-calendar-approval-comment');
-        const comment = commentEl ? commentEl.value.trim() : '';
+        if (!supabase) return false;
+        const basePayload = { status };
+        if (status === 'aprovado') {
+            basePayload.approved_at = new Date().toISOString();
+        }
+        let payload = { ...basePayload };
+        if (comment) payload.approval_comment = comment;
         let query = supabase
             .from('social_calendars')
-            .update({
-                status: 'aprovado',
-                approved_at: new Date().toISOString(),
-                approval_comment: comment || null
-            })
+            .update(payload)
             .eq('id', state.current.id)
             .eq('cliente_id', state.clientId);
         if (state.tenantId) {
             query = query.eq('tenant_id', state.tenantId);
         }
         let { error } = await query;
-        if (error && state.tenantId) {
-            const retry = await supabase
+        if (error && comment) {
+            payload = { ...basePayload };
+            let retry = supabase
                 .from('social_calendars')
-                .update({
-                    status: 'aprovado',
-                    approved_at: new Date().toISOString(),
-                    approval_comment: comment || null
-                })
+                .update(payload)
                 .eq('id', state.current.id)
                 .eq('cliente_id', state.clientId);
-            if (!retry.error) {
-                error = null;
-            } else {
-                error = retry.error;
+            if (state.tenantId) {
+                retry = retry.eq('tenant_id', state.tenantId);
             }
+            const retryResult = await retry;
+            error = retryResult.error;
         }
         if (error) {
-            console.error('[PORTAL] erro ao aprovar calendario', error);
+            console.error('[PORTAL] erro ao atualizar calendario', error);
+            return false;
+        }
+        return true;
+    };
+
+    const approveCalendar = async () => {
+        const commentEl = document.getElementById('client-calendar-approval-comment');
+        const comment = commentEl ? commentEl.value.trim() : '';
+        const ok = await updateCalendarStatus('aprovado', comment);
+        if (!ok) {
             showToast('Não foi possível aprovar o calendário.', 'error');
             return;
         }
         showToast('Calendário aprovado com sucesso.', 'success');
+        state.calendars = state.calendars.filter((item) => item.id !== state.current.id);
+        closeModal();
+        if (!state.calendars.length) {
+            setEmptyState(true);
+            const list = document.getElementById('calendar-list');
+            if (list) list.innerHTML = '';
+            return;
+        }
+        renderCalendars(state.calendars);
+    };
+
+    const requestChanges = async () => {
+        const commentEl = document.getElementById('client-calendar-approval-comment');
+        const comment = commentEl ? commentEl.value.trim() : '';
+        if (!comment) {
+            showToast('Escreva um comentário para solicitar ajustes.', 'warning');
+            return;
+        }
+        const ok = await updateCalendarStatus('ajuste_solicitado', comment);
+        if (!ok) {
+            showToast('Não foi possível solicitar ajustes.', 'error');
+            return;
+        }
+        showToast('Ajuste solicitado com sucesso.', 'success');
         state.calendars = state.calendars.filter((item) => item.id !== state.current.id);
         closeModal();
         if (!state.calendars.length) {
@@ -423,8 +498,10 @@
         renderCalendars(data);
         const closeBtn = document.getElementById('client-calendar-modal-close');
         const approveBtn = document.getElementById('client-calendar-modal-approve');
+        const adjustBtn = document.getElementById('client-calendar-modal-adjust');
         if (closeBtn) closeBtn.addEventListener('click', closeModal);
         if (approveBtn) approveBtn.addEventListener('click', approveCalendar);
+        if (adjustBtn) adjustBtn.addEventListener('click', requestChanges);
         document.addEventListener('click', (event) => {
             const target = event.target.closest('.portal-open-calendar');
             if (target?.dataset?.calendarId) {
