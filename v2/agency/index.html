@@ -17,13 +17,13 @@
             </div>
             <div class="px-6 pt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Agency V2</div>
             <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+                <button data-module="dashboard" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-home text-slate-400"></i>
+                    <span>Dashboard</span>
+                </button>
                 <button data-module="clients" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-building text-slate-400"></i>
                     <span>Clientes</span>
-                </button>
-                <button data-module="hub" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
-                    <i class="fas fa-th-large text-slate-400"></i>
-                    <span>Hub do Cliente</span>
                 </button>
                 <button data-module="social" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-hashtag text-slate-400"></i>
@@ -33,38 +33,13 @@
                     <i class="fas fa-bullhorn text-slate-400"></i>
                     <span>Performance</span>
                 </button>
-                <button data-module="portal" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
-                    <i class="fas fa-user-check text-slate-400"></i>
-                    <span>Painel do Cliente</span>
+                <button data-module="approvals" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-check-circle text-slate-400"></i>
+                    <span>Aprovações</span>
                 </button>
-                <div class="pt-5 text-xs font-semibold uppercase tracking-wider text-slate-400">Em construção</div>
-                <button data-module="construction" data-label="Financeiro" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-wallet text-slate-300"></i>
-                    <span>Financeiro</span>
-                </button>
-                <button data-module="construction" data-label="Tarefas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-list-check text-slate-300"></i>
-                    <span>Tarefas</span>
-                </button>
-                <button data-module="construction" data-label="Comercial" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-chart-line text-slate-300"></i>
-                    <span>Comercial</span>
-                </button>
-                <button data-module="construction" data-label="Relatórios" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-file-alt text-slate-300"></i>
-                    <span>Relatórios</span>
-                </button>
-                <button data-module="construction" data-label="Automações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-robot text-slate-300"></i>
-                    <span>Automações</span>
-                </button>
-                <button data-module="construction" data-label="Pessoas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-user-friends text-slate-300"></i>
-                    <span>Pessoas</span>
-                </button>
-                <button data-module="construction" data-label="Integrações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
-                    <i class="fas fa-plug text-slate-300"></i>
-                    <span>Integrações</span>
+                <button data-module="settings" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-cog text-slate-400"></i>
+                    <span>Configurações</span>
                 </button>
             </nav>
             <div class="p-4 border-t border-slate-100">
@@ -96,20 +71,72 @@
             </header>
 
             <main class="flex-1 overflow-y-auto p-6 lg:p-10">
+                <section id="view-dashboard" class="v2-view space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Dashboard</h2>
+                        <p class="text-sm text-slate-500">Visão geral da operação.</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
+                            <p id="dashboard-client-name" class="text-lg font-semibold text-slate-900 mt-2">Nenhum cliente selecionado</p>
+                            <p id="dashboard-client-status" class="text-sm text-slate-500 mt-1"></p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Pendências</p>
+                            <p id="dashboard-pendencies" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
+                            <p class="text-sm text-slate-500 mt-1">Resumo rápido em preparação</p>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <p class="text-xs uppercase text-slate-400">Equipe responsável</p>
+                            <p id="dashboard-owner" class="text-lg font-semibold text-slate-900 mt-2">Não definido</p>
+                            <p class="text-sm text-slate-500 mt-1">Última atualização pendente</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Acesso rápido</p>
+                                <p class="text-sm text-slate-500">Use o cliente ativo para avançar no workflow.</p>
+                            </div>
+                            <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                        </div>
+                    </div>
+                </section>
+
                 <section id="view-clients" class="v2-view space-y-6">
                     <div>
                         <h2 class="text-2xl font-bold text-slate-900">Clientes</h2>
-                        <p class="text-sm text-slate-500">Selecione um cliente para liberar os módulos.</p>
+                        <p class="text-sm text-slate-500">Busque e defina o cliente ativo.</p>
                     </div>
                     <div class="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
                         <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Lista de clientes</h3>
+                            <div class="flex items-center gap-2 mb-4">
+                                <div class="relative flex-1">
+                                    <i class="fas fa-search text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                    <input id="clients-search" type="text" class="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Buscar cliente">
+                                </div>
+                                <button id="clients-clear" class="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700">Limpar</button>
+                            </div>
                             <div id="v2-clients-list" class="space-y-2"></div>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                             <h3 class="text-sm font-semibold text-slate-700 mb-3">Resumo do cliente</h3>
                             <div class="text-sm text-slate-500" id="client-summary">
                                 Selecione um cliente para visualizar o hub operacional.
+                            </div>
+                            <div class="mt-6 space-y-3">
+                                <div class="flex items-center justify-between text-sm text-slate-600">
+                                    <span>Status</span>
+                                    <span id="client-status" class="font-medium text-slate-800">Não definido</span>
+                                </div>
+                                <div class="flex items-center justify-between text-sm text-slate-600">
+                                    <span>Responsável</span>
+                                    <span id="client-owner" class="font-medium text-slate-800">Não definido</span>
+                                </div>
+                                <button id="client-open-hub" class="w-full px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
+                                    Abrir Hub do Cliente
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -120,20 +147,37 @@
                         <h2 class="text-2xl font-bold text-slate-900">Hub do Cliente</h2>
                         <p class="text-sm text-slate-500">Atalhos rápidos por cliente ativo.</p>
                     </div>
-                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div>
                                 <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
                                 <p id="hub-client-name" class="text-lg font-semibold text-slate-900">Nenhum cliente selecionado</p>
+                                <p id="hub-client-status" class="text-sm text-slate-500 mt-1"></p>
                             </div>
                             <div class="flex flex-wrap gap-3">
                                 <button data-action="go-social" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Social Media</button>
                                 <button data-action="go-performance" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Performance</button>
-                                <button data-action="go-portal" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Abrir Portal do Cliente</button>
+                                <button data-action="go-approvals" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Abrir Aprovações</button>
                             </div>
                         </div>
-                        <div id="hub-empty" class="mt-6 text-sm text-slate-500 hidden">
-                            Selecione um cliente para liberar ações.
+                        <div id="hub-empty" class="text-sm text-slate-500 hidden">Selecione um cliente para liberar ações.</div>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div class="rounded-xl border border-slate-200 p-4">
+                                <p class="text-xs uppercase text-slate-400">Pendências</p>
+                                <p id="hub-pendencies" class="text-base font-semibold text-slate-800 mt-2">0</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 p-4">
+                                <p class="text-xs uppercase text-slate-400">Responsável</p>
+                                <p id="hub-owner" class="text-base font-semibold text-slate-800 mt-2">Não definido</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 p-4">
+                                <p class="text-xs uppercase text-slate-400">Status</p>
+                                <p id="hub-status" class="text-base font-semibold text-slate-800 mt-2">Não definido</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 p-4">
+                                <p class="text-xs uppercase text-slate-400">Arquivos</p>
+                                <p class="text-sm text-slate-500 mt-2">Central em construção</p>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -154,21 +198,18 @@
                     </div>
                 </section>
 
-                <section id="view-portal" class="v2-view hidden space-y-6">
+                <section id="view-approvals" class="v2-view hidden space-y-6">
                     <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-user-check"></i></div>
-                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Portal do Cliente</h2>
-                        <p class="text-sm text-slate-500 mb-6">Entrada do cliente em V2.</p>
-                        <a href="/v2/client/index.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">
-                            Abrir Portal
-                        </a>
+                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-check-circle"></i></div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Aprovações</h2>
+                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
                     </div>
                 </section>
 
-                <section id="view-construction" class="v2-view hidden">
+                <section id="view-settings" class="v2-view hidden space-y-6">
                     <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                        <div class="text-6xl text-slate-300 mb-5"><i class="fas fa-hard-hat"></i></div>
-                        <h2 id="construction-title" class="text-2xl font-bold text-slate-800 mb-2">Módulo em construção</h2>
+                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-cog"></i></div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Configurações</h2>
                         <p class="text-sm text-slate-500">Em construção... 🛠️</p>
                     </div>
                 </section>
@@ -183,26 +224,38 @@
     <script src="/js/v2/shared/workspaceState.js"></script>
     <script src="/js/v2/modules/clientes/clientes_repo.js"></script>
     <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
-    <script src="/js/v2/modules/clientes/clientes_core.js"></script>
     <script src="/js/v2/bootstrap.js"></script>
     <script>
         const views = {
+            dashboard: document.getElementById('view-dashboard'),
             clients: document.getElementById('view-clients'),
             hub: document.getElementById('view-hub'),
             social: document.getElementById('view-social'),
             performance: document.getElementById('view-performance'),
-            portal: document.getElementById('view-portal'),
-            construction: document.getElementById('view-construction')
+            approvals: document.getElementById('view-approvals'),
+            settings: document.getElementById('view-settings')
         };
 
         const navButtons = document.querySelectorAll('.v2-nav-btn');
-        const constructionTitle = document.getElementById('construction-title');
         const hubClientName = document.getElementById('hub-client-name');
+        const hubClientStatus = document.getElementById('hub-client-status');
+        const hubPendencies = document.getElementById('hub-pendencies');
+        const hubOwner = document.getElementById('hub-owner');
+        const hubStatus = document.getElementById('hub-status');
         const hubEmpty = document.getElementById('hub-empty');
         const activeClientName = document.getElementById('active-client-name');
         const activeClientId = document.getElementById('active-client-id');
         const clientSummary = document.getElementById('client-summary');
+        const clientStatus = document.getElementById('client-status');
+        const clientOwner = document.getElementById('client-owner');
+        const clientOpenHub = document.getElementById('client-open-hub');
+        const dashboardClientName = document.getElementById('dashboard-client-name');
+        const dashboardClientStatus = document.getElementById('dashboard-client-status');
+        const dashboardOwner = document.getElementById('dashboard-owner');
+        const dashboardPendencies = document.getElementById('dashboard-pendencies');
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
+        const clientsSearchInput = document.getElementById('clients-search');
+        const clientsClearBtn = document.getElementById('clients-clear');
 
         const setActiveView = (moduleName, label) => {
             Object.values(views).forEach(view => view && view.classList.add('hidden'));
@@ -212,9 +265,6 @@
                 btn.classList.toggle('bg-slate-100', btn.dataset.module === moduleName);
                 btn.classList.toggle('text-slate-900', btn.dataset.module === moduleName);
             });
-            if (moduleName === 'construction' && constructionTitle) {
-                constructionTitle.textContent = label ? `${label}` : 'Módulo em construção';
-            }
             if (window.WorkspaceState && moduleName !== 'construction') {
                 window.WorkspaceState.setActiveModule(moduleName);
             }
@@ -223,19 +273,29 @@
         navButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const moduleName = btn.dataset.module;
-                if (moduleName === 'construction') {
-                    setActiveView('construction', btn.dataset.label);
-                    return;
-                }
                 setActiveView(moduleName);
             });
         });
+
+        let allClients = [];
+        let currentClient = null;
+
+        const getClientStatusLabel = (client) => {
+            if (!client) return 'Não definido';
+            return client.status || client.status_cliente || client.situacao || 'Não definido';
+        };
+
+        const getClientOwnerLabel = (client) => {
+            if (!client) return 'Não definido';
+            return client.responsavel || client.responsavel_nome || client.gestor || client.owner || 'Não definido';
+        };
 
         const updateClientUI = (id, name) => {
             const hasClient = !!id;
             const safeName = name || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
             if (activeClientName) activeClientName.textContent = safeName;
             if (hubClientName) hubClientName.textContent = safeName;
+            if (dashboardClientName) dashboardClientName.textContent = safeName;
             if (activeClientId) {
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
                 activeClientId.classList.toggle('hidden', !hasClient);
@@ -246,6 +306,18 @@
                     ? 'Cliente ativo pronto para operação nos módulos prioritários.'
                     : 'Selecione um cliente para visualizar o hub operacional.';
             }
+            const statusLabel = getClientStatusLabel(currentClient);
+            const ownerLabel = getClientOwnerLabel(currentClient);
+            if (clientStatus) clientStatus.textContent = statusLabel;
+            if (clientOwner) clientOwner.textContent = ownerLabel;
+            if (hubClientStatus) hubClientStatus.textContent = statusLabel;
+            if (hubOwner) hubOwner.textContent = ownerLabel;
+            if (hubStatus) hubStatus.textContent = statusLabel;
+            if (dashboardClientStatus) dashboardClientStatus.textContent = statusLabel === 'Não definido' ? '' : `Status: ${statusLabel}`;
+            if (dashboardOwner) dashboardOwner.textContent = ownerLabel;
+            if (hubPendencies) hubPendencies.textContent = hasClient ? '0' : '0';
+            if (dashboardPendencies) dashboardPendencies.textContent = hasClient ? '0' : '0';
+            if (clientOpenHub) clientOpenHub.disabled = !hasClient;
             clientRequiredActions.forEach(btn => {
                 btn.disabled = !hasClient;
                 btn.classList.toggle('opacity-50', !hasClient);
@@ -253,14 +325,87 @@
             });
         };
 
+        const renderClientList = (clients) => {
+            const container = document.getElementById('v2-clients-list');
+            if (!container) return;
+            container.innerHTML = '';
+            if (!clients.length) {
+                container.innerHTML = '<div class="p-4 text-sm text-slate-500">Nenhum cliente encontrado.</div>';
+                return;
+            }
+            clients.forEach(client => {
+                const button = document.createElement('button');
+                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || 'Sem nome';
+                const status = getClientStatusLabel(client);
+                button.className = 'w-full text-left border border-slate-200 rounded-xl px-4 py-3 bg-white hover:bg-slate-50 transition';
+                button.innerHTML = `
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-semibold text-slate-800">${name}</p>
+                            <p class="text-xs text-slate-500">Status: ${status}</p>
+                        </div>
+                        <span class="text-xs text-slate-400">Abrir</span>
+                    </div>
+                `;
+                button.addEventListener('click', () => {
+                    currentClient = client;
+                    if (window.ClientContext) {
+                        window.ClientContext.setActiveClient({
+                            id: client.id,
+                            name: name
+                        });
+                    }
+                    setActiveView('hub');
+                });
+                container.appendChild(button);
+            });
+        };
+
+        const filterClients = () => {
+            const query = String(clientsSearchInput?.value || '').trim().toLowerCase();
+            if (!query) {
+                renderClientList(allClients);
+                return;
+            }
+            const filtered = allClients.filter(client => {
+                const name = `${client.nome_fantasia || ''} ${client.razao_social || ''} ${client.nome_empresa || ''}`.toLowerCase();
+                return name.includes(query);
+            });
+            renderClientList(filtered);
+        };
+
+        const loadClients = async () => {
+            if (!window.ClientRepo) return;
+            allClients = await window.ClientRepo.getClients();
+            renderClientList(allClients);
+        };
+
         if (window.ClientContext) {
             window.ClientContext.subscribe((clientId) => {
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                currentClient = allClients.find(client => client.id === clientId) || currentClient;
                 updateClientUI(clientId, name);
             });
         } else {
             updateClientUI(null, '');
         }
+
+        if (clientsSearchInput) {
+            clientsSearchInput.addEventListener('input', filterClients);
+        }
+        if (clientsClearBtn) {
+            clientsClearBtn.addEventListener('click', () => {
+                if (clientsSearchInput) clientsSearchInput.value = '';
+                renderClientList(allClients);
+            });
+        }
+        if (clientOpenHub) {
+            clientOpenHub.addEventListener('click', () => setActiveView('hub'));
+        }
+
+        document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('clients'));
+        });
 
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
             btn.addEventListener('click', () => setActiveView('social'));
@@ -268,8 +413,8 @@
         document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
             btn.addEventListener('click', () => setActiveView('performance'));
         });
-        document.querySelectorAll('[data-action="go-portal"]').forEach(btn => {
-            btn.addEventListener('click', () => setActiveView('portal'));
+        document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('approvals'));
         });
 
         const toggleBtn = document.getElementById('btn-toggle-sidebar');
@@ -291,6 +436,7 @@
             });
         }
 
+        loadClients();
         setActiveView('clients');
     </script>
 </body>
