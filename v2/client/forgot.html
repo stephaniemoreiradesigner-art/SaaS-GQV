@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal do Cliente V2 - Recuperar Senha</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen flex items-center justify-center bg-slate-100 py-12 px-4 font-sans text-slate-900">
+    <div class="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-slate-200">
+        <div class="text-center">
+            <img class="mx-auto h-16 w-auto mb-6 object-contain" src="/assets/logo.png" alt="Gestão Que Vende">
+            <h1 class="text-2xl font-bold text-slate-900">Recuperar Senha</h1>
+            <p class="mt-2 text-sm text-slate-500">Receba um link para redefinir</p>
+        </div>
+        <form class="mt-8 space-y-5" id="client-forgot-form">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                <input id="email" type="email" class="w-full rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary bg-white" placeholder="seu@email.com" required>
+            </div>
+            <button id="client-forgot-button" type="submit" class="w-full bg-slate-900 text-white font-semibold py-2 rounded-lg hover:bg-slate-800 transition">Enviar link</button>
+        </form>
+        <div class="text-center mt-4 pt-4 border-t border-slate-100">
+            <a href="/v2/client/login.html" class="text-sm text-slate-600 hover:text-primary transition-colors">Voltar ao login</a>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/js/app.js"></script>
+    <script>
+        const ensureSupabaseClient = async () => {
+            if (window.supabaseClient) return window.supabaseClient;
+            if (typeof window.initSupabase === 'function') {
+                const ok = await window.initSupabase();
+                if (ok && window.supabaseClient) return window.supabaseClient;
+            }
+            if (window.supabase && window.supabaseConfig?.supabaseUrl && window.supabaseConfig?.supabaseAnonKey) {
+                window.supabaseClient = window.supabase.createClient(
+                    window.supabaseConfig.supabaseUrl,
+                    window.supabaseConfig.supabaseAnonKey
+                );
+                return window.supabaseClient;
+            }
+            return null;
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('client-forgot-form');
+            const button = document.getElementById('client-forgot-button');
+            if (!form || !button) return;
+            const originalText = button.textContent;
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const email = document.getElementById('email').value.trim();
+                if (!email) {
+                    alert('Informe seu e-mail.');
+                    return;
+                }
+                button.disabled = true;
+                button.textContent = 'Enviando...';
+                try {
+                    const supabase = await ensureSupabaseClient();
+                    if (!supabase) {
+                        alert('Falha ao iniciar.');
+                        return;
+                    }
+                    const redirectUrl = `${window.location.origin}/v2/client/update.html`;
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: redirectUrl
+                    });
+                    if (error) {
+                        alert('Erro ao enviar link.');
+                        return;
+                    }
+                    alert('Link enviado. Verifique seu e-mail.');
+                    window.location.href = '/v2/client/login.html';
+                } finally {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

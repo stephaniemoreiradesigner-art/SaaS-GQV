@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agency App V2</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased font-sans">
+    <div class="flex min-h-screen">
+        <aside class="hidden lg:flex w-72 flex-col border-r border-slate-200 bg-white">
+            <div class="h-20 flex items-center justify-center border-b border-slate-100 px-6">
+                <img src="/assets/logo.png" alt="GQV Logo" class="h-10 w-auto object-contain">
+            </div>
+            <div class="px-6 pt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Agency V2</div>
+            <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+                <button data-module="clients" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-building text-slate-400"></i>
+                    <span>Clientes</span>
+                </button>
+                <button data-module="hub" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-th-large text-slate-400"></i>
+                    <span>Hub do Cliente</span>
+                </button>
+                <button data-module="social" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-hashtag text-slate-400"></i>
+                    <span>Social Media</span>
+                </button>
+                <button data-module="performance" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-bullhorn text-slate-400"></i>
+                    <span>Performance</span>
+                </button>
+                <button data-module="portal" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-user-check text-slate-400"></i>
+                    <span>Painel do Cliente</span>
+                </button>
+                <div class="pt-5 text-xs font-semibold uppercase tracking-wider text-slate-400">Em construção</div>
+                <button data-module="construction" data-label="Financeiro" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-wallet text-slate-300"></i>
+                    <span>Financeiro</span>
+                </button>
+                <button data-module="construction" data-label="Tarefas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-list-check text-slate-300"></i>
+                    <span>Tarefas</span>
+                </button>
+                <button data-module="construction" data-label="Comercial" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-chart-line text-slate-300"></i>
+                    <span>Comercial</span>
+                </button>
+                <button data-module="construction" data-label="Relatórios" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-file-alt text-slate-300"></i>
+                    <span>Relatórios</span>
+                </button>
+                <button data-module="construction" data-label="Automações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-robot text-slate-300"></i>
+                    <span>Automações</span>
+                </button>
+                <button data-module="construction" data-label="Pessoas" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-user-friends text-slate-300"></i>
+                    <span>Pessoas</span>
+                </button>
+                <button data-module="construction" data-label="Integrações" class="v2-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-100">
+                    <i class="fas fa-plug text-slate-300"></i>
+                    <span>Integrações</span>
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-100">
+                <button id="btn-logout" class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:text-red-500 hover:border-red-200 transition-colors">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <div class="flex-1 flex flex-col min-h-screen">
+            <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+                <div class="flex items-center gap-3">
+                    <button class="lg:hidden text-slate-500" id="btn-toggle-sidebar">
+                        <i class="fas fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Agency V2</p>
+                        <h1 class="text-lg font-semibold text-slate-900">Gestão Que Vende</h1>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <p class="text-xs text-slate-400">Cliente ativo</p>
+                        <p id="active-client-name" class="text-sm font-semibold text-slate-800">Nenhum cliente selecionado</p>
+                    </div>
+                    <span id="active-client-id" class="hidden text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full"></span>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto p-6 lg:p-10">
+                <section id="view-clients" class="v2-view space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Clientes</h2>
+                        <p class="text-sm text-slate-500">Selecione um cliente para liberar os módulos.</p>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
+                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-4">Lista de clientes</h3>
+                            <div id="v2-clients-list" class="space-y-2"></div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Resumo do cliente</h3>
+                            <div class="text-sm text-slate-500" id="client-summary">
+                                Selecione um cliente para visualizar o hub operacional.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-hub" class="v2-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Hub do Cliente</h2>
+                        <p class="text-sm text-slate-500">Atalhos rápidos por cliente ativo.</p>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
+                                <p id="hub-client-name" class="text-lg font-semibold text-slate-900">Nenhum cliente selecionado</p>
+                            </div>
+                            <div class="flex flex-wrap gap-3">
+                                <button data-action="go-social" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Social Media</button>
+                                <button data-action="go-performance" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Performance</button>
+                                <button data-action="go-portal" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Abrir Portal do Cliente</button>
+                            </div>
+                        </div>
+                        <div id="hub-empty" class="mt-6 text-sm text-slate-500 hidden">
+                            Selecione um cliente para liberar ações.
+                        </div>
+                    </div>
+                </section>
+
+                <section id="view-social" class="v2-view hidden space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-hashtag"></i></div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Social Media</h2>
+                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    </div>
+                </section>
+
+                <section id="view-performance" class="v2-view hidden space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-bullhorn"></i></div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Performance</h2>
+                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    </div>
+                </section>
+
+                <section id="view-portal" class="v2-view hidden space-y-6">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                        <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-user-check"></i></div>
+                        <h2 class="text-2xl font-bold text-slate-800 mb-2">Portal do Cliente</h2>
+                        <p class="text-sm text-slate-500 mb-6">Entrada do cliente em V2.</p>
+                        <a href="/v2/client/index.html" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">
+                            Abrir Portal
+                        </a>
+                    </div>
+                </section>
+
+                <section id="view-construction" class="v2-view hidden">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
+                        <div class="text-6xl text-slate-300 mb-5"><i class="fas fa-hard-hat"></i></div>
+                        <h2 id="construction-title" class="text-2xl font-bold text-slate-800 mb-2">Módulo em construção</h2>
+                        <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/v2/shared/tenantContext.js"></script>
+    <script src="/js/v2/shared/clientContext.js"></script>
+    <script src="/js/v2/shared/workspaceState.js"></script>
+    <script src="/js/v2/modules/clientes/clientes_repo.js"></script>
+    <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
+    <script src="/js/v2/modules/clientes/clientes_core.js"></script>
+    <script src="/js/v2/bootstrap.js"></script>
+    <script>
+        const views = {
+            clients: document.getElementById('view-clients'),
+            hub: document.getElementById('view-hub'),
+            social: document.getElementById('view-social'),
+            performance: document.getElementById('view-performance'),
+            portal: document.getElementById('view-portal'),
+            construction: document.getElementById('view-construction')
+        };
+
+        const navButtons = document.querySelectorAll('.v2-nav-btn');
+        const constructionTitle = document.getElementById('construction-title');
+        const hubClientName = document.getElementById('hub-client-name');
+        const hubEmpty = document.getElementById('hub-empty');
+        const activeClientName = document.getElementById('active-client-name');
+        const activeClientId = document.getElementById('active-client-id');
+        const clientSummary = document.getElementById('client-summary');
+        const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
+
+        const setActiveView = (moduleName, label) => {
+            Object.values(views).forEach(view => view && view.classList.add('hidden'));
+            const view = views[moduleName] || views.clients;
+            if (view) view.classList.remove('hidden');
+            navButtons.forEach(btn => {
+                btn.classList.toggle('bg-slate-100', btn.dataset.module === moduleName);
+                btn.classList.toggle('text-slate-900', btn.dataset.module === moduleName);
+            });
+            if (moduleName === 'construction' && constructionTitle) {
+                constructionTitle.textContent = label ? `${label}` : 'Módulo em construção';
+            }
+            if (window.WorkspaceState && moduleName !== 'construction') {
+                window.WorkspaceState.setActiveModule(moduleName);
+            }
+        };
+
+        navButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const moduleName = btn.dataset.module;
+                if (moduleName === 'construction') {
+                    setActiveView('construction', btn.dataset.label);
+                    return;
+                }
+                setActiveView(moduleName);
+            });
+        });
+
+        const updateClientUI = (id, name) => {
+            const hasClient = !!id;
+            const safeName = name || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
+            if (activeClientName) activeClientName.textContent = safeName;
+            if (hubClientName) hubClientName.textContent = safeName;
+            if (activeClientId) {
+                activeClientId.textContent = hasClient ? `ID ${id}` : '';
+                activeClientId.classList.toggle('hidden', !hasClient);
+            }
+            if (hubEmpty) hubEmpty.classList.toggle('hidden', hasClient);
+            if (clientSummary) {
+                clientSummary.textContent = hasClient
+                    ? 'Cliente ativo pronto para operação nos módulos prioritários.'
+                    : 'Selecione um cliente para visualizar o hub operacional.';
+            }
+            clientRequiredActions.forEach(btn => {
+                btn.disabled = !hasClient;
+                btn.classList.toggle('opacity-50', !hasClient);
+                btn.classList.toggle('cursor-not-allowed', !hasClient);
+            });
+        };
+
+        if (window.ClientContext) {
+            window.ClientContext.subscribe((clientId) => {
+                const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                updateClientUI(clientId, name);
+            });
+        } else {
+            updateClientUI(null, '');
+        }
+
+        document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('social'));
+        });
+        document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('performance'));
+        });
+        document.querySelectorAll('[data-action="go-portal"]').forEach(btn => {
+            btn.addEventListener('click', () => setActiveView('portal'));
+        });
+
+        const toggleBtn = document.getElementById('btn-toggle-sidebar');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const sidebar = document.querySelector('aside');
+                if (!sidebar) return;
+                sidebar.classList.toggle('hidden');
+            });
+        }
+
+        const logoutBtn = document.getElementById('btn-logout');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (window.supabaseClient?.auth?.signOut) {
+                    await window.supabaseClient.auth.signOut();
+                }
+                window.location.href = '/v2/agency/login.html';
+            });
+        }
+
+        setActiveView('clients');
+    </script>
+</body>
+</html>

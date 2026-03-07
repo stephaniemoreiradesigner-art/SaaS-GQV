@@ -9361,6 +9361,28 @@ const legacyHandler = async (request, response) => {
         resolvedPathname = '/client_approvals_posts.html';
     }
 
+    if (resolvedPathname === '/v2/agency' || resolvedPathname === '/v2/agency/') {
+        resolvedPathname = '/v2/agency/index.html';
+    }
+    if (resolvedPathname === '/v2/agency/login') {
+        resolvedPathname = '/v2/agency/login.html';
+    }
+    if (resolvedPathname === '/v2/client' || resolvedPathname === '/v2/client/') {
+        resolvedPathname = '/v2/client/index.html';
+    }
+    if (resolvedPathname === '/v2/client/login') {
+        resolvedPathname = '/v2/client/login.html';
+    }
+    if (resolvedPathname === '/v2/client/register') {
+        resolvedPathname = '/v2/client/register.html';
+    }
+    if (resolvedPathname === '/v2/client/forgot') {
+        resolvedPathname = '/v2/client/forgot.html';
+    }
+    if (resolvedPathname === '/v2/client/update') {
+        resolvedPathname = '/v2/client/update.html';
+    }
+
     // --- ARQUIVOS ESTÁTICOS ---
     
     // Remove query string para encontrar o arquivo
@@ -9369,7 +9391,7 @@ const legacyHandler = async (request, response) => {
         filePath = './pages/dashboard.html';
     }
     if (filePath === './') {
-        filePath = './index.html';
+        filePath = './v2/agency/login.html';
     }
 
     // [FIX] Demo routes mapping (fixes EISDIR)
