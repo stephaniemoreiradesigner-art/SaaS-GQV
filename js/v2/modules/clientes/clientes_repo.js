@@ -114,7 +114,23 @@
             }
 
             const schema = await detectSchema();
-            const tenantId = schema?.hasTenantId && global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
+            let tenantId = schema?.hasTenantId && global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
+            let tenantSource = 'tenantContext';
+            const { data: userData, error: userError } = await global.supabaseClient.auth.getUser();
+            if (userError) {
+                console.error('[ClientRepo] Erro ao obter usuário autenticado:', userError);
+            }
+            const user = userData?.user || null;
+            if (!tenantId && user) {
+                const rawTenant = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || user.user_metadata?.cliente_id || user.app_metadata?.cliente_id;
+                if (rawTenant) {
+                    tenantId = Number(rawTenant);
+                    tenantSource = 'auth_metadata';
+                }
+            }
+            if (!tenantId && schema?.hasTenantId) {
+                console.warn('[ClientRepo] tenant_id não resolvido para insert em clientes.');
+            }
             const payload = {};
             if (schema?.columns?.nome_fantasia) payload.nome_fantasia = name;
             if (schema?.columns?.nome_empresa) payload.nome_empresa = name;
@@ -140,7 +156,7 @@
             }
 
             console.log('[ClientRepo] createClient payload:', payload);
-            console.log('[ClientRepo] createClient tenantId:', tenantId);
+            console.log('[ClientRepo] createClient tenantId:', tenantId, 'source:', tenantSource);
 
             let lastError = null;
             for (const payload of attempts) {

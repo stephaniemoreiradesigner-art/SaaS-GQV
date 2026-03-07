@@ -572,6 +572,13 @@
                     email: clientEmailInput?.value || '',
                     status: clientStatusInput?.value || 'ativo'
                 };
+                if (window.TenantContext?.init) {
+                    try {
+                        await window.TenantContext.init();
+                    } catch (err) {
+                        console.error('[ClientUI] Falha ao inicializar TenantContext:', err);
+                    }
+                }
                 const tenantId = window.TenantContext?.getTenantId ? window.TenantContext.getTenantId() : null;
                 console.log('[ClientUI] create client payload:', payload);
                 console.log('[ClientUI] tenantId resolved:', tenantId);
