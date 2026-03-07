@@ -163,6 +163,39 @@
         },
 
         /**
+         * Atualiza apenas a data de um post (otimizado para Drag and Drop)
+         * @param {string} postId
+         * @param {string} newDate (YYYY-MM-DD)
+         * @returns {Promise<boolean>} Sucesso
+         */
+        updatePostDate: async function(postId, newDate) {
+            if (!global.supabaseClient || !postId || !newDate) return false;
+
+            try {
+                // Tenta atualizar em 'social_posts'
+                let { error } = await global.supabaseClient
+                    .from('social_posts')
+                    .update({ data_agendada: newDate })
+                    .eq('id', postId);
+
+                if (!error) return true;
+
+                // Fallback 'posts'
+                console.warn('[SocialMediaRepo] updatePostDate falhou em social_posts, tentando posts...');
+                const { error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .update({ data_postagem: newDate })
+                    .eq('id', postId);
+
+                if (fbError) throw fbError;
+                return true;
+            } catch (err) {
+                console.error('[SocialMediaRepo] Falha ao mover post:', err);
+                return false;
+            }
+        },
+
+        /**
          * Busca posts de um cliente em um intervalo de datas
          * @param {string} clientId
          * @param {string} startDate (YYYY-MM-DD)

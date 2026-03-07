@@ -267,6 +267,8 @@
             const calendar = new FullCalendar.Calendar(container, {
                 initialView: 'dayGridMonth',
                 locale: 'pt-br',
+                editable: true, // [DRAG] Habilita drag and drop
+                droppable: false, // Apenas interno
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
@@ -279,12 +281,24 @@
                     const event = new CustomEvent('v2:post-click', { detail: { post: info.event.extendedProps.post } });
                     document.dispatchEvent(event);
                 },
+                eventDrop: (info) => {
+                    // [DRAG] Captura o evento de soltar
+                    const event = new CustomEvent('v2:post-drop', { 
+                        detail: { 
+                            postId: info.event.id,
+                            oldDate: info.oldEvent.start,
+                            newDate: info.event.start,
+                            revert: info.revert // Função para desfazer visualmente se falhar
+                        } 
+                    });
+                    document.dispatchEvent(event);
+                },
                 eventContent: function(arg) {
                     // Custom render para ícones
                     const icon = arg.event.extendedProps.platformIcon 
                         ? `<i class="fab fa-${arg.event.extendedProps.platformIcon} mr-1"></i>` 
                         : '';
-                    return { html: `<div class="fc-event-main-frame text-xs truncate">${icon} ${arg.event.title}</div>` };
+                    return { html: `<div class="fc-event-main-frame text-xs truncate cursor-move">${icon} ${arg.event.title}</div>` };
                 }
             });
 

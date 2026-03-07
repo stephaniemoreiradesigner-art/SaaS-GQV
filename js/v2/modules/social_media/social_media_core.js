@@ -60,6 +60,13 @@
                 }
             });
 
+            // Ouvir drag and drop do calendário
+            document.addEventListener('v2:post-drop', (e) => {
+                if (e.detail && e.detail.postId && e.detail.newDate) {
+                    this.handlePostMove(e.detail.postId, e.detail.newDate, e.detail.revert);
+                }
+            });
+
             // Estado inicial
             const activeId = global.ClientContext.getActiveClient();
             if (activeId) {
@@ -188,6 +195,33 @@
                 global.SocialMediaUI.showFeedback('Erro crítico ao excluir.', 'error');
             } finally {
                 global.SocialMediaUI.setFormLoading(false);
+            }
+        },
+
+        handlePostMove: async function(postId, newDate, revertFunc) {
+            console.log(`[SocialMediaCore V2] Movendo post ${postId} para ${newDate}`);
+            
+            try {
+                // Formata data para YYYY-MM-DD (FullCalendar retorna Date object)
+                const dateStr = newDate.toISOString().split('T')[0];
+                
+                const success = await global.SocialMediaRepo.updatePostDate(postId, dateStr);
+                
+                if (success) {
+                    global.SocialMediaUI.showFeedback('Post reagendado com sucesso!', 'success');
+                    // Recarregar lista para sincronizar
+                    const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
+                    global.SocialMediaUI.renderFeed(posts, this.currentClientName);
+                    // Não precisa renderizar calendário inteiro, pois o drop visual já aconteceu
+                    // Mas renderizar garante consistência total
+                } else {
+                    global.SocialMediaUI.showFeedback('Erro ao reagendar post.', 'error');
+                    if (revertFunc) revertFunc();
+                }
+            } catch (err) {
+                console.error('[SocialMediaCore V2] Erro ao mover post:', err);
+                global.SocialMediaUI.showFeedback('Erro crítico ao reagendar.', 'error');
+                if (revertFunc) revertFunc();
             }
         }
     };
