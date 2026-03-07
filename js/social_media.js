@@ -372,23 +372,33 @@ async function updateCalendarConnections(clientId) {
     // Sempre libera o botão se tiver cliente
     updateGenerateButtonState();
 
-    /* [SM FIX] Lógica de bloqueio removida - Calendário manual sempre permitido
+    // [HOTFIX] Aviso informativo sobre modo manual
+    // Se não houver conexões, mostra aviso mas NÃO bloqueia
+    
+    const connections = calendarConnectionsCache[clientId] || { connected: [] };
     const connectedPlatforms = (connections.connected || []).map(item => item.platform).filter(p => ['instagram', 'facebook', 'linkedin', 'tiktok'].includes(p));
     
     const container = ensureCalendarCTAContainer();
+    
     if (connectedPlatforms.length === 0) {
         if (container) {
-            // container.innerHTML = window.renderPlatformNotConnectedCTA(clientId, 'Instagram/Facebook/LinkedIn/TikTok');
-            // container.classList.remove('hidden');
+            container.innerHTML = `
+                <div class="p-4 bg-blue-50 text-blue-800 rounded-lg text-sm border border-blue-200 flex items-start gap-3">
+                    <i class="fas fa-info-circle mt-0.5 text-blue-600"></i>
+                    <div>
+                        <p class="font-bold">Modo Manual Ativo</p>
+                        <p class="mt-1">Nenhuma rede social conectada. Você pode criar e gerenciar o calendário manualmente.</p>
+                        <a href="clientes.html?cliente_id=${clientId}#conexoes" class="text-blue-600 underline hover:text-blue-800 text-xs mt-1 inline-block">Conectar redes para recursos automáticos</a>
+                    </div>
+                </div>`;
+            container.classList.remove('hidden');
         }
-        // Não retorna early, deixa continuar
     } else {
         if (container) {
             container.innerHTML = '';
             container.classList.add('hidden');
         }
     }
-    */
 }
 
 // --- Modal: Configurar Geração (compatível com IDs antigos e novos)
@@ -2254,6 +2264,10 @@ window.createSocialCalendar = async function({ clientId, month, year } = {}) {
         return null;
     }
 
+    // [HOTFIX] Se não houver plataformas, inicializa array vazio para permitir modo manual
+    const platforms = calendarConnectionsCache[resolvedClientId] || { connected: [] };
+    // NÃO BLOQUEAR AQUI
+    
     const mesReferencia = `${resolvedMonth}-01`;
     const clientIdValue = Number.isFinite(Number(resolvedClientId)) ? Number(resolvedClientId) : resolvedClientId;
     let savedId = null;

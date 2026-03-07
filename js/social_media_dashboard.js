@@ -75,6 +75,11 @@
             if (window.forceCalendarRerender) {
                 setTimeout(window.forceCalendarRerender, 100);
             }
+            
+            // [HOTFIX] Garantir que o estado de conexão seja verificado mas não bloqueie
+            if (window.updateCalendarConnections && state.clientId) {
+                window.updateCalendarConnections(state.clientId);
+            }
         } else if (targetKey === 'dashboard') {
              const url = new URL(window.location.href);
              url.hash = ''; // Limpa hash na home
@@ -324,6 +329,12 @@
         if (msg) {
             if (hasClient) msg.classList.add('hidden');
             else msg.classList.remove('hidden');
+        }
+        
+        // [HOTFIX] Garantir que o container de alerta de conexão (CTA)
+        // esteja visível se necessário, mas não bloqueie
+        if (hasClient && window.updateCalendarConnections) {
+             window.updateCalendarConnections(state.clientId);
         }
 
         const hubStatus = document.getElementById('operational-status');
