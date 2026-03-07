@@ -585,7 +585,7 @@
                     return;
                 }
                 const created = result.data || {};
-                const createdName = created.nome_fantasia || created.nome_empresa || created.nome || name;
+                const createdName = created.nome_fantasia || created.nome_empresa || created.nome || created.empresa || name;
                 const createdId = created.id || null;
                 await loadClients();
                 if (createdId && window.ClientContext) {
@@ -834,7 +834,7 @@
             }
             clients.forEach(client => {
                 const button = document.createElement('button');
-                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || 'Sem nome';
+                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Sem nome';
                 const status = getClientStatusLabel(client);
                 button.className = 'w-full text-left border border-slate-200 rounded-xl px-4 py-3 bg-white hover:bg-slate-50 transition';
                 button.innerHTML = `
@@ -867,7 +867,7 @@
                 return;
             }
             const filtered = allClients.filter(client => {
-                const name = `${client.nome_fantasia || ''} ${client.razao_social || ''} ${client.nome_empresa || ''}`.toLowerCase();
+                const name = `${client.nome_fantasia || ''} ${client.razao_social || ''} ${client.nome_empresa || ''} ${client.nome || ''} ${client.empresa || ''}`.toLowerCase();
                 return name.includes(query);
             });
             renderClientList(filtered);

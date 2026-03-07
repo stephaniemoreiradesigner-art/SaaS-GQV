@@ -3,6 +3,65 @@
 // Responsável exclusivamente por buscar dados no Supabase
 
 (function(global) {
+    let schemaCache = null;
+
+    const detectSchema = async function() {
+        if (schemaCache) return schemaCache;
+        if (!global.supabaseClient) return null;
+
+        const testColumn = async (column) => {
+            const { error } = await global.supabaseClient
+                .from('clientes')
+                .select(column)
+                .limit(1);
+            return !error;
+        };
+
+        const columns = {};
+        const candidates = [
+            'nome_fantasia',
+            'nome_empresa',
+            'nome',
+            'empresa',
+            'email',
+            'status',
+            'status_cliente',
+            'situacao',
+            'ativo',
+            'tipo_documento',
+            'documento',
+            'tenant_id'
+        ];
+
+        for (const column of candidates) {
+            columns[column] = await testColumn(column);
+        }
+
+        const nameColumn =
+            (columns.nome_fantasia && 'nome_fantasia') ||
+            (columns.nome_empresa && 'nome_empresa') ||
+            (columns.nome && 'nome') ||
+            (columns.empresa && 'empresa') ||
+            null;
+
+        const statusColumn =
+            (columns.status && 'status') ||
+            (columns.status_cliente && 'status_cliente') ||
+            (columns.situacao && 'situacao') ||
+            null;
+
+        schemaCache = {
+            columns,
+            nameColumn,
+            statusColumn,
+            hasTenantId: !!columns.tenant_id,
+            hasAtivo: !!columns.ativo
+        };
+
+        console.log('[ClientRepo] Schema clientes detectado:', schemaCache);
+        return schemaCache;
+    };
+
     const ClientRepo = {
         /**
          * Busca todos os clientes ativos do tenant atual
@@ -15,13 +74,17 @@
             }
 
             try {
-                // A segurança RLS do Supabase já deve filtrar pelo tenant_id
-                // Mas garantimos buscar apenas ativos
-                const { data, error } = await global.supabaseClient
-                    .from('clientes')
-                    .select('*')
-                    .eq('ativo', true)
-                    .order('nome_fantasia', { ascending: true });
+                const schema = await detectSchema();
+                let query = global.supabaseClient.from('clientes').select('*');
+                if (schema?.hasAtivo) {
+                    query = query.eq('ativo', true);
+                } else if (schema?.statusColumn) {
+                    query = query.eq(schema.statusColumn, 'ativo');
+                }
+                if (schema?.nameColumn) {
+                    query = query.order(schema.nameColumn, { ascending: true });
+                }
+                const { data, error } = await query;
 
                 if (error) throw error;
                 return data || [];
@@ -50,85 +113,33 @@
                 }
             }
 
-            const tenantId = global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
-            const base = {
-                nome: name,
-                nome_fantasia: name,
-                nome_empresa: name,
-                empresa: name,
-                email: input?.email ? String(input.email).trim() : null,
-                status: input?.status || 'ativo',
-                tipo_documento: input?.tipo_documento || null,
-                documento: input?.documento ? String(input.documento).trim() : null,
-                tenant_id: tenantId || null
-            };
+            const schema = await detectSchema();
+            const tenantId = schema?.hasTenantId && global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
+            const payload = {};
+            if (schema?.columns?.nome_fantasia) payload.nome_fantasia = name;
+            if (schema?.columns?.nome_empresa) payload.nome_empresa = name;
+            if (schema?.columns?.nome) payload.nome = name;
+            if (schema?.columns?.empresa) payload.empresa = name;
+            if (schema?.columns?.email) payload.email = input?.email ? String(input.email).trim() : null;
+            if (schema?.columns?.tipo_documento) payload.tipo_documento = input?.tipo_documento || null;
+            if (schema?.columns?.documento) payload.documento = input?.documento ? String(input.documento).trim() : null;
+            if (schema?.statusColumn) payload[schema.statusColumn] = input?.status || 'ativo';
+            if (schema?.hasAtivo) payload.ativo = true;
+            if (schema?.hasTenantId && tenantId) payload.tenant_id = tenantId;
 
-            const withoutTenant = { ...base };
+            const attempts = [payload];
+
+            if (!Object.keys(payload).length) {
+                return { data: null, error: new Error('Schema de clientes não identificado') };
+            }
+
+            const withoutTenant = { ...payload };
             delete withoutTenant.tenant_id;
+            if (schema?.hasTenantId && Object.keys(withoutTenant).length) {
+                attempts.push(withoutTenant);
+            }
 
-            const attempts = [
-                base,
-                withoutTenant,
-                {
-                    nome_fantasia: base.nome_fantasia,
-                    nome_empresa: base.nome_empresa,
-                    email: base.email,
-                    status: base.status,
-                    tenant_id: base.tenant_id
-                },
-                {
-                    nome_fantasia: base.nome_fantasia,
-                    nome_empresa: base.nome_empresa,
-                    email: base.email,
-                    status: base.status
-                },
-                {
-                    nome: base.nome,
-                    email: base.email,
-                    status: base.status,
-                    tenant_id: base.tenant_id
-                },
-                {
-                    nome: base.nome,
-                    email: base.email,
-                    status: base.status
-                },
-                {
-                    nome_fantasia: base.nome_fantasia,
-                    nome_empresa: base.nome_empresa,
-                    tenant_id: base.tenant_id
-                },
-                {
-                    nome_fantasia: base.nome_fantasia,
-                    nome_empresa: base.nome_empresa
-                },
-                {
-                    nome: base.nome,
-                    tenant_id: base.tenant_id
-                },
-                {
-                    nome: base.nome
-                },
-                {
-                    nome: base.nome,
-                    empresa: base.empresa,
-                    email: base.email,
-                    status: base.status,
-                    tenant_id: base.tenant_id
-                },
-                {
-                    nome: base.nome,
-                    empresa: base.empresa,
-                    email: base.email,
-                    status: base.status
-                },
-                {
-                    nome: base.nome,
-                    empresa: base.empresa
-                }
-            ];
-
-            console.log('[ClientRepo] createClient payload base:', base);
+            console.log('[ClientRepo] createClient payload:', payload);
             console.log('[ClientRepo] createClient tenantId:', tenantId);
 
             let lastError = null;
