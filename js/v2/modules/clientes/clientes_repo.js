@@ -42,11 +42,20 @@
                 return { data: null, error: new Error('Nome obrigatório') };
             }
 
+            if (global.TenantContext?.init) {
+                try {
+                    await global.TenantContext.init();
+                } catch (err) {
+                    console.error('[ClientRepo] Falha ao inicializar TenantContext:', err);
+                }
+            }
+
             const tenantId = global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
             const base = {
                 nome: name,
                 nome_fantasia: name,
                 nome_empresa: name,
+                empresa: name,
                 email: input?.email ? String(input.email).trim() : null,
                 status: input?.status || 'ativo',
                 tipo_documento: input?.tipo_documento || null,
@@ -54,8 +63,12 @@
                 tenant_id: tenantId || null
             };
 
+            const withoutTenant = { ...base };
+            delete withoutTenant.tenant_id;
+
             const attempts = [
                 base,
+                withoutTenant,
                 {
                     nome_fantasia: base.nome_fantasia,
                     nome_empresa: base.nome_empresa,
@@ -64,10 +77,21 @@
                     tenant_id: base.tenant_id
                 },
                 {
+                    nome_fantasia: base.nome_fantasia,
+                    nome_empresa: base.nome_empresa,
+                    email: base.email,
+                    status: base.status
+                },
+                {
                     nome: base.nome,
                     email: base.email,
                     status: base.status,
                     tenant_id: base.tenant_id
+                },
+                {
+                    nome: base.nome,
+                    email: base.email,
+                    status: base.status
                 },
                 {
                     nome_fantasia: base.nome_fantasia,
@@ -75,17 +99,46 @@
                     tenant_id: base.tenant_id
                 },
                 {
+                    nome_fantasia: base.nome_fantasia,
+                    nome_empresa: base.nome_empresa
+                },
+                {
                     nome: base.nome,
                     tenant_id: base.tenant_id
+                },
+                {
+                    nome: base.nome
+                },
+                {
+                    nome: base.nome,
+                    empresa: base.empresa,
+                    email: base.email,
+                    status: base.status,
+                    tenant_id: base.tenant_id
+                },
+                {
+                    nome: base.nome,
+                    empresa: base.empresa,
+                    email: base.email,
+                    status: base.status
+                },
+                {
+                    nome: base.nome,
+                    empresa: base.empresa
                 }
             ];
 
+            console.log('[ClientRepo] createClient payload base:', base);
+            console.log('[ClientRepo] createClient tenantId:', tenantId);
+
             let lastError = null;
             for (const payload of attempts) {
+                console.log('[ClientRepo] Tentando insert clientes:', payload);
                 const { data, error } = await global.supabaseClient
                     .from('clientes')
                     .insert([payload])
                     .select('*');
+                console.log('[ClientRepo] Resposta insert clientes:', { data, error });
                 if (!error) {
                     const created = Array.isArray(data) ? data[0] : data;
                     return { data: created || null, error: null };

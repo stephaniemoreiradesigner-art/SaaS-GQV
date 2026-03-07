@@ -572,11 +572,15 @@
                     email: clientEmailInput?.value || '',
                     status: clientStatusInput?.value || 'ativo'
                 };
+                const tenantId = window.TenantContext?.getTenantId ? window.TenantContext.getTenantId() : null;
+                console.log('[ClientUI] create client payload:', payload);
+                console.log('[ClientUI] tenantId resolved:', tenantId);
                 const result = window.ClientRepo?.createClient
                     ? await window.ClientRepo.createClient(payload)
                     : { data: null, error: new Error('ClientRepo indisponível') };
+                console.log('[ClientUI] create client result:', result);
                 if (result.error) {
-                    setClientFeedback('Não foi possível salvar o cliente.', 'error');
+                    setClientFeedback(result.error?.message || 'Não foi possível salvar o cliente.', 'error');
                     if (clientSaveBtn) clientSaveBtn.disabled = false;
                     return;
                 }
