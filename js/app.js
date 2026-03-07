@@ -33,7 +33,13 @@ async function loadSupabaseConfig() {
 }
 
 async function initSupabase() {
-    if (window.supabaseClient) return true; // Já inicializado
+    // [GUARD] Prevenir duplicação global do cliente Supabase
+    if (window.__SUPABASE__) {
+        window.supabaseClient = window.__SUPABASE__;
+        return true;
+    }
+
+    if (window.supabaseClient) return true; // Já inicializado por outro meio
 
     try {
         if (!window.supabase) {
@@ -44,7 +50,9 @@ async function initSupabase() {
                 const config = await loadSupabaseConfig();
                 if (!config) return false;
             }
-                window.supabaseClient = window.supabase.createClient(
+                
+                // Cria instância única
+                const client = window.supabase.createClient(
                     window.supabaseConfig.supabaseUrl,
                     window.supabaseConfig.supabaseAnonKey,
                     {
@@ -55,7 +63,11 @@ async function initSupabase() {
                         }
                     }
                 );
-            console.log('Supabase inicializado com sucesso no app.js');
+                
+                window.__SUPABASE__ = client;
+                window.supabaseClient = client;
+                
+            console.log('Supabase inicializado com sucesso no app.js (Singleton)');
             window.SUPERADMIN_EMAILS = ['stephaniemoreira.designer@gmail.com', 'marketing.vaniamello@gmail.com'];
             return true;
         }

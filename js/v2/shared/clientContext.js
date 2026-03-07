@@ -44,31 +44,49 @@
 
         /**
          * Define o novo cliente ativo, persiste e notifica
-         * @param {string|number|null} clientId 
+         * @param {string|number|object|null} input - ID ou objeto { id, name }
          */
-        setActiveClient(clientId) {
-            const normalized = clientId ? String(clientId).trim() : null;
-            
-            if (normalized === activeClientId) return; // Sem mudança
+        setActiveClient(input) {
+            let clientId = null;
+            let clientName = null;
 
-            activeClientId = normalized;
+            if (typeof input === 'object' && input !== null) {
+                clientId = input.id;
+                clientName = input.name;
+            } else {
+                clientId = input;
+            }
+
+            const normalizedId = clientId ? String(clientId).trim() : null;
+            
+            // Mesmo se o ID for igual, o nome pode ter mudado (ou sido carregado agora)
+            // Mas para evitar loops, checamos se realmente mudou algo relevante
+            if (normalizedId === activeClientId && !clientName) return; 
+
+            activeClientId = normalizedId;
             
             if (activeClientId) {
                 localStorage.setItem(STORAGE_KEY, activeClientId);
                 // Manter compatibilidade com v1
                 localStorage.setItem('selectedClientId', activeClientId);
                 localStorage.setItem('sm_active_client', activeClientId);
-                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', activeClientId); // Redundância segura
+                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', activeClientId);
+                
+                // Persistir nome se disponível (opcional, mas útil para UI)
+                if (clientName) {
+                    localStorage.setItem('GQV_ACTIVE_CLIENT_NAME', clientName);
+                }
             } else {
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem('selectedClientId');
                 localStorage.removeItem('sm_active_client');
                 localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
+                localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
             }
 
-            console.log('[ClientContext v2] Cliente alterado para:', activeClientId);
+            console.log('[ClientContext v2] Cliente alterado para:', activeClientId, clientName);
             this.notifyListeners();
-            this.dispatchGlobalEvent();
+            this.dispatchGlobalEvent(clientName);
         },
 
         /**
@@ -108,13 +126,21 @@
 
         /**
          * Dispara evento DOM para compatibilidade com legado
+         * @param {string} [clientName] - Nome opcional do cliente
          */
-        dispatchGlobalEvent() {
+        dispatchGlobalEvent(clientName) {
             try {
+                // Tenta recuperar nome do storage se não passado
+                const name = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME');
+
                 const event = new CustomEvent('gqv:client-changed', { 
-                    detail: { clientId: activeClientId } 
+                    detail: { 
+                        clientId: activeClientId,
+                        clientName: name
+                    } 
                 });
                 window.dispatchEvent(event);
+                document.dispatchEvent(event); // Dispara no document também conforme solicitado
                 
                 // Evento legado específico do Social Media
                 window.dispatchEvent(new CustomEvent('sm:clientChanged', { 

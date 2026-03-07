@@ -33,7 +33,13 @@
 
             // 4. Ouvir mudanças externas (para manter UI sincronizada se mudar por outro lugar)
             global.addEventListener('gqv:client-changed', (e) => {
-                const newId = e.detail?.clientId;
+                // [GUARD] Proteção contra eventos malformados
+                if (!e || !e.detail) {
+                    console.warn('[ClientCore V2] Evento gqv:client-changed recebido sem detail', e);
+                    return;
+                }
+
+                const newId = e.detail.clientId;
                 if (newId) {
                     global.ClientUI.highlightActive(newId);
                 }
@@ -48,7 +54,11 @@
             // Atualizar o Contexto Global V2
             // O Contexto vai disparar 'gqv:client-changed' e persistir no localStorage
             if (global.ClientContext) {
-                global.ClientContext.setActiveClient(client.id);
+                // Passando objeto com ID e Nome conforme padronização
+                global.ClientContext.setActiveClient({
+                    id: client.id,
+                    name: client.nome_fantasia || client.razao_social || client.nome_empresa || 'Cliente Sem Nome'
+                });
             } else {
                 console.error('[ClientCore V2] ClientContext não disponível!');
             }
