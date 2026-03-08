@@ -1088,6 +1088,46 @@
             return updated;
         };
 
+        const getMonthStorageKey = (clientId) => `GQV_SOCIAL_MONTH_${clientId || 'default'}`;
+
+        const loadSavedMonth = (clientId) => {
+            if (!clientId) return null;
+            const saved = localStorage.getItem(getMonthStorageKey(clientId));
+            return saved || null;
+        };
+
+        const saveMonth = (clientId, month) => {
+            if (!clientId || !month) return;
+            localStorage.setItem(getMonthStorageKey(clientId), month);
+        };
+
+        const persistPost = async (post) => {
+            const repo = window.SocialMediaRepo;
+            if (!repo || !socialState.clientId) return null;
+            if (post.isTemp || !post.id) {
+                const result = await repo.createPost({
+                    cliente_id: socialState.clientId,
+                    titulo: post.title,
+                    legenda: post.caption,
+                    plataforma: post.platform,
+                    data_postagem: post.date,
+                    status: post.status || 'rascunho',
+                    formato: post.creative,
+                    feedback: post.notes
+                });
+                return normalizePost(result);
+            }
+            await repo.updatePost(post.id, {
+                titulo: post.title,
+                legenda: post.caption,
+                plataforma: post.platform,
+                data_postagem: post.date,
+                status: post.status || 'rascunho',
+                feedback: post.notes
+            });
+            return { ...post, isTemp: false, isDirty: false };
+        };
+
         const createManualPost = (date) => {
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de criar posts.', 'error');
@@ -1196,6 +1236,7 @@
             const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
             base.setMonth(base.getMonth() + delta);
             socialState.calendarMonth = base.toISOString().slice(0, 7);
+            saveMonth(socialState.clientId, socialState.calendarMonth);
             refreshSocialMonth();
         };
 
@@ -1392,6 +1433,12 @@
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
                 currentClient = allClients.find(client => client.id === clientId) || currentClient;
                 socialState.clientId = clientId;
+                const savedMonth = loadSavedMonth(clientId);
+                if (savedMonth) {
+                    socialState.calendarMonth = savedMonth;
+                } else {
+                    socialState.calendarMonth = new Date().toISOString().slice(0, 7);
+                }
                 updateClientUI(clientId, name);
                 refreshSocialMonth();
             });
@@ -1452,10 +1499,16 @@
         if (socialPostClose) socialPostClose.addEventListener('click', closePostDrawer);
         if (socialPostCancel) socialPostCancel.addEventListener('click', closePostDrawer);
         if (socialPostSave) {
-            socialPostSave.addEventListener('click', () => {
+            socialPostSave.addEventListener('click', async () => {
                 const updated = applyPostForm();
                 if (!updated) return;
-                setPostFeedback('Post atualizado.');
+                await ensureCalendarDraft();
+                const persisted = await persistPost(updated);
+                if (persisted) {
+                    socialState.posts = socialState.posts.map((post) => (post.tempId === updated.tempId || post.id === updated.id ? persisted : post));
+                    socialState.activePost = persisted;
+                }
+                setPostFeedback('Post salvo.');
                 updateSocialOverview();
                 renderCalendarGrid();
             });
