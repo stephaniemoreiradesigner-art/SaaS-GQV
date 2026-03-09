@@ -14,84 +14,70 @@
                 throw new Error('Banco de dados não conectado');
             }
 
-            // Validação mínima
-            if (!input.cliente_id) throw new Error('Cliente não identificado');
-            if (!input.titulo) throw new Error('Título é obrigatório');
-
-            const payload = {
-                cliente_id: input.cliente_id,
-                titulo: input.titulo, // ou 'tema' dependendo da tabela
-                legenda: input.legenda || '',
-                plataforma: input.plataforma || 'instagram', // array ou string dependendo do schema
-                data_postagem: input.data_postagem || null,
-                status: input.status || 'rascunho',
-                tipo: 'manual', // flag para identificar origem
-                criado_em: new Date().toISOString()
-            };
-
-            // Adapter para tabela real (assumindo 'posts' ou 'social_posts' baseado no legado)
-            // Se a tabela 'posts' falhou na leitura, provavelmente é 'social_posts' (visto no legado generateCalendar)
-            
-            let tableName = 'social_posts'; 
-            // Tentativa primária na tabela que vimos no legado (generateCalendar usa social_posts)
+            if (!input.cliente_id && !input.client_id) {
+                throw new Error('Cliente não identificado');
+            }
 
             try {
-                const slides = Array.isArray(input.slides) ? input.slides : [];
+                const clientId = input.cliente_id || input.client_id;
+                const postDate = input.data_postagem || input.post_date || new Date().toISOString().slice(0, 10);
+                const title = input.titulo || input.title || input.legenda || 'Post';
+                const content = input.content || input.detailed_content || input.legenda || '';
+                const status = input.status === 'rascunho' ? 'draft' : input.status || 'draft';
+                const monthRef = postDate ? `${postDate.slice(0, 7)}-01` : new Date().toISOString().slice(0, 10);
+                const { data: calendarData, error: calendarError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .select('id')
+                    .eq('cliente_id', clientId)
+                    .eq('mes_referencia', monthRef)
+                    .maybeSingle();
+
+                let calendarId = calendarData?.id || null;
+                if (calendarError || !calendarId) {
+                    const { data: createdCalendar, error: createError } = await global.supabaseClient
+                        .from('social_calendars')
+                        .insert({
+                            cliente_id: clientId,
+                            mes_referencia: monthRef,
+                            status: 'rascunho',
+                            updated_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
+                    if (createError) throw createError;
+                    calendarId = createdCalendar?.id || null;
+                }
+
                 const dbPayload = {
-                    cliente_id: payload.cliente_id,
-                    tema: payload.titulo,
-                    legenda: payload.legenda,
-                    data_agendada: payload.data_postagem,
-                    status: payload.status,
-                    plataformas: [payload.plataforma],
-                    formato: input.formato || input.tipo_conteudo || 'post_estatico',
-                    tipo_conteudo: input.tipo_conteudo || input.formato || null,
+                    calendar_id: calendarId,
+                    cliente_id: clientId,
+                    data_agendada: postDate,
+                    legenda: title,
+                    detailed_content: content,
+                    status,
                     cta: input.cta || null,
                     hashtags: input.hashtags || null,
-                    slide_1: slides[0] || null,
-                    slide_2: slides[1] || null,
-                    slide_3: slides[2] || null,
-                    slide_4: slides[3] || null,
-                    hook: input.hook || null,
-                    roteiro: input.roteiro || null,
-                    media_url: input.media_url || null,
-                    media_path: input.media_path || null,
-                    media_type: input.media_type || null,
-                    media_name: input.media_name || null,
-                    media_size: input.media_size || null,
-                    media_bucket: input.media_bucket || null
+                    imagem_url: input.imagem_url || input.media_url || null
                 };
-
+                console.log('[SocialCalendar] insert post payload', dbPayload);
                 const { data, error } = await global.supabaseClient
-                    .from(tableName)
+                    .from('social_posts')
                     .insert([dbPayload])
                     .select()
                     .single();
 
                 if (!error) return data;
 
-                console.warn(`[SocialMediaRepo] Erro em ${tableName}, tentando 'posts'...`, error);
+                console.warn('[SocialMediaRepo] Erro em social_posts, tentando posts...', error);
                 const fallbackPayload = {
-                    cliente_id: payload.cliente_id,
-                    titulo: payload.titulo,
-                    conteudo: payload.legenda,
-                    status: payload.status,
-                    data_postagem: payload.data_postagem,
+                    cliente_id: clientId,
+                    titulo: title,
+                    conteudo: content,
+                    status,
+                    data_postagem: postDate,
                     tipo_conteudo: input.tipo_conteudo || input.formato || null,
                     cta: input.cta || null,
-                    hashtags: input.hashtags || null,
-                    slide_1: slides[0] || null,
-                    slide_2: slides[1] || null,
-                    slide_3: slides[2] || null,
-                    slide_4: slides[3] || null,
-                    hook: input.hook || null,
-                    roteiro: input.roteiro || null,
-                    media_url: input.media_url || null,
-                    media_path: input.media_path || null,
-                    media_type: input.media_type || null,
-                    media_name: input.media_name || null,
-                    media_size: input.media_size || null,
-                    media_bucket: input.media_bucket || null
+                    hashtags: input.hashtags || null
                 };
                 const { data: fbData, error: fbError } = await global.supabaseClient
                     .from('posts')
@@ -102,11 +88,11 @@
                 if (!fbError) return fbData;
 
                 const minimalPayload = {
-                    cliente_id: payload.cliente_id,
-                    titulo: payload.titulo,
-                    conteudo: payload.legenda,
-                    status: payload.status,
-                    data_postagem: payload.data_postagem
+                    cliente_id: clientId,
+                    titulo: title,
+                    conteudo: content,
+                    status,
+                    data_postagem: postDate
                 };
                 const { data: minimalData, error: minimalError } = await global.supabaseClient
                     .from('posts')
@@ -130,58 +116,32 @@
         updatePost: async function(postId, input) {
             if (!global.supabaseClient || !postId) return null;
 
-            // Mapeamento de campos para update
             const dbPayload = {};
-            if (input.titulo !== undefined) dbPayload.tema = input.titulo;
-            if (input.legenda !== undefined) dbPayload.legenda = input.legenda;
-            if (input.data_postagem !== undefined) dbPayload.data_agendada = input.data_postagem;
-            if (input.status !== undefined) dbPayload.status = input.status;
-            if (input.plataforma !== undefined) dbPayload.plataformas = [input.plataforma];
-            if (input.feedback !== undefined) dbPayload.feedback_aprovacao = input.feedback;
-            if (input.formato !== undefined) dbPayload.formato = input.formato;
-            if (input.tipo_conteudo !== undefined) dbPayload.tipo_conteudo = input.tipo_conteudo;
+            if (input.titulo !== undefined || input.title !== undefined) {
+                dbPayload.legenda = input.titulo ?? input.title;
+            }
+            if (input.legenda !== undefined || input.content !== undefined) {
+                dbPayload.detailed_content = input.content ?? input.legenda;
+            }
+            if (input.data_postagem !== undefined || input.post_date !== undefined) {
+                dbPayload.data_agendada = input.data_postagem ?? input.post_date;
+            }
+            if (input.status !== undefined) {
+                dbPayload.status = input.status === 'rascunho' ? 'draft' : input.status;
+            }
             if (input.cta !== undefined) dbPayload.cta = input.cta;
             if (input.hashtags !== undefined) dbPayload.hashtags = input.hashtags;
-            if (input.slides !== undefined) {
-                dbPayload.slide_1 = input.slides[0] || null;
-                dbPayload.slide_2 = input.slides[1] || null;
-                dbPayload.slide_3 = input.slides[2] || null;
-                dbPayload.slide_4 = input.slides[3] || null;
+            if (input.imagem_url !== undefined || input.media_url !== undefined) {
+                dbPayload.imagem_url = input.imagem_url ?? input.media_url;
             }
-            if (input.hook !== undefined) dbPayload.hook = input.hook;
-            if (input.roteiro !== undefined) dbPayload.roteiro = input.roteiro;
-            if (input.media_url !== undefined) dbPayload.media_url = input.media_url;
-            if (input.media_path !== undefined) dbPayload.media_path = input.media_path;
-            if (input.media_type !== undefined) dbPayload.media_type = input.media_type;
-            if (input.media_name !== undefined) dbPayload.media_name = input.media_name;
-            if (input.media_size !== undefined) dbPayload.media_size = input.media_size;
-            if (input.media_bucket !== undefined) dbPayload.media_bucket = input.media_bucket;
             
-            // Campos fallback
             const fallbackPayload = {};
-            if (input.titulo !== undefined) fallbackPayload.titulo = input.titulo;
-            if (input.legenda !== undefined) fallbackPayload.conteudo = input.legenda;
-            if (input.data_postagem !== undefined) fallbackPayload.data_postagem = input.data_postagem;
-            if (input.status !== undefined) fallbackPayload.status = input.status;
-            if (input.feedback !== undefined) fallbackPayload.feedback_aprovacao = input.feedback;
-            if (input.formato !== undefined) fallbackPayload.tipo_conteudo = input.formato;
-            if (input.tipo_conteudo !== undefined) fallbackPayload.tipo_conteudo = input.tipo_conteudo;
+            if (input.titulo !== undefined || input.title !== undefined) fallbackPayload.titulo = input.titulo ?? input.title;
+            if (input.legenda !== undefined || input.content !== undefined) fallbackPayload.conteudo = input.content ?? input.legenda;
+            if (input.data_postagem !== undefined || input.post_date !== undefined) fallbackPayload.data_postagem = input.data_postagem ?? input.post_date;
+            if (input.status !== undefined) fallbackPayload.status = input.status === 'rascunho' ? 'draft' : input.status;
             if (input.cta !== undefined) fallbackPayload.cta = input.cta;
             if (input.hashtags !== undefined) fallbackPayload.hashtags = input.hashtags;
-            if (input.slides !== undefined) {
-                fallbackPayload.slide_1 = input.slides[0] || null;
-                fallbackPayload.slide_2 = input.slides[1] || null;
-                fallbackPayload.slide_3 = input.slides[2] || null;
-                fallbackPayload.slide_4 = input.slides[3] || null;
-            }
-            if (input.hook !== undefined) fallbackPayload.hook = input.hook;
-            if (input.roteiro !== undefined) fallbackPayload.roteiro = input.roteiro;
-            if (input.media_url !== undefined) fallbackPayload.media_url = input.media_url;
-            if (input.media_path !== undefined) fallbackPayload.media_path = input.media_path;
-            if (input.media_type !== undefined) fallbackPayload.media_type = input.media_type;
-            if (input.media_name !== undefined) fallbackPayload.media_name = input.media_name;
-            if (input.media_size !== undefined) fallbackPayload.media_size = input.media_size;
-            if (input.media_bucket !== undefined) fallbackPayload.media_bucket = input.media_bucket;
 
             try {
                 // Tenta atualizar em 'social_posts' primeiro
@@ -293,12 +253,13 @@
          */
         updatePostStatus: async function(postId, newStatus) {
             if (!global.supabaseClient || !postId || !newStatus) return false;
+            const normalizedStatus = newStatus === 'rascunho' ? 'draft' : newStatus;
 
             try {
                 // Tenta atualizar em 'social_posts'
                 let { error } = await global.supabaseClient
                     .from('social_posts')
-                    .update({ status: newStatus })
+                    .update({ status: normalizedStatus })
                     .eq('id', postId);
 
                 if (!error) return true;
@@ -307,7 +268,7 @@
                 console.warn('[SocialMediaRepo] updatePostStatus falhou em social_posts, tentando posts...');
                 const { error: fbError } = await global.supabaseClient
                     .from('posts')
-                    .update({ status: newStatus })
+                    .update({ status: normalizedStatus })
                     .eq('id', postId);
 
                 if (fbError) throw fbError;
