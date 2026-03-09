@@ -66,10 +66,13 @@
             if (!drawer) return;
 
             const isEdit = !!(post && post.id);
-            drawer.dataset.mode = isEdit ? 'edit' : 'create';
-            drawer.dataset.postId = isEdit ? post.id : '';
+            // [FIX] Garantir que o ID do post seja sempre string ou vazio, nunca undefined
+            const postId = isEdit ? String(post.id) : '';
             
-            console.log(`[SOCIAL UI] renderCreateForm. IsEdit: ${isEdit}, ID: ${drawer.dataset.postId}`);
+            drawer.dataset.mode = isEdit ? 'edit' : 'create';
+            drawer.dataset.postId = postId;
+            
+            console.log(`[SOCIAL UI] renderCreateForm. IsEdit: ${isEdit}, ID: ${postId}`);
 
             // Título do Drawer
             const titleEl = document.getElementById('social-post-title');

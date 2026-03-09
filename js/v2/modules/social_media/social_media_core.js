@@ -278,8 +278,12 @@
                     }
                 } else {
                     console.log('[SOCIAL] Criando novo post...', input);
-                    await global.SocialMediaRepo.createPost(input);
-                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Post criado com sucesso!', 'success');
+                    const created = await global.SocialMediaRepo.createPost(input);
+                    if (created) {
+                         if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Post criado com sucesso!', 'success');
+                    } else {
+                         throw new Error('Falha ao criar post (retorno vazio).');
+                    }
                 }
                 
                 // Fecha drawer
