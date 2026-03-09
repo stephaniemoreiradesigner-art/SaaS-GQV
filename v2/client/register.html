@@ -74,9 +74,9 @@
         </div>
     </div>
 
-    <script>
-        window.API_BASE_URL = window.API_BASE_URL || 'https://api.gestaoquevende.cloud';
-    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/js/app.js"></script>
+    <script src="/js/v2/client/client_auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-register-form');
@@ -85,16 +85,17 @@
             const inviteNote = document.getElementById('email-invite-note');
             const params = new URLSearchParams(window.location.search);
             const inviteEmail = String(params.get('email') || '').trim().toLowerCase();
+            
             if (inviteEmail && emailInputElement) {
                 emailInputElement.value = inviteEmail;
                 emailInputElement.readOnly = true;
                 emailInputElement.classList.add('bg-slate-100');
                 if (inviteNote) inviteNote.classList.remove('hidden');
             }
+
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const emailInput = document.getElementById('email').value;
-                const email = String(emailInput || '').trim().toLowerCase();
+                const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value;
                 const confirmPassword = document.getElementById('confirmPassword').value;
                 const btn = form.querySelector('button');
@@ -110,42 +111,23 @@
                     return;
                 }
 
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Criando...';
+                btn.disabled = true;
+
                 try {
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Processando...';
-                    btn.disabled = true;
-                    btn.classList.add('opacity-75', 'cursor-not-allowed');
+                    const result = await window.ClientAuth.register(email, password);
 
-                    const response = await fetch(`${window.API_BASE_URL}/api/auth/register-invite`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email, password, kind: 'client' })
-                    });
-
-                    const payload = await response.json().catch(() => null);
-                    if (response.ok && payload && payload.ok) {
-                        alert('Conta criada! Faça login.');
+                    if (result.success) {
+                        alert('Conta criada com sucesso! Faça login.');
                         window.location.href = '/v2/client/login.html';
-                        return;
+                    } else {
+                        alert(result.error || 'Erro ao criar conta.');
                     }
-
-                    if (payload?.error === 'not_invited') {
-                        alert('E-mail não encontrado na base de convites.');
-                        return;
-                    }
-
-                    if (payload?.error === 'user_exists') {
-                        alert('Este e-mail já tem acesso.');
-                        window.location.href = `/v2/client/login.html?email=${encodeURIComponent(email)}`;
-                        return;
-                    }
-
-                    alert('Erro ao criar conta.');
                 } catch (error) {
-                    alert('Erro ao criar conta.');
+                    alert('Erro inesperado: ' + error.message);
                 } finally {
                     btn.innerHTML = originalContent;
                     btn.disabled = false;
-                    btn.classList.remove('opacity-75', 'cursor-not-allowed');
                 }
             });
         });

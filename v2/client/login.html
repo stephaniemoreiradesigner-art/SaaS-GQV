@@ -38,83 +38,36 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/js/app.js"></script>
+    <script src="/js/v2/client/client_auth.js"></script>
     <script>
-        const ensureSupabaseClient = async () => {
-            if (window.supabaseClient) return window.supabaseClient;
-            if (typeof window.initSupabase === 'function') {
-                const ok = await window.initSupabase();
-                if (ok && window.supabaseClient) return window.supabaseClient;
-            }
-            if (window.supabase && window.supabaseConfig?.supabaseUrl && window.supabaseConfig?.supabaseAnonKey) {
-                window.supabaseClient = window.supabase.createClient(
-                    window.supabaseConfig.supabaseUrl,
-                    window.supabaseConfig.supabaseAnonKey
-                );
-                return window.supabaseClient;
-            }
-            return null;
-        };
-
-        const getFriendlyLoginError = (error) => {
-            const message = String(error?.message || '');
-            if (message === 'Invalid login credentials') return 'E-mail ou senha incorretos.';
-            if (message === 'Email not confirmed') return 'Seu e-mail ainda não foi confirmado.';
-            if (message === 'User not found') return 'Usuário não encontrado.';
-            return 'Falha ao iniciar login.';
-        };
-
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-login-form');
             const button = document.getElementById('client-login-button');
-            if (!form || !button) return;
-            const originalText = button.textContent;
-
-            form.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const email = document.getElementById('email').value.trim();
-                const password = document.getElementById('password').value.trim();
-                if (!email || !password) {
-                    alert('Preencha e-mail e senha.');
-                    return;
-                }
-
-                button.disabled = true;
-                button.textContent = 'Entrando...';
-
-                try {
-                    const supabase = await ensureSupabaseClient();
-                    if (!supabase) {
-                        alert('Falha ao iniciar login.');
+            
+            if (form) {
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const email = document.getElementById('email').value.trim();
+                    const password = document.getElementById('password').value.trim();
+                    
+                    if (!email || !password) {
+                        alert('Preencha todos os campos.');
                         return;
                     }
 
-                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                    if (error) {
-                        alert(getFriendlyLoginError(error));
-                        return;
-                    }
-                    const session = data?.session;
-                    if (!session) {
-                        alert('Sessão não encontrada.');
-                        return;
-                    }
-                    window.location.href = '/v2/client/index.html';
-                } finally {
-                    button.disabled = false;
-                    button.textContent = originalText;
-                }
-            });
+                    const originalText = button.textContent;
+                    button.disabled = true;
+                    button.textContent = 'Entrando...';
 
-            const createPasswordLink = document.getElementById('client-create-password-link');
-            const emailInput = document.getElementById('email');
-            if (createPasswordLink && emailInput) {
-                createPasswordLink.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    const emailValue = String(emailInput.value || '').trim().toLowerCase();
-                    const targetUrl = emailValue
-                        ? `/v2/client/register.html?email=${encodeURIComponent(emailValue)}`
-                        : '/v2/client/register.html';
-                    window.location.href = targetUrl;
+                    const result = await window.ClientAuth.login(email, password);
+                    
+                    if (result.success) {
+                        window.location.href = '/v2/client/index.html';
+                    } else {
+                        alert(result.error);
+                        button.disabled = false;
+                        button.textContent = originalText;
+                    }
                 });
             }
         });
