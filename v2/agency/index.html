@@ -269,6 +269,9 @@
 
                         <div id="social-tab-calendar" class="social-tab space-y-6 hidden">
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                                <div id="social-approval-banner" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                                    Calendário em aprovação — edição temporariamente bloqueada
+                                </div>
                                 <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                                     <div class="flex items-center gap-2">
                                         <button id="social-month-prev" class="px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-800">
@@ -555,6 +558,7 @@
         const socialGenerateAiBtn = document.getElementById('social-generate-ai');
         const socialNewPostBtn = document.getElementById('social-new-post');
         const socialSaveDraftBtn = document.getElementById('social-save-draft');
+        const socialApprovalBanner = document.getElementById('social-approval-banner');
         const socialPostDrawer = document.getElementById('social-post-drawer');
         const socialPostClose = document.getElementById('social-post-close');
         const socialPostCancel = document.getElementById('social-post-cancel');
@@ -953,6 +957,13 @@
                 socialCalendarStatus.textContent = 'Sem calendário';
                 socialCalendarStatus.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
                 if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = true;
+                if (socialApprovalBanner) socialApprovalBanner.classList.add('hidden');
+                [socialMonthPrev, socialMonthNext, socialGenerateAiBtn, socialNewPostBtn, socialSaveDraftBtn].forEach((btn) => {
+                    if (btn) btn.disabled = !socialState.clientId;
+                });
+                [socialGoalInput, socialBriefingInput].forEach((el) => {
+                    if (el) el.disabled = !socialState.clientId;
+                });
                 return;
             }
             const statusLabel = SOCIAL_STATUS_LABELS[status] || status;
@@ -962,6 +973,16 @@
             if (socialSendApprovalBtn) {
                 socialSendApprovalBtn.disabled = status !== 'rascunho';
             }
+            if (socialApprovalBanner) {
+                socialApprovalBanner.classList.toggle('hidden', status !== 'aguardando_aprovacao');
+            }
+            const isBlocked = status === 'aguardando_aprovacao';
+            [socialMonthPrev, socialMonthNext, socialGenerateAiBtn, socialNewPostBtn, socialSaveDraftBtn].forEach((btn) => {
+                if (btn) btn.disabled = isBlocked || !socialState.clientId;
+            });
+            [socialGoalInput, socialBriefingInput].forEach((el) => {
+                if (el) el.disabled = isBlocked || !socialState.clientId;
+            });
         };
 
         const renderSocialApprovals = () => {
@@ -1029,6 +1050,10 @@
                 wrapper.appendChild(list);
                 wrapper.addEventListener('click', () => {
                     if (!cell.inMonth) return;
+                    if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                        setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                        return;
+                    }
                     createManualPost(dateKey);
                 });
                 socialCalendarGrid.appendChild(wrapper);
@@ -1056,6 +1081,9 @@
                 socialPostFeedback.classList.add('hidden');
                 socialPostFeedback.textContent = '';
             }
+            if (!editable) {
+                setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+            }
             socialPostDrawer.classList.remove('hidden');
             socialPostDrawer.classList.add('flex');
         };
@@ -1069,6 +1097,10 @@
 
         const applyPostForm = () => {
             if (!socialState.activePost) return null;
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                return null;
+            }
             const updated = {
                 ...socialState.activePost,
                 date: socialPostDate?.value || socialState.activePost.date,
@@ -1133,6 +1165,10 @@
                 setSocialFeedback('Selecione um cliente antes de criar posts.', 'error');
                 return;
             }
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                return;
+            }
             const tempId = `tmp-${Date.now()}`;
             const post = normalizePost({
                 tempId,
@@ -1151,6 +1187,10 @@
         const generateAiSuggestions = () => {
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
+                return;
+            }
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 return;
             }
             const goal = socialGoalInput?.value.trim() || '';
@@ -1233,6 +1273,10 @@
         };
 
         const shiftMonth = (delta) => {
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                return;
+            }
             const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
             base.setMonth(base.getMonth() + delta);
             socialState.calendarMonth = base.toISOString().slice(0, 7);
@@ -1295,6 +1339,10 @@
         const saveDraft = async () => {
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de salvar.', 'error');
+                return;
+            }
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 return;
             }
             const calendar = await ensureCalendarDraft();
