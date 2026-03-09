@@ -10,10 +10,10 @@
 
         init: async function() {
             if (this.initialized) return;
-            console.log('[SocialMediaCore V2] Inicializando...');
+            console.log('[SOCIAL] Inicializando...');
 
             if (!global.SocialMediaRepo || !global.SocialMediaUI || !global.ClientContext) {
-                console.error('[SocialMediaCore V2] Dependências ausentes.');
+                console.error('[SOCIAL] Dependências ausentes.');
                 return;
             }
 
@@ -94,7 +94,7 @@
             this.currentClientId = clientId;
             this.currentClientName = clientName || 'Cliente';
             
-            console.log(`[SocialMediaCore V2] Carregando dados para cliente: ${clientId} (${clientName})`);
+            console.log(`[SOCIAL] Carregando dados para cliente: ${clientId} (${clientName})`);
 
             global.SocialMediaUI.showLoading();
 
@@ -103,14 +103,14 @@
                 global.SocialMediaUI.renderFeed(posts, clientName);
                 global.SocialMediaUI.renderCalendar(posts); // Renderiza também o calendário
             } catch (err) {
-                console.error('[SocialMediaCore V2] Erro no fluxo de carga:', err);
+                console.error('[SOCIAL] Erro no fluxo de carga:', err);
                 const container = document.getElementById('v2-social-feed');
                 if (container) container.innerHTML = '<div class="text-red-500">Erro ao carregar posts.</div>';
             }
         },
 
         startEdit: function(post) {
-            console.log('[SocialMediaCore V2] Iniciando edição do post:', post.id);
+            console.log('[SOCIAL] Iniciando edição do post:', post.id);
             global.SocialMediaUI.renderCreateForm(post);
         },
 
@@ -142,11 +142,11 @@
 
             try {
                 if (mode === 'edit' && postId) {
-                    console.log('[SocialMediaCore V2] Atualizando post...', postId);
+                    console.log('[SOCIAL] Atualizando post...', postId);
                     await global.SocialMediaRepo.updatePost(postId, input);
                     global.SocialMediaUI.showFeedback('Post atualizado com sucesso!', 'success');
                 } else {
-                    console.log('[SocialMediaCore V2] Criando post...', input);
+                    console.log('[SOCIAL] Criando post...', input);
                     await global.SocialMediaRepo.createPost(input);
                     global.SocialMediaUI.showFeedback('Rascunho salvo com sucesso!', 'success');
                 }
@@ -164,7 +164,7 @@
                 global.SocialMediaUI.renderCalendar(posts); // Atualiza calendário
                 
             } catch (err) {
-                console.error('[SocialMediaCore V2] Erro ao salvar:', err);
+                console.error('[SOCIAL] Erro ao salvar:', err);
                 global.SocialMediaUI.showFeedback('Erro ao salvar. Verifique o console.', 'error');
             } finally {
                 global.SocialMediaUI.setFormLoading(false);
@@ -177,7 +177,7 @@
             global.SocialMediaUI.setFormLoading(true); // Bloqueia UI
             
             try {
-                console.log('[SocialMediaCore V2] Excluindo post...', postId);
+                console.log('[SOCIAL] Excluindo post...', postId);
                 const success = await global.SocialMediaRepo.deletePost(postId);
                 
                 if (success) {
@@ -192,7 +192,7 @@
                     global.SocialMediaUI.showFeedback('Erro ao excluir.', 'error');
                 }
             } catch (err) {
-                console.error('[SocialMediaCore V2] Erro ao excluir:', err);
+                console.error('[SOCIAL] Erro ao excluir:', err);
                 global.SocialMediaUI.showFeedback('Erro crítico ao excluir.', 'error');
             } finally {
                 global.SocialMediaUI.setFormLoading(false);
@@ -200,7 +200,7 @@
         },
 
         handlePostMove: async function(postId, newDate, revertFunc) {
-            console.log(`[SocialMediaCore V2] Movendo post ${postId} para ${newDate}`);
+            console.log(`[SOCIAL] Movendo post ${postId} para ${newDate}`);
             
             try {
                 // Formata data para YYYY-MM-DD (FullCalendar retorna Date object)
@@ -220,7 +220,7 @@
                     if (revertFunc) revertFunc();
                 }
             } catch (err) {
-                console.error('[SocialMediaCore V2] Erro ao mover post:', err);
+                console.error('[SOCIAL] Erro ao mover post:', err);
                 global.SocialMediaUI.showFeedback('Erro crítico ao reagendar.', 'error');
                 if (revertFunc) revertFunc();
             }

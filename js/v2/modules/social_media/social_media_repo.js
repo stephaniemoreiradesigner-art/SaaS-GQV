@@ -68,7 +68,7 @@
 
                 if (!error) return data;
 
-                console.warn('[SocialMediaRepo] Erro em social_posts, tentando posts...', error);
+                console.warn('[SOCIAL] Erro em social_posts, tentando posts...', error);
                 const fallbackPayload = {
                     cliente_id: clientId,
                     titulo: title,
@@ -102,7 +102,7 @@
                 if (minimalError) throw minimalError;
                 return minimalData;
             } catch (err) {
-                console.error('[SocialMediaRepo] Falha ao criar post:', err);
+                console.error('[SOCIAL] Falha ao criar post:', err);
                 throw err;
             }
         },
@@ -153,7 +153,7 @@
 
                 if (!error) return data;
 
-                console.warn('[SocialMediaRepo] Update em social_posts falhou, tentando posts...');
+                console.warn('[SOCIAL] Update em social_posts falhou, tentando posts...');
                 const { data: fbData, error: fbError } = await global.supabaseClient
                     .from('posts')
                     .update(fallbackPayload)
@@ -175,7 +175,7 @@
                 if (minimalError) throw minimalError;
                 return minimalData;
             } catch (err) {
-                console.error('[SocialMediaRepo] Falha ao atualizar post:', err);
+                console.error('[SOCIAL] Falha ao atualizar post:', err);
                 throw err;
             }
         },
@@ -231,7 +231,7 @@
                 if (!error) return true;
 
                 // Fallback 'posts'
-                console.warn('[SocialMediaRepo] updatePostDate falhou em social_posts, tentando posts...');
+                console.warn('[SOCIAL] updatePostDate falhou em social_posts, tentando posts...');
                 const { error: fbError } = await global.supabaseClient
                     .from('posts')
                     .update({ data_postagem: newDate })
@@ -240,7 +240,7 @@
                 if (fbError) throw fbError;
                 return true;
             } catch (err) {
-                console.error('[SocialMediaRepo] Falha ao mover post:', err);
+                console.error('[SOCIAL] Falha ao mover post:', err);
                 return false;
             }
         },
@@ -265,7 +265,7 @@
                 if (!error) return true;
 
                 // Fallback 'posts'
-                console.warn('[SocialMediaRepo] updatePostStatus falhou em social_posts, tentando posts...');
+                console.warn('[SOCIAL] updatePostStatus falhou em social_posts, tentando posts...');
                 const { error: fbError } = await global.supabaseClient
                     .from('posts')
                     .update({ status: normalizedStatus })
@@ -274,7 +274,7 @@
                 if (fbError) throw fbError;
                 return true;
             } catch (err) {
-                console.error('[SocialMediaRepo] Falha ao atualizar status:', err);
+                console.error('[SOCIAL] Falha ao atualizar status:', err);
                 return false;
             }
         },
@@ -298,7 +298,7 @@
                 if (!error) return true;
 
                 // Fallback 'posts'
-                console.warn('[SocialMediaRepo] updatePostFeedback falhou em social_posts, tentando posts...');
+                console.warn('[SOCIAL] updatePostFeedback falhou em social_posts, tentando posts...');
                 const { error: fbError } = await global.supabaseClient
                     .from('posts')
                     .update({ feedback_aprovacao: comment })
@@ -307,7 +307,7 @@
                 if (fbError) throw fbError;
                 return true;
             } catch (err) {
-                console.error('[SocialMediaRepo] Falha ao atualizar feedback:', err);
+                console.error('[SOCIAL] Falha ao atualizar feedback:', err);
                 return false;
             }
         },
@@ -335,7 +335,7 @@
                 if (!error) return data;
 
                 // Fallback 'posts'
-                console.warn('[SocialMediaRepo] getPostsByDateRange falhou em social_posts, tentando posts...');
+                console.warn('[SOCIAL] getPostsByDateRange falhou em social_posts, tentando posts...');
                 const { data: fbData, error: fbError } = await global.supabaseClient
                     .from('posts')
                     .select('*')
@@ -347,7 +347,7 @@
                 if (fbError) throw fbError;
                 return fbData || [];
             } catch (err) {
-                console.error('[SocialMediaRepo] Erro ao buscar range:', err);
+                console.error('[SOCIAL] Erro ao buscar range:', err);
                 return [];
             }
         },
@@ -371,7 +371,7 @@
                 if (!error) return data;
 
                 // Fallback para 'posts'
-                console.warn('[SocialMediaRepo] Tabela social_posts falhou, tentando posts...');
+                console.warn('[SOCIAL] Tabela social_posts falhou, tentando posts...');
                 const { data: data2, error: error2 } = await global.supabaseClient
                     .from('posts')
                     .select('*')
@@ -381,7 +381,7 @@
                 if (error2) throw error2;
                 return data2 || [];
             } catch (error) {
-                console.error('[SocialMediaRepo] Erro ao buscar posts:', error);
+                console.error('[SOCIAL] Erro ao buscar posts:', error);
                 return [];
             }
         }
