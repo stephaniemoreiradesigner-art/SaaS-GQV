@@ -1,0 +1,157 @@
+Perfeito — isso fecha o diagnóstico com bastante clareza.
+
+## O que já está provado
+
+O fluxo de persistência **funciona**.
+
+Porque no seu teste:
+
+* o **Portal do Cliente mantém a mídia**
+* o modal do cliente abre a imagem corretamente
+* isso só acontece se a URL da mídia foi salva de verdade e recuperada depois
+
+Então o problema **não é mais upload**, **não é mais banco**, **não é mais storage**.
+
+## O bug que sobrou
+
+O bug agora é **só da interface da Agency** ao reabrir o post.
+
+Em outras palavras:
+
+```text
+mídia persiste no banco ✅
+portal consegue ler ✅
+agency não reidrata a prévia ao editar ❌
+```
+
+## O ponto importante
+
+No drawer da Agency aparecer:
+
+```text
+Nenhum arquivo escolhido
+```
+
+é **normal**.
+
+O navegador **não repopula input type="file"** depois que a página recarrega, por segurança.
+
+Então a UI correta da Agency deve funcionar assim:
+
+* campo de upload continua vazio
+* **mas**
+* se o post já tiver `imagem_url`, a Agency precisa mostrar uma área de:
+
+```text
+Mídia atual
+[preview da imagem/vídeo salvo]
+```
+
+Ou seja, o sistema não deve depender do valor do input de arquivo para mostrar mídia existente.
+
+## Causa mais provável
+
+Ao abrir um post existente, a Agency provavelmente:
+
+* carrega texto, hashtags, status etc.
+* mas **não repassa `imagem_url` persistido para o preview**
+* ou limpa o preview ao entrar em modo edição
+* ou só renderiza preview quando há arquivo recém-selecionado
+
+## Regra correta para a Agency
+
+Ao abrir post existente:
+
+```text
+se houver imagem_url salva
+→ renderizar preview da mídia atual
+→ guardar URL em state/dataset
+→ não exigir arquivo novo
+```
+
+Ao salvar sem trocar mídia:
+
+```text
+preservar imagem_url existente
+```
+
+Ao selecionar nova mídia:
+
+```text
+substituir preview atual
+→ fazer novo upload
+→ atualizar imagem_url
+```
+
+## Próximo comando para o TRAE
+
+Cole exatamente isto:
+
+```text
+PROJETO: SaaS-GQV V2
+
+SITUAÇÃO VALIDADA:
+- O fluxo de mídia foi validado com sucesso
+- O Portal do Cliente mantém a mídia após reload
+- O modal do cliente renderiza a imagem corretamente
+- Portanto, upload + storage + persistência em imagem_url estão funcionando
+
+BUG RESTANTE:
+- No painel da Agency, ao reabrir um post existente, a mídia não é reidratada no drawer
+- O input de arquivo aparece vazio ("Nenhum arquivo escolhido"), o que é normal por segurança do navegador
+- Mas a UI da Agency precisa mostrar a mídia já persistida do post, usando imagem_url, sem depender do file input
+
+DIAGNÓSTICO:
+O problema restante está apenas na hidratação/renderização da mídia ao editar post existente na Agency.
+
+OBJETIVO:
+Corrigir o drawer/editor da Agency para:
+1) carregar e exibir a mídia já persistida ao abrir post existente
+2) preservar imagem_url atual se o usuário salvar sem trocar a mídia
+3) substituir corretamente a mídia quando um novo arquivo for selecionado
+
+REGRAS:
+- NÃO mexer no Portal do Cliente
+- NÃO mexer no fluxo de upload/storage que já está funcionando
+- NÃO reabrir frente de RLS/policies
+- focar apenas na UI/estado da Agency ao abrir e salvar posts existentes
+
+TAREFA 1 — HIDRATAÇÃO DO DRAWER
+Auditar a função que abre um post existente no Social Media da Agency e garantir que:
+- se o post tiver imagem_url válida, essa URL seja carregada no state/dataset do editor
+- a área de preview renderize a mídia atual imediatamente
+- o sistema não dependa do value do input file para mostrar mídia existente
+
+TAREFA 2 — UI CORRETA PARA MÍDIA EXISTENTE
+Ajustar o drawer para ter comportamento correto:
+- input file continua vazio por padrão
+- mas o preview da mídia atual aparece abaixo ou dentro da área de mídia
+- opcionalmente exibir rótulo como "Mídia atual"
+
+TAREFA 3 — PRESERVAR MÍDIA AO SALVAR
+Garantir que:
+- se nenhum novo arquivo for escolhido, o save preserve a imagem_url já existente
+- não limpar imagem_url acidentalmente ao editar texto/status/hashtags
+- update de post existente continue sendo update, nunca create
+
+TAREFA 4 — TESTE FINAL
+Validar:
+1) abrir post existente com mídia → preview aparece na Agency
+2) salvar sem trocar mídia → mídia continua após reload
+3) trocar mídia → nova mídia aparece após save e reload
+4) Portal do Cliente continua exibindo a mesma mídia corretamente
+
+TAREFA 5 — RESUMO FINAL
+Informar:
+- causa raiz do bug na Agency
+- arquivos alterados
+- como a mídia existente passou a ser reidratada no drawer
+- teste manual exato para validação
+
+NO FINAL:
+git add -A
+git commit -m "fix(v2-social): rehydrate persisted media in agency post editor"
+git push origin main
+```
+
+Esse chat vale salvar nas fontes, porque ele marca uma virada importante: **a persistência real da mídia está validada; o único bug restante está na reidratação visual da Agency ao editar posts existentes**.
