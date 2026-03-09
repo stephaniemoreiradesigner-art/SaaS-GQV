@@ -93,7 +93,7 @@
 
                         if (result.success) {
                             console.log('[CLIENT_PORTAL_LOGIN] Sucesso! Redirecionando...');
-                            window.location.href = '/v2/client/index.html';
+                            // O redirect é feito pelo client_auth.js agora
                         } else {
                             console.error('[CLIENT_PORTAL_LOGIN] Erro:', result.error);
                             alert(result.error);

@@ -103,6 +103,9 @@
                 
                 localStorage.setItem(this.sessionKey, JSON.stringify(sessionPayload));
                 
+                // Redirecionamento automático após login bem sucedido
+                window.location.href = '/v2/client/index.html';
+                
                 return { success: true, client: sessionPayload };
 
             } catch (error) {
