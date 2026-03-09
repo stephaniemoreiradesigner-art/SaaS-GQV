@@ -176,7 +176,8 @@
                             'awaiting_approval': 'Aguardando Aprovação',
                             'approved': 'Aprovado',
                             'published': 'Publicado',
-                            'archived': 'Arquivado'
+                            'archived': 'Arquivado',
+                            'changes_requested': 'Ajustes Solicitados'
                         };
                         const status = calendar.status || 'draft';
                         statusEl.textContent = statusMap[status] || status;
@@ -185,6 +186,14 @@
                         if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
                         if (status === 'awaiting_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
                         if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
+                        if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
+                    }
+                    
+                    // Exibir feedback do cliente se houver ajustes solicitados
+                    if (calendar.status === 'changes_requested' && calendar.comentario_cliente) {
+                        if (global.SocialMediaUI.showFeedback) {
+                            global.SocialMediaUI.showFeedback(`Cliente solicitou ajustes: "${calendar.comentario_cliente}"`, 'error');
+                        }
                     }
                 } else {
                     console.error('[SOCIAL] Falha ao carregar calendário.');
