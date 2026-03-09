@@ -46,6 +46,15 @@
                     }
                 }
             );
+
+            // [LISTENER] Redirecionamento automático baseado em eventos
+            global.clientPortalSupabase.auth.onAuthStateChange((event, session) => {
+                console.log('[ClientAuth] Auth Event:', event);
+                if (event === 'SIGNED_IN' && window.location.pathname.includes('/login.html')) {
+                     console.log('[ClientAuth] SIGNED_IN detectado no login. Redirecionando...');
+                     window.location.href = '/v2/client/index.html';
+                }
+            });
         },
 
         /**
