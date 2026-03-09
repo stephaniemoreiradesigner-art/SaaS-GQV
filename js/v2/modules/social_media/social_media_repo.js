@@ -24,7 +24,16 @@
                 const title = input.titulo || input.title || input.legenda || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
                 const status = input.status === 'rascunho' ? 'draft' : input.status || 'draft';
-                const monthRef = postDate ? `${postDate.slice(0, 7)}-01` : new Date().toISOString().slice(0, 10);
+                
+                // Correção do mês de referência para sempre ser YYYY-MM-01
+                let monthRef;
+                if (postDate && postDate.length >= 7) {
+                    monthRef = `${postDate.slice(0, 7)}-01`;
+                } else {
+                    monthRef = new Date().toISOString().slice(0, 7) + '-01';
+                }
+
+                // Busca calendário existente com tratamento de erro
                 const { data: calendarData, error: calendarError } = await global.supabaseClient
                     .from('social_calendars')
                     .select('id')
@@ -33,7 +42,10 @@
                     .maybeSingle();
 
                 let calendarId = calendarData?.id || null;
-                if (calendarError || !calendarId) {
+
+                // Se não encontrou ou deu erro, tenta criar
+                if (!calendarId) {
+                    console.log('[SOCIAL] Calendário não encontrado, criando novo para:', monthRef);
                     const { data: createdCalendar, error: createError } = await global.supabaseClient
                         .from('social_calendars')
                         .insert({
@@ -44,8 +56,26 @@
                         })
                         .select()
                         .single();
-                    if (createError) throw createError;
-                    calendarId = createdCalendar?.id || null;
+                    
+                    if (createError) {
+                        // Se erro for duplicidade (pode ter sido criado concorrentemente), tenta buscar de novo
+                        console.warn('[SOCIAL] Erro ao criar calendário (possível concorrência), tentando recuperar...', createError);
+                        const { data: retryData } = await global.supabaseClient
+                            .from('social_calendars')
+                            .select('id')
+                            .eq('cliente_id', clientId)
+                            .eq('mes_referencia', monthRef)
+                            .maybeSingle();
+                        
+                        if (retryData?.id) {
+                            calendarId = retryData.id;
+                        } else {
+                            console.error('[SOCIAL] Falha definitiva ao obter calendário base:', createError);
+                            throw createError; 
+                        }
+                    } else {
+                        calendarId = createdCalendar?.id;
+                    }
                 }
 
                 const dbPayload = {
