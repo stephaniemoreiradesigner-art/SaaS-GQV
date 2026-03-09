@@ -16,6 +16,57 @@
             const closeBtn = document.getElementById('social-post-close');
             const cancelBtn = document.getElementById('social-post-cancel');
             const drawer = document.getElementById(this.drawerId);
+            
+            // Upload Input Listener
+            const uploadInput = document.getElementById('social-post-media-upload');
+            if (uploadInput) {
+                uploadInput.addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        // Show loading state on preview
+                        const container = document.getElementById('social-post-media-preview');
+                        container.classList.remove('hidden');
+                        container.innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-slate-400 text-2xl"></i></div>';
+
+                        // Upload real
+                        const clientId = global.SocialMediaCore ? global.SocialMediaCore.currentClientId : null;
+                        let url = null;
+                        
+                        if (global.SocialMediaUpload && clientId) {
+                            url = await global.SocialMediaUpload.uploadFile(file, clientId);
+                        } else {
+                            // Fallback local se upload falhar ou não tiver módulo
+                            console.warn('[UI] Usando preview local (sem persistência real)');
+                            url = URL.createObjectURL(file);
+                        }
+
+                        if (url) {
+                            // Restore preview structure
+                            container.innerHTML = `
+                                <img id="social-post-media-image" src="" class="w-full h-full object-cover hidden">
+                                <video id="social-post-media-video" src="" class="w-full h-full object-cover hidden" controls></video>
+                                <button type="button" class="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition" onclick="document.getElementById('social-post-media-preview').classList.add('hidden'); document.getElementById('social-post-media-image').src=''; document.getElementById('social-post-media-video').src='';">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            `;
+                            
+                            const img = document.getElementById('social-post-media-image');
+                            const video = document.getElementById('social-post-media-video');
+                            
+                            if (file.type.startsWith('video/')) {
+                                video.src = url;
+                                video.classList.remove('hidden');
+                            } else {
+                                img.src = url;
+                                img.classList.remove('hidden');
+                            }
+                            
+                            // Store URL in a hidden way or just rely on src
+                            container.dataset.mediaUrl = url;
+                        }
+                    }
+                });
+            }
 
             const closeHandler = () => {
                 drawer.classList.add('hidden');
@@ -102,7 +153,10 @@
             const mediaContainer = document.getElementById('social-post-media-preview');
             
             if (post?.imagem_url) {
-                if (mediaContainer) mediaContainer.classList.remove('hidden');
+                if (mediaContainer) {
+                    mediaContainer.classList.remove('hidden');
+                    mediaContainer.dataset.mediaUrl = post.imagem_url; // Store persistent URL
+                }
                 // Detectar se é vídeo (extensão básica)
                 if (post.imagem_url.match(/\.(mp4|webm)$/i)) {
                     if (videoPreview) {
@@ -118,7 +172,10 @@
                     }
                 }
             } else {
-                if (mediaContainer) mediaContainer.classList.add('hidden');
+                if (mediaContainer) {
+                    mediaContainer.classList.add('hidden');
+                    mediaContainer.dataset.mediaUrl = '';
+                }
             }
 
             // Exibir drawer
@@ -136,8 +193,12 @@
             let mediaUrl = null;
             const imgPreview = document.getElementById('social-post-media-image');
             const videoPreview = document.getElementById('social-post-media-video');
+            const container = document.getElementById('social-post-media-preview');
             
-            if (imgPreview && !imgPreview.classList.contains('hidden') && imgPreview.src) {
+            // Preferência pela URL persistida no dataset (se houver)
+            if (container && container.dataset.mediaUrl) {
+                mediaUrl = container.dataset.mediaUrl;
+            } else if (imgPreview && !imgPreview.classList.contains('hidden') && imgPreview.src) {
                 mediaUrl = imgPreview.src;
             } else if (videoPreview && !videoPreview.classList.contains('hidden') && videoPreview.src) {
                 mediaUrl = videoPreview.src;
