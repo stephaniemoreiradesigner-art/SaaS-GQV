@@ -178,6 +178,12 @@ function setupAuthListener(client) {
     });
 
     client.auth.onAuthStateChange((event, session) => {
+        // [AUTH-ISOLATION] Ignorar auth handler da Agência no Portal do Cliente
+        if (window.location.pathname.startsWith('/v2/client')) {
+            console.log('[AUTH] Ignorando auth handler da Agency no Portal do Cliente');
+            return;
+        }
+
         console.log('[AUTH] Mudança de estado:', event);
         window.authSession = session;
         window.authReady = true;
