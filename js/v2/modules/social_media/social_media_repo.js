@@ -5,6 +5,83 @@
 (function(global) {
     const SocialMediaRepo = {
         /**
+         * Busca ou cria o calendário para um mês específico
+         * @param {string} clientId 
+         * @param {string} monthRef - Formato YYYY-MM-01
+         * @returns {Promise<Object>} Dados do calendário (id, status)
+         */
+        getCalendarByMonth: async function(clientId, monthRef) {
+            if (!global.supabaseClient || !clientId || !monthRef) return null;
+
+            try {
+                // Tenta buscar existente
+                const { data: calendarData, error: calendarError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .eq('mes_referencia', monthRef)
+                    .maybeSingle();
+
+                if (calendarData) return calendarData;
+
+                // Se não existir, cria
+                console.log('[SOCIAL] Criando calendário para:', monthRef);
+                const { data: createdCalendar, error: createError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .insert({
+                        cliente_id: clientId,
+                        mes_referencia: monthRef,
+                        status: 'rascunho',
+                        updated_at: new Date().toISOString()
+                    })
+                    .select()
+                    .single();
+                
+                if (createError) {
+                     // Tratamento de concorrência (pode ter sido criado nesse milissegundo)
+                     if (createError.code === '23505') { // Unique violation
+                        const { data: retryData } = await global.supabaseClient
+                            .from('social_calendars')
+                            .select('*')
+                            .eq('cliente_id', clientId)
+                            .eq('mes_referencia', monthRef)
+                            .maybeSingle();
+                        return retryData;
+                     }
+                     throw createError;
+                }
+
+                return createdCalendar;
+            } catch (err) {
+                console.error('[SOCIAL] Erro em getCalendarByMonth:', err);
+                return null;
+            }
+        },
+
+        /**
+         * Busca posts de um calendário específico
+         * @param {string} calendarId 
+         * @returns {Promise<Array>} Lista de posts
+         */
+        getPostsByCalendar: async function(calendarId) {
+            if (!global.supabaseClient || !calendarId) return [];
+
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('*')
+                    .eq('calendar_id', calendarId)
+                    .order('data_agendada', { ascending: true });
+
+                if (error) throw error;
+                return data || [];
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao buscar posts do calendário:', err);
+                return [];
+            }
+        },
+
+        /**
          * Cria um novo post manual
          * @param {Object} input - Dados do post
          * @returns {Promise<Object>} Resultado da operação

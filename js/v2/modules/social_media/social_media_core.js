@@ -6,54 +6,53 @@
     const SocialMediaCore = {
         initialized: false,
         currentClientId: null,
-        currentClientName: null, // Armazenar nome para reuso
+        currentClientName: null,
+        currentCalendarId: null,
+        currentMonthRef: new Date(),
 
         init: async function() {
             if (this.initialized) return;
-            console.log('[SOCIAL] Inicializando...');
+            console.log('[SOCIAL] Inicializando Core...');
 
-            if (!global.SocialMediaRepo || !global.SocialMediaUI || !global.ClientContext) {
-                console.error('[SOCIAL] Dependências ausentes.');
-                return;
-            }
+            // Dependências
+            if (!global.SocialMediaRepo) console.warn('[SOCIAL] Repo não carregado!');
+            if (!global.SocialMediaCalendar) console.warn('[SOCIAL] Calendar não carregado!');
+            if (!global.SocialMediaUI) console.warn('[SOCIAL] UI não carregado!');
 
             // Inscrever-se no Contexto
-            global.ClientContext.subscribe(this.onClientChange.bind(this));
+            if (global.ClientContext) {
+                global.ClientContext.subscribe(this.onClientChange.bind(this));
+            }
 
             // Ouvir evento global também (segurança)
-            global.addEventListener('gqv:client-changed', (e) => {
+            window.addEventListener('gqv:client-changed', (e) => {
                 if (e.detail && e.detail.clientId) {
                     this.onClientChange(e.detail.clientId, e.detail.clientName);
                 }
             });
 
-            // Delegate de eventos do formulário (para não precisar re-bindar sempre)
-            document.addEventListener('submit', (e) => {
-                if (e.target && e.target.id === 'v2-create-post-form') {
+            // Delegate para botão salvar no drawer
+            const saveBtn = document.getElementById('social-post-save');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    this.handleCreateOrUpdatePost(e.target);
-                }
-            });
+                    this.handleSavePost();
+                });
+            }
 
-            // Delegate para botão cancelar
-            document.addEventListener('click', (e) => {
-                if (e.target && e.target.id === 'v2-btn-cancel') {
-                    this.cancelEdit();
-                }
-            });
-
-            // Delegate para botão deletar
-            document.addEventListener('click', (e) => {
-                if (e.target && e.target.closest('#v2-btn-delete')) {
-                    const form = document.getElementById('v2-create-post-form');
-                    const postId = form ? form.dataset.postId : null;
+            // Delegate para botão excluir no drawer
+            const deleteBtn = document.getElementById('social-post-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', (e) => {
+                    const drawer = document.getElementById('social-post-drawer');
+                    const postId = drawer ? drawer.dataset.postId : null;
                     if (postId) {
                         this.handleDeletePost(postId);
                     }
-                }
-            });
+                });
+            }
 
-            // Ouvir clique no card para edição
+            // Ouvir clique no card para edição (disparado pelo Calendar ou Feed)
             document.addEventListener('v2:post-click', (e) => {
                 if (e.detail && e.detail.post) {
                     this.startEdit(e.detail.post);
@@ -63,18 +62,40 @@
             // Ouvir drag and drop do calendário
             document.addEventListener('v2:post-drop', (e) => {
                 if (e.detail && e.detail.postId && e.detail.newDate) {
-                    this.handlePostMove(e.detail.postId, e.detail.newDate, e.detail.revert);
+                    this.handlePostMove(e.detail.postId, e.detail.newDate);
                 }
             });
+            
+            // Ouvir adição rápida de post no dia
+            document.addEventListener('v2:calendar-add', (e) => {
+                if (e.detail && e.detail.date) {
+                    this.startCreate(e.detail.date);
+                }
+            });
+            
+            // Ouvir botão Novo Post
+            const newPostBtn = document.getElementById('social-new-post');
+            if (newPostBtn) {
+                newPostBtn.addEventListener('click', () => {
+                    this.startCreate(new Date().toISOString().slice(0, 10));
+                });
+            }
+
+            // Navegação de mês
+            const prevBtn = document.getElementById('social-month-prev');
+            const nextBtn = document.getElementById('social-month-next');
+            if (prevBtn) prevBtn.addEventListener('click', () => this.changeMonth(-1));
+            if (nextBtn) nextBtn.addEventListener('click', () => this.changeMonth(1));
 
             // Estado inicial
-            const activeId = global.ClientContext.getActiveClient();
-            if (activeId) {
-                // Tenta pegar nome do storage se não vier no init
-                const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME');
-                this.onClientChange(activeId, name);
-            } else {
-                global.SocialMediaUI.showEmptyState();
+            if (global.ClientContext) {
+                const activeId = global.ClientContext.getActiveClient();
+                if (activeId) {
+                    const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME');
+                    this.onClientChange(activeId, name);
+                } else {
+                    this.showEmptyState();
+                }
             }
 
             this.initialized = true;
@@ -84,160 +105,201 @@
             if (!clientId) {
                 this.currentClientId = null;
                 this.currentClientName = null;
-                global.SocialMediaUI.showEmptyState();
+                this.showEmptyState();
                 return;
             }
 
-            // Evitar reloads desnecessários se for o mesmo ID
-            if (clientId === this.currentClientId) return;
-            
-            this.currentClientId = clientId;
-            this.currentClientName = clientName || 'Cliente';
-            
-            console.log(`[SOCIAL] Carregando dados para cliente: ${clientId} (${clientName})`);
+            // Se mudou o cliente, reseta o estado
+            if (clientId !== this.currentClientId) {
+                this.currentClientId = clientId;
+                this.currentClientName = clientName || 'Cliente';
+                console.log(`[SOCIAL] Cliente alterado: ${clientId}`);
+                
+                // Atualiza UI básica
+                const nameEl = document.getElementById('social-client-name');
+                if (nameEl) nameEl.textContent = this.currentClientName;
+                
+                if (global.SocialMediaUI && global.SocialMediaUI.showContent) {
+                    global.SocialMediaUI.showContent();
+                }
+                
+                // Carrega calendário do mês atual
+                await this.loadCalendarForMonth(new Date());
+            }
+        },
 
-            global.SocialMediaUI.showLoading();
+        changeMonth: async function(delta) {
+            if (!this.currentMonthRef) this.currentMonthRef = new Date();
+            
+            const newDate = new Date(this.currentMonthRef);
+            newDate.setMonth(newDate.getMonth() + delta);
+            
+            await this.loadCalendarForMonth(newDate);
+        },
+
+        loadCalendarForMonth: async function(dateRef) {
+            if (!this.currentClientId) return;
+
+            this.currentMonthRef = dateRef;
+            const monthStr = dateRef.toISOString().slice(0, 7) + '-01'; // YYYY-MM-01
+
+            if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
+                global.SocialMediaUI.showLoading();
+            }
 
             try {
-                const posts = await global.SocialMediaRepo.getPostsByClient(clientId);
-                global.SocialMediaUI.renderFeed(posts, clientName);
-                global.SocialMediaUI.renderCalendar(posts); // Renderiza também o calendário
+                // 1. Busca/Cria Calendário
+                const calendar = await global.SocialMediaRepo.getCalendarByMonth(this.currentClientId, monthStr);
+                
+                if (calendar) {
+                    this.currentCalendarId = calendar.id;
+                    
+                    // 2. Busca Posts
+                    const posts = await global.SocialMediaRepo.getPostsByCalendar(calendar.id);
+                    
+                    // 3. Renderiza
+                    if (global.SocialMediaCalendar) {
+                        global.SocialMediaCalendar.render(posts, dateRef);
+                    }
+                    
+                    // Atualiza status na UI
+                    const statusEl = document.getElementById('social-calendar-status');
+                    if (statusEl) {
+                        statusEl.textContent = calendar.status || 'Rascunho';
+                        statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full'; // Reset classes
+                        if (calendar.status === 'aprovado') statusEl.classList.add('bg-green-100', 'text-green-700');
+                    }
+                } else {
+                    console.error('[SOCIAL] Falha ao carregar calendário.');
+                }
             } catch (err) {
-                console.error('[SOCIAL] Erro no fluxo de carga:', err);
-                const container = document.getElementById('v2-social-feed');
-                if (container) container.innerHTML = '<div class="text-red-500">Erro ao carregar posts.</div>';
+                console.error('[SOCIAL] Erro no fluxo de carregamento:', err);
+            } finally {
+                if (global.SocialMediaUI && global.SocialMediaUI.hideLoading) {
+                    global.SocialMediaUI.hideLoading();
+                }
+            }
+        },
+
+        handlePostMove: async function(postId, newDate) {
+            console.log(`[SOCIAL] Movendo post ${postId} para ${newDate}`);
+            
+            const success = await global.SocialMediaRepo.updatePostDate(postId, newDate);
+            
+            if (success) {
+                await this.loadCalendarForMonth(this.currentMonthRef);
+            } else {
+                alert('Erro ao mover o post. Tente novamente.');
+                await this.loadCalendarForMonth(this.currentMonthRef);
+            }
+        },
+
+        showEmptyState: function() {
+            if (global.SocialMediaUI && global.SocialMediaUI.showEmptyState) {
+                global.SocialMediaUI.showEmptyState();
+            }
+        },
+
+        startCreate: function(date) {
+            console.log('[SOCIAL] Iniciando criação para data:', date);
+            if (global.SocialMediaUI) {
+                global.SocialMediaUI.renderCreateForm({ data_agendada: date, status: 'rascunho' });
             }
         },
 
         startEdit: function(post) {
             console.log('[SOCIAL] Iniciando edição do post:', post.id);
-            global.SocialMediaUI.renderCreateForm(post);
+            if (global.SocialMediaUI) {
+                global.SocialMediaUI.renderCreateForm(post);
+            }
         },
 
-        cancelEdit: function() {
-            global.SocialMediaUI.renderCreateForm(null); // Volta para modo create
-        },
-
-        handleCreateOrUpdatePost: async function(form) {
+        handleSavePost: async function() {
             if (!this.currentClientId) {
-                global.SocialMediaUI.showFeedback('Selecione um cliente primeiro.', 'error');
+                alert('Selecione um cliente primeiro.');
                 return;
             }
 
-            const mode = form.dataset.mode; // 'create' ou 'edit'
-            const postId = form.dataset.postId;
-            const formData = new FormData(form);
+            const drawer = document.getElementById('social-post-drawer');
+            const mode = drawer.dataset.mode;
+            const postId = drawer.dataset.postId;
+            
+            // Get data from UI
+            const formData = global.SocialMediaUI.getFormData();
             
             const input = {
                 cliente_id: this.currentClientId,
-                titulo: formData.get('titulo'),
-                legenda: formData.get('legenda'),
-                plataforma: formData.get('plataforma'),
-                data_postagem: formData.get('data_postagem') || null,
-                status: formData.get('status') || 'rascunho',
-                feedback: formData.get('feedback') || ''
+                ...formData
             };
 
-            global.SocialMediaUI.setFormLoading(true);
+            const saveBtn = document.getElementById('social-post-save');
+            const originalText = saveBtn ? saveBtn.innerHTML : 'Salvar';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+            }
 
             try {
                 if (mode === 'edit' && postId) {
                     console.log('[SOCIAL] Atualizando post...', postId);
                     await global.SocialMediaRepo.updatePost(postId, input);
-                    global.SocialMediaUI.showFeedback('Post atualizado com sucesso!', 'success');
+                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado!', 'success');
                 } else {
                     console.log('[SOCIAL] Criando post...', input);
                     await global.SocialMediaRepo.createPost(input);
-                    global.SocialMediaUI.showFeedback('Rascunho salvo com sucesso!', 'success');
+                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Criado!', 'success');
                 }
                 
-                global.SocialMediaUI.clearForm();
-                
-                // Se estava editando, volta para modo criar
-                if (mode === 'edit') {
-                    setTimeout(() => this.cancelEdit(), 1000);
+                // Fecha drawer
+                if (global.SocialMediaUI.closeDrawer) {
+                    global.SocialMediaUI.closeDrawer();
                 }
 
-                // Recarregar lista
-                const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
-                global.SocialMediaUI.renderFeed(posts, this.currentClientName);
-                global.SocialMediaUI.renderCalendar(posts); // Atualiza calendário
+                // Recarregar calendário
+                await this.loadCalendarForMonth(this.currentMonthRef);
                 
             } catch (err) {
                 console.error('[SOCIAL] Erro ao salvar:', err);
-                global.SocialMediaUI.showFeedback('Erro ao salvar. Verifique o console.', 'error');
+                if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Erro ao salvar.', 'error');
             } finally {
-                global.SocialMediaUI.setFormLoading(false);
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalText;
+                }
             }
         },
 
         handleDeletePost: async function(postId) {
             if (!confirm('Tem certeza que deseja excluir este post?')) return;
 
-            global.SocialMediaUI.setFormLoading(true); // Bloqueia UI
-            
             try {
                 console.log('[SOCIAL] Excluindo post...', postId);
                 const success = await global.SocialMediaRepo.deletePost(postId);
                 
                 if (success) {
-                    global.SocialMediaUI.showFeedback('Post excluído.', 'success');
-                    this.cancelEdit(); // Limpa form
-                    
-                    // Recarregar lista
-                    const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
-                    global.SocialMediaUI.renderFeed(posts, this.currentClientName);
-                    global.SocialMediaUI.renderCalendar(posts); // Atualiza calendário
+                    if (global.SocialMediaUI.closeDrawer) {
+                        global.SocialMediaUI.closeDrawer();
+                    }
+                    // Recarregar calendário
+                    await this.loadCalendarForMonth(this.currentMonthRef);
+                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Excluído!', 'success');
                 } else {
-                    global.SocialMediaUI.showFeedback('Erro ao excluir.', 'error');
+                    alert('Erro ao excluir post.');
                 }
             } catch (err) {
                 console.error('[SOCIAL] Erro ao excluir:', err);
-                global.SocialMediaUI.showFeedback('Erro crítico ao excluir.', 'error');
-            } finally {
-                global.SocialMediaUI.setFormLoading(false);
-            }
-        },
-
-        handlePostMove: async function(postId, newDate, revertFunc) {
-            console.log(`[SOCIAL] Movendo post ${postId} para ${newDate}`);
-            
-            try {
-                // Formata data para YYYY-MM-DD (FullCalendar retorna Date object)
-                const dateStr = newDate.toISOString().split('T')[0];
-                
-                const success = await global.SocialMediaRepo.updatePostDate(postId, dateStr);
-                
-                if (success) {
-                    global.SocialMediaUI.showFeedback('Post reagendado com sucesso!', 'success');
-                    // Recarregar lista para sincronizar
-                    const posts = await global.SocialMediaRepo.getPostsByClient(this.currentClientId);
-                    global.SocialMediaUI.renderFeed(posts, this.currentClientName);
-                    // Não precisa renderizar calendário inteiro, pois o drop visual já aconteceu
-                    // Mas renderizar garante consistência total
-                } else {
-                    global.SocialMediaUI.showFeedback('Erro ao reagendar post.', 'error');
-                    if (revertFunc) revertFunc();
-                }
-            } catch (err) {
-                console.error('[SOCIAL] Erro ao mover post:', err);
-                global.SocialMediaUI.showFeedback('Erro crítico ao reagendar.', 'error');
-                if (revertFunc) revertFunc();
+                alert('Erro crítico ao excluir.');
             }
         }
     };
 
-    global.addEventListener('v2:ready', () => {
-        SocialMediaCore.init();
-    });
-
-    // Fallback init
-    setTimeout(() => {
-        if (!SocialMediaCore.initialized && global.ClientContext) {
-            SocialMediaCore.init();
-        }
-    }, 1500);
-
     global.SocialMediaCore = SocialMediaCore;
+
+    // Inicialização automática se já estiver carregado
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        setTimeout(() => SocialMediaCore.init(), 100);
+    } else {
+        document.addEventListener('DOMContentLoaded', () => SocialMediaCore.init());
+    }
 
 })(window);
