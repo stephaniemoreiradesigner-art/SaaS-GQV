@@ -31,13 +31,13 @@
     const getSessionOrRedirect = async () => {
         const supabase = await window.clientSession?.getSupabaseClient?.();
         if (!supabase) {
-            window.location.href = 'client_login.html';
+            window.location.href = 'login.html';
             return null;
         }
         const sessionResult = await supabase.auth.getSession();
         const session = sessionResult?.data?.session || null;
         if (!session?.access_token) {
-            window.location.href = 'client_login.html';
+            window.location.href = 'login.html';
             return null;
         }
         return session;

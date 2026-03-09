@@ -205,7 +205,7 @@
         const session = sessionResult?.data?.session;
         const user = session?.user;
         if (!user) {
-            window.location.href = 'client_login.html';
+            window.location.href = 'login.html';
             return null;
         }
         if (window.clientSession?.ensureClientSession) {

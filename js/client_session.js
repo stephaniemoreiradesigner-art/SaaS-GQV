@@ -93,7 +93,7 @@
     const clientLogout = async () => {
         const supabase = await getSupabaseClient();
         if (supabase) await supabase.auth.signOut();
-        window.location.href = 'client_login.html';
+        window.location.href = 'login.html';
     };
 
     window.clientSession = {
