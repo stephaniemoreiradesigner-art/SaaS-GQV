@@ -36,15 +36,31 @@
             // Tentativa primária na tabela que vimos no legado (generateCalendar usa social_posts)
 
             try {
-                // Adaptação de campos para social_posts (baseado no legado)
+                const slides = Array.isArray(input.slides) ? input.slides : [];
                 const dbPayload = {
                     cliente_id: payload.cliente_id,
-                    tema: payload.titulo, // legado usa 'tema'
+                    tema: payload.titulo,
                     legenda: payload.legenda,
-                    data_agendada: payload.data_postagem, // legado usa 'data_agendada'
+                    data_agendada: payload.data_postagem,
                     status: payload.status,
-                    plataformas: [payload.plataforma], // legado usa array jsonb
-                    formato: input.formato || 'estatico'
+                    plataformas: [payload.plataforma],
+                    formato: input.formato || input.tipo_conteudo || 'post_estatico',
+                    tipo_conteudo: input.tipo_conteudo || input.formato || null,
+                    cta: input.cta || null,
+                    hashtags: input.hashtags || null,
+                    slide_1: slides[0] || null,
+                    slide_2: slides[1] || null,
+                    slide_3: slides[2] || null,
+                    slide_4: slides[3] || null,
+                    slide_5: slides[4] || null,
+                    hook: input.hook || null,
+                    roteiro: input.roteiro || null,
+                    media_url: input.media_url || null,
+                    media_path: input.media_path || null,
+                    media_type: input.media_type || null,
+                    media_name: input.media_name || null,
+                    media_size: input.media_size || null,
+                    media_bucket: input.media_bucket || null
                 };
 
                 const { data, error } = await global.supabaseClient
@@ -53,27 +69,54 @@
                     .select()
                     .single();
 
-                if (error) {
-                    // Se falhar, tenta tabela 'posts' (fallback genérico)
-                    console.warn(`[SocialMediaRepo] Erro em ${tableName}, tentando 'posts'...`, error);
-                    const fallbackPayload = {
-                        cliente_id: payload.cliente_id,
-                        titulo: payload.titulo,
-                        conteudo: payload.legenda,
-                        status: payload.status,
-                        data_postagem: payload.data_postagem
-                    };
-                    const { data: fbData, error: fbError } = await global.supabaseClient
-                        .from('posts')
-                        .insert([fallbackPayload])
-                        .select()
-                        .single();
-                    
-                    if (fbError) throw fbError;
-                    return fbData;
-                }
+                if (!error) return data;
 
-                return data;
+                console.warn(`[SocialMediaRepo] Erro em ${tableName}, tentando 'posts'...`, error);
+                const fallbackPayload = {
+                    cliente_id: payload.cliente_id,
+                    titulo: payload.titulo,
+                    conteudo: payload.legenda,
+                    status: payload.status,
+                    data_postagem: payload.data_postagem,
+                    tipo_conteudo: input.tipo_conteudo || input.formato || null,
+                    cta: input.cta || null,
+                    hashtags: input.hashtags || null,
+                    slide_1: slides[0] || null,
+                    slide_2: slides[1] || null,
+                    slide_3: slides[2] || null,
+                    slide_4: slides[3] || null,
+                    slide_5: slides[4] || null,
+                    hook: input.hook || null,
+                    roteiro: input.roteiro || null,
+                    media_url: input.media_url || null,
+                    media_path: input.media_path || null,
+                    media_type: input.media_type || null,
+                    media_name: input.media_name || null,
+                    media_size: input.media_size || null,
+                    media_bucket: input.media_bucket || null
+                };
+                const { data: fbData, error: fbError } = await global.supabaseClient
+                    .from('posts')
+                    .insert([fallbackPayload])
+                    .select()
+                    .single();
+                
+                if (!fbError) return fbData;
+
+                const minimalPayload = {
+                    cliente_id: payload.cliente_id,
+                    titulo: payload.titulo,
+                    conteudo: payload.legenda,
+                    status: payload.status,
+                    data_postagem: payload.data_postagem
+                };
+                const { data: minimalData, error: minimalError } = await global.supabaseClient
+                    .from('posts')
+                    .insert([minimalPayload])
+                    .select()
+                    .single();
+                if (minimalError) throw minimalError;
+                return minimalData;
             } catch (err) {
                 console.error('[SocialMediaRepo] Falha ao criar post:', err);
                 throw err;
@@ -97,6 +140,25 @@
             if (input.status !== undefined) dbPayload.status = input.status;
             if (input.plataforma !== undefined) dbPayload.plataformas = [input.plataforma];
             if (input.feedback !== undefined) dbPayload.feedback_aprovacao = input.feedback;
+            if (input.formato !== undefined) dbPayload.formato = input.formato;
+            if (input.tipo_conteudo !== undefined) dbPayload.tipo_conteudo = input.tipo_conteudo;
+            if (input.cta !== undefined) dbPayload.cta = input.cta;
+            if (input.hashtags !== undefined) dbPayload.hashtags = input.hashtags;
+            if (input.slides !== undefined) {
+                dbPayload.slide_1 = input.slides[0] || null;
+                dbPayload.slide_2 = input.slides[1] || null;
+                dbPayload.slide_3 = input.slides[2] || null;
+                dbPayload.slide_4 = input.slides[3] || null;
+                dbPayload.slide_5 = input.slides[4] || null;
+            }
+            if (input.hook !== undefined) dbPayload.hook = input.hook;
+            if (input.roteiro !== undefined) dbPayload.roteiro = input.roteiro;
+            if (input.media_url !== undefined) dbPayload.media_url = input.media_url;
+            if (input.media_path !== undefined) dbPayload.media_path = input.media_path;
+            if (input.media_type !== undefined) dbPayload.media_type = input.media_type;
+            if (input.media_name !== undefined) dbPayload.media_name = input.media_name;
+            if (input.media_size !== undefined) dbPayload.media_size = input.media_size;
+            if (input.media_bucket !== undefined) dbPayload.media_bucket = input.media_bucket;
             
             // Campos fallback
             const fallbackPayload = {};
@@ -105,6 +167,25 @@
             if (input.data_postagem !== undefined) fallbackPayload.data_postagem = input.data_postagem;
             if (input.status !== undefined) fallbackPayload.status = input.status;
             if (input.feedback !== undefined) fallbackPayload.feedback_aprovacao = input.feedback;
+            if (input.formato !== undefined) fallbackPayload.tipo_conteudo = input.formato;
+            if (input.tipo_conteudo !== undefined) fallbackPayload.tipo_conteudo = input.tipo_conteudo;
+            if (input.cta !== undefined) fallbackPayload.cta = input.cta;
+            if (input.hashtags !== undefined) fallbackPayload.hashtags = input.hashtags;
+            if (input.slides !== undefined) {
+                fallbackPayload.slide_1 = input.slides[0] || null;
+                fallbackPayload.slide_2 = input.slides[1] || null;
+                fallbackPayload.slide_3 = input.slides[2] || null;
+                fallbackPayload.slide_4 = input.slides[3] || null;
+                fallbackPayload.slide_5 = input.slides[4] || null;
+            }
+            if (input.hook !== undefined) fallbackPayload.hook = input.hook;
+            if (input.roteiro !== undefined) fallbackPayload.roteiro = input.roteiro;
+            if (input.media_url !== undefined) fallbackPayload.media_url = input.media_url;
+            if (input.media_path !== undefined) fallbackPayload.media_path = input.media_path;
+            if (input.media_type !== undefined) fallbackPayload.media_type = input.media_type;
+            if (input.media_name !== undefined) fallbackPayload.media_name = input.media_name;
+            if (input.media_size !== undefined) fallbackPayload.media_size = input.media_size;
+            if (input.media_bucket !== undefined) fallbackPayload.media_bucket = input.media_bucket;
 
             try {
                 // Tenta atualizar em 'social_posts' primeiro
@@ -116,7 +197,6 @@
 
                 if (!error) return data;
 
-                // Se falhar, tenta 'posts'
                 console.warn('[SocialMediaRepo] Update em social_posts falhou, tentando posts...');
                 const { data: fbData, error: fbError } = await global.supabaseClient
                     .from('posts')
@@ -124,8 +204,20 @@
                     .eq('id', postId)
                     .select();
 
-                if (fbError) throw fbError;
-                return fbData;
+                if (!fbError) return fbData;
+
+                const minimalPayload = {};
+                if (input.titulo !== undefined) minimalPayload.titulo = input.titulo;
+                if (input.legenda !== undefined) minimalPayload.conteudo = input.legenda;
+                if (input.data_postagem !== undefined) minimalPayload.data_postagem = input.data_postagem;
+                if (input.status !== undefined) minimalPayload.status = input.status;
+                const { data: minimalData, error: minimalError } = await global.supabaseClient
+                    .from('posts')
+                    .update(minimalPayload)
+                    .eq('id', postId)
+                    .select();
+                if (minimalError) throw minimalError;
+                return minimalData;
             } catch (err) {
                 console.error('[SocialMediaRepo] Falha ao atualizar post:', err);
                 throw err;

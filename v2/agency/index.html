@@ -412,12 +412,21 @@
                     <input id="social-post-date" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Tema</label>
-                    <input id="social-post-theme" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Tema do post">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de conteúdo</label>
+                    <select id="social-post-content-type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="post_estatico">Post estático</option>
+                        <option value="carrossel">Carrossel</option>
+                        <option value="reels">Reels</option>
+                        <option value="story">Story</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Legenda</label>
-                    <textarea id="social-post-caption" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                    <input id="social-post-title-input" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Título do post">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Legenda completa</label>
+                    <textarea id="social-post-caption-full" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -438,9 +447,48 @@
                     <label class="block text-sm font-medium text-slate-700 mb-1">Hashtags</label>
                     <input id="social-post-hashtags" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="#hashtag1 #hashtag2">
                 </div>
+                <div id="social-post-slides" class="hidden space-y-3">
+                    <label class="block text-sm font-medium text-slate-700">Slides do carrossel</label>
+                    <input id="social-post-slide-1" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 1">
+                    <input id="social-post-slide-2" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 2">
+                    <input id="social-post-slide-3" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 3">
+                    <input id="social-post-slide-4" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 4">
+                    <input id="social-post-slide-5" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 5">
+                </div>
+                <div id="social-post-reels" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Hook</label>
+                        <input id="social-post-hook" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Abertura do vídeo">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Roteiro</label>
+                        <textarea id="social-post-script" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <label class="block text-sm font-medium text-slate-700">Upload de mídia</label>
+                    <input id="social-post-media-upload" type="file" accept="image/*,video/*" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    <div id="social-post-media-preview" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <img id="social-post-media-image" class="hidden w-full rounded-lg" alt="Preview de mídia">
+                        <video id="social-post-media-video" class="hidden w-full rounded-lg" controls></video>
+                        <p id="social-post-media-meta" class="text-xs text-slate-500 mt-2"></p>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Sugestão de criativo</label>
                     <input id="social-post-creative" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: carrossel com dicas">
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Preview para aprovação</p>
+                    <p id="social-post-preview-title" class="text-sm font-semibold text-slate-800">Sem título</p>
+                    <p id="social-post-preview-caption" class="text-sm text-slate-600">Sem legenda</p>
+                    <div class="text-sm text-slate-600">
+                        <span class="font-medium">CTA:</span> <span id="social-post-preview-cta">-</span>
+                    </div>
+                    <div class="text-sm text-slate-600">
+                        <span class="font-medium">Hashtags:</span> <span id="social-post-preview-hashtags">-</span>
+                    </div>
+                    <div id="social-post-preview-structure" class="text-sm text-slate-600"></div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
@@ -565,12 +613,32 @@
         const socialPostSave = document.getElementById('social-post-save');
         const socialPostTitle = document.getElementById('social-post-title');
         const socialPostDate = document.getElementById('social-post-date');
-        const socialPostTheme = document.getElementById('social-post-theme');
-        const socialPostCaption = document.getElementById('social-post-caption');
+        const socialPostContentType = document.getElementById('social-post-content-type');
+        const socialPostTitleInput = document.getElementById('social-post-title-input');
+        const socialPostCaptionFull = document.getElementById('social-post-caption-full');
         const socialPostCta = document.getElementById('social-post-cta');
         const socialPostChannel = document.getElementById('social-post-channel');
         const socialPostHashtags = document.getElementById('social-post-hashtags');
         const socialPostCreative = document.getElementById('social-post-creative');
+        const socialPostSlides = document.getElementById('social-post-slides');
+        const socialPostSlide1 = document.getElementById('social-post-slide-1');
+        const socialPostSlide2 = document.getElementById('social-post-slide-2');
+        const socialPostSlide3 = document.getElementById('social-post-slide-3');
+        const socialPostSlide4 = document.getElementById('social-post-slide-4');
+        const socialPostSlide5 = document.getElementById('social-post-slide-5');
+        const socialPostReels = document.getElementById('social-post-reels');
+        const socialPostHook = document.getElementById('social-post-hook');
+        const socialPostScript = document.getElementById('social-post-script');
+        const socialPostMediaUpload = document.getElementById('social-post-media-upload');
+        const socialPostMediaPreview = document.getElementById('social-post-media-preview');
+        const socialPostMediaImage = document.getElementById('social-post-media-image');
+        const socialPostMediaVideo = document.getElementById('social-post-media-video');
+        const socialPostMediaMeta = document.getElementById('social-post-media-meta');
+        const socialPostPreviewTitle = document.getElementById('social-post-preview-title');
+        const socialPostPreviewCaption = document.getElementById('social-post-preview-caption');
+        const socialPostPreviewCta = document.getElementById('social-post-preview-cta');
+        const socialPostPreviewHashtags = document.getElementById('social-post-preview-hashtags');
+        const socialPostPreviewStructure = document.getElementById('social-post-preview-structure');
         const socialPostStatus = document.getElementById('social-post-status');
         const socialPostNotes = document.getElementById('social-post-notes');
         const socialPostFeedback = document.getElementById('social-post-feedback');
@@ -873,6 +941,113 @@
             }
         };
 
+        const updateContentTypeFields = (type) => {
+            if (socialPostSlides) socialPostSlides.classList.toggle('hidden', type !== 'carrossel');
+            if (socialPostReels) socialPostReels.classList.toggle('hidden', type !== 'reels');
+        };
+
+        const setMediaPreview = (url, type, metaText) => {
+            if (!socialPostMediaPreview) return;
+            if (!url) {
+                socialPostMediaPreview.classList.add('hidden');
+                if (socialPostMediaImage) socialPostMediaImage.classList.add('hidden');
+                if (socialPostMediaVideo) socialPostMediaVideo.classList.add('hidden');
+                return;
+            }
+            socialPostMediaPreview.classList.remove('hidden');
+            const isVideo = type?.startsWith('video');
+            if (socialPostMediaImage) {
+                socialPostMediaImage.classList.toggle('hidden', isVideo);
+                if (!isVideo) socialPostMediaImage.src = url;
+            }
+            if (socialPostMediaVideo) {
+                socialPostMediaVideo.classList.toggle('hidden', !isVideo);
+                if (isVideo) socialPostMediaVideo.src = url;
+            }
+            if (socialPostMediaMeta) socialPostMediaMeta.textContent = metaText || '';
+        };
+
+        const updatePreview = (post) => {
+            if (!post) return;
+            if (socialPostPreviewTitle) socialPostPreviewTitle.textContent = post.title || 'Sem título';
+            if (socialPostPreviewCaption) socialPostPreviewCaption.textContent = post.caption || 'Sem legenda';
+            if (socialPostPreviewCta) socialPostPreviewCta.textContent = post.cta || '-';
+            if (socialPostPreviewHashtags) socialPostPreviewHashtags.textContent = post.hashtags || '-';
+            if (socialPostPreviewStructure) {
+                if (post.contentType === 'carrossel') {
+                    const slides = post.slides?.length ? post.slides.join(' · ') : 'Slides não definidos';
+                    socialPostPreviewStructure.textContent = `Carrossel: ${slides}`;
+                } else if (post.contentType === 'reels') {
+                    socialPostPreviewStructure.textContent = `Reels: Hook ${post.hook || '-'} · Roteiro ${post.script || '-'}`;
+                } else {
+                    socialPostPreviewStructure.textContent = `Tipo: ${post.contentType || 'post_estatico'}`;
+                }
+            }
+        };
+
+        const getPostFromForm = () => {
+            if (!socialState.activePost) return null;
+            const slides = [
+                socialPostSlide1?.value,
+                socialPostSlide2?.value,
+                socialPostSlide3?.value,
+                socialPostSlide4?.value,
+                socialPostSlide5?.value
+            ].filter(Boolean);
+            return {
+                ...socialState.activePost,
+                contentType: socialPostContentType?.value || socialState.activePost.contentType,
+                title: socialPostTitleInput?.value.trim() || socialState.activePost.title,
+                caption: socialPostCaptionFull?.value || '',
+                cta: socialPostCta?.value || '',
+                platform: socialPostChannel?.value || 'instagram',
+                hashtags: socialPostHashtags?.value || '',
+                creative: socialPostCreative?.value || '',
+                status: socialPostStatus?.value || 'rascunho',
+                notes: socialPostNotes?.value || '',
+                slides,
+                hook: socialPostHook?.value || '',
+                script: socialPostScript?.value || '',
+                mediaPath: socialState.activePost.mediaPath || '',
+                mediaUrl: socialState.activePost.mediaUrl || '',
+                mediaBucket: socialState.activePost.mediaBucket || '',
+                mediaType: socialState.activePost.mediaType || '',
+                mediaName: socialState.activePost.mediaName || '',
+                mediaSize: socialState.activePost.mediaSize || '',
+                mediaFile: socialState.activePost.mediaFile || null,
+                mediaPreviewUrl: socialState.activePost.mediaPreviewUrl || ''
+            };
+        };
+
+        const uploadMediaFile = async (file) => {
+            const supabase = await getSupabaseClient();
+            if (!supabase) throw new Error('Supabase não inicializado');
+            const bucket = 'social-media';
+            const safeName = `${Date.now()}-${file.name}`.replace(/\s+/g, '-');
+            const path = `clients/${socialState.clientId}/posts/${safeName}`;
+            const { data, error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type });
+            if (error) throw error;
+            const publicData = supabase.storage.from(bucket).getPublicUrl(data.path);
+            return {
+                bucket,
+                path: data.path,
+                url: publicData?.data?.publicUrl || '',
+                type: file.type,
+                name: file.name,
+                size: file.size
+            };
+        };
+
+        const resolveMediaUrl = async (post) => {
+            if (post.mediaUrl) return post.mediaUrl;
+            if (!post.mediaPath) return '';
+            const supabase = await getSupabaseClient();
+            if (!supabase) return '';
+            const bucket = post.mediaBucket || 'social-media';
+            const publicData = supabase.storage.from(bucket).getPublicUrl(post.mediaPath);
+            return publicData?.data?.publicUrl || '';
+        };
+
         const formatPeriodLabel = (value) => {
             if (!value) return '';
             const parsed = new Date(`${value}-01T00:00:00`);
@@ -905,13 +1080,23 @@
                 id: post.id || null,
                 tempId: post.tempId || null,
                 date,
-                title: post.tema || post.titulo || post.title || 'Post',
+                title: post.titulo || post.tema || post.title || 'Post',
                 status: post.status || 'rascunho',
                 platform: (Array.isArray(post.plataformas) ? post.plataformas[0] : post.plataforma) || post.platform || 'instagram',
                 caption: post.legenda || post.conteudo || post.caption || '',
                 cta: post.cta || '',
                 hashtags: post.hashtags || '',
                 creative: post.sugestao_criativo || post.criativo || post.creative || '',
+                contentType: post.tipo_conteudo || post.formato || post.content_type || 'post_estatico',
+                slides: post.slides || [post.slide_1, post.slide_2, post.slide_3, post.slide_4, post.slide_5].filter(Boolean),
+                hook: post.hook || '',
+                script: post.roteiro || post.script || '',
+                mediaPath: post.media_path || post.mediaPath || '',
+                mediaUrl: post.media_url || post.mediaUrl || '',
+                mediaBucket: post.media_bucket || post.mediaBucket || '',
+                mediaType: post.media_type || post.mediaType || '',
+                mediaName: post.media_name || post.mediaName || '',
+                mediaSize: post.media_size || post.mediaSize || '',
                 notes: post.observacoes || post.feedback_aprovacao || post.notes || '',
                 source: post.tipo || post.source || 'manual',
                 isTemp: post.isTemp || false,
@@ -1065,21 +1250,48 @@
             socialState.activePost = post;
             if (socialPostTitle) socialPostTitle.textContent = post.title || 'Novo post';
             if (socialPostDate) socialPostDate.value = post.date || '';
-            if (socialPostTheme) socialPostTheme.value = post.title || '';
-            if (socialPostCaption) socialPostCaption.value = post.caption || '';
+            if (socialPostContentType) socialPostContentType.value = post.contentType || 'post_estatico';
+            if (socialPostTitleInput) socialPostTitleInput.value = post.title || '';
+            if (socialPostCaptionFull) socialPostCaptionFull.value = post.caption || '';
             if (socialPostCta) socialPostCta.value = post.cta || '';
             if (socialPostChannel) socialPostChannel.value = post.platform || 'instagram';
             if (socialPostHashtags) socialPostHashtags.value = post.hashtags || '';
             if (socialPostCreative) socialPostCreative.value = post.creative || '';
             if (socialPostStatus) socialPostStatus.value = post.status || 'rascunho';
             if (socialPostNotes) socialPostNotes.value = post.notes || '';
+            if (socialPostSlide1) socialPostSlide1.value = post.slides?.[0] || '';
+            if (socialPostSlide2) socialPostSlide2.value = post.slides?.[1] || '';
+            if (socialPostSlide3) socialPostSlide3.value = post.slides?.[2] || '';
+            if (socialPostSlide4) socialPostSlide4.value = post.slides?.[3] || '';
+            if (socialPostSlide5) socialPostSlide5.value = post.slides?.[4] || '';
+            if (socialPostHook) socialPostHook.value = post.hook || '';
+            if (socialPostScript) socialPostScript.value = post.script || '';
+            updateContentTypeFields(post.contentType || 'post_estatico');
             const editable = socialState.calendarStatus !== 'aguardando_aprovacao';
-            [socialPostDate, socialPostTheme, socialPostCaption, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSave].forEach((el) => {
+            [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostSlide5, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave].forEach((el) => {
                 if (el) el.disabled = !editable;
             });
             if (socialPostFeedback) {
                 socialPostFeedback.classList.add('hidden');
                 socialPostFeedback.textContent = '';
+            }
+            const previewPost = getPostFromForm();
+            if (previewPost) updatePreview(previewPost);
+            if (post.mediaPreviewUrl) {
+                const sizeKb = post.mediaSize ? Math.ceil(post.mediaSize / 1024) : null;
+                const metaText = post.mediaName ? `${post.mediaName}${sizeKb ? ` • ${sizeKb} KB` : ''}` : '';
+                setMediaPreview(post.mediaPreviewUrl, post.mediaType, metaText);
+            } else {
+                resolveMediaUrl(post).then((url) => {
+                    if (!url) {
+                        setMediaPreview('', '', '');
+                        return;
+                    }
+                    socialState.activePost = { ...socialState.activePost, mediaUrl: url };
+                    const sizeKb = post.mediaSize ? Math.ceil(post.mediaSize / 1024) : null;
+                    const metaText = post.mediaName ? `${post.mediaName}${sizeKb ? ` • ${sizeKb} KB` : ''}` : '';
+                    setMediaPreview(url, post.mediaType, metaText);
+                });
             }
             if (!editable) {
                 setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
@@ -1092,6 +1304,9 @@
             if (!socialPostDrawer) return;
             socialPostDrawer.classList.add('hidden');
             socialPostDrawer.classList.remove('flex');
+            if (socialState.activePost?.mediaPreviewUrl && socialState.activePost?.mediaFile) {
+                URL.revokeObjectURL(socialState.activePost.mediaPreviewUrl);
+            }
             socialState.activePost = null;
         };
 
@@ -1104,19 +1319,38 @@
             const updated = {
                 ...socialState.activePost,
                 date: socialPostDate?.value || socialState.activePost.date,
-                title: socialPostTheme?.value.trim() || socialState.activePost.title,
-                caption: socialPostCaption?.value || '',
+                contentType: socialPostContentType?.value || 'post_estatico',
+                title: socialPostTitleInput?.value.trim() || socialState.activePost.title,
+                caption: socialPostCaptionFull?.value || '',
                 cta: socialPostCta?.value || '',
                 platform: socialPostChannel?.value || 'instagram',
                 hashtags: socialPostHashtags?.value || '',
                 creative: socialPostCreative?.value || '',
                 status: socialPostStatus?.value || 'rascunho',
                 notes: socialPostNotes?.value || '',
+                slides: [
+                    socialPostSlide1?.value,
+                    socialPostSlide2?.value,
+                    socialPostSlide3?.value,
+                    socialPostSlide4?.value,
+                    socialPostSlide5?.value
+                ].filter(Boolean),
+                hook: socialPostHook?.value || '',
+                script: socialPostScript?.value || '',
+                mediaFile: socialState.activePost.mediaFile || null,
+                mediaPreviewUrl: socialState.activePost.mediaPreviewUrl || '',
+                mediaPath: socialState.activePost.mediaPath || '',
+                mediaUrl: socialState.activePost.mediaUrl || '',
+                mediaBucket: socialState.activePost.mediaBucket || '',
+                mediaType: socialState.activePost.mediaType || '',
+                mediaName: socialState.activePost.mediaName || '',
+                mediaSize: socialState.activePost.mediaSize || '',
                 isDirty: true
             };
             socialState.posts = socialState.posts.map((post) => (post.tempId === updated.tempId || post.id === updated.id ? updated : post));
             socialState.activePost = updated;
             if (socialPostTitle) socialPostTitle.textContent = updated.title || 'Post';
+            updatePreview(updated);
             return updated;
         };
 
@@ -1136,28 +1370,60 @@
         const persistPost = async (post) => {
             const repo = window.SocialMediaRepo;
             if (!repo || !socialState.clientId) return null;
-            if (post.isTemp || !post.id) {
-                const result = await repo.createPost({
-                    cliente_id: socialState.clientId,
-                    titulo: post.title,
-                    legenda: post.caption,
-                    plataforma: post.platform,
-                    data_postagem: post.date,
-                    status: post.status || 'rascunho',
-                    formato: post.creative,
-                    feedback: post.notes
-                });
-                return normalizePost(result);
+            let mediaMeta = {
+                mediaPath: post.mediaPath,
+                mediaUrl: post.mediaUrl,
+                mediaBucket: post.mediaBucket,
+                mediaType: post.mediaType,
+                mediaName: post.mediaName,
+                mediaSize: post.mediaSize
+            };
+            if (post.mediaFile) {
+                try {
+                    const uploaded = await uploadMediaFile(post.mediaFile);
+                    mediaMeta = {
+                        mediaPath: uploaded.path,
+                        mediaUrl: uploaded.url,
+                        mediaType: uploaded.type,
+                        mediaName: uploaded.name,
+                        mediaSize: uploaded.size,
+                        mediaBucket: uploaded.bucket
+                    };
+                    const sizeKb = Math.ceil((uploaded.size || 0) / 1024);
+                    setMediaPreview(uploaded.url, uploaded.type, uploaded.name ? `${uploaded.name} • ${sizeKb} KB` : '');
+                } catch (err) {
+                    setPostFeedback('Falha ao enviar mídia. Tente novamente.', 'error');
+                    return null;
+                }
             }
-            await repo.updatePost(post.id, {
+            const payload = {
+                cliente_id: socialState.clientId,
                 titulo: post.title,
                 legenda: post.caption,
                 plataforma: post.platform,
                 data_postagem: post.date,
                 status: post.status || 'rascunho',
+                formato: post.contentType || 'post_estatico',
+                tipo_conteudo: post.contentType || 'post_estatico',
+                cta: post.cta || '',
+                hashtags: post.hashtags || '',
+                slides: post.slides || [],
+                hook: post.hook || '',
+                roteiro: post.script || '',
+                media_path: mediaMeta.mediaPath || '',
+                media_url: mediaMeta.mediaUrl || '',
+                media_type: mediaMeta.mediaType || '',
+                media_name: mediaMeta.mediaName || '',
+                media_size: mediaMeta.mediaSize || '',
+                media_bucket: mediaMeta.mediaBucket || '',
                 feedback: post.notes
-            });
-            return { ...post, isTemp: false, isDirty: false };
+            };
+            if (post.isTemp || !post.id) {
+                const result = await repo.createPost(payload);
+                return normalizePost({ ...result, ...mediaMeta });
+            }
+            await repo.updatePost(post.id, payload);
+            return { ...post, ...mediaMeta, isTemp: false, isDirty: false, mediaFile: null, mediaPreviewUrl: post.mediaPreviewUrl };
         };
 
         const createManualPost = (date) => {
@@ -1176,6 +1442,7 @@
                 title: 'Novo post',
                 status: 'rascunho',
                 platform: 'instagram',
+                content_type: 'post_estatico',
                 isTemp: true
             });
             socialState.posts.push(post);
@@ -1220,6 +1487,7 @@
                         caption: briefing,
                         status: 'rascunho',
                         platform: 'instagram',
+                        content_type: 'post_estatico',
                         source: 'ai',
                         isTemp: true
                     })
@@ -1352,29 +1620,12 @@
                 setSocialFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
-            const createdPosts = [];
             for (const post of socialState.posts) {
-                if (post.isTemp || !post.id) {
-                    const result = await repo.createPost({
-                        cliente_id: socialState.clientId,
-                        titulo: post.title,
-                        legenda: post.caption,
-                        plataforma: post.platform,
-                        data_postagem: post.date,
-                        status: post.status || 'rascunho',
-                        formato: post.creative,
-                        feedback: post.notes
-                    });
-                    createdPosts.push(result);
-                } else if (post.isDirty) {
-                    await repo.updatePost(post.id, {
-                        titulo: post.title,
-                        legenda: post.caption,
-                        plataforma: post.platform,
-                        data_postagem: post.date,
-                        status: post.status || 'rascunho',
-                        feedback: post.notes
-                    });
+                if (post.isTemp || post.isDirty) {
+                    const persisted = await persistPost(post);
+                    if (persisted) {
+                        socialState.posts = socialState.posts.map((item) => (item.tempId === post.tempId || item.id === post.id ? persisted : item));
+                    }
                 }
             }
             setSocialFeedback('Rascunho salvo com sucesso.');
@@ -1546,6 +1797,66 @@
 
         if (socialPostClose) socialPostClose.addEventListener('click', closePostDrawer);
         if (socialPostCancel) socialPostCancel.addEventListener('click', closePostDrawer);
+        if (socialPostContentType) {
+            socialPostContentType.addEventListener('change', () => {
+                updateContentTypeFields(socialPostContentType.value);
+                const previewPost = getPostFromForm();
+                if (previewPost) updatePreview(previewPost);
+            });
+        }
+        if (socialPostMediaUpload) {
+            socialPostMediaUpload.addEventListener('change', (event) => {
+                const file = event.target.files?.[0];
+                if (!socialState.activePost) return;
+                if (!file) {
+                    socialState.activePost = {
+                        ...socialState.activePost,
+                        mediaFile: null,
+                        mediaPreviewUrl: '',
+                        mediaType: '',
+                        mediaName: '',
+                        mediaSize: ''
+                    };
+                    setMediaPreview('', '', '');
+                    return;
+                }
+                if (socialState.activePost.mediaPreviewUrl) {
+                    URL.revokeObjectURL(socialState.activePost.mediaPreviewUrl);
+                }
+                const previewUrl = URL.createObjectURL(file);
+                socialState.activePost = {
+                    ...socialState.activePost,
+                    mediaFile: file,
+                    mediaPreviewUrl: previewUrl,
+                    mediaType: file.type,
+                    mediaName: file.name,
+                    mediaSize: file.size
+                };
+                const sizeKb = Math.ceil(file.size / 1024);
+                setMediaPreview(previewUrl, file.type, `${file.name} • ${sizeKb} KB`);
+                const previewPost = getPostFromForm();
+                if (previewPost) updatePreview(previewPost);
+            });
+        }
+        [
+            socialPostTitleInput,
+            socialPostCaptionFull,
+            socialPostCta,
+            socialPostHashtags,
+            socialPostSlide1,
+            socialPostSlide2,
+            socialPostSlide3,
+            socialPostSlide4,
+            socialPostSlide5,
+            socialPostHook,
+            socialPostScript
+        ].forEach((el) => {
+            if (!el) return;
+            el.addEventListener('input', () => {
+                const previewPost = getPostFromForm();
+                if (previewPost) updatePreview(previewPost);
+            });
+        });
         if (socialPostSave) {
             socialPostSave.addEventListener('click', async () => {
                 const updated = applyPostForm();
