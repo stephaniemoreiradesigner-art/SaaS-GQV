@@ -34,8 +34,13 @@
             // Delegate para botão salvar no drawer
             const saveBtn = document.getElementById('social-post-save');
             if (saveBtn) {
-                saveBtn.addEventListener('click', (e) => {
+                // Remover listeners antigos para evitar duplicação (cloneNode remove listeners)
+                const newSaveBtn = saveBtn.cloneNode(true);
+                saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+                
+                newSaveBtn.addEventListener('click', (e) => {
                     e.preventDefault();
+                    e.stopPropagation(); // Evitar propagação
                     this.handleSavePost();
                 });
             }
@@ -236,6 +241,8 @@
             const mode = drawer.dataset.mode;
             const postId = drawer.dataset.postId;
             
+            console.log(`[SOCIAL] handleSavePost acionado. Mode: ${mode}, PostID: ${postId}`);
+
             // Get data from UI
             const formData = global.SocialMediaUI.getFormData();
             
@@ -252,14 +259,18 @@
             }
 
             try {
-                if (mode === 'edit' && postId) {
-                    console.log('[SOCIAL] Atualizando post...', postId);
-                    await global.SocialMediaRepo.updatePost(postId, input);
-                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado!', 'success');
+                if (mode === 'edit' && postId && postId !== 'undefined' && postId !== '') {
+                    console.log('[SOCIAL] Atualizando post existente...', postId);
+                    const updated = await global.SocialMediaRepo.updatePost(postId, input);
+                    if (updated) {
+                         if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado com sucesso!', 'success');
+                    } else {
+                         throw new Error('Falha ao atualizar (retorno vazio).');
+                    }
                 } else {
-                    console.log('[SOCIAL] Criando post...', input);
+                    console.log('[SOCIAL] Criando novo post...', input);
                     await global.SocialMediaRepo.createPost(input);
-                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Criado!', 'success');
+                    if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Post criado com sucesso!', 'success');
                 }
                 
                 // Fecha drawer
@@ -271,8 +282,8 @@
                 await this.loadCalendarForMonth(this.currentMonthRef);
                 
             } catch (err) {
-                console.error('[SOCIAL] Erro ao salvar:', err);
-                if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Erro ao salvar.', 'error');
+                console.error('[SOCIAL] Erro crítico ao salvar:', err);
+                if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Erro ao salvar: ' + err.message, 'error');
             } finally {
                 if (saveBtn) {
                     saveBtn.disabled = false;
