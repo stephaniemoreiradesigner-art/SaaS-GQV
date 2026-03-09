@@ -7,14 +7,18 @@
         activeCalendarId: null,
 
         init: async function() {
-            // 1. Check Auth
+            // 1. Check Auth & Init Supabase Isolated
             if (!global.ClientAuth) {
                 console.error('[ClientCore] Auth module missing');
                 return;
             }
 
+            // [ISOLATION] Ensure isolated client is ready
+            await global.ClientAuth.init();
+
             const session = global.ClientAuth.checkSession();
             if (!session) {
+                // Se não tiver sessão válida, redireciona para login do cliente
                 window.location.href = '/v2/client/login.html';
                 return;
             }

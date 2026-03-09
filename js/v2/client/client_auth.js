@@ -6,14 +6,36 @@
         sessionKey: 'V2_CLIENT_SESSION',
 
         init: async function() {
-            // Garantir Supabase
-            if (!global.supabaseClient) {
-                if (global.initSupabase) {
-                    await global.initSupabase();
-                } else {
-                    console.error('[ClientAuth] Supabase não encontrado.');
+            // Se já temos o cliente isolado, retorna
+            if (global.clientPortalSupabase) return;
+
+            // Aguarda configuração do Supabase carregar (via app.js ou fetch direto)
+            if (!global.supabaseConfig) {
+                if (global.loadSupabaseConfig) {
+                    await global.loadSupabaseConfig();
                 }
             }
+
+            if (!global.supabase || !global.supabaseConfig) {
+                console.error('[ClientAuth] Dependências do Supabase não encontradas.');
+                return;
+            }
+
+            // [ISOLATION] Criar instância isolada para o Portal do Cliente
+            // Usa storageKey diferente para não compartilhar sessão com a Agência
+            console.log('[ClientAuth] Inicializando cliente Supabase ISOLADO para o Portal...');
+            global.clientPortalSupabase = global.supabase.createClient(
+                global.supabaseConfig.supabaseUrl,
+                global.supabaseConfig.supabaseAnonKey,
+                {
+                    auth: {
+                        persistSession: true,
+                        autoRefreshToken: true,
+                        detectSessionInUrl: false, // Gerenciado manualmente se precisar
+                        storageKey: 'gqv_client_portal_session' // Chave exclusiva
+                    }
+                }
+            );
         },
 
         /**
@@ -22,11 +44,11 @@
          * @param {string} password 
          */
         login: async function(email, password) {
-            if (!global.supabaseClient) await this.init();
+            await this.init();
 
             try {
-                // 1. Auth no Supabase
-                const { data: authData, error: authError } = await global.supabaseClient.auth.signInWithPassword({
+                // 1. Auth no Supabase (Cliente Isolado)
+                const { data: authData, error: authError } = await global.clientPortalSupabase.auth.signInWithPassword({
                     email,
                     password
                 });
@@ -37,35 +59,30 @@
                 if (!user) throw new Error('Sessão não criada.');
 
                 // 2. Verificar se é cliente na tabela 'clientes'
-                // Tenta buscar pelo email exato
-                // [FIX] Usar .select() sem .maybeSingle() para detectar duplicidade
-                const { data: clientDataList, error: clientError } = await global.supabaseClient
+                // Usa o cliente isolado para a query também (mesmo banco)
+                const { data: clientDataList, error: clientError } = await global.clientPortalSupabase
                     .from('clientes')
                     .select('*')
                     .eq('email', email);
 
                 if (clientError) {
                     console.error('[ClientAuth] Erro ao buscar cliente:', clientError);
-                    // Não bloqueia login se der erro de permissão (RLS), mas avisa
-                    // Se RLS bloquear, clientDataList será null ou vazio
                 }
 
                 if (!clientDataList || clientDataList.length === 0) {
-                    // Se não achou cliente com esse email, faz logout e nega
-                    await global.supabaseClient.auth.signOut();
+                    await global.clientPortalSupabase.auth.signOut();
                     throw new Error('Este e-mail não está vinculado a nenhum cliente ativo. Solicite acesso à sua agência.');
                 }
 
                 if (clientDataList.length > 1) {
-                    // Duplicidade detectada
-                    await global.supabaseClient.auth.signOut();
+                    await global.clientPortalSupabase.auth.signOut();
                     console.warn('[ClientAuth] E-mail duplicado em clientes:', email);
                     throw new Error('Este e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.');
                 }
 
                 const clientData = clientDataList[0];
 
-                // 3. Salvar sessão do cliente
+                // 3. Salvar sessão do cliente (Metadados extras)
                 const sessionPayload = {
                     auth_id: user.id,
                     client_id: clientData.id,
@@ -90,24 +107,20 @@
          * @param {string} password 
          */
         register: async function(email, password) {
-            if (!global.supabaseClient) await this.init();
+            await this.init();
 
             try {
-                // 1. Cria usuário no Auth
-                const { data, error } = await global.supabaseClient.auth.signUp({
+                // 1. Cria usuário no Auth (Cliente Isolado)
+                const { data, error } = await global.clientPortalSupabase.auth.signUp({
                     email,
                     password
                 });
 
                 if (error) throw error;
-
-                // Nota: Não verificamos 'clientes' aqui pois o RLS pode impedir leitura para anônimos.
-                // A verificação real acontece no primeiro login.
                 
                 return { success: true, data };
             } catch (error) {
                 console.error('[ClientAuth] Falha no registro:', error);
-                // Tratamento de mensagens amigáveis
                 let msg = error.message;
                 if (msg.includes('already registered')) msg = 'Este e-mail já possui cadastro. Tente fazer login.';
                 return { success: false, error: msg };
@@ -115,8 +128,9 @@
         },
 
         logout: async function() {
-            if (global.supabaseClient) {
-                await global.supabaseClient.auth.signOut();
+            await this.init();
+            if (global.clientPortalSupabase) {
+                await global.clientPortalSupabase.auth.signOut();
             }
             localStorage.removeItem(this.sessionKey);
             window.location.href = '/v2/client/login.html';

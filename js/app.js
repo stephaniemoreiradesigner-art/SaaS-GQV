@@ -213,6 +213,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function checkAuthAndLoad() {
         if (!window.supabaseClient) return;
 
+        // [ISOLATION] Se estiver no Portal do Cliente, NÃO usar a lógica de sessão global do app.js
+        // O Portal do Cliente gerencia sua própria autenticação isolada em client_auth.js
+        const path = window.location.pathname;
+        if (path.includes('/v2/client/')) {
+            console.log('🔒 Contexto do Portal do Cliente detectado. Ignorando sessão global da Agência.');
+            window.showContent(); // Apenas libera a tela para o client_auth.js assumir
+            return;
+        }
+
         // --- 1. Tentativa de Recuperação via URL (Prioridade Máxima) ---
         const urlParams = new URLSearchParams(window.location.search);
         let accessToken = urlParams.get('access_token');

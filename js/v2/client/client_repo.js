@@ -4,13 +4,26 @@
 (function(global) {
     const ClientRepo = {
         /**
+         * Helper para garantir cliente Supabase correto
+         */
+        getClient: async function() {
+            if (global.clientPortalSupabase) return global.clientPortalSupabase;
+            if (global.ClientAuth) {
+                await global.ClientAuth.init();
+                return global.clientPortalSupabase;
+            }
+            return null;
+        },
+
+        /**
          * Busca calendários aguardando aprovação
          * @param {string} clientId 
          */
         getPendingCalendars: async function(clientId) {
-            if (!global.supabaseClient) return [];
+            const supabase = await this.getClient();
+            if (!supabase) return [];
             
-            const { data, error } = await global.supabaseClient
+            const { data, error } = await supabase
                 .from('social_calendars')
                 .select('*')
                 .eq('cliente_id', clientId)
@@ -29,9 +42,10 @@
          * @param {string} calendarId 
          */
         getCalendarPosts: async function(calendarId) {
-            if (!global.supabaseClient) return [];
+            const supabase = await this.getClient();
+            if (!supabase) return [];
 
-            const { data, error } = await global.supabaseClient
+            const { data, error } = await supabase
                 .from('social_posts')
                 .select('*')
                 .eq('calendar_id', calendarId)
@@ -49,9 +63,10 @@
          * @param {string} clientId
          */
         getPendingPosts: async function(clientId) {
-            if (!global.supabaseClient) return [];
+            const supabase = await this.getClient();
+            if (!supabase) return [];
 
-            const { data, error } = await global.supabaseClient
+            const { data, error } = await supabase
                 .from('social_posts')
                 .select('*, social_calendars!inner(cliente_id)')
                 .eq('social_calendars.cliente_id', clientId)
@@ -70,10 +85,11 @@
          * @param {string} calendarId 
          */
         approveCalendar: async function(calendarId) {
-            if (!global.supabaseClient) return false;
+            const supabase = await this.getClient();
+            if (!supabase) return false;
 
             // 1. Aprova calendário
-            const { error: calError } = await global.supabaseClient
+            const { error: calError } = await supabase
                 .from('social_calendars')
                 .update({ 
                     status: 'approved',
@@ -87,7 +103,7 @@
             }
 
             // 2. Aprova todos os posts associados (Opcional, mas boa prática para consistência)
-            const { error: postError } = await global.supabaseClient
+            const { error: postError } = await supabase
                 .from('social_posts')
                 .update({ status: 'approved' })
                 .eq('calendar_id', calendarId);
@@ -103,9 +119,10 @@
          * @param {string} comment 
          */
         rejectCalendar: async function(calendarId, comment) {
-            if (!global.supabaseClient) return false;
+            const supabase = await this.getClient();
+            if (!supabase) return false;
 
-            const { error } = await global.supabaseClient
+            const { error } = await supabase
                 .from('social_calendars')
                 .update({ 
                     status: 'changes_requested',
@@ -125,9 +142,10 @@
          * @param {string} postId 
          */
         approvePost: async function(postId) {
-            if (!global.supabaseClient) return false;
+            const supabase = await this.getClient();
+            if (!supabase) return false;
 
-            const { error } = await global.supabaseClient
+            const { error } = await supabase
                 .from('social_posts')
                 .update({ 
                     status: 'approved',
@@ -145,9 +163,10 @@
          * @param {string} comment 
          */
         rejectPost: async function(postId, comment) {
-            if (!global.supabaseClient) return false;
+            const supabase = await this.getClient();
+            if (!supabase) return false;
 
-            const { error } = await global.supabaseClient
+            const { error } = await supabase
                 .from('social_posts')
                 .update({ 
                     status: 'changes_requested',
