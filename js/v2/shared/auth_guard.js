@@ -62,40 +62,62 @@
 
         checkCurrentSession: async function() {
             const { data } = await this.client.auth.getSession();
+            // Flag para indicar que a sessão inicial foi verificada
+            this.initialCheckDone = true;
             this.handleRouting(data.session, 'INITIAL_CHECK');
         },
 
         handleRouting: function(session, event) {
+            // [GUARD] Ignorar TOKEN_REFRESHED para evitar loops
+            if (event === 'TOKEN_REFRESHED') {
+                console.log('[AuthGuard] Ignorando TOKEN_REFRESHED');
+                return;
+            }
+
             const path = window.location.pathname;
             const isLoginPage = path.includes('login.html') || path.includes('register.html');
             
             // Regras para Portal do Cliente
             if (this.context === 'client') {
+                const targetIndex = '/v2/client/index.html';
+                const targetLogin = '/v2/client/login.html';
+
                 // Caso 1: Usuário logado na página de login -> Dashboard
                 if (session && isLoginPage) {
-                    console.log('[AuthGuard] Cliente logado no login -> Dashboard');
-                    window.location.href = '/v2/client/index.html';
+                    if (path !== targetIndex) {
+                        console.log('[AuthGuard] Cliente logado no login -> Dashboard');
+                        window.location.href = targetIndex;
+                    }
                     return;
                 }
 
                 // Caso 2: Usuário deslogado em página protegida -> Login
                 if (!session && !isLoginPage) {
-                    console.log('[AuthGuard] Cliente deslogado em área protegida -> Login');
-                    window.location.href = '/v2/client/login.html';
+                    if (path !== targetLogin) {
+                        console.log('[AuthGuard] Cliente deslogado em área protegida -> Login');
+                        window.location.href = targetLogin;
+                    }
                     return;
                 }
             }
             
             // Regras para Agência (Expandir futuramente se necessário)
             if (this.context === 'agency') {
+                const targetIndex = '/v2/agency/index.html';
+                const targetLogin = '/v2/agency/login.html';
+
                 if (session && isLoginPage) {
-                    console.log('[AuthGuard] Agência logada no login -> Dashboard');
-                    window.location.href = '/v2/agency/index.html';
+                    if (path !== targetIndex) {
+                        console.log('[AuthGuard] Agência logada no login -> Dashboard');
+                        window.location.href = targetIndex;
+                    }
                     return;
                 }
                 if (!session && !isLoginPage) {
-                    console.log('[AuthGuard] Agência deslogada em área protegida -> Login');
-                    window.location.href = '/v2/agency/login.html';
+                    if (path !== targetLogin) {
+                        console.log('[AuthGuard] Agência deslogada em área protegida -> Login');
+                        window.location.href = targetLogin;
+                    }
                     return;
                 }
             }

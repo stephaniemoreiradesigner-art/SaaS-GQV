@@ -47,7 +47,13 @@
                 }
             );
 
-            // [AUTH-GUARD] Lógica centralizada agora. Não adicionar listeners aqui.
+            // [LISTENER] Redirecionamento automático baseado em eventos
+            // Garantir que não duplique listeners
+            if (!global.clientPortalAuthListenerRegistered) {
+                // [AUTH-GUARD] Lógica centralizada em auth_guard.js
+                // Não registrar listener aqui para evitar loops
+                global.clientPortalAuthListenerRegistered = true;
+            }
         },
 
         /**
