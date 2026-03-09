@@ -38,23 +38,32 @@
 
                 // 2. Verificar se é cliente na tabela 'clientes'
                 // Tenta buscar pelo email exato
-                const { data: clientData, error: clientError } = await global.supabaseClient
+                // [FIX] Usar .select() sem .maybeSingle() para detectar duplicidade
+                const { data: clientDataList, error: clientError } = await global.supabaseClient
                     .from('clientes')
                     .select('*')
-                    .eq('email', email)
-                    .maybeSingle();
+                    .eq('email', email);
 
                 if (clientError) {
                     console.error('[ClientAuth] Erro ao buscar cliente:', clientError);
                     // Não bloqueia login se der erro de permissão (RLS), mas avisa
-                    // Se RLS bloquear, clientData será null
+                    // Se RLS bloquear, clientDataList será null ou vazio
                 }
 
-                if (!clientData) {
+                if (!clientDataList || clientDataList.length === 0) {
                     // Se não achou cliente com esse email, faz logout e nega
                     await global.supabaseClient.auth.signOut();
-                    throw new Error('Este e-mail não está vinculado a nenhum cliente ativo.');
+                    throw new Error('Este e-mail não está vinculado a nenhum cliente ativo. Solicite acesso à sua agência.');
                 }
+
+                if (clientDataList.length > 1) {
+                    // Duplicidade detectada
+                    await global.supabaseClient.auth.signOut();
+                    console.warn('[ClientAuth] E-mail duplicado em clientes:', email);
+                    throw new Error('Este e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.');
+                }
+
+                const clientData = clientDataList[0];
 
                 // 3. Salvar sessão do cliente
                 const sessionPayload = {
