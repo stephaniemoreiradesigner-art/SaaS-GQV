@@ -52,7 +52,6 @@
                     slide_2: slides[1] || null,
                     slide_3: slides[2] || null,
                     slide_4: slides[3] || null,
-                    slide_5: slides[4] || null,
                     hook: input.hook || null,
                     roteiro: input.roteiro || null,
                     media_url: input.media_url || null,
@@ -85,7 +84,6 @@
                     slide_2: slides[1] || null,
                     slide_3: slides[2] || null,
                     slide_4: slides[3] || null,
-                    slide_5: slides[4] || null,
                     hook: input.hook || null,
                     roteiro: input.roteiro || null,
                     media_url: input.media_url || null,
@@ -149,7 +147,6 @@
                 dbPayload.slide_2 = input.slides[1] || null;
                 dbPayload.slide_3 = input.slides[2] || null;
                 dbPayload.slide_4 = input.slides[3] || null;
-                dbPayload.slide_5 = input.slides[4] || null;
             }
             if (input.hook !== undefined) dbPayload.hook = input.hook;
             if (input.roteiro !== undefined) dbPayload.roteiro = input.roteiro;
@@ -176,7 +173,6 @@
                 fallbackPayload.slide_2 = input.slides[1] || null;
                 fallbackPayload.slide_3 = input.slides[2] || null;
                 fallbackPayload.slide_4 = input.slides[3] || null;
-                fallbackPayload.slide_5 = input.slides[4] || null;
             }
             if (input.hook !== undefined) fallbackPayload.hook = input.hook;
             if (input.roteiro !== undefined) fallbackPayload.roteiro = input.roteiro;
