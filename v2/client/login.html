@@ -43,24 +43,32 @@
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-login-form');
             const button = document.getElementById('client-login-button');
-            
+
+            // [CLIENT_PORTAL_LOGIN] Logs de debug para verificar inicialização
+            console.log('[CLIENT_PORTAL_LOGIN] script carregado');
+            if (form) console.log('[CLIENT_PORTAL_LOGIN] form encontrado');
+            else console.error('[CLIENT_PORTAL_LOGIN] ERRO: form não encontrado');
+
             if (form) {
+                // Remover listeners antigos (caso existam, embora em page load seja raro)
+                // Usando uma abordagem limpa de addEventListener
                 form.addEventListener('submit', async (e) => {
                     e.preventDefault();
-                    console.log('[LOGIN] Tentativa de login iniciada...');
+                    console.log('[CLIENT_PORTAL_LOGIN] submit capturado');
                     
                     const emailInput = document.getElementById('email');
                     const passwordInput = document.getElementById('password');
                     
                     if (!emailInput || !passwordInput) {
-                        console.error('[LOGIN] Campos de email ou senha não encontrados');
+                        console.error('[CLIENT_PORTAL_LOGIN] Campos de email ou senha não encontrados');
                         return;
                     }
                     
                     const email = emailInput.value.trim();
                     const password = passwordInput.value.trim();
                     
-                    console.log('[LOGIN] E-mail:', email);
+                    console.log('[CLIENT_PORTAL_LOGIN] E-mail:', email);
+                    console.log('[CLIENT_PORTAL_LOGIN] login iniciado');
 
                     if (!email || !password) {
                         alert('Preencha todos os campos.');
@@ -76,29 +84,30 @@
                         if (!window.ClientAuth) {
                             throw new Error('Módulo de autenticação não carregado. Recarregue a página.');
                         }
-
+                        
+                        console.log('[CLIENT_PORTAL_LOGIN] Chamando ClientAuth.login()...');
                         const result = await window.ClientAuth.login(email, password);
                         
-                        console.log('[LOGIN] Resultado:', result);
+                        console.log('[CLIENT_PORTAL_LOGIN] Resultado:', result);
 
                         if (result.success) {
-                            console.log('[LOGIN] Sucesso! Redirecionando...');
+                            console.log('[CLIENT_PORTAL_LOGIN] Sucesso! Redirecionando...');
                             window.location.href = '/v2/client/index.html';
                         } else {
-                            console.error('[LOGIN] Erro:', result.error);
+                            console.error('[CLIENT_PORTAL_LOGIN] Erro:', result.error);
                             alert(result.error);
                             button.disabled = false;
                             button.textContent = originalText;
                         }
                     } catch (err) {
-                        console.error('[LOGIN] Erro inesperado:', err);
+                        console.error('[CLIENT_PORTAL_LOGIN] Erro inesperado:', err);
                         alert('Erro inesperado: ' + err.message);
                         button.disabled = false;
                         button.textContent = originalText;
                     }
                 });
             } else {
-                console.error('[LOGIN] Formulário #client-login-form não encontrado!');
+                console.error('[CLIENT_PORTAL_LOGIN] Formulário #client-login-form não encontrado!');
             }
         });
     </script>
