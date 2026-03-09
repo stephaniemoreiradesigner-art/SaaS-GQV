@@ -1557,9 +1557,9 @@
             if (!supabase || !socialState.clientId) return;
             const { data } = await supabase
                 .from('social_calendars')
-                .select('id, status, mes_referencia')
-                .eq('cliente_id', socialState.clientId)
-                .eq('mes_referencia', `${socialState.calendarMonth}-01`)
+                .select('id, status, post_date')
+                .eq('client_id', socialState.clientId)
+                .eq('post_date', `${socialState.calendarMonth}-01`)
                 .maybeSingle();
             socialState.calendarId = data?.id || null;
             socialState.calendarStatus = data?.status || null;
@@ -1609,17 +1609,18 @@
         const ensureCalendarDraft = async () => {
             const supabase = await getSupabaseClient();
             if (!supabase || !socialState.clientId) return null;
-            const payload = {
-                cliente_id: socialState.clientId,
-                mes_referencia: `${socialState.calendarMonth}-01`,
-                status: 'rascunho'
-            };
             const goal = socialGoalInput?.value.trim();
             const briefing = socialBriefingInput?.value.trim();
             const tenantId = getTenantId();
-            if (goal) payload.objetivo = goal;
-            if (briefing) payload.briefing = briefing;
-            if (tenantId) payload.tenant_id = tenantId;
+            const payload = {
+                client_id: socialState.clientId,
+                tenant_id: tenantId || null,
+                title: goal || null,
+                content: briefing || null,
+                post_date: `${socialState.calendarMonth}-01`,
+                status: 'rascunho'
+            };
+            console.log('[SocialCalendar] payload', payload);
             if (socialState.calendarId) {
                 const { data } = await supabase
                     .from('social_calendars')
@@ -1638,10 +1639,14 @@
                 .single();
             if (error) {
                 const fallback = {
-                    cliente_id: socialState.clientId,
-                    mes_referencia: `${socialState.calendarMonth}-01`,
+                    client_id: socialState.clientId,
+                    tenant_id: tenantId || null,
+                    title: goal || null,
+                    content: briefing || null,
+                    post_date: `${socialState.calendarMonth}-01`,
                     status: 'rascunho'
                 };
+                console.log('[SocialCalendar] fallback payload', fallback);
                 const retry = await supabase.from('social_calendars').insert([fallback]).select().single();
                 if (retry.error) {
                     setSocialFeedback('Não foi possível salvar o calendário.', 'error');
@@ -1708,7 +1713,7 @@
                 .from('social_calendars')
                 .update({ status: 'aguardando_aprovacao' })
                 .eq('id', calendar.id)
-                .eq('cliente_id', socialState.clientId);
+                .eq('client_id', socialState.clientId);
             if (error) {
                 setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
                 return;

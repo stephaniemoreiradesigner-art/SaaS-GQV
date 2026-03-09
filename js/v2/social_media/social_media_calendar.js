@@ -24,8 +24,8 @@
             const { data: existing } = await supabase
                 .from('social_calendars')
                 .select('id, status')
-                .eq('cliente_id', clientId)
-                .eq('mes_referencia', referenceDate)
+                .eq('client_id', clientId)
+                .eq('post_date', referenceDate)
                 .maybeSingle();
 
             if (existing) {
@@ -34,14 +34,16 @@
             }
 
             // Cria novo
+            const payload = {
+                client_id: clientId,
+                post_date: referenceDate,
+                status: 'rascunho',
+                updated_at: new Date().toISOString()
+            };
+            console.log('[SocialMediaCalendar v2] payload', payload);
             const { data, error } = await supabase
                 .from('social_calendars')
-                .insert({
-                    cliente_id: clientId,
-                    mes_referencia: referenceDate,
-                    status: 'rascunho',
-                    updated_at: new Date().toISOString()
-                })
+                .insert(payload)
                 .select()
                 .single();
 
@@ -60,8 +62,8 @@
             const { data, error } = await supabase
                 .from('social_calendars')
                 .select('*')
-                .eq('cliente_id', clientId)
-                .eq('mes_referencia', referenceDate)
+                .eq('client_id', clientId)
+                .eq('post_date', referenceDate)
                 .maybeSingle();
                 
             if (error) console.error('Erro ao buscar calendário:', error);
