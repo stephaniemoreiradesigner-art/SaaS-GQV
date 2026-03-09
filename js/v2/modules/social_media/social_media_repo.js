@@ -31,7 +31,7 @@
                     .insert({
                         cliente_id: clientId,
                         mes_referencia: monthRef,
-                        status: 'rascunho',
+                        status: 'draft',
                         updated_at: new Date().toISOString()
                     })
                     .select()
@@ -100,7 +100,12 @@
                 const postDate = input.data_postagem || input.post_date || new Date().toISOString().slice(0, 10);
                 const title = input.titulo || input.title || input.legenda || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
-                const status = input.status === 'rascunho' ? 'draft' : input.status || 'draft';
+                
+                // Normalização de status
+                let status = input.status || 'draft';
+                if (status === 'rascunho') status = 'draft';
+                if (status === 'pendente_aprovacao') status = 'awaiting_approval';
+                if (status === 'aprovado') status = 'approved';
                 
                 // Correção do mês de referência para sempre ser YYYY-MM-01
                 let monthRef;
@@ -128,7 +133,7 @@
                         .insert({
                             cliente_id: clientId,
                             mes_referencia: monthRef,
-                            status: 'rascunho',
+                            status: 'draft',
                             updated_at: new Date().toISOString()
                         })
                         .select()
@@ -234,7 +239,11 @@
                 dbPayload.data_agendada = input.data_postagem ?? input.post_date;
             }
             if (input.status !== undefined) {
-                dbPayload.status = input.status === 'rascunho' ? 'draft' : input.status;
+                let status = input.status;
+                if (status === 'rascunho') status = 'draft';
+                if (status === 'pendente_aprovacao') status = 'awaiting_approval';
+                if (status === 'aprovado') status = 'approved';
+                dbPayload.status = status;
             }
             if (input.cta !== undefined) dbPayload.cta = input.cta;
             if (input.hashtags !== undefined) dbPayload.hashtags = input.hashtags;
@@ -360,7 +369,10 @@
          */
         updatePostStatus: async function(postId, newStatus) {
             if (!global.supabaseClient || !postId || !newStatus) return false;
-            const normalizedStatus = newStatus === 'rascunho' ? 'draft' : newStatus;
+            let normalizedStatus = newStatus;
+            if (newStatus === 'rascunho') normalizedStatus = 'draft';
+            if (newStatus === 'pendente_aprovacao') normalizedStatus = 'awaiting_approval';
+            if (newStatus === 'aprovado') normalizedStatus = 'approved';
 
             try {
                 // Tenta atualizar em 'social_posts'

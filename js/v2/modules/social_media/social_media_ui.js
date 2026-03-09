@@ -79,7 +79,7 @@
             this.setFieldValue('social-post-date', post?.data_agendada?.split('T')[0] || post?.data_postagem?.split('T')[0] || '');
             this.setFieldValue('social-post-cta', post?.cta || '');
             this.setFieldValue('social-post-hashtags', post?.hashtags || '');
-            this.setFieldValue('social-post-status', post?.status || 'rascunho');
+            this.setFieldValue('social-post-status', post?.status || 'draft');
             
             // Plataforma/Canal (assumindo array ou booleans)
             let platform = 'instagram';

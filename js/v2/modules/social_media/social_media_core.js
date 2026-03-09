@@ -165,9 +165,21 @@
                     // Atualiza status na UI
                     const statusEl = document.getElementById('social-calendar-status');
                     if (statusEl) {
-                        statusEl.textContent = calendar.status || 'Rascunho';
+                        const statusMap = {
+                            'draft': 'Rascunho',
+                            'in_production': 'Em produção',
+                            'awaiting_approval': 'Aguardando Aprovação',
+                            'approved': 'Aprovado',
+                            'published': 'Publicado',
+                            'archived': 'Arquivado'
+                        };
+                        const status = calendar.status || 'draft';
+                        statusEl.textContent = statusMap[status] || status;
                         statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full'; // Reset classes
-                        if (calendar.status === 'aprovado') statusEl.classList.add('bg-green-100', 'text-green-700');
+                        
+                        if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
+                        if (status === 'awaiting_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+                        if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
                     }
                 } else {
                     console.error('[SOCIAL] Falha ao carregar calendário.');

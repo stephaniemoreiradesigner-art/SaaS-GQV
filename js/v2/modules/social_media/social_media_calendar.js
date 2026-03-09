@@ -98,13 +98,18 @@
             
             // Status color
             const statusColors = {
+                'draft': 'border-l-2 border-l-gray-300',
+                'in_production': 'border-l-2 border-l-blue-300',
+                'awaiting_approval': 'border-l-2 border-l-yellow-400',
+                'approved': 'border-l-2 border-l-green-400',
+                'published': 'border-l-2 border-l-purple-500',
+                'archived': 'border-l-2 border-l-gray-500',
+                // Fallbacks para compatibilidade
                 'rascunho': 'border-l-2 border-l-gray-300',
-                'agendado': 'border-l-2 border-l-blue-400',
-                'aprovado': 'border-l-2 border-l-green-400',
                 'pendente_aprovacao': 'border-l-2 border-l-yellow-400',
-                'publicado': 'border-l-2 border-l-purple-500'
+                'aprovado': 'border-l-2 border-l-green-400'
             };
-            const borderClass = statusColors[post.status] || statusColors['rascunho'];
+            const borderClass = statusColors[post.status] || statusColors['draft'];
             el.classList.add(...borderClass.split(' '));
 
             // Conteúdo resumido
