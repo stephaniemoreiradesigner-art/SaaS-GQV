@@ -44,8 +44,18 @@
         setupLogout: function() {
             const btn = document.getElementById('client-logout');
             if (btn) {
-                btn.addEventListener('click', () => {
-                    if (global.ClientAuth) global.ClientAuth.logout();
+                // Remove existing listeners by cloning
+                const newBtn = btn.cloneNode(true);
+                btn.parentNode.replaceChild(newBtn, btn);
+                
+                newBtn.addEventListener('click', () => {
+                    if (global.ClientAuth) {
+                        console.log('[ClientUI] Logout acionado');
+                        global.ClientAuth.logout();
+                    } else {
+                        console.error('[ClientUI] ClientAuth não encontrado para logout');
+                        window.location.href = '/v2/client/login.html';
+                    }
                 });
             }
         },
