@@ -12,13 +12,16 @@
          * @param {string} month (YYYY-MM)
          * @returns {Promise<object>}
          */
-        async createDraft(clientId, month) {
+        async createDraft(clientId, month, meta = {}) {
             if (!clientId || !month) throw new Error('Cliente e mês são obrigatórios');
 
             const supabase = window.supabaseClient;
             if (!supabase) throw new Error('Supabase não inicializado');
 
             const referenceDate = `${month}-01`;
+            const title = meta.title || 'Calendário social';
+            const content = meta.content || 'Sem conteúdo';
+            const tenantId = meta.tenant_id || null;
 
             // Verifica se já existe
             const { data: existing } = await supabase
@@ -36,11 +39,14 @@
             // Cria novo
             const payload = {
                 client_id: clientId,
+                tenant_id: tenantId,
+                title,
+                content,
                 post_date: referenceDate,
                 status: 'rascunho',
                 updated_at: new Date().toISOString()
             };
-            console.log('[SocialMediaCalendar v2] payload', payload);
+            console.log('[SocialCalendar] payload final', payload);
             const { data, error } = await supabase
                 .from('social_calendars')
                 .insert(payload)
