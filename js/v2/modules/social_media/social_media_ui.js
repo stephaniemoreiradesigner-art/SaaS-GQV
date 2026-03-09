@@ -129,14 +129,26 @@
         },
 
         getFormData: function() {
+            // Capturar URL da mídia do preview se existir
+            let mediaUrl = null;
+            const imgPreview = document.getElementById('social-post-media-image');
+            const videoPreview = document.getElementById('social-post-media-video');
+            
+            if (imgPreview && !imgPreview.classList.contains('hidden') && imgPreview.src) {
+                mediaUrl = imgPreview.src;
+            } else if (videoPreview && !videoPreview.classList.contains('hidden') && videoPreview.src) {
+                mediaUrl = videoPreview.src;
+            }
+
             return {
                 titulo: document.getElementById('social-post-title-input')?.value,
-                legenda: document.getElementById('social-post-caption-full')?.value, // Mapping UI 'legenda' to DB 'detailed_content' usually, but here keeping consistent with repo expectation
+                legenda: document.getElementById('social-post-caption-full')?.value, 
                 data_postagem: document.getElementById('social-post-date')?.value,
                 cta: document.getElementById('social-post-cta')?.value,
                 hashtags: document.getElementById('social-post-hashtags')?.value,
                 status: document.getElementById('social-post-status')?.value,
-                plataforma: document.getElementById('social-post-channel')?.value
+                plataforma: document.getElementById('social-post-channel')?.value,
+                imagem_url: mediaUrl // [FIX] Incluir mídia no payload
             };
         },
 

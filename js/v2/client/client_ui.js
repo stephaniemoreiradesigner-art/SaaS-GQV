@@ -274,11 +274,14 @@
         },
 
         getMediaHtml: function(post, classes = 'w-16 h-16') {
-            if (post.imagem_url) {
-                if (post.imagem_url.match(/\.(mp4|webm)$/i)) {
-                    return `<video src="${post.imagem_url}" class="${classes} object-cover rounded bg-slate-100"></video>`;
+            // [FIX] Normalizar campo de mídia
+            const mediaUrl = post.imagem_url || post.media_url;
+            
+            if (mediaUrl) {
+                if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+                    return `<video src="${mediaUrl}" class="${classes} object-cover rounded bg-slate-100"></video>`;
                 } else {
-                    return `<img src="${post.imagem_url}" class="${classes} object-cover rounded bg-slate-100">`;
+                    return `<img src="${mediaUrl}" class="${classes} object-cover rounded bg-slate-100" onerror="this.src='https://placehold.co/400?text=Erro+Midia'">`;
                 }
             }
             return `<div class="${classes} bg-slate-100 rounded flex items-center justify-center text-slate-300"><i class="fas fa-image"></i></div>`;
