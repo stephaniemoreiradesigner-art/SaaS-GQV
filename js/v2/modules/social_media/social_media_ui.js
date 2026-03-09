@@ -147,15 +147,19 @@
             }
             this.setFieldValue('social-post-channel', platform);
 
-            // Mídia preview
+            // Mídia preview e hidratação
             const imgPreview = document.getElementById('social-post-media-image');
             const videoPreview = document.getElementById('social-post-media-video');
             const mediaContainer = document.getElementById('social-post-media-preview');
+            const uploadInput = document.getElementById('social-post-media-upload');
+            
+            // Limpar estado anterior
+            if (uploadInput) uploadInput.value = ''; // Limpar input file por segurança
             
             if (post?.imagem_url) {
                 if (mediaContainer) {
                     mediaContainer.classList.remove('hidden');
-                    mediaContainer.dataset.mediaUrl = post.imagem_url; // Store persistent URL
+                    mediaContainer.dataset.mediaUrl = post.imagem_url; // [FIX] Hidratar dataset com URL persistida
                 }
                 // Detectar se é vídeo (extensão básica)
                 if (post.imagem_url.match(/\.(mp4|webm)$/i)) {
@@ -174,7 +178,7 @@
             } else {
                 if (mediaContainer) {
                     mediaContainer.classList.add('hidden');
-                    mediaContainer.dataset.mediaUrl = '';
+                    mediaContainer.dataset.mediaUrl = ''; // Limpar dataset se não houver mídia
                 }
             }
 
