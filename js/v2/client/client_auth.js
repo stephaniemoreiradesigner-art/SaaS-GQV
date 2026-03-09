@@ -9,6 +9,16 @@
             // Se já temos o cliente isolado, retorna
             if (global.clientPortalSupabase) return;
 
+            // Tentar usar Factory Centralizada
+            if (global.SupabaseFactory) {
+                const client = await global.SupabaseFactory.getClientPortalClient();
+                if (client) {
+                    global.clientPortalSupabase = client;
+                    return;
+                }
+            }
+
+            // Fallback legado (caso Factory não esteja carregada)
             // Aguarda configuração do Supabase carregar (via app.js ou fetch direto)
             if (!global.supabaseConfig) {
                 if (global.loadSupabaseConfig) {
@@ -23,7 +33,7 @@
 
             // [ISOLATION] Criar instância isolada para o Portal do Cliente
             // Usa storageKey diferente para não compartilhar sessão com a Agência
-            console.log('[ClientAuth] Inicializando cliente Supabase ISOLADO para o Portal...');
+            console.log('[ClientAuth] Inicializando cliente Supabase ISOLADO para o Portal (Legado/Fallback)...');
             global.clientPortalSupabase = global.supabase.createClient(
                 global.supabaseConfig.supabaseUrl,
                 global.supabaseConfig.supabaseAnonKey,

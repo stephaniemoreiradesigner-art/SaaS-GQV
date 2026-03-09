@@ -32,6 +32,82 @@ async function loadSupabaseConfig() {
     return supabaseConfigPromise;
 }
 
+// Handler Global para Navegação e Ações
+document.addEventListener('click', (e) => {
+    // 1. Navegação Lateral (data-module)
+    const navBtn = e.target.closest('[data-module]');
+    if (navBtn) {
+        const moduleName = navBtn.dataset.module;
+        switchView(moduleName);
+        
+        // Atualiza estado visual
+        document.querySelectorAll('.v2-nav-btn').forEach(btn => {
+            btn.classList.remove('bg-slate-100', 'text-slate-900');
+            btn.classList.add('text-slate-700');
+        });
+        navBtn.classList.add('bg-slate-100', 'text-slate-900');
+        navBtn.classList.remove('text-slate-700');
+    }
+
+    // 2. Ações Rápidas (data-action)
+    const actionBtn = e.target.closest('[data-action]');
+    if (actionBtn) {
+        const action = actionBtn.dataset.action;
+        console.log('[APP] Ação disparada:', action);
+
+        // Mapa de ações para navegação
+        const actionMap = {
+            'go-dashboard': 'dashboard',
+            'go-clients': 'clients',
+            'go-social': 'social',
+            'go-performance': 'performance',
+            'go-approvals': 'approvals',
+            'go-settings': 'settings'
+        };
+
+        if (actionMap[action]) {
+            // Verifica se requer cliente ativo
+            if (actionBtn.hasAttribute('data-requires-client')) {
+                const activeClient = localStorage.getItem('GQV_ACTIVE_CLIENT_ID');
+                if (!activeClient) {
+                    alert('Selecione um cliente primeiro.');
+                    switchView('clients');
+                    return;
+                }
+            }
+            
+            // Simula clique no menu lateral para manter consistência
+            const targetNav = document.querySelector(`[data-module="${actionMap[action]}"]`);
+            if (targetNav) targetNav.click();
+            else switchView(actionMap[action]);
+        }
+    }
+});
+
+function switchView(viewName) {
+    console.log('[APP] Trocando view para:', viewName);
+    
+    // Esconde todas as views
+    document.querySelectorAll('.v2-view').forEach(el => el.classList.add('hidden'));
+    
+    // Mostra a view alvo
+    const target = document.getElementById(`view-${viewName}`);
+    if (target) {
+        target.classList.remove('hidden');
+        
+        // Dispara evento de mudança de view para módulos ouvirem
+        window.dispatchEvent(new CustomEvent('v2:view-changed', { 
+            detail: { view: viewName } 
+        }));
+    } else {
+        console.warn('[APP] View não encontrada:', viewName);
+    }
+}
+
+// Inicialização do cliente Supabase e Auth Guard
+window.authReady = false;
+window.authSession = null;
+
 async function initSupabase() {
     // [GUARD] Prevenir duplicação global do cliente Supabase
     if (window.__SUPABASE__) {
@@ -39,7 +115,19 @@ async function initSupabase() {
         return true;
     }
 
-    if (window.supabaseClient) return true; // Já inicializado por outro meio
+    // Tentar usar a Factory V2 se disponível
+    if (window.SupabaseFactory) {
+        const client = await window.SupabaseFactory.getAgencyClient();
+        if (client) {
+            window.supabaseClient = client;
+            window.__SUPABASE__ = client;
+            setupAuthListener(client);
+            return true;
+        }
+    }
+
+    // Fallback legado se Factory não carregar
+    if (window.supabaseClient) return true; 
 
     try {
         if (!window.supabase) {
@@ -51,23 +139,24 @@ async function initSupabase() {
                 if (!config) return false;
             }
                 
-                // Cria instância única
-                const client = window.supabase.createClient(
-                    window.supabaseConfig.supabaseUrl,
-                    window.supabaseConfig.supabaseAnonKey,
-                    {
-                        auth: {
-                            persistSession: true,
-                            autoRefreshToken: true,
-                            detectSessionInUrl: true
-                        }
+            // Cria instância única (Legado)
+            const client = window.supabase.createClient(
+                window.supabaseConfig.supabaseUrl,
+                window.supabaseConfig.supabaseAnonKey,
+                {
+                    auth: {
+                        persistSession: true,
+                        autoRefreshToken: true,
+                        detectSessionInUrl: true
                     }
-                );
+                }
+            );
+            
+            window.__SUPABASE__ = client;
+            window.supabaseClient = client;
+            setupAuthListener(client);
                 
-                window.__SUPABASE__ = client;
-                window.supabaseClient = client;
-                
-            console.log('Supabase inicializado com sucesso no app.js (Singleton)');
+            console.log('Supabase inicializado com sucesso no app.js (Legado)');
             window.SUPERADMIN_EMAILS = ['stephaniemoreira.designer@gmail.com', 'marketing.vaniamello@gmail.com'];
             return true;
         }
@@ -76,6 +165,69 @@ async function initSupabase() {
         return false;
     }
 }
+
+function setupAuthListener(client) {
+    if (!client) return;
+    
+    // Configurar estado inicial
+    client.auth.getSession().then(({ data }) => {
+        window.authSession = data.session;
+        window.authReady = true;
+        console.log('[AUTH] Estado inicial pronto. Sessão:', !!data.session);
+        window.dispatchEvent(new CustomEvent('authReady'));
+    });
+
+    client.auth.onAuthStateChange((event, session) => {
+        console.log('[AUTH] Mudança de estado:', event);
+        window.authSession = session;
+        window.authReady = true;
+        
+        // Redirecionamentos automáticos baseados em eventos
+        if (event === 'SIGNED_IN') {
+            // Lógica de pós-login
+        }
+        if (event === 'SIGNED_OUT') {
+            // Lógica de pós-logout
+        }
+    });
+}
+
+// Route Guard Padronizado
+window.checkAuth = async function() {
+    const path = window.location.pathname;
+    
+    // Ignorar rotas públicas
+    if (path.includes('login.html') || path.includes('register.html') || path.includes('forgot.html')) {
+        return;
+    }
+
+    // Esperar Auth Ready
+    if (!window.authReady) {
+        console.log('[GUARD] Aguardando authReady...');
+        await new Promise(resolve => {
+            if (window.authReady) return resolve();
+            window.addEventListener('authReady', resolve, { once: true });
+            // Timeout de segurança
+            setTimeout(() => {
+                if (!window.authReady) {
+                    console.warn('[GUARD] Timeout aguardando authReady. Forçando check.');
+                    resolve();
+                }
+            }, 3000);
+        });
+    }
+
+    // Portal do Cliente tem guarda própria em client_auth.js
+    if (path.includes('/v2/client/')) {
+        return; 
+    }
+
+    // Verificação para Agência
+    if (!window.authSession) {
+        console.warn('[GUARD] Sem sessão ativa. Redirecionando para login.');
+        window.location.href = '/v2/agency/login.html';
+    }
+};
 
 // Tenta inicializar imediatamente
 initSupabase();
