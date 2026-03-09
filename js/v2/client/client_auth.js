@@ -47,18 +47,7 @@
                 }
             );
 
-            // [LISTENER] Redirecionamento automático baseado em eventos
-            // Garantir que não duplique listeners
-            if (!global.clientPortalAuthListenerRegistered) {
-                global.clientPortalSupabase.auth.onAuthStateChange((event, session) => {
-                    console.log('[ClientAuth] Auth Event:', event);
-                    if (event === 'SIGNED_IN' && window.location.pathname.includes('/login.html')) {
-                        console.log('[ClientAuth] SIGNED_IN detectado no login. Redirecionando...');
-                        window.location.href = '/v2/client/index.html';
-                    }
-                });
-                global.clientPortalAuthListenerRegistered = true;
-            }
+            // [AUTH-GUARD] Lógica centralizada agora. Não adicionar listeners aqui.
         },
 
         /**
@@ -116,8 +105,7 @@
                 
                 localStorage.setItem(this.sessionKey, JSON.stringify(sessionPayload));
                 
-                // Redirecionamento automático após login bem sucedido
-                window.location.href = '/v2/client/index.html';
+                // [AUTH-GUARD] Redirect automático ocorrerá via AuthGuard.js ao detectar sessão
                 
                 return { success: true, client: sessionPayload };
 
