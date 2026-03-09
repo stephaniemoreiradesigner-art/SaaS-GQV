@@ -23,11 +23,19 @@
             const supabase = await this.getClient();
             if (!supabase) return [];
             
+            const pendingStatuses = global.GQV_CONSTANTS 
+                ? [
+                    global.GQV_CONSTANTS.SOCIAL_STATUS.READY_FOR_APPROVAL,
+                    'pendente_aprovacao', // legacy
+                    'awaiting_approval' // legacy
+                  ]
+                : ['awaiting_approval', 'em_aprovacao', 'pendente_aprovacao', 'ready_for_approval'];
+
             const { data, error } = await supabase
                 .from('social_calendars')
                 .select('*')
                 .eq('cliente_id', clientId)
-                .in('status', ['awaiting_approval', 'em_aprovacao', 'pendente_aprovacao']) // Abrangendo variações
+                .in('status', pendingStatuses)
                 .order('mes_referencia', { ascending: false });
 
             if (error) {
@@ -66,11 +74,19 @@
             const supabase = await this.getClient();
             if (!supabase) return [];
 
+            const pendingStatuses = global.GQV_CONSTANTS 
+                ? [
+                    global.GQV_CONSTANTS.SOCIAL_STATUS.READY_FOR_APPROVAL,
+                    'pendente_aprovacao', // legacy
+                    'awaiting_approval' // legacy
+                  ]
+                : ['awaiting_approval', 'em_aprovacao', 'pendente_aprovacao', 'ready_for_approval'];
+
             const { data, error } = await supabase
                 .from('social_posts')
                 .select('*, social_calendars!inner(cliente_id)')
                 .eq('social_calendars.cliente_id', clientId)
-                .in('status', ['awaiting_approval', 'em_aprovacao', 'pendente_aprovacao'])
+                .in('status', pendingStatuses)
                 .order('data_agendada', { ascending: true });
 
             if (error) {
@@ -88,11 +104,13 @@
             const supabase = await this.getClient();
             if (!supabase) return false;
 
+            const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
+
             // 1. Aprova calendário
             const { error: calError } = await supabase
                 .from('social_calendars')
                 .update({ 
-                    status: 'approved',
+                    status: approvedStatus,
                     comentario_cliente: null // Limpa comentários anteriores se houver
                 })
                 .eq('id', calendarId);
@@ -105,7 +123,7 @@
             // 2. Aprova todos os posts associados (Opcional, mas boa prática para consistência)
             const { error: postError } = await supabase
                 .from('social_posts')
-                .update({ status: 'approved' })
+                .update({ status: approvedStatus })
                 .eq('calendar_id', calendarId);
 
             if (postError) console.warn('[ClientRepo] Erro ao aprovar posts em lote:', postError);
@@ -122,10 +140,12 @@
             const supabase = await this.getClient();
             if (!supabase) return false;
 
+            const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
+
             const { error } = await supabase
                 .from('social_calendars')
                 .update({ 
-                    status: 'changes_requested',
+                    status: changesStatus,
                     comentario_cliente: comment 
                 })
                 .eq('id', calendarId);
@@ -145,10 +165,12 @@
             const supabase = await this.getClient();
             if (!supabase) return false;
 
+            const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
+
             const { error } = await supabase
                 .from('social_posts')
                 .update({ 
-                    status: 'approved',
+                    status: approvedStatus,
                     comentario_cliente: null
                 })
                 .eq('id', postId);
@@ -166,10 +188,12 @@
             const supabase = await this.getClient();
             if (!supabase) return false;
 
+            const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
+
             const { error } = await supabase
                 .from('social_posts')
                 .update({ 
-                    status: 'changes_requested',
+                    status: changesStatus,
                     comentario_cliente: comment 
                 })
                 .eq('id', postId);

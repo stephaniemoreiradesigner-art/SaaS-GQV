@@ -103,7 +103,7 @@
                 
                 // Normalização de status
                 let status = input.status || 'draft';
-                const statusMap = {
+                const statusMap = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS_MAP : {
                     'rascunho': 'draft',
                     'pendente_aprovacao': 'ready_for_approval',
                     'awaiting_approval': 'ready_for_approval',
@@ -112,6 +112,7 @@
                     'agendado': 'scheduled',
                     'publicado': 'published'
                 };
+                
                 if (statusMap[status]) status = statusMap[status];
                 
                 // Normalização de formato
@@ -227,7 +228,7 @@
             }
             if (input.status !== undefined) {
                 let status = input.status;
-                const statusMap = {
+                const statusMap = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS_MAP : {
                     'rascunho': 'draft',
                     'pendente_aprovacao': 'ready_for_approval',
                     'awaiting_approval': 'ready_for_approval',

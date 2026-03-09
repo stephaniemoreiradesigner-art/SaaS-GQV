@@ -47,13 +47,8 @@
                 }
             );
 
-            // [LISTENER] Redirecionamento automático baseado em eventos
-            // Garantir que não duplique listeners
-            if (!global.clientPortalAuthListenerRegistered) {
-                // [AUTH-GUARD] Lógica centralizada em auth_guard.js
-                // Não registrar listener aqui para evitar loops
-                global.clientPortalAuthListenerRegistered = true;
-            }
+            // [AUTH-GUARD] Lógica centralizada em auth_guard.js
+            // Listener removido daqui para evitar conflitos
         },
 
         /**

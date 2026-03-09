@@ -177,24 +177,15 @@ function setupAuthListener(client) {
         window.dispatchEvent(new CustomEvent('authReady'));
     });
 
+    // [AUTH-CENTRALIZATION] Listener removido daqui.
+    // A lógica de redirecionamento agora é exclusiva do js/v2/shared/auth_guard.js
+    // Este listener serve apenas para manter o estado global window.authSession atualizado para a Agência
     client.auth.onAuthStateChange((event, session) => {
-        // [AUTH-ISOLATION] Ignorar auth handler da Agência no Portal do Cliente
-        if (window.location.pathname.startsWith('/v2/client')) {
-            console.log('[AUTH] Ignorando auth handler da Agency no Portal do Cliente');
-            return;
-        }
+        if (window.location.pathname.startsWith('/v2/client')) return;
 
-        console.log('[AUTH] Mudança de estado:', event);
+        console.log('[AUTH] Sync estado global:', event);
         window.authSession = session;
         window.authReady = true;
-        
-        // Redirecionamentos automáticos baseados em eventos
-        if (event === 'SIGNED_IN') {
-            // Lógica de pós-login
-        }
-        if (event === 'SIGNED_OUT') {
-            // Lógica de pós-logout
-        }
     });
 }
 
