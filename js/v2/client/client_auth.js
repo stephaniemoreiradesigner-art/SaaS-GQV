@@ -14,7 +14,7 @@
                 const client = await global.SupabaseFactory.getClientPortalClient();
                 if (client) {
                     global.clientPortalSupabase = client;
-                    return;
+                    // [FIX] Não dar return aqui para garantir que o listener abaixo seja registrado
                 }
             }
 
@@ -48,13 +48,17 @@
             );
 
             // [LISTENER] Redirecionamento automático baseado em eventos
-            global.clientPortalSupabase.auth.onAuthStateChange((event, session) => {
-                console.log('[ClientAuth] Auth Event:', event);
-                if (event === 'SIGNED_IN' && window.location.pathname.includes('/login.html')) {
-                     console.log('[ClientAuth] SIGNED_IN detectado no login. Redirecionando...');
-                     window.location.href = '/v2/client/index.html';
-                }
-            });
+            // Garantir que não duplique listeners
+            if (!global.clientPortalAuthListenerRegistered) {
+                global.clientPortalSupabase.auth.onAuthStateChange((event, session) => {
+                    console.log('[ClientAuth] Auth Event:', event);
+                    if (event === 'SIGNED_IN' && window.location.pathname.includes('/login.html')) {
+                        console.log('[ClientAuth] SIGNED_IN detectado no login. Redirecionando...');
+                        window.location.href = '/v2/client/index.html';
+                    }
+                });
+                global.clientPortalAuthListenerRegistered = true;
+            }
         },
 
         /**
