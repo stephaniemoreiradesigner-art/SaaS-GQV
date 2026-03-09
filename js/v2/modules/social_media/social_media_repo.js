@@ -98,15 +98,25 @@
             try {
                 const clientId = input.cliente_id || input.client_id;
                 const postDate = input.data_postagem || input.post_date || new Date().toISOString().slice(0, 10);
-                const title = input.titulo || input.title || input.legenda || 'Post';
+                const title = input.titulo || input.tema || input.title || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
                 
                 // Normalização de status
                 let status = input.status || 'draft';
-                if (status === 'rascunho') status = 'draft';
-                if (status === 'pendente_aprovacao') status = 'awaiting_approval';
-                if (status === 'aprovado') status = 'approved';
+                const statusMap = {
+                    'rascunho': 'draft',
+                    'pendente_aprovacao': 'ready_for_approval',
+                    'awaiting_approval': 'ready_for_approval',
+                    'aprovado': 'approved',
+                    'rejeitado': 'rejected',
+                    'agendado': 'scheduled',
+                    'publicado': 'published'
+                };
+                if (statusMap[status]) status = statusMap[status];
                 
+                // Normalização de formato
+                let formato = input.formato || input.tipo_conteudo || 'post_estatico';
+
                 // Correção do mês de referência para sempre ser YYYY-MM-01
                 let monthRef;
                 if (postDate && postDate.length >= 7) {
@@ -164,8 +174,10 @@
                     calendar_id: calendarId,
                     cliente_id: clientId,
                     data_agendada: postDate,
-                    legenda: title,
-                    detailed_content: content,
+                    tema: title,
+                    formato: formato,
+                    legenda: content,
+                    detailed_content: input.detailed_content || content,
                     status,
                     cta: input.cta || null,
                     hashtags: input.hashtags || null,
@@ -178,41 +190,8 @@
                     .select()
                     .single();
 
-                if (!error) return data;
-
-                console.warn('[SOCIAL] Erro em social_posts, tentando posts...', error);
-                const fallbackPayload = {
-                    cliente_id: clientId,
-                    titulo: title,
-                    conteudo: content,
-                    status,
-                    data_postagem: postDate,
-                    tipo_conteudo: input.tipo_conteudo || input.formato || null,
-                    cta: input.cta || null,
-                    hashtags: input.hashtags || null
-                };
-                const { data: fbData, error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .insert([fallbackPayload])
-                    .select()
-                    .single();
-                
-                if (!fbError) return fbData;
-
-                const minimalPayload = {
-                    cliente_id: clientId,
-                    titulo: title,
-                    conteudo: content,
-                    status,
-                    data_postagem: postDate
-                };
-                const { data: minimalData, error: minimalError } = await global.supabaseClient
-                    .from('posts')
-                    .insert([minimalPayload])
-                    .select()
-                    .single();
-                if (minimalError) throw minimalError;
-                return minimalData;
+                if (error) throw error;
+                return data;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao criar post:', err);
                 throw err;
@@ -229,67 +208,53 @@
             if (!global.supabaseClient || !postId) return null;
 
             const dbPayload = {};
-            if (input.titulo !== undefined || input.title !== undefined) {
-                dbPayload.legenda = input.titulo ?? input.title;
+            
+            // Mapeamento correto para social_posts
+            if (input.titulo !== undefined || input.title !== undefined || input.tema !== undefined) {
+                dbPayload.tema = input.tema || input.titulo || input.title;
+            }
+            if (input.formato !== undefined || input.tipo_conteudo !== undefined) {
+                dbPayload.formato = input.formato || input.tipo_conteudo;
             }
             if (input.legenda !== undefined || input.content !== undefined) {
-                dbPayload.detailed_content = input.content ?? input.legenda;
+                dbPayload.legenda = input.legenda || input.content;
+            }
+            if (input.detailed_content !== undefined) {
+                dbPayload.detailed_content = input.detailed_content;
             }
             if (input.data_postagem !== undefined || input.post_date !== undefined) {
-                dbPayload.data_agendada = input.data_postagem ?? input.post_date;
+                dbPayload.data_agendada = input.data_postagem || input.post_date;
             }
             if (input.status !== undefined) {
                 let status = input.status;
-                if (status === 'rascunho') status = 'draft';
-                if (status === 'pendente_aprovacao') status = 'awaiting_approval';
-                if (status === 'aprovado') status = 'approved';
+                const statusMap = {
+                    'rascunho': 'draft',
+                    'pendente_aprovacao': 'ready_for_approval',
+                    'awaiting_approval': 'ready_for_approval',
+                    'aprovado': 'approved',
+                    'rejeitado': 'rejected',
+                    'agendado': 'scheduled',
+                    'publicado': 'published'
+                };
+                if (statusMap[status]) status = statusMap[status];
                 dbPayload.status = status;
             }
             if (input.cta !== undefined) dbPayload.cta = input.cta;
             if (input.hashtags !== undefined) dbPayload.hashtags = input.hashtags;
             if (input.imagem_url !== undefined || input.media_url !== undefined) {
-                dbPayload.imagem_url = input.imagem_url ?? input.media_url;
+                dbPayload.imagem_url = input.imagem_url || input.media_url;
             }
-            
-            const fallbackPayload = {};
-            if (input.titulo !== undefined || input.title !== undefined) fallbackPayload.titulo = input.titulo ?? input.title;
-            if (input.legenda !== undefined || input.content !== undefined) fallbackPayload.conteudo = input.content ?? input.legenda;
-            if (input.data_postagem !== undefined || input.post_date !== undefined) fallbackPayload.data_postagem = input.data_postagem ?? input.post_date;
-            if (input.status !== undefined) fallbackPayload.status = input.status === 'rascunho' ? 'draft' : input.status;
-            if (input.cta !== undefined) fallbackPayload.cta = input.cta;
-            if (input.hashtags !== undefined) fallbackPayload.hashtags = input.hashtags;
 
             try {
-                // Tenta atualizar em 'social_posts' primeiro
+                // Tenta atualizar em 'social_posts'
                 let { data, error } = await global.supabaseClient
                     .from('social_posts')
                     .update(dbPayload)
                     .eq('id', postId)
                     .select();
 
-                if (!error) return data;
-
-                console.warn('[SOCIAL] Update em social_posts falhou, tentando posts...');
-                const { data: fbData, error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .update(fallbackPayload)
-                    .eq('id', postId)
-                    .select();
-
-                if (!fbError) return fbData;
-
-                const minimalPayload = {};
-                if (input.titulo !== undefined) minimalPayload.titulo = input.titulo;
-                if (input.legenda !== undefined) minimalPayload.conteudo = input.legenda;
-                if (input.data_postagem !== undefined) minimalPayload.data_postagem = input.data_postagem;
-                if (input.status !== undefined) minimalPayload.status = input.status;
-                const { data: minimalData, error: minimalError } = await global.supabaseClient
-                    .from('posts')
-                    .update(minimalPayload)
-                    .eq('id', postId)
-                    .select();
-                if (minimalError) throw minimalError;
-                return minimalData;
+                if (error) throw error;
+                return data;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao atualizar post:', err);
                 throw err;
@@ -311,16 +276,7 @@
                     .delete()
                     .eq('id', postId);
 
-                if (!error) return true;
-
-                // Se falhar, tenta 'posts'
-                console.warn('[SocialMediaRepo] Delete em social_posts falhou, tentando posts...');
-                const { error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .delete()
-                    .eq('id', postId);
-
-                if (fbError) throw fbError;
+                if (error) throw error;
                 return true;
             } catch (err) {
                 console.error('[SocialMediaRepo] Falha ao excluir post:', err);
@@ -344,16 +300,7 @@
                     .update({ data_agendada: newDate })
                     .eq('id', postId);
 
-                if (!error) return true;
-
-                // Fallback 'posts'
-                console.warn('[SOCIAL] updatePostDate falhou em social_posts, tentando posts...');
-                const { error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .update({ data_postagem: newDate })
-                    .eq('id', postId);
-
-                if (fbError) throw fbError;
+                if (error) throw error;
                 return true;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao mover post:', err);
@@ -370,9 +317,16 @@
         updatePostStatus: async function(postId, newStatus) {
             if (!global.supabaseClient || !postId || !newStatus) return false;
             let normalizedStatus = newStatus;
-            if (newStatus === 'rascunho') normalizedStatus = 'draft';
-            if (newStatus === 'pendente_aprovacao') normalizedStatus = 'awaiting_approval';
-            if (newStatus === 'aprovado') normalizedStatus = 'approved';
+            const statusMap = {
+                'rascunho': 'draft',
+                'pendente_aprovacao': 'ready_for_approval',
+                'awaiting_approval': 'ready_for_approval',
+                'aprovado': 'approved',
+                'rejeitado': 'rejected',
+                'agendado': 'scheduled',
+                'publicado': 'published'
+            };
+            if (statusMap[newStatus]) normalizedStatus = statusMap[newStatus];
 
             try {
                 // Tenta atualizar em 'social_posts'
@@ -381,16 +335,7 @@
                     .update({ status: normalizedStatus })
                     .eq('id', postId);
 
-                if (!error) return true;
-
-                // Fallback 'posts'
-                console.warn('[SOCIAL] updatePostStatus falhou em social_posts, tentando posts...');
-                const { error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .update({ status: normalizedStatus })
-                    .eq('id', postId);
-
-                if (fbError) throw fbError;
+                if (error) throw error;
                 return true;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao atualizar status:', err);
@@ -414,16 +359,7 @@
                     .update({ feedback_aprovacao: comment })
                     .eq('id', postId);
 
-                if (!error) return true;
-
-                // Fallback 'posts'
-                console.warn('[SOCIAL] updatePostFeedback falhou em social_posts, tentando posts...');
-                const { error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .update({ feedback_aprovacao: comment })
-                    .eq('id', postId);
-
-                if (fbError) throw fbError;
+                if (error) throw error;
                 return true;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao atualizar feedback:', err);
@@ -451,22 +387,10 @@
                     .lte('data_agendada', endDate)
                     .order('data_agendada', { ascending: true });
 
-                if (!error) return data;
-
-                // Fallback 'posts'
-                console.warn('[SOCIAL] getPostsByDateRange falhou em social_posts, tentando posts...');
-                const { data: fbData, error: fbError } = await global.supabaseClient
-                    .from('posts')
-                    .select('*')
-                    .eq('cliente_id', clientId)
-                    .gte('data_postagem', startDate)
-                    .lte('data_postagem', endDate)
-                    .order('data_postagem', { ascending: true });
-
-                if (fbError) throw fbError;
-                return fbData || [];
+                if (error) throw error;
+                return data;
             } catch (err) {
-                console.error('[SOCIAL] Erro ao buscar range:', err);
+                console.error('[SOCIAL] Falha ao buscar posts por range:', err);
                 return [];
             }
         },
