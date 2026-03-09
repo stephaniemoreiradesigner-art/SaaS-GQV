@@ -509,6 +509,26 @@
             </div>
         </div>
     </div>
+    <div id="social-delete-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
+        <div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Calendário</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Excluir rascunho</h3>
+                </div>
+                <button id="social-delete-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="px-6 py-5">
+                <p class="text-sm text-slate-600">Este post será removido do calendário.</p>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button id="social-delete-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                <button id="social-delete-confirm" class="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700">Excluir</button>
+            </div>
+        </div>
+    </div>
     <div id="client-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
         <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -641,6 +661,10 @@
         const socialPostNotes = document.getElementById('social-post-notes');
         const socialPostFeedback = document.getElementById('social-post-feedback');
         const socialPostDelete = document.getElementById('social-post-delete');
+        const socialDeleteModal = document.getElementById('social-delete-modal');
+        const socialDeleteClose = document.getElementById('social-delete-close');
+        const socialDeleteCancel = document.getElementById('social-delete-cancel');
+        const socialDeleteConfirm = document.getElementById('social-delete-confirm');
         const socialTabButtons = document.querySelectorAll('[data-social-tab]');
         const socialTabSections = document.querySelectorAll('.social-tab');
         const clientRequiredActions = document.querySelectorAll('[data-requires-client]');
@@ -1894,25 +1918,49 @@
             });
         });
         if (socialPostDelete) {
-            socialPostDelete.addEventListener('click', async () => {
+            socialPostDelete.addEventListener('click', () => {
                 if (!socialState.activePost) return;
                 if (socialState.calendarStatus === 'aguardando_aprovacao') {
                     setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                     return;
                 }
-                const confirmed = window.confirm('Excluir este rascunho?');
-                if (!confirmed) return;
+                if (socialDeleteModal) {
+                    socialDeleteModal.classList.remove('hidden');
+                    socialDeleteModal.classList.add('flex');
+                }
+            });
+        }
+        const closeDeleteModal = () => {
+            if (!socialDeleteModal) return;
+            socialDeleteModal.classList.add('hidden');
+            socialDeleteModal.classList.remove('flex');
+        };
+        if (socialDeleteClose) socialDeleteClose.addEventListener('click', closeDeleteModal);
+        if (socialDeleteCancel) socialDeleteCancel.addEventListener('click', closeDeleteModal);
+        if (socialDeleteModal) {
+            socialDeleteModal.addEventListener('click', (event) => {
+                if (event.target === socialDeleteModal) closeDeleteModal();
+            });
+        }
+        if (socialDeleteConfirm) {
+            socialDeleteConfirm.addEventListener('click', async () => {
+                if (!socialState.activePost) {
+                    closeDeleteModal();
+                    return;
+                }
                 const { id, tempId } = socialState.activePost;
                 if (id && window.SocialMediaRepo?.deletePost) {
                     const ok = await window.SocialMediaRepo.deletePost(id);
                     if (!ok) {
                         setPostFeedback('Não foi possível excluir o post.', 'error');
+                        closeDeleteModal();
                         return;
                     }
                 }
                 socialState.posts = socialState.posts.filter((post) => (id ? post.id !== id : post.tempId !== tempId));
                 updateSocialOverview();
                 renderCalendarGrid();
+                closeDeleteModal();
                 closePostDrawer();
             });
         }
