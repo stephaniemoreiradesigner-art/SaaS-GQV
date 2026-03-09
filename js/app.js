@@ -254,6 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isV2AgencyLoginPage = path.includes('/v2/agency/login.html');
             const isV2ClientLoginPage = path.includes('/v2/client/login.html');
             const isV2AgencyIndex = path.includes('/v2/agency/index.html');
+            const isV2ClientIndex = path.includes('/v2/client/index.html');
             const isLegacyLoginPage = !isV2AgencyPath && !isV2ClientPath && (path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/'));
             const isLoginPage = isV2AgencyLoginPage || isV2ClientLoginPage || isLegacyLoginPage;
             const isRestrictedPage = !isLoginPage;
@@ -270,8 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .maybeSingle();
                         const normalizedRole = String(profileData?.perfil_acesso || '').trim().toLowerCase();
                         if (normalizedRole === 'client' || normalizedRole === 'cliente') {
-                            await window.supabaseClient.auth.signOut();
-                            window.location.href = 'client_login.html';
+                            window.location.href = '/v2/client/index.html';
                             return;
                         }
                     } catch (error) {
@@ -282,6 +282,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (isLoginPage) {
                     if (isV2AgencyLoginPage) {
                         window.location.href = '/v2/agency/index.html';
+                    } else if (isV2ClientLoginPage) {
+                        window.location.href = '/v2/client/index.html';
                     } else {
                         window.location.href = 'dashboard.html';
                     }
@@ -343,6 +345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!window.location.search.includes('access_token')) {
                                 if (isV2AgencyIndex) {
                                     window.location.href = '/v2/agency/login.html';
+                                } else if (isV2ClientIndex) {
+                                    window.location.href = '/v2/client/login.html';
                                 } else {
                                     window.location.href = 'index.html';
                                 }
