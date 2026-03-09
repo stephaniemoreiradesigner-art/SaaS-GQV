@@ -248,50 +248,53 @@
         </div>
     </div>
 
-    <div id="client-approval-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <!-- MODAL: Post Preview & Approval -->
+    <div id="client-post-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
-                    <h2 id="client-approval-title" class="text-lg font-semibold text-gray-900"></h2>
-                    <span id="client-approval-status" class="inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium"></span>
+                    <h3 class="text-lg font-semibold text-slate-900" id="client-post-modal-title">Detalhes do Post</h3>
+                    <div class="flex gap-2 mt-1">
+                         <span id="client-post-modal-date" class="text-xs text-slate-500">Data</span>
+                         <span id="client-post-modal-status" class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Status</span>
+                    </div>
                 </div>
-                <button id="client-approval-close" class="text-gray-400 hover:text-gray-600 transition">
+                <button id="client-post-modal-close" class="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200 transition">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4">
-                <a id="client-approval-preview" href="#" target="_blank" class="text-sm text-primary hover:underline hidden">Abrir preview</a>
-                <div id="client-approval-media" class="hidden w-full h-64 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center text-gray-400 text-sm"></div>
-                <div class="flex items-center justify-between">
-                    <div class="text-sm text-gray-600">Versão atual: <span id="client-approval-version" class="font-semibold text-gray-800">-</span></div>
-                    <button id="client-approval-submit" class="px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition text-sm">Enviar para aprovação</button>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                <!-- Media Preview -->
+                <div class="bg-slate-100 rounded-lg overflow-hidden flex justify-center items-center min-h-[200px]" id="client-post-modal-media-container">
+                    <!-- Mídia inserida via JS -->
                 </div>
-                <div>
-                    <p class="text-sm text-gray-500 mb-2">Legenda</p>
-                    <p id="client-approval-caption" class="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 border border-gray-200 rounded-lg p-3"></p>
-                </div>
-                <div class="space-y-4 border-t border-gray-100 pt-4">
+
+                <!-- Details -->
+                <div class="space-y-4">
                     <div>
-                        <p class="text-xs uppercase text-gray-400 mb-2">Histórico de aprovações</p>
-                        <div id="client-approval-audit-approvals" class="space-y-3"></div>
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Legenda</label>
+                        <div id="client-post-modal-caption" class="text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-wrap"></div>
                     </div>
-                    <div>
-                        <p class="text-xs uppercase text-gray-400 mb-2">Versões</p>
-                        <div id="client-approval-audit-versions" class="space-y-3"></div>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-gray-400 mb-2">Comentários</p>
-                        <div id="client-approval-audit-comments" class="space-y-3"></div>
+                    
+                    <!-- Feedback Area (Only if changes requested or rejecting) -->
+                    <div id="client-post-modal-feedback-area">
+                        <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Comentários / Ajustes</label>
+                        <textarea id="client-post-modal-comment" rows="3" class="w-full text-sm border-slate-200 rounded-lg focus:ring-primary focus:border-primary" placeholder="Descreva o que precisa ser ajustado..."></textarea>
                     </div>
                 </div>
-                <div class="space-y-3 border-t border-gray-100 pt-4">
-                    <textarea id="client-approval-comment-input" rows="3" class="w-full rounded-lg border border-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Escreva um comentário..."></textarea>
-                    <button id="client-approval-comment-btn" class="px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition">Enviar comentário</button>
-                </div>
-                <div class="flex justify-end gap-3 border-t border-gray-100 pt-4">
-                    <button id="client-approval-changes" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Solicitar ajustes</button>
-                    <button id="client-approval-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar</button>
-                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button id="client-post-modal-reject" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm">
+                    Solicitar Ajustes
+                </button>
+                <button id="client-post-modal-approve" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm flex items-center gap-2">
+                    <i class="fas fa-check"></i> Aprovar Post
+                </button>
             </div>
         </div>
     </div>

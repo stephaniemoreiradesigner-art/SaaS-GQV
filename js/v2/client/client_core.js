@@ -82,6 +82,61 @@
             }
         },
 
+        openPostModal: function(post) {
+            this.activePostId = post.id;
+            
+            // Show UI
+            if(global.ClientUI) global.ClientUI.showPostModal(true, post);
+
+            // Bind Actions
+            const approveBtn = document.getElementById('client-post-modal-approve');
+            const rejectBtn = document.getElementById('client-post-modal-reject');
+            const closeBtn = document.getElementById('client-post-modal-close');
+
+            if (approveBtn) approveBtn.onclick = () => this.handleApprovePostInModal();
+            if (rejectBtn) rejectBtn.onclick = () => this.handleRejectPostInModal();
+            if (closeBtn) closeBtn.onclick = () => {
+                if(global.ClientUI) global.ClientUI.showPostModal(false);
+            };
+        },
+
+        handleApprovePostInModal: async function() {
+            if (!this.activePostId) return;
+            if (!confirm('Aprovar este post?')) return;
+            
+            const success = await global.ClientRepo.approvePost(this.activePostId);
+            if (success) {
+                alert('Post aprovado com sucesso!');
+                if(global.ClientUI) global.ClientUI.showPostModal(false);
+                await this.loadPendingPosts(); // Refresh list
+                await this.loadDashboardData();
+            } else {
+                alert('Erro ao aprovar post.');
+            }
+        },
+
+        handleRejectPostInModal: async function() {
+            if (!this.activePostId) return;
+            
+            const commentInput = document.getElementById('client-post-modal-comment');
+            const reason = commentInput ? commentInput.value.trim() : '';
+
+            if (!reason) {
+                alert('Por favor, descreva o ajuste necessário.');
+                return;
+            }
+
+            const success = await global.ClientRepo.rejectPost(this.activePostId, reason);
+            if (success) {
+                alert('Solicitação de ajuste enviada!');
+                if(global.ClientUI) global.ClientUI.showPostModal(false);
+                await this.loadPendingPosts(); // Refresh list
+                await this.loadDashboardData();
+            } else {
+                alert('Erro ao enviar solicitação.');
+            }
+        },
+
         handleApprovePost: async function(postId) {
             if (!confirm('Aprovar este post?')) return;
             const success = await global.ClientRepo.approvePost(postId);

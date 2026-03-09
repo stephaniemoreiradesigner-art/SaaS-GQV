@@ -178,6 +178,54 @@
             });
         },
 
+        showPostModal: function(show, postData = null) {
+            const modal = document.getElementById('client-post-modal');
+            if (!modal) return;
+
+            if (show && postData) {
+                // Populate Data
+                const date = postData.data_agendada ? new Date(postData.data_agendada).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
+                document.getElementById('client-post-modal-date').textContent = date;
+                document.getElementById('client-post-modal-caption').textContent = postData.legenda || 'Sem legenda.';
+                
+                // Status Badge
+                const statusEl = document.getElementById('client-post-modal-status');
+                const statusMap = {
+                    'draft': 'Rascunho',
+                    'ready_for_approval': 'Pendente',
+                    'approved': 'Aprovado',
+                    'changes_requested': 'Ajustes Solicitados',
+                    'scheduled': 'Agendado',
+                    'published': 'Publicado'
+                };
+                statusEl.textContent = statusMap[postData.status] || postData.status;
+                
+                // Media
+                const mediaContainer = document.getElementById('client-post-modal-media-container');
+                let mediaHtml = '';
+                if (postData.imagem_url) {
+                    if (postData.imagem_url.match(/\.(mp4|webm)$/i)) {
+                         mediaHtml = `<video src="${postData.imagem_url}" controls class="max-w-full max-h-[400px] rounded"></video>`;
+                    } else {
+                         mediaHtml = `<img src="${postData.imagem_url}" class="max-w-full max-h-[400px] object-contain rounded">`;
+                    }
+                } else {
+                    mediaHtml = `<div class="text-slate-400 flex flex-col items-center"><i class="fas fa-image text-4xl mb-2"></i><span class="text-sm">Sem mídia</span></div>`;
+                }
+                mediaContainer.innerHTML = mediaHtml;
+
+                // Reset Comment
+                const commentInput = document.getElementById('client-post-modal-comment');
+                if(commentInput) commentInput.value = '';
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        },
+
         renderPendingPostsList: function(posts) {
             const container = document.getElementById('client-approvals-list');
             const empty = document.getElementById('client-approvals-empty');
@@ -194,8 +242,15 @@
             posts.forEach(post => {
                 const date = post.data_agendada ? new Date(post.data_agendada).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
                 const el = document.createElement('div');
-                el.className = 'bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4';
+                el.className = 'bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col md:flex-row gap-4 hover:shadow-md transition-shadow cursor-pointer';
                 
+                // Click card to open modal
+                el.onclick = (e) => {
+                    // Prevent if clicking buttons directly
+                    if(e.target.tagName === 'BUTTON') return;
+                    if(global.ClientCore) global.ClientCore.openPostModal(post);
+                };
+
                 let mediaHtml = this.getMediaHtml(post, 'w-full md:w-32 h-48 md:h-32');
 
                 el.innerHTML = `
@@ -210,25 +265,11 @@
                         </div>
                         <p class="text-sm text-slate-600 line-clamp-2">${post.legenda || ''}</p>
                         <div class="flex justify-end gap-2 mt-2">
-                            <button class="px-3 py-1.5 rounded border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 btn-reject-post" data-id="${post.id}">Ajustar</button>
-                            <button class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm hover:bg-slate-800 btn-approve-post" data-id="${post.id}">Aprovar</button>
+                            <button class="px-3 py-1.5 rounded border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 btn-open-post-modal">Visualizar</button>
                         </div>
                     </div>
                 `;
                 container.appendChild(el);
-            });
-
-            // Bind events
-            document.querySelectorAll('.btn-approve-post').forEach(btn => {
-                btn.addEventListener('click', () => {
-                     if(global.ClientCore) global.ClientCore.handleApprovePost(btn.dataset.id);
-                });
-            });
-             document.querySelectorAll('.btn-reject-post').forEach(btn => {
-                btn.addEventListener('click', () => {
-                     const reason = prompt('Motivo do ajuste:');
-                     if(reason && global.ClientCore) global.ClientCore.handleRejectPost(btn.dataset.id, reason);
-                });
             });
         },
 
