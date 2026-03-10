@@ -58,7 +58,7 @@
                         alert('Falha ao iniciar.');
                         return;
                     }
-                    const redirectUrl = `${window.location.origin}/v2/client/update.html`;
+                    const redirectUrl = `${window.location.origin}/v2/client/reset-password.html`;
                     const { error } = await supabase.auth.resetPasswordForEmail(email, {
                         redirectTo: redirectUrl
                     });
