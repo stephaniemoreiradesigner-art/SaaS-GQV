@@ -229,6 +229,9 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 ### Ajuste adicional (registro)
 - O fluxo de `register.html` agora cria o vínculo do usuário recém-criado na tabela `client_portal_users` usando o `client_id` do convite (URL), garantindo que o login subsequente resolva o cliente corretamente.
 
+### Observação (RLS)
+- Se a tabela `client_portal_users` estiver com RLS habilitado sem policy de INSERT/SELECT, o registro do vínculo será bloqueado. Foi adicionado o script `sql/2026-03-10_client_portal_users_rls.sql` com policies para permitir INSERT/SELECT do próprio usuário (`auth.uid() = user_id`).
+
 ### Arquivos Alterados
 - `js/v2/shared/auth_guard.js`
 - `js/v2/client/client_auth.js`

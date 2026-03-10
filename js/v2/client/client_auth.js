@@ -81,8 +81,25 @@
                 tenant_id: tenantId ? Number(tenantId) : normalizedClientId
             };
 
-            const { error } = await supabase.from('client_portal_users').insert(payload);
-            if (error) return { ok: false, reason: 'portal_link_insert_failed', error };
+            const { data: inserted, error } = await supabase
+                .from('client_portal_users')
+                .insert(payload)
+                .select('*')
+                .maybeSingle();
+            if (error) {
+                console.error('[ClientAuth] Falha ao inserir vínculo em client_portal_users:', {
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    payload
+                });
+                return { ok: false, reason: 'portal_link_insert_failed', error };
+            }
+            if (!inserted) {
+                console.error('[ClientAuth] Insert não retornou registro em client_portal_users:', payload);
+                return { ok: false, reason: 'portal_link_insert_no_return' };
+            }
 
             try {
                 await supabase.auth.updateUser({ data: { tenant_id: normalizedClientId } });
@@ -97,7 +114,7 @@
                 }
             } catch {}
 
-            return { ok: true };
+            return { ok: true, data: inserted };
         },
 
         /**
