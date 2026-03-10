@@ -269,3 +269,20 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 2. No modal de detalhes: clicar em "Editar" → modal abre preenchido.
 3. Alterar 2 campos (ex.: telefone + whatsapp) e salvar → modal fecha e card reflete mudanças.
 4. Alterar logo (URL) e salvar → avatar/logo no detalhe e no card atualiza.
+
+## 2026-03-10 — Stabilization Lock: congelamento funcional e alinhamento visual Agency↔Portal
+
+### Decisão
+- Entrar em modo de congelamento da base funcional (stabilization lock).
+- A partir deste ponto: somente ajustes visuais/UX e padronização de UI.
+
+### Regras
+- Não mexer em auth, vínculo portal-cliente, register/login, guards ou Social Media funcional, exceto bug crítico.
+- Mudanças permitidas: HTML/CSS/componentes visuais do Portal do Cliente (topbar, cards, tabs, modais, estados vazios, seções).
+
+### Entrega (início do alinhamento visual)
+- Portal do Cliente V2 passou a reutilizar os mesmos padrões de UI da Agency V2 (`ui-surface`, `ui-card`, `ui-btn`, `ui-empty`) para manter consistência premium/minimalista.
+- Nenhuma alteração de lógica funcional do portal foi realizada nesta etapa.
+
+### Arquivos Alterados
+- `v2/client/index.html`

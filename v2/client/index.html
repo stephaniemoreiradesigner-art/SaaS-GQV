@@ -26,30 +26,30 @@
                     <p class="text-sm font-semibold" data-client-name>Cliente</p>
                 </div>
             </div>
-            <nav class="p-4 space-y-2 text-sm">
-                <button data-view="home" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+            <nav class="p-4 space-y-1">
+                <button data-view="home" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-home text-slate-400"></i>
                     Home
                 </button>
-                <button data-view="approvals-calendar" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                <button data-view="approvals-calendar" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-calendar-check text-slate-400"></i>
                     Aprovar Calendários
                 </button>
-                <button data-view="approvals-posts" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                <button data-view="approvals-posts" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-clapperboard text-slate-400"></i>
                     Aprovar Posts
                 </button>
-                <button data-view="metrics" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                <button data-view="metrics" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-chart-line text-slate-400"></i>
                     Métricas
                 </button>
-                <button data-view="requests" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-slate-100">
+                <button data-view="requests" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-paper-plane text-slate-400"></i>
                     Solicitações
                 </button>
             </nav>
             <div class="p-4 border-t border-slate-100">
-                <button id="client-logout" class="w-full text-sm px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50">
+                <button id="client-logout" class="ui-btn ui-btn-secondary w-full">
                     Sair
                 </button>
             </div>
@@ -59,16 +59,16 @@
             <header class="sticky top-0 z-20 bg-white border-b border-slate-200">
                 <div class="flex items-center justify-between px-4 md:px-8 py-4">
                     <div class="flex items-center gap-3">
-                        <button id="portal-menu-toggle" class="lg:hidden w-10 h-10 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500">
+                        <button id="portal-menu-toggle" class="lg:hidden ui-btn ui-btn-secondary w-10 h-10 p-0">
                             <i class="fas fa-bars"></i>
                         </button>
                         <img id="logo-mobile" src="/assets/logo.png" alt="Logo" class="h-10 w-auto object-contain hidden sm:block">
                         <div>
-                            <h1 class="text-lg font-bold">Portal do Cliente V2</h1>
+                            <h1 class="text-lg font-bold tracking-tight">Portal do Cliente</h1>
                             <p class="text-sm text-slate-500">Bem-vindo, <span data-client-name>Cliente</span></p>
                         </div>
                     </div>
-                    <div class="text-xs text-slate-400">MVP • 10/03/2026</div>
+                    <div class="text-xs text-slate-400 hidden sm:block">V2 • 10/03/2026</div>
                 </div>
             </header>
 
@@ -79,20 +79,20 @@
                         <p class="text-sm text-slate-500">Resumo rápido do seu status.</p>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Aprovações pendentes</p>
                             <p id="home-approvals" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Último calendário</p>
                             <p id="home-calendar" class="text-base font-semibold text-slate-900 mt-2">Nenhum</p>
                             <p id="home-calendar-status" class="text-xs text-slate-500 mt-1"></p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Métricas resumidas</p>
                             <p id="home-metrics" class="text-base font-semibold text-slate-900 mt-2">Em breve</p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Solicitações abertas</p>
                             <p id="home-requests" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
                         </div>
@@ -111,7 +111,12 @@
                         </div>
                     </div>
                     <div id="calendar-loading" class="text-sm text-slate-500">Carregando calendários...</div>
-                    <div id="calendar-empty-state" class="hidden text-sm text-slate-500">Nenhum calendário aguardando aprovação.</div>
+                    <div id="calendar-empty-state" class="hidden ui-empty p-8 text-center">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <p class="mt-3 text-sm text-slate-600">Nenhum calendário aguardando aprovação.</p>
+                    </div>
                     <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </section>
 
@@ -121,8 +126,11 @@
                         <p class="text-sm text-slate-500">Acompanhe e aprove conteúdos semanais.</p>
                     </div>
                     <div id="client-approvals-list" class="grid grid-cols-1 gap-4"></div>
-                    <div id="client-approvals-empty" class="hidden bg-white border border-slate-200 rounded-xl p-6 text-center text-sm text-slate-500">
-                        Nenhum item pendente por enquanto
+                    <div id="client-approvals-empty" class="hidden ui-empty p-8 text-center">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <p class="mt-3 text-sm text-slate-600">Nenhum item pendente por enquanto.</p>
                     </div>
                 </section>
 
@@ -132,24 +140,24 @@
                         <p class="text-sm text-slate-500">Resumo executivo do desempenho.</p>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Investimento</p>
                             <p class="text-xl font-semibold text-slate-900 mt-2">R$ 0</p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Leads</p>
                             <p class="text-xl font-semibold text-slate-900 mt-2">0</p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">CTR</p>
                             <p class="text-xl font-semibold text-slate-900 mt-2">0%</p>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">ROAS</p>
                             <p class="text-xl font-semibold text-slate-900 mt-2">0.0x</p>
                         </div>
                     </div>
-                    <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                    <div class="ui-surface p-6">
                         <h3 class="text-sm font-semibold text-slate-700 mb-4">Evolução (30 dias)</h3>
                         <div class="h-64">
                             <canvas id="metrics-chart"></canvas>
@@ -163,32 +171,32 @@
                         <p class="text-sm text-slate-500">Envie campanhas e criativos para o time.</p>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-6">
-                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <div class="ui-surface p-6">
                             <h3 class="text-sm font-semibold text-slate-700 mb-4">Nova solicitação</h3>
                             <form id="request-form" class="space-y-4">
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
-                                    <select id="request-type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <select id="request-type" class="ui-input w-full">
                                         <option value="solicitacao_campanha">Solicitação de Campanha</option>
                                         <option value="solicitacao_criativo">Solicitação de Criativo</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
-                                    <input id="request-title" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Campanha de lançamento">
+                                    <input id="request-title" type="text" class="ui-input w-full" placeholder="Ex: Campanha de lançamento">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Detalhes</label>
-                                    <textarea id="request-details" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Explique o que precisa ser feito"></textarea>
+                                    <textarea id="request-details" rows="4" class="ui-input w-full" placeholder="Explique o que precisa ser feito"></textarea>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Prazo</label>
-                                        <input id="request-deadline" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <input id="request-deadline" type="date" class="ui-input w-full">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Etapa do funil</label>
-                                        <select id="request-funnel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                        <select id="request-funnel" class="ui-input w-full">
                                             <option value="">Selecione</option>
                                             <option value="topo">Topo</option>
                                             <option value="meio">Meio</option>
@@ -197,12 +205,12 @@
                                     </div>
                                 </div>
                                 <div id="request-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
-                                <button type="submit" class="w-full bg-slate-900 text-white text-sm font-semibold py-2 rounded-lg hover:bg-slate-800 transition">
+                                <button type="submit" class="ui-btn ui-btn-primary w-full">
                                     Enviar solicitação
                                 </button>
                             </form>
                         </div>
-                        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                        <div class="ui-surface p-6">
                             <h3 class="text-sm font-semibold text-slate-700 mb-4">Últimas solicitações</h3>
                             <div id="request-list" class="space-y-3"></div>
                             <div id="request-empty" class="hidden text-sm text-slate-500">Nenhuma solicitação registrada.</div>
@@ -213,47 +221,47 @@
         </div>
     </div>
 
-    <div id="client-calendar-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div id="client-calendar-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="ui-surface w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
                 <div>
-                    <h2 id="client-calendar-modal-title" class="text-lg font-semibold text-gray-900"></h2>
+                    <h2 id="client-calendar-modal-title" class="text-lg font-semibold text-slate-900"></h2>
                     <span id="client-calendar-modal-status" class="inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium"></span>
                 </div>
-                <button id="client-calendar-modal-close" class="text-gray-400 hover:text-gray-600 transition">
+                <button id="client-calendar-modal-close" class="ui-btn ui-btn-secondary w-10 h-10 p-0 text-slate-500">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
             <div class="p-6 space-y-4 overflow-y-auto">
-                <p id="client-calendar-modal-period" class="font-medium text-gray-800"></p>
-                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+                <p id="client-calendar-modal-period" class="font-medium text-slate-800"></p>
+                <div class="ui-surface-2 p-4 space-y-2">
                     <div>
-                        <p class="text-xs uppercase text-gray-400">Objetivo</p>
-                        <p id="client-calendar-modal-goal" class="text-sm text-gray-700">Não informado</p>
+                        <p class="text-xs uppercase text-slate-400">Objetivo</p>
+                        <p id="client-calendar-modal-goal" class="text-sm text-slate-700">Não informado</p>
                     </div>
                     <div>
-                        <p class="text-xs uppercase text-gray-400">Briefing</p>
-                        <p id="client-calendar-modal-briefing" class="text-sm text-gray-700 whitespace-pre-wrap">Não informado</p>
+                        <p class="text-xs uppercase text-slate-400">Briefing</p>
+                        <p id="client-calendar-modal-briefing" class="text-sm text-slate-700 whitespace-pre-wrap">Não informado</p>
                     </div>
                 </div>
-                <div id="client-calendar-posts-loading" class="text-sm text-gray-500">Carregando posts...</div>
-                <div id="client-calendar-posts-empty" class="hidden text-sm text-gray-500">Nenhum post encontrado.</div>
+                <div id="client-calendar-posts-loading" class="text-sm text-slate-500">Carregando posts...</div>
+                <div id="client-calendar-posts-empty" class="hidden text-sm text-slate-500">Nenhum post encontrado.</div>
                 <div id="client-calendar-posts-list" class="space-y-3"></div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Comentário</label>
-                    <textarea id="client-calendar-approval-comment" rows="3" class="w-full rounded-lg border border-gray-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Comentário</label>
+                    <textarea id="client-calendar-approval-comment" rows="3" class="ui-input w-full"></textarea>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-                <button id="client-calendar-modal-adjust" class="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition">Solicitar ajuste</button>
-                <button id="client-calendar-modal-approve" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover transition">Aprovar Calendário</button>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button id="client-calendar-modal-adjust" class="ui-btn ui-btn-secondary">Solicitar ajuste</button>
+                <button id="client-calendar-modal-approve" class="ui-btn ui-btn-primary">Aprovar Calendário</button>
             </div>
         </div>
     </div>
 
     <!-- MODAL: Post Preview & Approval -->
     <div id="client-post-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div class="ui-surface w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <!-- Header -->
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
@@ -263,7 +271,7 @@
                          <span id="client-post-modal-status" class="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">Status</span>
                     </div>
                 </div>
-                <button id="client-post-modal-close" class="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200 transition">
+                <button id="client-post-modal-close" class="ui-btn ui-btn-secondary w-10 h-10 p-0 text-slate-500">
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
@@ -285,17 +293,17 @@
                     <!-- Feedback Area (Only if changes requested or rejecting) -->
                     <div id="client-post-modal-feedback-area">
                         <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Comentários / Ajustes</label>
-                        <textarea id="client-post-modal-comment" rows="3" class="w-full text-sm border-slate-200 rounded-lg focus:ring-primary focus:border-primary" placeholder="Descreva o que precisa ser ajustado..."></textarea>
+                        <textarea id="client-post-modal-comment" rows="3" class="ui-input w-full" placeholder="Descreva o que precisa ser ajustado..."></textarea>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Actions -->
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                <button id="client-post-modal-reject" class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm">
+                <button id="client-post-modal-reject" class="ui-btn ui-btn-secondary">
                     Solicitar Ajustes
                 </button>
-                <button id="client-post-modal-approve" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow-sm flex items-center gap-2">
+                <button id="client-post-modal-approve" class="ui-btn ui-btn-primary">
                     <i class="fas fa-check"></i> Aprovar Post
                 </button>
             </div>
