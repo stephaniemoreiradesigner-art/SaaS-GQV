@@ -6,6 +6,8 @@
     <title>Agency App V2</title>
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/js/theme.js"></script>
+    <script src="/js/v2/shared/ui_kit_linear.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -13,7 +15,7 @@
     <div class="flex min-h-screen">
         <aside class="hidden lg:flex w-72 flex-col border-r border-slate-200 bg-white">
             <div class="h-20 flex items-center justify-center border-b border-slate-100 px-6">
-                <img src="/assets/logo.png" alt="GQV Logo" class="h-10 w-auto object-contain">
+                <img id="logo-sidebar" src="/assets/logo.png" alt="GQV Logo" class="h-10 w-auto object-contain">
             </div>
             <div class="px-6 pt-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Agency V2</div>
             <nav class="flex-1 overflow-y-auto px-4 py-6 space-y-1">
@@ -61,13 +63,29 @@
                         <h1 class="text-lg font-semibold text-slate-900">Gestão Que Vende</h1>
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-right">
-                        <p class="text-xs text-slate-400">Cliente ativo</p>
-                        <p id="active-client-name" class="text-sm font-semibold text-slate-800">Nenhum cliente selecionado</p>
+                <div class="flex items-center gap-3">
+                    <div class="relative hidden md:block">
+                        <i class="fas fa-search text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 text-sm"></i>
+                        <input id="global-search" class="ui-input pl-9 w-80" placeholder="Buscar no workspace">
                     </div>
-                    <span id="active-client-id" class="hidden text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full"></span>
-                    <button id="header-select-client" class="px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-600 hover:text-slate-800">Selecionar</button>
+                    <button id="btn-notifications" class="ui-btn ui-btn-ghost h-10 w-10 p-0">
+                        <i class="far fa-bell"></i>
+                    </button>
+                    <div class="flex items-center gap-3 ui-surface-2 px-3 py-2 rounded-xl">
+                        <div class="text-right">
+                            <p class="text-[11px] text-slate-400">Cliente ativo</p>
+                            <p id="active-client-name" class="text-sm font-semibold text-slate-800">Nenhum cliente selecionado</p>
+                        </div>
+                        <span id="active-client-id" class="hidden text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full"></span>
+                        <button id="header-select-client" class="ui-btn ui-btn-secondary h-10">Selecionar</button>
+                    </div>
+                    <div class="flex items-center gap-2 ui-surface-2 px-3 py-2 rounded-xl">
+                        <div class="h-8 w-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-semibold">GQ</div>
+                        <div class="hidden md:block">
+                            <p class="text-xs font-semibold text-slate-900">Conta</p>
+                            <p class="text-[11px] text-slate-500">Equipe</p>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -171,7 +189,7 @@
                         <h2 class="text-2xl font-bold text-slate-900">Hub do Cliente</h2>
                         <p class="text-sm text-slate-500">Atalhos rápidos por cliente ativo.</p>
                     </div>
-                    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                    <div class="ui-surface p-6 shadow-sm space-y-4">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div>
                                 <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
@@ -179,27 +197,27 @@
                                 <p id="hub-client-status" class="text-sm text-slate-500 mt-1"></p>
                             </div>
                             <div class="flex flex-wrap gap-3">
-                                <button data-action="go-social" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Social Media</button>
-                                <button data-action="go-performance" data-requires-client class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Abrir Performance</button>
-                                <button data-action="go-approvals" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Abrir Aprovações</button>
-                                <button id="hub-files-btn" data-requires-client class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Arquivos</button>
+                                <button data-action="go-social" data-requires-client class="ui-btn ui-btn-primary">Social Media</button>
+                                <button data-action="go-performance" data-requires-client class="ui-btn ui-btn-primary">Performance</button>
+                                <button data-action="go-approvals" data-requires-client class="ui-btn ui-btn-secondary">Aprovações</button>
+                                <button id="hub-files-btn" data-requires-client class="ui-btn ui-btn-secondary">Arquivos</button>
                             </div>
                         </div>
                         <div id="hub-empty" class="text-sm text-slate-500 hidden">Selecione um cliente para liberar ações.</div>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div class="rounded-xl border border-slate-200 p-4">
+                            <div class="ui-card p-4">
                                 <p class="text-xs uppercase text-slate-400">Pendências</p>
                                 <p id="hub-pendencies" class="text-base font-semibold text-slate-800 mt-2">0</p>
                             </div>
-                            <div class="rounded-xl border border-slate-200 p-4">
+                            <div class="ui-card p-4">
                                 <p class="text-xs uppercase text-slate-400">Responsável</p>
                                 <p id="hub-owner" class="text-base font-semibold text-slate-800 mt-2">Não definido</p>
                             </div>
-                            <div class="rounded-xl border border-slate-200 p-4">
+                            <div class="ui-card p-4">
                                 <p class="text-xs uppercase text-slate-400">Status</p>
                                 <p id="hub-status" class="text-base font-semibold text-slate-800 mt-2">Não definido</p>
                             </div>
-                            <div id="hub-files-card" class="rounded-xl border border-slate-200 p-4">
+                            <div id="hub-files-card" class="ui-card p-4">
                                 <p class="text-xs uppercase text-slate-400">Arquivos</p>
                                 <p class="text-sm text-slate-500 mt-2">Central em construção</p>
                             </div>
@@ -233,12 +251,13 @@
                             </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
-                            <button data-social-tab="overview" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white">Visão Geral</button>
-                            <button data-social-tab="calendar" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Calendário</button>
-                            <button data-social-tab="posts" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Posts</button>
-                            <button data-social-tab="approvals" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Aprovações</button>
-                            <button data-social-tab="insights" class="social-tab-btn px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:text-slate-800">Insights</button>
+                        <div class="ui-tabs">
+                            <button data-social-tab="overview" data-active="true" class="social-tab-btn ui-tab">Visão Geral</button>
+                            <button data-social-tab="pipeline" data-active="false" class="social-tab-btn ui-tab">Pipeline</button>
+                            <button data-social-tab="calendar" data-active="false" class="social-tab-btn ui-tab">Calendário</button>
+                            <button data-social-tab="posts" data-active="false" class="social-tab-btn ui-tab">Posts</button>
+                            <button data-social-tab="approvals" data-active="false" class="social-tab-btn ui-tab">Aprovações</button>
+                            <button data-social-tab="insights" data-active="false" class="social-tab-btn ui-tab">Insights</button>
                         </div>
 
                         <div id="social-tab-overview" class="social-tab space-y-6">
@@ -264,6 +283,18 @@
                                     <h3 class="text-sm font-semibold text-slate-700 mb-2">Resumo do cliente</h3>
                                     <p class="text-sm text-slate-500">Acompanhe o fluxo do calendário do cliente ativo e avance no planejamento mensal.</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div id="social-tab-pipeline" class="social-tab space-y-6 hidden">
+                            <div class="ui-surface p-6">
+                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-900">Pipeline</h3>
+                                        <p class="text-sm text-slate-500">Visão por estágio do workflow</p>
+                                    </div>
+                                </div>
+                                <div id="social-pipeline-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
                             </div>
                         </div>
 
@@ -420,7 +451,7 @@
         </div>
     </div>
     <div id="social-post-drawer" class="fixed inset-0 bg-slate-900/40 hidden items-center justify-end">
-        <div class="w-full max-w-xl h-full bg-white border-l border-slate-200 shadow-xl flex flex-col">
+        <div class="w-full max-w-xl h-full ui-drawer shadow-xl flex flex-col">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <div>
                     <p class="text-xs uppercase tracking-widest text-slate-400">Post do calendário</p>
@@ -778,6 +809,7 @@
         const socialSendApprovalBtn = document.getElementById('social-send-approval');
         const socialApprovalsList = document.getElementById('social-approvals-list');
         const socialApprovalsEmpty = document.getElementById('social-approvals-empty');
+        const socialPipelineBoard = document.getElementById('social-pipeline-board');
         const socialCalendarGrid = document.getElementById('social-calendar-grid');
         const socialMonthLabel = document.getElementById('social-month-label');
         const socialMonthPrev = document.getElementById('social-month-prev');
@@ -871,10 +903,7 @@
             activeSocialTab = tabName;
             socialTabButtons.forEach((btn) => {
                 const isActive = btn.dataset.socialTab === tabName;
-                btn.classList.toggle('bg-slate-900', isActive);
-                btn.classList.toggle('text-white', isActive);
-                btn.classList.toggle('border-slate-200', !isActive);
-                btn.classList.toggle('text-slate-600', !isActive);
+                btn.setAttribute('data-active', isActive ? 'true' : 'false');
             });
             socialTabSections.forEach((section) => {
                 section.classList.toggle('hidden', section.id !== `social-tab-${tabName}`);
@@ -1441,6 +1470,77 @@
             return cells;
         };
 
+        const PIPELINE_COLUMNS = [
+            { key: 'ideas', label: 'Ideias' },
+            { key: 'briefing', label: 'Briefing' },
+            { key: 'design', label: 'Design' },
+            { key: 'approval', label: 'Aprovação' },
+            { key: 'approved', label: 'Aprovado' }
+        ];
+
+        const getPipelineKey = (status) => {
+            const raw = String(status || '').trim().toLowerCase();
+            if (['aprovado', 'approved'].includes(raw)) return 'approved';
+            if (['aguardando_aprovacao', 'ready_for_approval', 'awaiting_approval', 'pendente_aprovacao'].includes(raw)) return 'approval';
+            if (['in_production', 'em_producao', 'design'].includes(raw)) return 'design';
+            if (['changes_requested', 'ajuste_solicitado', 'rejeitado', 'rejected'].includes(raw)) return 'briefing';
+            return 'ideas';
+        };
+
+        const renderPipelineBoard = () => {
+            if (!socialPipelineBoard) return;
+            const posts = Array.isArray(socialState.posts) ? socialState.posts : [];
+
+            const grouped = {};
+            PIPELINE_COLUMNS.forEach((c) => {
+                grouped[c.key] = [];
+            });
+            posts.forEach((post) => {
+                const key = getPipelineKey(post.status);
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(post);
+            });
+
+            socialPipelineBoard.innerHTML = '';
+            PIPELINE_COLUMNS.forEach((col) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'ui-surface-2 p-4 flex flex-col gap-3 min-h-[240px]';
+                const count = grouped[col.key]?.length || 0;
+                wrapper.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-slate-900">${col.label}</p>
+                        <span class="ui-pill">${count}</span>
+                    </div>
+                    <div class="flex flex-col gap-2" data-pipeline-col="${col.key}"></div>
+                `;
+                const list = wrapper.querySelector('[data-pipeline-col]');
+                (grouped[col.key] || []).forEach((post) => {
+                    const card = document.createElement('button');
+                    const date = post.date ? new Date(`${post.date}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+                    const channel = String(post.platform || '').toUpperCase();
+                    card.className = 'ui-card text-left p-3';
+                    const mediaUrl = post.mediaPreviewUrl || post.mediaUrl || '';
+                    const hasMedia = !!mediaUrl;
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
+                                ${hasMedia ? (mediaUrl.match(/\\.(mp4|webm|mov)$/i) ? `<video src="${mediaUrl}" class="w-full h-full object-cover"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-slate-900 truncate">${post.title || 'Post'}</p>
+                                <p class="text-xs text-slate-500 mt-1">${date} • ${channel || '—'}</p>
+                            </div>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => {
+                        openPostDrawer(post);
+                    });
+                    list.appendChild(card);
+                });
+                socialPipelineBoard.appendChild(wrapper);
+            });
+        };
+
         const updateSocialOverview = () => {
             const draftCount = socialState.posts.filter((item) => item.status === 'rascunho').length;
             const pendingCount = socialState.posts.filter((item) => item.status === 'aguardando_aprovacao').length;
@@ -1448,6 +1548,7 @@
             if (socialCountDraft) socialCountDraft.textContent = draftCount;
             if (socialCountPending) socialCountPending.textContent = pendingCount;
             if (socialCountApproved) socialCountApproved.textContent = approvedCount;
+            renderPipelineBoard();
         };
 
         const updateCalendarStatus = (status) => {

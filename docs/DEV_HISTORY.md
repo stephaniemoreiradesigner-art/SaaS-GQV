@@ -137,3 +137,37 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 2. Portal do Cliente: clicar em "Aprovar Post" → confirmação → update persiste no banco (sem "RLS/filtro").
 3. Recarregar Portal → post aprovado não aparece como pendente.
 4. Agency: recarregar → status do post reflete `approved`.
+
+## 2026-03-10 — Início do Redesign Visual V2 (Linguagem Linear + White-label)
+
+### Decisão
+- Adotar linguagem visual minimalista inspirada no Linear para a V2.
+- Manter a arquitetura client-first intacta (TenantContext/ClientContext, repos, Supabase client, regras de cliente ativo).
+
+### Escopo desta etapa
+- Refinar shell da Agency V2 (sidebar/topbar/workspace) para um visual premium e consistente.
+- Iniciar pipeline visual no Social Media V2 (visão por estágios + cards clicáveis).
+- Refinar casca do Portal do Cliente V2 para ficar coerente com a nova linguagem.
+- Criar base de componentes visuais reutilizáveis (Button/Card/Badge/Tabs/Drawer/Empty State) via classes e tokens.
+- White-label via variáveis CSS (primária/secundária) e suporte a logo + favicon dinâmicos.
+
+### O que foi implementado
+- UI Kit Linear: tokens e classes reutilizáveis baseadas em `--color-primary/secondary` (fornecidas pelo `theme.js`).
+- Agency: header com busca/notifications/profile (UI), tabs do Social Media migradas para o padrão de tabs, e criação da view Pipeline.
+- Portal: inclusão de logo dinâmico (sidebar e header) e base de estilo consistente.
+
+### Arquivos Alterados
+- `js/v2/shared/ui_kit_linear.js`
+- `v2/agency/index.html`
+- `v2/client/index.html`
+
+### Como Validar Manualmente
+1. Agency: abrir dashboard/clientes/social → verificar consistência visual (sidebar/topbar/cards/tabs).
+2. Social Media: alternar tabs → Pipeline renderiza colunas e cards, clique abre drawer.
+3. Portal: abrir Home/Aprovações → sidebar/topbar carregam logo e UI permanece responsiva.
+4. White-label: ao aplicar configurações do `theme.js`, cor primária/secundária, logo e favicon refletem na UI.
+
+### Próximos passos sugeridos
+- Refinar calendário mensal e o drawer do post (hierarquia visual + blocos).
+- Implementar pipeline com drag and drop e estágios consistentes (sem alterar schema).
+- Expandir white-label para logo por cliente no portal quando aplicável.
