@@ -1735,12 +1735,28 @@
 
         const normalizePost = (post) => {
             const date = post.data_agendada || post.data_postagem || post.data || post.date;
+            const normalizeStatus = (status) => {
+                const raw = String(status || '').trim();
+                const key = raw.toLowerCase();
+                const map = {
+                    draft: 'rascunho',
+                    ready_for_approval: 'aguardando_aprovacao',
+                    awaiting_approval: 'aguardando_aprovacao',
+                    approved: 'aprovado',
+                    rejected: 'ajuste_solicitado',
+                    scheduled: 'agendado',
+                    published: 'publicado',
+                    in_production: 'em_producao',
+                    archived: 'concluido'
+                };
+                return map[key] || (raw || 'rascunho');
+            };
             return {
                 id: post.id || null,
                 tempId: post.tempId || null,
                 date,
                 title: post.titulo || post.tema || post.title || post.legenda || 'Post',
-                status: post.status === 'draft' ? 'rascunho' : post.status || 'rascunho',
+                status: normalizeStatus(post.status),
                 platform: (Array.isArray(post.plataformas) ? post.plataformas[0] : post.plataforma) || post.platform || 'instagram',
                 caption: post.detailed_content || post.conteudo || post.caption || '',
                 cta: post.cta || '',
@@ -2058,6 +2074,54 @@
             localStorage.setItem(getMonthStorageKey(clientId), month);
         };
 
+        const normalizeSocialCalendarStatusFromDb = (status) => {
+            const raw = String(status || '').trim();
+            const key = raw.toLowerCase();
+            const map = {
+                draft: 'rascunho',
+                awaiting_approval: 'aguardando_aprovacao',
+                approved: 'aprovado',
+                published: 'publicado',
+                archived: 'concluido',
+                in_production: 'em_producao'
+            };
+            return map[key] || raw || null;
+        };
+
+        const normalizeSocialCalendarStatusToDb = (status) => {
+            const raw = String(status || '').trim();
+            const key = raw.toLowerCase();
+            const map = {
+                rascunho: 'draft',
+                draft: 'draft',
+                aguardando_aprovacao: 'awaiting_approval',
+                awaiting_approval: 'awaiting_approval',
+                aprovado: 'approved',
+                approved: 'approved',
+                publicado: 'published',
+                published: 'published',
+                concluido: 'archived',
+                concluído: 'archived',
+                archived: 'archived',
+                em_producao: 'in_production',
+                em_produção: 'in_production',
+                in_production: 'in_production'
+            };
+            return map[key] || raw || 'draft';
+        };
+
+        const normalizeSocialPostStatusToDb = (status) => {
+            const raw = String(status || '').trim();
+            const key = raw.toLowerCase();
+            const map = {
+                aguardando_aprovacao: 'ready_for_approval',
+                awaiting_approval: 'ready_for_approval',
+                pendente_aprovacao: 'ready_for_approval'
+            };
+            const constantsMap = window.GQV_CONSTANTS?.SOCIAL_STATUS_MAP || null;
+            return (constantsMap && constantsMap[key]) || map[key] || raw || 'draft';
+        };
+
         const persistPost = async (post) => {
             const repo = window.SocialMediaRepo;
             if (!repo || !socialState.clientId) return null;
@@ -2093,7 +2157,7 @@
                 legenda: post.caption,
                 plataforma: post.platform,
                 data_postagem: post.date,
-                status: post.status || 'rascunho',
+                status: normalizeSocialPostStatusToDb(post.status || 'rascunho'),
                 formato: post.contentType || 'post_estatico',
                 tipo_conteudo: post.contentType || 'post_estatico',
                 cta: post.cta || '',
@@ -2192,14 +2256,15 @@
         const loadCalendarMeta = async () => {
             const supabase = await getSupabaseClient();
             if (!supabase || !socialState.clientId) return;
+            const monthRef = `${socialState.calendarMonth}-01`;
             const { data } = await supabase
                 .from('social_calendars')
-                .select('id, status, post_date')
-                .eq('client_id', socialState.clientId)
-                .eq('post_date', `${socialState.calendarMonth}-01`)
+                .select('id, status')
+                .eq('cliente_id', socialState.clientId)
+                .eq('mes_referencia', monthRef)
                 .maybeSingle();
             socialState.calendarId = data?.id || null;
-            socialState.calendarStatus = data?.status || null;
+            socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(data?.status || null);
             updateCalendarStatus(socialState.calendarStatus);
         };
 
@@ -2244,73 +2309,15 @@
         };
 
         const ensureCalendarDraft = async () => {
-            const supabase = await getSupabaseClient();
-            if (!supabase || !socialState.clientId) return null;
-            const goal = socialGoalInput?.value.trim();
-            const briefing = socialBriefingInput?.value.trim();
-            const postTitle = socialPostTitleInput?.value.trim();
-            const postCaption = socialPostCaptionFull?.value.trim();
-            const postHashtags = socialPostHashtags?.value.trim();
-            const postCta = socialPostCta?.value.trim();
-            const postType = socialPostContentType?.value;
-            const contentParts = [];
-            if (briefing) contentParts.push(briefing);
-            if (postCaption) contentParts.push(postCaption);
-            if (postHashtags) contentParts.push(postHashtags);
-            if (postCta) contentParts.push(`CTA: ${postCta}`);
-            if (postType) contentParts.push(`Tipo: ${postType}`);
-            const resolvedTitle = goal || postTitle || 'Calendário social';
-            const resolvedContent = contentParts.length ? contentParts.join(' | ') : 'Sem conteúdo';
-            const tenantId = getTenantId();
-            const payload = {
-                client_id: socialState.clientId,
-                tenant_id: tenantId || null,
-                title: resolvedTitle,
-                content: resolvedContent,
-                post_date: `${socialState.calendarMonth}-01`,
-                status: 'rascunho'
-            };
-            console.log('[SocialCalendar] payload final', payload);
-            if (socialState.calendarId) {
-                const { data } = await supabase
-                    .from('social_calendars')
-                    .update(payload)
-                    .eq('id', socialState.calendarId)
-                    .select()
-                    .single();
-                socialState.calendarStatus = data?.status || 'rascunho';
-                updateCalendarStatus(socialState.calendarStatus);
-                return data;
-            }
-            const { data, error } = await supabase
-                .from('social_calendars')
-                .insert([payload])
-                .select()
-                .single();
-            if (error) {
-                const fallback = {
-                    client_id: socialState.clientId,
-                    tenant_id: tenantId || null,
-                    title: resolvedTitle,
-                    content: resolvedContent,
-                    post_date: `${socialState.calendarMonth}-01`,
-                    status: 'rascunho'
-                };
-                console.log('[SocialCalendar] payload final', fallback);
-                const retry = await supabase.from('social_calendars').insert([fallback]).select().single();
-                if (retry.error) {
-                    setSocialFeedback('Não foi possível salvar o calendário.', 'error');
-                    return null;
-                }
-                socialState.calendarId = retry.data?.id || null;
-                socialState.calendarStatus = retry.data?.status || 'rascunho';
-                updateCalendarStatus(socialState.calendarStatus);
-                return retry.data;
-            }
-            socialState.calendarId = data?.id || null;
-            socialState.calendarStatus = data?.status || 'rascunho';
+            if (!socialState.clientId) return null;
+            const repo = window.SocialMediaRepo;
+            const monthRef = `${socialState.calendarMonth}-01`;
+            if (!repo?.getCalendarByMonth) return null;
+            const calendar = await repo.getCalendarByMonth(socialState.clientId, monthRef);
+            socialState.calendarId = calendar?.id || null;
+            socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(calendar?.status || null) || 'rascunho';
             updateCalendarStatus(socialState.calendarStatus);
-            return data;
+            return calendar || null;
         };
 
         const saveDraft = async () => {
@@ -2361,9 +2368,9 @@
             }
             const { error } = await supabase
                 .from('social_calendars')
-                .update({ status: 'aguardando_aprovacao' })
+                .update({ status: normalizeSocialCalendarStatusToDb('aguardando_aprovacao') })
                 .eq('id', calendar.id)
-                .eq('client_id', socialState.clientId);
+                .eq('cliente_id', socialState.clientId);
             if (error) {
                 setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
                 return;
@@ -2371,7 +2378,7 @@
             if (window.SocialMediaRepo) {
                 for (const post of socialState.posts) {
                     if (post.id) {
-                        await window.SocialMediaRepo.updatePostStatus(post.id, 'aguardando_aprovacao');
+                        await window.SocialMediaRepo.updatePostStatus(post.id, 'pendente_aprovacao');
                     }
                 }
             }
