@@ -128,10 +128,7 @@
                                     <p class="text-sm font-semibold text-slate-900 truncate">${name}</p>
                                     <p class="text-xs text-slate-500 mt-1">${owner ? `Responsável: ${owner}` : 'Responsável: -'}</p>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="ui-pill">ID ${String(client.id || '').slice(0, 6)}</span>
-                                    <button type="button" class="ui-btn ui-btn-secondary px-3 py-1 text-xs" data-action="edit-client">Editar</button>
-                                </div>
+                                <span class="ui-pill">ID ${String(client.id || '').slice(0, 6)}</span>
                             </div>
                             <div class="mt-3 grid grid-cols-1 gap-2">
                                 <div class="flex items-center justify-between text-xs text-slate-500">
@@ -165,15 +162,6 @@
                         handleSelect();
                     }
                 });
-
-                const editBtn = card.querySelector('[data-action="edit-client"]');
-                if (editBtn) {
-                    editBtn.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        global.dispatchEvent(new CustomEvent('gqv:client-edit', { detail: { client } }));
-                    });
-                }
 
                 const waAnchor = card.querySelector('a[href^="https://wa.me/"]');
                 if (waAnchor) {

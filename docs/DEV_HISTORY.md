@@ -252,11 +252,11 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 - O modal de clientes não contemplava os campos principais esperados para edição (responsável/telefones/serviços).
 
 ### Solução
-- Cards de clientes agora exibem botão "Editar" que abre o modal em modo edição (sem sair da view de Clientes).
+- Cards de clientes abrem o modal de detalhes; a edição é acessada exclusivamente pelo botão "Editar" no modal de detalhes.
 - Modal de clientes foi adaptado para suportar claramente:
   - modo create (Novo Cliente)
   - modo edit (Editar Cliente)
-- Campos de edição incluídos no modal: nome da empresa, nome fantasia, responsável, e-mail, telefone, whatsapp, documento, status e serviços contratados.
+- Campos de edição incluídos no modal: nome da empresa, nome fantasia, responsável, e-mail, telefone, whatsapp, documento, status, serviços contratados e logo (URL).
 - Salvamento em modo edição executa UPDATE via `ClientRepo.updateClient` e atualiza a lista/cards imediatamente após sucesso (sem recarregar a página inteira).
 
 ### Arquivos Alterados
@@ -265,6 +265,7 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 - `js/v2/modules/clientes/clientes_repo.js`
 
 ### Como Validar Manualmente
-1. Agency → Clientes: clicar em "Editar" em um card → modal abre preenchido.
-2. Alterar 2 campos (ex.: responsável + telefone) e salvar → modal fecha e card reflete mudanças.
-3. Abrir detalhes do cliente → clicar "Editar" → modal abre em modo edição.
+1. Agency → Clientes: clicar em um card → modal de detalhes abre.
+2. No modal de detalhes: clicar em "Editar" → modal abre preenchido.
+3. Alterar 2 campos (ex.: telefone + whatsapp) e salvar → modal fecha e card reflete mudanças.
+4. Alterar logo (URL) e salvar → avatar/logo no detalhe e no card atualiza.

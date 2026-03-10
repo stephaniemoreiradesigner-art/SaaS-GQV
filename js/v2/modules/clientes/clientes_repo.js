@@ -24,6 +24,10 @@
             'nome',
             'empresa',
             'email',
+            'logo_url',
+            'logo',
+            'imagem_logo',
+            'brand_logo_url',
             'responsavel_nome',
             'responsavel',
             'contato',
@@ -71,6 +75,13 @@
             (columns.situacao && 'situacao') ||
             null;
 
+        const logoColumn =
+            (columns.logo_url && 'logo_url') ||
+            (columns.brand_logo_url && 'brand_logo_url') ||
+            (columns.imagem_logo && 'imagem_logo') ||
+            (columns.logo && 'logo') ||
+            null;
+
         const contactColumn =
             (columns.responsavel_nome && 'responsavel_nome') ||
             (columns.responsavel && 'responsavel') ||
@@ -112,6 +123,7 @@
             columns,
             nameColumn,
             statusColumn,
+            logoColumn,
             contactColumn,
             phoneColumn,
             whatsappColumn,
@@ -142,13 +154,16 @@
 
                 const companyName = String(input?.nome_empresa || input?.nome || '').trim();
                 const tradeName = String(input?.nome_fantasia || '').trim();
-                const email = input?.email ? String(input.email).trim() : null;
-                const contact = input?.responsavel ? String(input.responsavel).trim() : (input?.responsavel_nome ? String(input.responsavel_nome).trim() : null);
-                const phone = input?.telefone ? String(input.telefone).trim() : null;
-                const whatsapp = input?.whatsapp ? String(input.whatsapp).trim() : null;
-                const docType = input?.tipo_documento ? String(input.tipo_documento).trim() : null;
-                const documento = input?.documento ? String(input.documento).trim() : null;
-                const statusValue = input?.status ? String(input.status).trim() : null;
+                const emailValue = input?.email !== undefined ? String(input.email || '').trim() : undefined;
+                const contactValue = input?.responsavel !== undefined
+                    ? String(input.responsavel || '').trim()
+                    : (input?.responsavel_nome !== undefined ? String(input.responsavel_nome || '').trim() : undefined);
+                const phoneValue = input?.telefone !== undefined ? String(input.telefone || '').trim() : undefined;
+                const whatsappValue = input?.whatsapp !== undefined ? String(input.whatsapp || '').trim() : undefined;
+                const logoValue = input?.logo_url !== undefined ? String(input.logo_url || '').trim() : undefined;
+                const docTypeValue = input?.tipo_documento !== undefined ? String(input.tipo_documento || '').trim() : undefined;
+                const documentoValue = input?.documento !== undefined ? String(input.documento || '').trim() : undefined;
+                const statusValue = input?.status !== undefined ? String(input.status || '').trim() : undefined;
 
                 const updatePayload = {};
                 if (schema.columns.nome_empresa && companyName) updatePayload.nome_empresa = companyName;
@@ -159,21 +174,21 @@
                 }
                 if (schema.columns.nome && companyName && schema.nameColumn !== 'nome') updatePayload.nome = companyName;
                 if (schema.columns.empresa && companyName && schema.nameColumn !== 'empresa') updatePayload.empresa = companyName;
-                if (schema.columns.email) updatePayload.email = email || null;
-                if (schema.contactColumn && contact !== null) updatePayload[schema.contactColumn] = contact || null;
-                if (schema.phoneColumn && phone !== null) updatePayload[schema.phoneColumn] = phone || null;
-                if (schema.whatsappColumn && whatsapp !== null) updatePayload[schema.whatsappColumn] = whatsapp || null;
-                if (schema.columns.tipo_documento && docType !== null) updatePayload.tipo_documento = docType || null;
-                if (schema.docColumn && documento !== null) updatePayload[schema.docColumn] = documento || null;
-                if (schema.statusColumn && statusValue) updatePayload[schema.statusColumn] = statusValue;
-                if (schema.hasAtivo && statusValue) updatePayload.ativo = statusValue === 'ativo';
+                if (schema.columns.email && emailValue !== undefined) updatePayload.email = emailValue === '' ? null : emailValue;
+                if (schema.contactColumn && contactValue !== undefined) updatePayload[schema.contactColumn] = contactValue === '' ? null : contactValue;
+                if (schema.phoneColumn && phoneValue !== undefined) updatePayload[schema.phoneColumn] = phoneValue === '' ? null : phoneValue;
+                if (schema.whatsappColumn && whatsappValue !== undefined) updatePayload[schema.whatsappColumn] = whatsappValue === '' ? null : whatsappValue;
+                if (schema.logoColumn && logoValue !== undefined) updatePayload[schema.logoColumn] = logoValue === '' ? null : logoValue;
+                if (schema.columns.tipo_documento && docTypeValue !== undefined) updatePayload.tipo_documento = docTypeValue === '' ? null : docTypeValue;
+                if (schema.docColumn && documentoValue !== undefined) updatePayload[schema.docColumn] = documentoValue === '' ? null : documentoValue;
+                if (schema.statusColumn && statusValue !== undefined) updatePayload[schema.statusColumn] = statusValue === '' ? 'ativo' : statusValue;
+                if (schema.hasAtivo && statusValue !== undefined) updatePayload.ativo = (statusValue === '' ? 'ativo' : statusValue) === 'ativo';
 
                 if (schema.servicesColumn) {
-                    const services = Array.isArray(input?.servicos) ? input.servicos : null;
-                    if (schema.servicesColumn === 'servicos') {
-                        if (services) updatePayload[schema.servicesColumn] = services;
-                    } else if (services) {
-                        updatePayload[schema.servicesColumn] = services.join(', ');
+                    const services = Array.isArray(input?.servicos) ? input.servicos : undefined;
+                    if (services !== undefined) {
+                        if (schema.servicesColumn === 'servicos') updatePayload[schema.servicesColumn] = services;
+                        else updatePayload[schema.servicesColumn] = services.length ? services.join(', ') : null;
                     }
                 }
 
@@ -289,6 +304,9 @@
             if (schema?.servicesColumn && Array.isArray(input?.servicos) && input.servicos.length) {
                 if (schema.servicesColumn === 'servicos') payload[schema.servicesColumn] = input.servicos;
                 else payload[schema.servicesColumn] = input.servicos.join(', ');
+            }
+            if (schema?.logoColumn && input?.logo_url) {
+                payload[schema.logoColumn] = String(input.logo_url).trim() || null;
             }
 
             const attempts = [payload];

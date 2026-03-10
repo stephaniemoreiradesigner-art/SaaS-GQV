@@ -596,6 +596,10 @@
                         <input id="client-whatsapp" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="(00) 00000-0000">
                     </div>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Logo (URL)</label>
+                    <input id="client-logo-url" type="url" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="https://...">
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de documento</label>
@@ -924,6 +928,7 @@
         const clientEmailInput = document.getElementById('client-email');
         const clientPhoneInput = document.getElementById('client-phone');
         const clientWhatsappInput = document.getElementById('client-whatsapp');
+        const clientLogoUrlInput = document.getElementById('client-logo-url');
         const clientStatusInput = document.getElementById('client-status-input');
         const clientServicesInputs = Array.from(document.querySelectorAll('input[name="client-services"]'));
         const clientCreateFeedback = document.getElementById('client-create-feedback');
@@ -1251,6 +1256,7 @@
             const owner = data.responsavel_nome || data.responsavel || data.contato_nome || data.contato || data.gestor || data.owner || '';
             const phone = data.telefone || data.celular || data.phone || data.telefone_contato || data.contato_telefone || '';
             const whatsapp = data.responsavel_whatsapp || data.telefone_whatsapp || data.whatsapp || data.whatsapp_numero || data.whats || '';
+            const logoUrl = data.logo_url || data.logo || data.imagem_logo || data.brand_logo_url || '';
             const docType = data.tipo_documento || '';
             const doc = data.documento || data.cnpj || data.cpf || '';
             const email = data.email || '';
@@ -1264,6 +1270,7 @@
             if (clientEmailInput) clientEmailInput.value = email;
             if (clientPhoneInput) clientPhoneInput.value = phone;
             if (clientWhatsappInput) clientWhatsappInput.value = whatsapp;
+            if (clientLogoUrlInput) clientLogoUrlInput.value = logoUrl;
             if (clientStatusInput) clientStatusInput.value = String(statusValue || 'ativo');
 
             let services = [];
@@ -1375,12 +1382,19 @@
                     setClientFeedback('Informe o nome do cliente.', 'error');
                     return;
                 }
-                if (clientSaveBtn) clientSaveBtn.disabled = true;
+                const saveOriginal = clientSaveBtn ? clientSaveBtn.innerHTML : '';
+                if (clientSaveBtn) {
+                    clientSaveBtn.disabled = true;
+                    clientSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
+                }
                 if (window.supabaseClient?.auth?.getSession) {
                     const { data } = await window.supabaseClient.auth.getSession();
                     if (!data?.session) {
                         setClientFeedback('Usuário não autenticado. Faça login novamente.', 'error');
-                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        if (clientSaveBtn) {
+                            clientSaveBtn.disabled = false;
+                            clientSaveBtn.innerHTML = saveOriginal;
+                        }
                         setTimeout(() => {
                             window.location.href = '/v2/agency/login.html';
                         }, 1200);
@@ -1396,6 +1410,7 @@
                     responsavel: String(clientOwnerInput?.value || '').trim(),
                     telefone: String(clientPhoneInput?.value || '').trim(),
                     whatsapp: String(clientWhatsappInput?.value || '').trim(),
+                    logo_url: String(clientLogoUrlInput?.value || '').trim(),
                     servicos: getSelectedClientServices(),
                     tipo_documento: clientDocTypeInput?.value || '',
                     documento: clientDocInput?.value || '',
@@ -1419,7 +1434,10 @@
                     if (result.error) {
                         console.error('[ClientUI] update client error:', result.error);
                         setClientFeedback(result.error?.message || 'Não foi possível atualizar o cliente.', 'error');
-                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        if (clientSaveBtn) {
+                            clientSaveBtn.disabled = false;
+                            clientSaveBtn.innerHTML = saveOriginal;
+                        }
                         return;
                     }
                     const updated = result.data || null;
@@ -1435,7 +1453,10 @@
                     if (updated) selectedClientForDetail = updated;
                     await new Promise((resolve) => setTimeout(resolve, 350));
                     closeClientModal();
-                    if (clientSaveBtn) clientSaveBtn.disabled = false;
+                    if (clientSaveBtn) {
+                        clientSaveBtn.disabled = false;
+                        clientSaveBtn.innerHTML = saveOriginal;
+                    }
                     return;
                 }
 
@@ -1445,7 +1466,10 @@
                 console.log('[ClientUI] create client result:', result);
                 if (result.error) {
                     setClientFeedback(result.error?.message || 'Não foi possível salvar o cliente.', 'error');
-                    if (clientSaveBtn) clientSaveBtn.disabled = false;
+                    if (clientSaveBtn) {
+                        clientSaveBtn.disabled = false;
+                        clientSaveBtn.innerHTML = saveOriginal;
+                    }
                     return;
                 }
                 const created = result.data || {};
@@ -1459,7 +1483,10 @@
                 updateClientUI(createdId, createdName);
                 closeClientModal();
                 setActiveView('hub');
-                if (clientSaveBtn) clientSaveBtn.disabled = false;
+                if (clientSaveBtn) {
+                    clientSaveBtn.disabled = false;
+                    clientSaveBtn.innerHTML = saveOriginal;
+                }
             });
         }
 
@@ -2558,12 +2585,6 @@
                 setClientFeedback('Liberação de acesso: em breve.', 'success');
             });
         }
-
-        window.addEventListener('gqv:client-edit', async (event) => {
-            const client = event?.detail?.client;
-            if (!client?.id) return;
-            await openClientEditModal(client);
-        });
 
         if (clientDeleteClose) clientDeleteClose.addEventListener('click', closeClientDeleteModal);
         if (clientDeleteCancel) clientDeleteCancel.addEventListener('click', closeClientDeleteModal);
