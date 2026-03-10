@@ -4,20 +4,14 @@
 
 (function(global) {
     let schemaCache = null;
+    let schemaInFlight = null;
+    let schemaAssumed = null;
 
     const detectSchema = async function() {
-        if (schemaCache) return schemaCache;
+        if (schemaCache && !schemaCache.empty) return schemaCache;
+        if (schemaInFlight) return await schemaInFlight;
         if (!global.supabaseClient) return null;
 
-        const testColumn = async (column) => {
-            const { error } = await global.supabaseClient
-                .from('clientes')
-                .select(column)
-                .limit(1);
-            return !error;
-        };
-
-        const columns = {};
         const candidates = [
             'nome_fantasia',
             'nome_empresa',
@@ -58,83 +52,122 @@
             'tenant_id'
         ];
 
-        for (const column of candidates) {
-            columns[column] = await testColumn(column);
-        }
+        const buildSchemaFromColumns = (existingColumnsSet, meta = {}) => {
+            const columns = {};
+            for (const column of candidates) {
+                columns[column] = existingColumnsSet.has(column);
+            }
 
-        const nameColumn =
-            (columns.nome_fantasia && 'nome_fantasia') ||
-            (columns.nome_empresa && 'nome_empresa') ||
-            (columns.nome && 'nome') ||
-            (columns.empresa && 'empresa') ||
-            null;
+            const nameColumn =
+                (columns.nome_fantasia && 'nome_fantasia') ||
+                (columns.nome_empresa && 'nome_empresa') ||
+                (columns.nome && 'nome') ||
+                (columns.empresa && 'empresa') ||
+                null;
 
-        const statusColumn =
-            (columns.status && 'status') ||
-            (columns.status_cliente && 'status_cliente') ||
-            (columns.situacao && 'situacao') ||
-            null;
+            const statusColumn =
+                (columns.status && 'status') ||
+                (columns.status_cliente && 'status_cliente') ||
+                (columns.situacao && 'situacao') ||
+                null;
 
-        const logoColumn =
-            (columns.logo_url && 'logo_url') ||
-            (columns.brand_logo_url && 'brand_logo_url') ||
-            (columns.imagem_logo && 'imagem_logo') ||
-            (columns.logo && 'logo') ||
-            null;
+            const logoColumn =
+                (columns.logo_url && 'logo_url') ||
+                (columns.brand_logo_url && 'brand_logo_url') ||
+                (columns.imagem_logo && 'imagem_logo') ||
+                (columns.logo && 'logo') ||
+                null;
 
-        const contactColumn =
-            (columns.responsavel_nome && 'responsavel_nome') ||
-            (columns.responsavel && 'responsavel') ||
-            (columns.contato_nome && 'contato_nome') ||
-            (columns.contato && 'contato') ||
-            null;
+            const contactColumn =
+                (columns.responsavel_nome && 'responsavel_nome') ||
+                (columns.responsavel && 'responsavel') ||
+                (columns.contato_nome && 'contato_nome') ||
+                (columns.contato && 'contato') ||
+                null;
 
-        const phoneColumn =
-            (columns.telefone && 'telefone') ||
-            (columns.celular && 'celular') ||
-            (columns.telefone_contato && 'telefone_contato') ||
-            (columns.contato_telefone && 'contato_telefone') ||
-            (columns.phone && 'phone') ||
-            null;
+            const phoneColumn =
+                (columns.telefone && 'telefone') ||
+                (columns.celular && 'celular') ||
+                (columns.telefone_contato && 'telefone_contato') ||
+                (columns.contato_telefone && 'contato_telefone') ||
+                (columns.phone && 'phone') ||
+                null;
 
-        const whatsappColumn =
-            (columns.responsavel_whatsapp && 'responsavel_whatsapp') ||
-            (columns.telefone_whatsapp && 'telefone_whatsapp') ||
-            (columns.whatsapp && 'whatsapp') ||
-            (columns.whatsapp_numero && 'whatsapp_numero') ||
-            (columns.whats && 'whats') ||
-            null;
+            const whatsappColumn =
+                (columns.responsavel_whatsapp && 'responsavel_whatsapp') ||
+                (columns.telefone_whatsapp && 'telefone_whatsapp') ||
+                (columns.whatsapp && 'whatsapp') ||
+                (columns.whatsapp_numero && 'whatsapp_numero') ||
+                (columns.whats && 'whats') ||
+                null;
 
-        const servicesColumn =
-            (columns.servicos && 'servicos') ||
-            (columns.servicos_contratados && 'servicos_contratados') ||
-            (columns.servicos_ativos && 'servicos_ativos') ||
-            (columns.planos && 'planos') ||
-            (columns.produtos && 'produtos') ||
-            null;
+            const servicesColumn =
+                (columns.servicos && 'servicos') ||
+                (columns.servicos_contratados && 'servicos_contratados') ||
+                (columns.servicos_ativos && 'servicos_ativos') ||
+                (columns.planos && 'planos') ||
+                (columns.produtos && 'produtos') ||
+                null;
 
-        const docColumn =
-            (columns.documento && 'documento') ||
-            (columns.cnpj && 'cnpj') ||
-            (columns.cpf && 'cpf') ||
-            null;
+            const docColumn =
+                (columns.documento && 'documento') ||
+                (columns.cnpj && 'cnpj') ||
+                (columns.cpf && 'cpf') ||
+                null;
 
-        schemaCache = {
-            columns,
-            nameColumn,
-            statusColumn,
-            logoColumn,
-            contactColumn,
-            phoneColumn,
-            whatsappColumn,
-            servicesColumn,
-            docColumn,
-            hasTenantId: !!columns.tenant_id,
-            hasAtivo: !!columns.ativo
+            return {
+                columns,
+                nameColumn,
+                statusColumn,
+                logoColumn,
+                contactColumn,
+                phoneColumn,
+                whatsappColumn,
+                servicesColumn,
+                docColumn,
+                hasTenantId: !!columns.tenant_id,
+                hasAtivo: !!columns.ativo,
+                empty: !!meta.empty,
+                assumed: !!meta.assumed
+            };
         };
 
-        console.log('[ClientRepo] Schema clientes detectado:', schemaCache);
-        return schemaCache;
+        schemaInFlight = (async () => {
+            const { data, error } = await global.supabaseClient
+                .from('clientes')
+                .select('*')
+                .limit(1);
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao detectar schema de clientes:', error);
+                return schemaCache || schemaAssumed || buildSchemaFromColumns(new Set(), { empty: true, assumed: true });
+            }
+
+            const row = Array.isArray(data) ? data[0] : null;
+            if (row && typeof row === 'object') {
+                const existing = new Set(Object.keys(row));
+                schemaCache = buildSchemaFromColumns(existing, { empty: false, assumed: false });
+                console.log('[ClientRepo] Schema clientes detectado:', schemaCache);
+                return schemaCache;
+            }
+
+            const assumedColumns = new Set([
+                'id',
+                'nome',
+                'empresa',
+                'email',
+                'status',
+                'created_at'
+            ]);
+            schemaAssumed = buildSchemaFromColumns(assumedColumns, { empty: true, assumed: true });
+            return schemaAssumed;
+        })();
+
+        try {
+            return await schemaInFlight;
+        } finally {
+            schemaInFlight = null;
+        }
     };
 
     const ClientRepo = {
