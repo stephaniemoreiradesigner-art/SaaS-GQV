@@ -2511,7 +2511,7 @@
         if (window.ClientContext) {
             window.ClientContext.subscribe((clientId) => {
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
-                currentClient = allClients.find(client => client.id === clientId) || currentClient;
+                currentClient = allClients.find(client => String(client.id) === String(clientId)) || currentClient;
                 socialState.clientId = clientId;
                 const savedMonth = loadSavedMonth(clientId);
                 if (savedMonth) {
