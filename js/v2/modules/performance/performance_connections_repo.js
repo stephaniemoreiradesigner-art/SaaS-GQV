@@ -5,7 +5,7 @@
             const { data, error } = await global.supabaseClient
                 .from('client_platform_connections')
                 .select('*')
-                .eq('cliente_id', clienteId)
+                .eq('client_id', clienteId)
                 .order('platform', { ascending: true });
             if (error) {
                 console.error('[PerformanceConnectionsRepo] getConnections error:', error);
@@ -18,7 +18,7 @@
             if (!global.supabaseClient || !clienteId || !platform) return { ok: false };
             const tenantId = global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
             const payload = {
-                cliente_id: clienteId,
+                client_id: clienteId,
                 platform,
                 ...(tenantId ? { tenant_id: tenantId } : {}),
                 ...(patch || {}),
@@ -26,7 +26,7 @@
             };
             const { data, error } = await global.supabaseClient
                 .from('client_platform_connections')
-                .upsert(payload, { onConflict: 'cliente_id,platform' })
+                .upsert(payload, { onConflict: 'client_id,platform' })
                 .select('*')
                 .single();
             if (error) {
@@ -51,4 +51,3 @@
 
     global.PerformanceConnectionsRepo = PerformanceConnectionsRepo;
 })(window);
-
