@@ -2484,6 +2484,13 @@
                 allClients = Array.isArray(clients) ? clients : [];
                 clientsLoadState.loadedOnce = true;
                 console.log('[ClientsView] loadClients result', { count: allClients.length, reason });
+                const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
+                if (activeId && !allClients.some((client) => String(client.id) === String(activeId))) {
+                    if (window.ClientContext?.setActiveClient) {
+                        window.ClientContext.setActiveClient(null);
+                    }
+                    currentClient = null;
+                }
                 renderClientList(allClients);
 
                 if (!clientsLoadState.retryScheduled && allClients.length === 0) {

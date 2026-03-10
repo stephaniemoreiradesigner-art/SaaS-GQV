@@ -153,10 +153,20 @@
 
             const assumedColumns = new Set([
                 'id',
-                'nome',
-                'empresa',
+                'nome_empresa',
+                'nome_fantasia',
                 'email',
                 'status',
+                'ativo',
+                'tenant_id',
+                'responsavel_nome',
+                'responsavel_whatsapp',
+                'telefone',
+                'whatsapp',
+                'servicos',
+                'tipo_documento',
+                'documento',
+                'logo_url',
                 'created_at'
             ]);
             schemaAssumed = buildSchemaFromColumns(assumedColumns, { empty: true, assumed: true });
