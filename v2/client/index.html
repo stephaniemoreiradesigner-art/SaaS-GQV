@@ -13,11 +13,11 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-slate-100 text-slate-900 antialiased font-sans">
+<body class="bg-[#f4f7fb] text-slate-900 antialiased font-sans">
     <div id="client-portal" class="min-h-screen flex">
         <div id="portal-overlay" class="fixed inset-0 bg-black/40 hidden lg:hidden z-30"></div>
-        <aside id="portal-sidebar" class="fixed inset-y-0 left-0 w-72 bg-white border-r border-slate-200 z-40 transform -translate-x-full lg:translate-x-0 lg:static transition-transform duration-200">
-            <div class="h-20 flex items-center gap-3 px-6 border-b border-slate-100">
+        <aside id="portal-sidebar" class="fixed inset-y-0 left-0 w-[248px] bg-white border-r border-slate-200 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
+            <div class="h-[76px] flex items-center gap-3 px-6 border-b border-slate-100">
                 <div class="w-11 h-11 rounded-xl ui-brand-icon flex items-center justify-center overflow-hidden">
                     <img id="logo-sidebar" src="/assets/logo.png" alt="Logo" class="h-7 w-auto object-contain">
                 </div>
@@ -55,9 +55,9 @@
             </div>
         </aside>
 
-        <div class="flex-1 flex flex-col min-h-screen lg:ml-72">
+        <div class="flex-1 flex flex-col min-h-screen bg-[#f4f7fb] lg:ml-[248px]">
             <header class="sticky top-0 z-20 bg-white border-b border-slate-200">
-                <div class="flex items-center justify-between px-4 md:px-8 py-4">
+                <div class="h-[76px] flex items-center justify-between px-4 sm:px-6 lg:px-7">
                     <div class="flex items-center gap-3">
                         <button id="portal-menu-toggle" class="lg:hidden ui-btn ui-btn-secondary w-10 h-10 p-0">
                             <i class="fas fa-bars"></i>
@@ -72,7 +72,7 @@
                 </div>
             </header>
 
-            <main class="flex-1 px-4 md:px-8 py-6 space-y-8">
+            <main class="flex-1 p-4 sm:p-6 lg:p-7 space-y-8">
                 <section id="view-home" class="portal-view space-y-6">
                     <div>
                         <h2 class="text-2xl font-bold text-slate-900">Home</h2>
@@ -111,11 +111,14 @@
                         </div>
                     </div>
                     <div id="calendar-loading" class="text-sm text-slate-500">Carregando calendários...</div>
-                    <div id="calendar-empty-state" class="hidden ui-empty p-8 text-center">
-                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                            <i class="fas fa-calendar-check"></i>
+                    <div id="calendar-empty-state" class="hidden min-h-[320px] flex items-center justify-center">
+                        <div class="bg-white border border-slate-200 rounded-2xl px-8 py-10 w-full max-w-lg text-center shadow-sm">
+                            <div class="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
+                                <i class="fas fa-calendar-check text-xl"></i>
+                            </div>
+                            <p class="mt-5 text-base font-semibold text-slate-900">Nenhum calendário aguardando aprovação</p>
+                            <p class="mt-2 text-sm text-slate-500">Quando sua agência enviar um calendário, ele aparece aqui para você aprovar.</p>
                         </div>
-                        <p class="mt-3 text-sm text-slate-600">Nenhum calendário aguardando aprovação.</p>
                     </div>
                     <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </section>
