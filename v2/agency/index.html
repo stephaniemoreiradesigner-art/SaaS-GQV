@@ -1045,6 +1045,27 @@
             el.classList.remove('pointer-events-none');
         };
 
+        const normalizePublicImageUrl = (rawUrl) => {
+            const url = String(rawUrl || '').trim();
+            if (!url) return '';
+            try {
+                const parsed = new URL(url);
+                const host = parsed.hostname.toLowerCase();
+                if (host.includes('drive.google.com')) {
+                    const path = parsed.pathname || '';
+                    const fileMatch = path.match(/\/file\/d\/([^/]+)\//i);
+                    if (fileMatch?.[1]) {
+                        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileMatch[1])}`;
+                    }
+                    const idParam = parsed.searchParams.get('id');
+                    if (idParam) {
+                        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(idParam)}`;
+                    }
+                }
+            } catch {}
+            return url;
+        };
+
         const openClientDetailModal = async (client) => {
             if (!clientDetailModal || !client?.id) return;
             selectedClientForDetail = client;
@@ -1086,9 +1107,17 @@
             const logoFallback = document.getElementById('client-detail-logo-fallback');
             if (logoImg && logoFallback) {
                 if (logoUrl) {
-                    logoImg.src = logoUrl;
+                    const resolved = normalizePublicImageUrl(logoUrl);
+                    logoImg.src = resolved;
                     logoImg.classList.remove('hidden');
                     logoFallback.classList.add('hidden');
+                    logoImg.onerror = () => {
+                        const initials = (String(name || '').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('') || 'CL').toUpperCase();
+                        logoFallback.textContent = initials;
+                        logoFallback.classList.remove('hidden');
+                        logoImg.classList.add('hidden');
+                        logoImg.src = '';
+                    };
                 } else {
                     const initials = (String(name || '').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('') || 'CL').toUpperCase();
                     logoFallback.textContent = initials;
@@ -2571,10 +2600,13 @@
             });
         }
         if (clientDetailEditBtn) {
-            clientDetailEditBtn.addEventListener('click', async () => {
+            clientDetailEditBtn.addEventListener('click', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 if (!selectedClientForDetail) return;
+                const snapshot = selectedClientForDetail;
                 closeClientDetailModal();
-                await openClientEditModal(selectedClientForDetail);
+                await openClientEditModal(snapshot);
             });
         }
         if (clientDetailDeleteBtn) {

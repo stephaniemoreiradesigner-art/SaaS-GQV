@@ -28,6 +28,37 @@
             return (first + last).toUpperCase() || 'CL';
         },
 
+        normalizeImageUrl: function(rawUrl) {
+            const url = String(rawUrl || '').trim();
+            if (!url) return '';
+
+            const tryParse = () => {
+                try {
+                    return new URL(url);
+                } catch {
+                    return null;
+                }
+            };
+
+            const parsed = tryParse();
+            if (!parsed) return url;
+
+            const host = parsed.hostname.toLowerCase();
+            if (host.includes('drive.google.com')) {
+                const path = parsed.pathname || '';
+                const fileMatch = path.match(/\/file\/d\/([^/]+)\//i);
+                if (fileMatch?.[1]) {
+                    return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileMatch[1])}`;
+                }
+                const idParam = parsed.searchParams.get('id');
+                if (idParam) {
+                    return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(idParam)}`;
+                }
+            }
+
+            return url;
+        },
+
         normalizeServices: function(raw) {
             const normalized = String(raw || '')
                 .split(/[,;|]/g)
@@ -112,6 +143,8 @@
                 const phoneLabel = phone ? phone : '-';
                 const waLink = this.buildWhatsAppLink(whatsapp || phone);
                 const waLabel = waLink ? 'WhatsApp' : 'Sem WhatsApp';
+                const initials = this.getInitials(name);
+                const normalizedLogoUrl = this.normalizeImageUrl(logoUrl);
 
                 const chipsHtml = services.length
                     ? services.map(s => `<span class="ui-pill">${s}</span>`).join('')
@@ -120,7 +153,7 @@
                 card.innerHTML = `
                     <div class="flex items-start gap-3">
                         <div class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-xs font-semibold text-slate-600 shrink-0">
-                            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="h-full w-full object-cover">` : this.getInitials(name)}
+                            ${normalizedLogoUrl ? `<img src="${normalizedLogoUrl}" alt="Logo" class="h-full w-full object-cover">` : initials}
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-start justify-between gap-3">
@@ -146,6 +179,14 @@
                         </div>
                     </div>
                 `;
+
+                const logoImg = card.querySelector('img[alt="Logo"]');
+                if (logoImg) {
+                    logoImg.addEventListener('error', () => {
+                        const wrapper = logoImg.parentElement;
+                        if (wrapper) wrapper.textContent = initials;
+                    });
+                }
 
                 const handleSelect = () => {
                     container.querySelectorAll('[data-client-card="true"]').forEach(el => el.classList.remove('ring-2', 'ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]'));
