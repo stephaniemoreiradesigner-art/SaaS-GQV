@@ -7,6 +7,12 @@
     let schemaInFlight = null;
     let schemaAssumed = null;
 
+    const parseMissingColumnError = (error) => {
+        const msg = String(error?.message || '');
+        const match = msg.match(/Could not find the '([^']+)' column of 'clientes' in the schema cache/i);
+        return match ? match[1] : null;
+    };
+
     const detectSchema = async function() {
         if (schemaCache && !schemaCache.empty) return schemaCache;
         if (schemaInFlight) return await schemaInFlight;
@@ -164,8 +170,6 @@
                 'telefone',
                 'whatsapp',
                 'servicos',
-                'tipo_documento',
-                'documento',
                 'logo_url',
                 'created_at'
             ]);
@@ -235,12 +239,25 @@
                     }
                 }
 
-                const { data, error } = await global.supabaseClient
-                    .from('clientes')
-                    .update(updatePayload)
-                    .eq('id', normalizedId)
-                    .select('*')
-                    .maybeSingle();
+                let attemptPayload = { ...updatePayload };
+                let data = null;
+                let error = null;
+                let guard = 0;
+                while (attemptPayload && Object.keys(attemptPayload).length && guard < 10) {
+                    guard += 1;
+                    const result = await global.supabaseClient
+                        .from('clientes')
+                        .update(attemptPayload)
+                        .eq('id', normalizedId)
+                        .select('*')
+                        .maybeSingle();
+                    data = result.data;
+                    error = result.error;
+                    if (!error) break;
+                    const missing = parseMissingColumnError(error);
+                    if (!missing || attemptPayload[missing] === undefined) break;
+                    delete attemptPayload[missing];
+                }
 
                 if (error) {
                     console.error('[ClientRepo] Erro ao atualizar cliente:', error, updatePayload);
@@ -274,8 +291,16 @@
                 if (schema?.nameColumn) {
                     query = query.order(schema.nameColumn, { ascending: true });
                 }
-                const { data, error } = await query;
+                let { data, error } = await query;
 
+                if (error) {
+                    const missing = parseMissingColumnError(error);
+                    if (missing && schema?.nameColumn === missing) {
+                        const retry = await global.supabaseClient.from('clientes').select('*');
+                        data = retry.data;
+                        error = retry.error;
+                    }
+                }
                 if (error) throw error;
                 return data || [];
             } catch (error) {
@@ -369,17 +394,25 @@
 
             let lastError = null;
             for (const payload of attempts) {
-                console.log('[ClientRepo] Tentando insert clientes:', payload);
-                const { data, error } = await global.supabaseClient
-                    .from('clientes')
-                    .insert([payload])
-                    .select('*');
-                console.log('[ClientRepo] Resposta insert clientes:', { data, error });
-                if (!error) {
-                    const created = Array.isArray(data) ? data[0] : data;
-                    return { data: created || null, error: null };
+                let attemptPayload = { ...payload };
+                let guard = 0;
+                while (attemptPayload && Object.keys(attemptPayload).length && guard < 10) {
+                    guard += 1;
+                    console.log('[ClientRepo] Tentando insert clientes:', attemptPayload);
+                    const { data, error } = await global.supabaseClient
+                        .from('clientes')
+                        .insert([attemptPayload])
+                        .select('*');
+                    console.log('[ClientRepo] Resposta insert clientes:', { data, error });
+                    if (!error) {
+                        const created = Array.isArray(data) ? data[0] : data;
+                        return { data: created || null, error: null };
+                    }
+                    lastError = error;
+                    const missing = parseMissingColumnError(error);
+                    if (!missing || attemptPayload[missing] === undefined) break;
+                    delete attemptPayload[missing];
                 }
-                lastError = error;
             }
 
             return { data: null, error: lastError };
