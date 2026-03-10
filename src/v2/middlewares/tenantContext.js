@@ -58,14 +58,24 @@ const tenantContext = async (req, res, next) => {
         }
     }
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const tenantUuid = activeTenantId && UUID_RE.test(String(activeTenantId)) ? String(activeTenantId) : null;
+    const tenantIdLegacy = !tenantUuid && activeTenantId && String(activeTenantId).match(/^-?\d+$/) ? Number(activeTenantId) : null;
+
     req.tenant = {
         tenant_id: activeTenantId,
+        tenantUuid,
+        tenantId: tenantIdLegacy,
         membership_id: activeMembershipId,
         roles: activeRoles
     };
     
     // Manter compatibilidade com código legado se houver
     req.tenantId = activeTenantId;
+    req.tenantUuid = tenantUuid;
+    req.tenantIdLegacy = tenantIdLegacy;
+
+    console.log('[tenantContext] Resolved:', { tenantId: tenantIdLegacy, tenantUuid, userId });
 
     next();
   } catch (err) {

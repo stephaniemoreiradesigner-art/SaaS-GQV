@@ -5,8 +5,10 @@
 (function(global) {
     console.log('[V2] tenantContext carregado');
     
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     let state = {
         tenantId: null,
+        tenantUuid: null,
         userId: null,
         membership: null,
         roles: [],
@@ -73,7 +75,17 @@
 
                 // Normalizar Tenant ID
                 if (tenantId) {
-                    state.tenantId = Number(tenantId);
+                    const raw = String(tenantId || '').trim();
+                    if (UUID_RE.test(raw)) {
+                        state.tenantUuid = raw;
+                        state.tenantId = null;
+                    } else if (/^-?\d+$/.test(raw)) {
+                        state.tenantId = Number(raw);
+                        state.tenantUuid = null;
+                    } else {
+                        state.tenantId = null;
+                        state.tenantUuid = null;
+                    }
                 } else {
                     console.error('[TenantContext] Não foi possível resolver o Tenant ID');
                 }
@@ -89,7 +101,7 @@
                 state.membership = colaboradorData || membershipData;
                 state.isReady = true;
                 
-                console.log('[TenantContext] Inicializado:', { tenantId: state.tenantId, userId: state.userId });
+                console.log('[TenantContext] Inicializado:', { tenantId: state.tenantId, tenantUuid: state.tenantUuid, userId: state.userId });
                 this.notifyListeners();
                 
                 return state;
@@ -106,6 +118,10 @@
 
         getTenantId() {
             return state.tenantId;
+        },
+
+        getTenantUuid() {
+            return state.tenantUuid;
         },
 
         subscribe(callback) {
