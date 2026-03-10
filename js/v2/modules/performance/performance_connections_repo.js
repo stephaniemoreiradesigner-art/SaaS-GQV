@@ -1,164 +1,158 @@
 (function(global) {
     let schemaCache = null;
+    let schemaInFlight = null;
+    let warnedMissingTable = false;
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const isUuid = (value) => UUID_RE.test(String(value || '').trim());
     const isNumeric = (value) => /^-?\d+$/.test(String(value || '').trim());
 
+    const isMissingTableError = (error) => {
+        const msg = String(error?.message || '');
+        return error?.code === 'PGRST106' || msg.includes('schema cache') || msg.includes('Could not find the table');
+    };
+
     const detectSchema = async () => {
         if (schemaCache) return schemaCache;
+        if (schemaInFlight) return await schemaInFlight;
         if (!global.supabaseClient) return null;
 
-        const testColumn = async (column) => {
+        schemaInFlight = (async () => {
             const { error } = await global.supabaseClient
                 .from('client_platform_connections')
-                .select(column)
+                .select('id')
                 .limit(1);
-            return !error;
-        };
 
-        const columns = {};
-        const candidates = [
-            'tenant_id',
-            'tenant_uuid',
-            'tenant_id_uuid',
-            'user_id',
-            'client_id',
-            'client_uuid',
-            'client_id_uuid',
-            'cliente_id',
-            'platform',
-            'updated_at'
-        ];
+            if (error && isMissingTableError(error)) {
+                schemaCache = { missing: true };
+                if (!warnedMissingTable) {
+                    warnedMissingTable = true;
+                    console.warn('[PerformanceConnectionsRepo] Tabela client_platform_connections não existe no Supabase. Módulo de conexões ficará inativo.');
+                }
+                return schemaCache;
+            }
 
-        for (const column of candidates) {
-            columns[column] = await testColumn(column);
+            schemaCache = {
+                missing: false,
+                clientColumn: null
+            };
+            return schemaCache;
+        })();
+
+        try {
+            return await schemaInFlight;
+        } finally {
+            schemaInFlight = null;
         }
-
-        const tenantUuidColumn =
-            (columns.tenant_id_uuid && 'tenant_id_uuid') ||
-            (columns.tenant_uuid && 'tenant_uuid') ||
-            null;
-
-        const tenantIdColumn = columns.tenant_id ? 'tenant_id' : null;
-
-        const clientUuidColumn =
-            (columns.client_id_uuid && 'client_id_uuid') ||
-            (columns.client_uuid && 'client_uuid') ||
-            (columns.cliente_id && 'cliente_id') ||
-            null;
-
-        const clientIdColumn = columns.client_id ? 'client_id' : null;
-
-        const onConflict =
-            (clientUuidColumn && `${clientUuidColumn},platform`) ||
-            (clientIdColumn && `${clientIdColumn},platform`) ||
-            'platform';
-
-        schemaCache = {
-            columns,
-            tenantUuidColumn,
-            tenantIdColumn,
-            clientUuidColumn,
-            clientIdColumn,
-            onConflict
-        };
-
-        console.log('[PerformanceConnectionsRepo] Schema detectado:', schemaCache);
-        return schemaCache;
     };
 
-    const resolveClientFilter = (schema, clientId) => {
-        const raw = clientId;
-        const isUuidValue = isUuid(raw);
-        if (isUuidValue && schema?.clientUuidColumn) return { column: schema.clientUuidColumn, value: String(raw).trim() };
-        if (!isUuidValue && schema?.clientIdColumn) return { column: schema.clientIdColumn, value: isNumeric(raw) ? Number(raw) : raw };
-        if (schema?.clientUuidColumn) return { column: schema.clientUuidColumn, value: String(raw).trim() };
-        if (schema?.clientIdColumn) return { column: schema.clientIdColumn, value: isNumeric(raw) ? Number(raw) : raw };
-        return { column: 'client_id', value: raw };
+    const buildClientColumnCandidates = (clienteId) => {
+        if (isUuid(clienteId)) return ['cliente_id', 'client_id_uuid', 'client_uuid', 'client_id'];
+        if (isNumeric(clienteId)) return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
+        return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
     };
 
-    const resolveTenantPatch = (schema) => {
+    const resolveClientValue = (column, raw) => {
+        if (column === 'client_id') {
+            return isNumeric(raw) ? Number(raw) : raw;
+        }
+        return String(raw).trim();
+    };
+
+    const resolveTenantPatch = () => {
         const ctx = global.TenantContext?.get ? global.TenantContext.get() : null;
         const tenantId = ctx?.tenantId;
-        const tenantUuid = ctx?.tenantUuid;
-
-        const patch = {};
-        if (schema?.tenantUuidColumn && tenantUuid && isUuid(tenantUuid)) {
-            patch[schema.tenantUuidColumn] = tenantUuid;
+        if (Number.isFinite(tenantId)) {
+            return { tenant_id: tenantId };
         }
-        if (schema?.tenantIdColumn && Number.isFinite(tenantId)) {
-            patch[schema.tenantIdColumn] = tenantId;
-        }
-        return patch;
+        return {};
     };
 
     const PerformanceConnectionsRepo = {
         getConnections: async function(clienteId) {
             if (!global.supabaseClient || !clienteId) return [];
             const schema = await detectSchema();
-            const primary = resolveClientFilter(schema, clienteId);
-            console.log('[PerformanceConnectionsRepo] getConnections filter:', { column: primary.column, value: primary.value, raw: clienteId });
+            if (!schema || schema.missing) return [];
 
-            const attempt = async (filter) => {
-                return await global.supabaseClient
+            const candidates = schema.clientColumn ? [schema.clientColumn] : buildClientColumnCandidates(clienteId);
+            for (const column of candidates) {
+                const value = resolveClientValue(column, clienteId);
+                console.log('[PerformanceConnectionsRepo] getConnections filter:', { column, value, raw: clienteId });
+                const { data, error } = await global.supabaseClient
                     .from('client_platform_connections')
                     .select('*')
-                    .eq(filter.column, filter.value)
+                    .eq(column, value)
                     .order('platform', { ascending: true });
-            };
-
-            const result1 = await attempt(primary);
-            if (!result1.error) return result1.data || [];
-
-            const isTypeMismatch = String(result1.error?.message || '').includes('bigint = uuid') || result1.error?.code === '42883';
-            let fallback = null;
-            if (primary.column === schema?.clientIdColumn && schema?.clientUuidColumn) {
-                fallback = { column: schema.clientUuidColumn, value: String(clienteId).trim() };
-            } else if (primary.column === schema?.clientUuidColumn && schema?.clientIdColumn) {
-                fallback = { column: schema.clientIdColumn, value: isNumeric(clienteId) ? Number(clienteId) : clienteId };
-            }
-            if (isTypeMismatch && fallback && fallback.column !== primary.column) {
-                console.log('[PerformanceConnectionsRepo] getConnections fallback:', { column: fallback.column, value: fallback.value, raw: clienteId });
-                const result2 = await attempt(fallback);
-                if (!result2.error) return result2.data || [];
-                console.error('[PerformanceConnectionsRepo] getConnections error:', result2.error);
-                return [];
+                if (!error) {
+                    schema.clientColumn = column;
+                    return data || [];
+                }
+                if (isMissingTableError(error)) return [];
+                const msg = String(error?.message || '');
+                const shouldRetry =
+                    error?.code === '42883' ||
+                    error?.code === '42703' ||
+                    msg.includes('bigint = uuid') ||
+                    msg.includes('does not exist') ||
+                    msg.includes('invalid input syntax');
+                if (!shouldRetry) {
+                    console.error('[PerformanceConnectionsRepo] getConnections error:', error);
+                    return [];
+                }
             }
 
-            console.error('[PerformanceConnectionsRepo] getConnections error:', result1.error);
             return [];
         },
 
         upsertConnection: async function(clienteId, platform, patch) {
             if (!global.supabaseClient || !clienteId || !platform) return { ok: false };
             const schema = await detectSchema();
-            const clientFilter = resolveClientFilter(schema, clienteId);
-            const payload = {
-                [clientFilter.column]: clientFilter.value,
-                platform,
-                ...resolveTenantPatch(schema),
-                ...(patch || {}),
-                updated_at: new Date().toISOString()
-            };
-            console.log('[PerformanceConnectionsRepo] upsertConnection payload:', {
-                clientColumn: clientFilter.column,
-                clientValue: clientFilter.value,
-                platform,
-                tenantColumns: {
-                    tenantIdColumn: schema?.tenantIdColumn || null,
-                    tenantUuidColumn: schema?.tenantUuidColumn || null
+            if (!schema || schema.missing) return { ok: false, reason: 'missing_table' };
+
+            const candidates = schema.clientColumn ? [schema.clientColumn] : buildClientColumnCandidates(clienteId);
+            for (const column of candidates) {
+                const value = resolveClientValue(column, clienteId);
+                const basePayload = {
+                    [column]: value,
+                    platform,
+                    ...(patch || {}),
+                    updated_at: new Date().toISOString()
+                };
+                const payloadWithTenant = { ...basePayload, ...resolveTenantPatch() };
+                console.log('[PerformanceConnectionsRepo] upsertConnection payload:', { clientColumn: column, clientValue: value, platform });
+
+                const attempt = async (payload) => {
+                    return await global.supabaseClient
+                        .from('client_platform_connections')
+                        .upsert(payload, { onConflict: `${column},platform` })
+                        .select('*')
+                        .single();
+                };
+
+                let result = await attempt(payloadWithTenant);
+                if (result.error && (result.error?.code === '42703' || String(result.error?.message || '').includes('does not exist'))) {
+                    result = await attempt(basePayload);
                 }
-            });
-            const { data, error } = await global.supabaseClient
-                .from('client_platform_connections')
-                .upsert(payload, { onConflict: schema?.onConflict || 'client_id,platform' })
-                .select('*')
-                .single();
-            if (error) {
-                console.error('[PerformanceConnectionsRepo] upsertConnection error:', error);
-                return { ok: false, error };
+
+                if (!result.error) {
+                    schema.clientColumn = column;
+                    return { ok: true, data: result.data };
+                }
+                if (isMissingTableError(result.error)) return { ok: false, reason: 'missing_table' };
+
+                const msg = String(result.error?.message || '');
+                const shouldRetry =
+                    result.error?.code === '42883' ||
+                    result.error?.code === '42703' ||
+                    msg.includes('bigint = uuid') ||
+                    msg.includes('does not exist') ||
+                    msg.includes('invalid input syntax');
+                if (!shouldRetry) {
+                    console.error('[PerformanceConnectionsRepo] upsertConnection error:', result.error);
+                    return { ok: false, error: result.error };
+                }
             }
-            return { ok: true, data };
+
+            return { ok: false, reason: 'no_compatible_schema' };
         },
 
         disconnect: async function(clienteId, platform) {
