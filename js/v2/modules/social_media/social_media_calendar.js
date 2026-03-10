@@ -101,7 +101,9 @@
                 'draft': 'border-l-2 border-l-gray-300',
                 'in_production': 'border-l-2 border-l-blue-300',
                 'awaiting_approval': 'border-l-2 border-l-yellow-400',
+                'ready_for_approval': 'border-l-2 border-l-yellow-400',
                 'approved': 'border-l-2 border-l-green-400',
+                'changes_requested': 'border-l-2 border-l-red-400',
                 'published': 'border-l-2 border-l-purple-500',
                 'archived': 'border-l-2 border-l-gray-500',
                 // Fallbacks para compatibilidade
@@ -115,13 +117,19 @@
             // Conteúdo resumido
             const title = post.legenda || post.titulo || 'Sem título';
             const icon = this.getPlatformIcon(post);
+            const mediaUrl = post.imagem_url || post.media_url;
+            const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
             
             el.innerHTML = `
                 <div class="flex items-center gap-1 truncate">
                     ${icon}
                     <span class="truncate font-medium text-slate-700">${title}</span>
                 </div>
-                ${post.imagem_url ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><img src="'+post.imagem_url+'" class="w-full h-full object-cover"></div>' : ''}
+                ${mediaUrl ? (
+                    isVideo
+                        ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover"></video></div>'
+                        : '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover"></div>'
+                ) : ''}
             `;
 
             // Eventos de Drag

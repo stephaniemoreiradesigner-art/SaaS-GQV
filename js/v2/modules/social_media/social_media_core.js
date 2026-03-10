@@ -174,6 +174,7 @@
                             'draft': 'Rascunho',
                             'in_production': 'Em produção',
                             'awaiting_approval': 'Aguardando Aprovação',
+                            'ready_for_approval': 'Aguardando Aprovação',
                             'approved': 'Aprovado',
                             'published': 'Publicado',
                             'archived': 'Arquivado',
@@ -184,7 +185,7 @@
                         statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full'; // Reset classes
                         
                         if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
-                        if (status === 'awaiting_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+                        if (status === 'awaiting_approval' || status === 'ready_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
                         if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
                         if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
                     }

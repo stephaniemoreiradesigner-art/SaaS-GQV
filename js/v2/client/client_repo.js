@@ -107,26 +107,35 @@
             const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
 
             // 1. Aprova calendário
-            const { error: calError } = await supabase
+            const { data: calData, error: calError } = await supabase
                 .from('social_calendars')
                 .update({ 
                     status: approvedStatus,
                     comentario_cliente: null // Limpa comentários anteriores se houver
                 })
-                .eq('id', calendarId);
+                .eq('id', calendarId)
+                .select('id,status');
 
             if (calError) {
                 console.error('[ClientRepo] Erro ao aprovar calendário:', calError);
                 return false;
             }
+            if (!calData || calData.length === 0) {
+                console.error('[ClientRepo] Aprovação de calendário não afetou nenhuma linha (possível RLS/filtro).', calendarId);
+                return false;
+            }
 
             // 2. Aprova todos os posts associados (Opcional, mas boa prática para consistência)
-            const { error: postError } = await supabase
+            const { data: postData, error: postError } = await supabase
                 .from('social_posts')
                 .update({ status: approvedStatus })
-                .eq('calendar_id', calendarId);
+                .eq('calendar_id', calendarId)
+                .select('id,status');
 
             if (postError) console.warn('[ClientRepo] Erro ao aprovar posts em lote:', postError);
+            if (!postError && (!postData || postData.length === 0)) {
+                console.warn('[ClientRepo] Aprovação em lote não atualizou posts (pode não haver posts no calendário).', calendarId);
+            }
 
             return true;
         },
@@ -167,15 +176,23 @@
 
             const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('social_posts')
                 .update({ 
                     status: approvedStatus,
                     comentario_cliente: null
                 })
-                .eq('id', postId);
+                .eq('id', postId)
+                .select('id,status');
 
-            if (error) return false;
+            if (error) {
+                console.error('[ClientRepo] Erro ao aprovar post:', error);
+                return false;
+            }
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Aprovação não afetou nenhuma linha (possível RLS/filtro).', postId);
+                return false;
+            }
             return true;
         },
 
@@ -190,15 +207,23 @@
 
             const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('social_posts')
                 .update({ 
                     status: changesStatus,
                     comentario_cliente: comment 
                 })
-                .eq('id', postId);
+                .eq('id', postId)
+                .select('id,status');
 
-            if (error) return false;
+            if (error) {
+                console.error('[ClientRepo] Erro ao solicitar ajustes no post:', error);
+                return false;
+            }
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Solicitação de ajuste não afetou nenhuma linha (possível RLS/filtro).', postId);
+                return false;
+            }
             return true;
         },
 
