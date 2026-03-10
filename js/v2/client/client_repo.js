@@ -175,6 +175,9 @@
             if (!supabase) return false;
 
             const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
+            const normalizedPostId = postId ? String(postId).trim() : '';
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
 
             const payload = {
                 status: approvedStatus,
@@ -184,12 +187,13 @@
             const { data, error } = await supabase
                 .from('social_posts')
                 .update(payload)
-                .eq('id', postId)
+                .eq('id', normalizedPostId)
                 .select('id,status,cliente_id,calendar_id');
 
             if (error) {
                 console.error('[ClientRepo] Erro ao aprovar post:', {
-                    postId,
+                    postId: normalizedPostId,
+                    authEmail: email,
                     payload,
                     code: error.code,
                     message: error.message,
@@ -200,7 +204,8 @@
             }
             if (!data || data.length === 0) {
                 console.error('[ClientRepo] Aprovação não afetou nenhuma linha (possível RLS/filtro).', {
-                    postId,
+                    postId: normalizedPostId,
+                    authEmail: email,
                     payload
                 });
                 return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
@@ -218,6 +223,9 @@
             if (!supabase) return false;
 
             const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
+            const normalizedPostId = postId ? String(postId).trim() : '';
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
 
             const payload = {
                 status: changesStatus,
@@ -227,12 +235,13 @@
             const { data, error } = await supabase
                 .from('social_posts')
                 .update(payload)
-                .eq('id', postId)
+                .eq('id', normalizedPostId)
                 .select('id,status,cliente_id,calendar_id');
 
             if (error) {
                 console.error('[ClientRepo] Erro ao solicitar ajustes no post:', {
-                    postId,
+                    postId: normalizedPostId,
+                    authEmail: email,
                     payload,
                     code: error.code,
                     message: error.message,
@@ -243,7 +252,8 @@
             }
             if (!data || data.length === 0) {
                 console.error('[ClientRepo] Solicitação de ajuste não afetou nenhuma linha (possível RLS/filtro).', {
-                    postId,
+                    postId: normalizedPostId,
+                    authEmail: email,
                     payload
                 });
                 return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };

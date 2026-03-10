@@ -185,8 +185,12 @@
             if (show && postData) {
                 // Populate Data
                 const date = postData.data_agendada ? new Date(postData.data_agendada).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
+                const title = postData.tema || postData.titulo || postData.title || 'Detalhes do Post';
+                const mediaUrl = postData.imagem_url || postData.media_url;
+                const titleEl = document.getElementById('client-post-modal-title');
                 document.getElementById('client-post-modal-date').textContent = date;
                 document.getElementById('client-post-modal-caption').textContent = postData.legenda || 'Sem legenda.';
+                if (titleEl) titleEl.textContent = title;
                 
                 // Status Badge
                 const statusEl = document.getElementById('client-post-modal-status');
@@ -203,11 +207,11 @@
                 // Media
                 const mediaContainer = document.getElementById('client-post-modal-media-container');
                 let mediaHtml = '';
-                if (postData.imagem_url) {
-                    if (postData.imagem_url.match(/\.(mp4|webm)$/i)) {
-                         mediaHtml = `<video src="${postData.imagem_url}" controls class="max-w-full max-h-[400px] rounded"></video>`;
+                if (mediaUrl) {
+                    if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+                         mediaHtml = `<video src="${mediaUrl}" controls class="max-w-full max-h-[400px] rounded"></video>`;
                     } else {
-                         mediaHtml = `<img src="${postData.imagem_url}" class="max-w-full max-h-[400px] object-contain rounded">`;
+                         mediaHtml = `<img src="${mediaUrl}" class="max-w-full max-h-[400px] object-contain rounded">`;
                     }
                 } else {
                     mediaHtml = `<div class="text-slate-400 flex flex-col items-center"><i class="fas fa-image text-4xl mb-2"></i><span class="text-sm">Sem mídia</span></div>`;
@@ -269,6 +273,16 @@
                         </div>
                     </div>
                 `;
+
+                const viewBtn = el.querySelector('.btn-open-post-modal');
+                if (viewBtn) {
+                    viewBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('[ClientUI] Visualizar post click:', { postId: post?.id, status: post?.status });
+                        if (global.ClientCore) global.ClientCore.openPostModal(post);
+                    });
+                }
                 container.appendChild(el);
             });
         },

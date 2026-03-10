@@ -83,7 +83,8 @@
         },
 
         openPostModal: function(post) {
-            this.activePostId = post.id;
+            this.activePostId = post?.id;
+            console.log('[ClientCore] openPostModal:', { postId: this.activePostId, status: post?.status });
             
             // Show UI
             if(global.ClientUI) global.ClientUI.showPostModal(true, post);

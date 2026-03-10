@@ -107,3 +107,33 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 3. Buscar cliente (campo Buscar) → filtro funciona.
 4. Clicar em cliente → modal abre.
 5. Voltar/recarregar → lista permanece estável.
+
+## 2026-03-10 — Client Portal Posts Approval Flow (Visualizar + Aprovação)
+
+### Problema
+- No Portal do Cliente (Aprovar Posts), o botão "Visualizar" não abria o modal.
+- Ao clicar em "Aprovar Post", retornava "Nenhuma linha atualizada (RLS/filtro)" e o fluxo não fechava ponta a ponta.
+
+### Causa
+- O card bloqueava o clique em botões (`if(e.target.tagName === 'BUTTON') return;`), mas o botão "Visualizar" não tinha handler próprio, então o clique não acionava nada.
+- O modal não normalizava mídia (usava apenas `imagem_url`, enquanto a lista suportava `media_url`), causando modal sem mídia mesmo quando existia.
+- A policy de UPDATE para cliente estava acoplando a autorização em `social_posts.cliente_id`, mas o fluxo do Portal identifica ownership de forma confiável via `social_posts.calendar_id -> social_calendars.cliente_id`. Isso resultava em UPDATE com 0 linhas afetadas sob RLS (sem erro explícito).
+
+### Solução
+- UI: adicionada ação explícita no botão "Visualizar" para abrir o modal com dados reais (tema/título, legenda, status e mídia quando existir).
+- UI: modal passa a usar `imagem_url || media_url` e popula título corretamente.
+- Banco: policy de UPDATE ajustada para validar ownership via relação com `social_calendars` e permitir somente transição para `approved/changes_requested`.
+- Logs: fluxo imprime no console o `postId`, `payload` e `authEmail` para diagnóstico rápido.
+
+### Arquivos Alterados
+- `v2/client/index.html` (referência do modal; sem alteração de layout)
+- `js/v2/client/client_ui.js`
+- `js/v2/client/client_core.js`
+- `js/v2/client/client_repo.js`
+- `supabase/migrations/fix_social_posts_client_approval_rls_v2.sql`
+
+### Como Validar Manualmente
+1. Portal do Cliente → Aprovar Posts: clicar em "Visualizar" → modal abre com dados reais (incluindo mídia quando existir).
+2. Portal do Cliente: clicar em "Aprovar Post" → confirmação → update persiste no banco (sem "RLS/filtro").
+3. Recarregar Portal → post aprovado não aparece como pendente.
+4. Agency: recarregar → status do post reflete `approved`.
