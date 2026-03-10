@@ -171,3 +171,38 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 - Refinar calendário mensal e o drawer do post (hierarquia visual + blocos).
 - Implementar pipeline com drag and drop e estágios consistentes (sem alterar schema).
 - Expandir white-label para logo por cliente no portal quando aplicável.
+
+## 2026-03-10 — Social Media Posts Kanban (mesma base do Calendário) + Ações no Modal de Cliente
+
+### Problema
+- Social Media: a aba Calendário exibia posts do mês, mas a aba Posts não refletia os mesmos dados (estado vazio/sem espelho do calendário).
+- Clientes: modal de cliente não oferecia ações operacionais de cadastro (Editar/Excluir) ponta a ponta.
+
+### Causa
+- Não existia estado compartilhado explícito no módulo Social Media para armazenar os posts carregados do `calendar_id` do mês atual e reusar em múltiplas views.
+- O modal de cliente possuía UI de detalhes, mas não conectava ações de edição/exclusão ao fluxo existente.
+
+### Solução
+- Social Media:
+  - `SocialMediaCore` passa a persistir `currentPosts` como fonte de verdade do mês atual (mesma base usada para renderizar o Calendário).
+  - A aba Posts renderiza um kanban operacional diretamente a partir de `currentPosts` e re-renderiza ao trocar mês/cliente e após operações (create/edit/delete/move/status).
+  - Tabs do Social Media foram simplificadas para: Visão Geral / Posts / Calendário / Insights.
+- Clientes:
+  - Modal de cliente ganhou ações de Editar/Excluir.
+  - Editar abre o modal de cadastro em modo edição, pré-carregando os dados atuais.
+  - Excluir usa confirmação visual interna (sem `alert/confirm` nativos), remove o cliente e atualiza a lista; se o cliente excluído estiver ativo, limpa o `ClientContext`.
+
+### Arquivos Alterados
+- `v2/agency/index.html`
+- `js/v2/modules/social_media/social_media_core.js`
+- `js/v2/modules/social_media/social_media_ui.js`
+- `js/v2/modules/social_media/social_media_calendar.js`
+- `js/v2/modules/clientes/clientes_ui.js`
+
+### Como Validar Manualmente
+1. Agency → Social Media → Calendário: confirmar que há posts no mês.
+2. Agency → Social Media → Posts: confirmar que os mesmos posts aparecem organizados por status (kanban).
+3. Editar/criar/mover/excluir post: confirmar atualização em Calendário e Posts.
+4. Agency → Clientes: abrir modal de cliente → confirmar botões Editar e Excluir.
+5. Editar cliente: salvar → lista atualiza sem sumir.
+6. Excluir cliente: confirmar no modal → lista atualiza; se era cliente ativo, cliente ativo é limpo.

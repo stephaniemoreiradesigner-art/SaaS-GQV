@@ -9,6 +9,7 @@
         currentClientName: null,
         currentCalendarId: null,
         currentMonthRef: new Date(),
+        currentPosts: [],
 
         init: async function() {
             if (this.initialized) return;
@@ -161,10 +162,14 @@
                     
                     // 2. Busca Posts
                     const posts = await global.SocialMediaRepo.getPostsByCalendar(calendar.id);
+                    this.currentPosts = Array.isArray(posts) ? posts : [];
                     
                     // 3. Renderiza
                     if (global.SocialMediaCalendar) {
-                        global.SocialMediaCalendar.render(posts, dateRef);
+                        global.SocialMediaCalendar.render(this.currentPosts, dateRef);
+                    }
+                    if (global.SocialMediaUI && typeof global.SocialMediaUI.renderPostsBoard === 'function') {
+                        global.SocialMediaUI.renderPostsBoard(this.currentPosts, dateRef);
                     }
                     
                     // Atualiza status na UI

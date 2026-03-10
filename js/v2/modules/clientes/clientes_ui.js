@@ -4,6 +4,75 @@
 
 (function(global) {
     const ClientUI = {
+        getClientName: function(client) {
+            return client?.nome_fantasia || client?.razao_social || client?.nome_empresa || client?.nome || client?.empresa || 'Sem nome';
+        },
+
+        getField: function(client, keys) {
+            for (const key of keys) {
+                const value = client?.[key];
+                if (value !== undefined && value !== null && String(value).trim() !== '') {
+                    return String(value).trim();
+                }
+            }
+            return '';
+        },
+
+        getInitials: function(name) {
+            const parts = String(name || '')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
+            const first = parts[0]?.[0] || '';
+            const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+            return (first + last).toUpperCase() || 'CL';
+        },
+
+        normalizeServices: function(raw) {
+            const normalized = String(raw || '')
+                .split(/[,;|]/g)
+                .map(s => s.trim())
+                .filter(Boolean);
+            const mapped = normalized.map((item) => {
+                const v = item.toLowerCase();
+                if (v.includes('social')) return 'Social Media';
+                if (v.includes('tráfego') || v.includes('trafego') || v.includes('ads') || v.includes('performance')) return 'Tráfego Pago';
+                if (v.includes('autom')) return 'Automação';
+                if (v.includes('consult')) return 'Consultoria';
+                return item;
+            });
+            const unique = [];
+            mapped.forEach((s) => {
+                if (!unique.includes(s)) unique.push(s);
+            });
+            return unique.slice(0, 6);
+        },
+
+        getServices: function(client) {
+            const fromString = this.getField(client, ['servicos_ativos', 'servicos_contratados', 'servicos', 'produtos', 'planos']);
+            if (fromString) return this.normalizeServices(fromString);
+
+            const inferred = [];
+            if (this.getField(client, ['social_responsavel', 'responsavel_social', 'instagram_url'])) inferred.push('Social Media');
+            if (this.getField(client, ['trafego_responsavel', 'responsavel_trafego'])) inferred.push('Tráfego Pago');
+            if (this.getField(client, ['automacao_responsavel'])) inferred.push('Automação');
+            if (this.getField(client, ['consultoria_responsavel'])) inferred.push('Consultoria');
+            return inferred.slice(0, 6);
+        },
+
+        formatPhone: function(raw) {
+            const digits = String(raw || '').replace(/\D/g, '');
+            if (!digits) return '';
+            return digits;
+        },
+
+        buildWhatsAppLink: function(raw) {
+            const digits = this.formatPhone(raw);
+            if (!digits) return '';
+            const withCountry = digits.length <= 11 ? `55${digits}` : digits;
+            return `https://wa.me/${withCountry}`;
+        },
+
         /**
          * Renderiza a lista de clientes em um container específico
          * @param {Array} clients - Lista de dados dos clientes
@@ -21,39 +90,72 @@
             container.innerHTML = ''; // Limpar
             
             if (clients.length === 0) {
-                container.innerHTML = '<div class="p-4 text-gray-500">Nenhum cliente encontrado.</div>';
+                container.innerHTML = '<div class="p-6 text-sm text-slate-500">Nenhum cliente encontrado.</div>';
                 return;
             }
 
-            const list = document.createElement('ul');
-            list.className = 'space-y-2';
-
             clients.forEach(client => {
-                const item = document.createElement('li');
-                item.className = 'p-3 bg-white border rounded shadow-sm hover:bg-blue-50 cursor-pointer transition-colors flex justify-between items-center';
-                item.dataset.id = client.id;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = 'ui-card w-full text-left p-4';
+                card.dataset.id = client.id;
+                card.dataset.clientCard = 'true';
 
-                const name = client.nome_fantasia || client.razao_social || 'Sem Nome';
-                
-                item.innerHTML = `
-                    <span class="font-medium text-gray-700">${name}</span>
-                    <span class="text-xs text-gray-400">ID: ${client.id.substring(0, 8)}...</span>
+                const name = this.getClientName(client);
+                const owner = this.getField(client, ['responsavel', 'responsavel_nome', 'social_responsavel', 'trafego_responsavel', 'gestor', 'owner']);
+                const phone = this.getField(client, ['telefone', 'celular', 'phone', 'telefone_contato', 'contato_telefone']);
+                const whatsapp = this.getField(client, ['whatsapp', 'telefone_whatsapp', 'whatsapp_numero', 'whats']);
+                const logoUrl = this.getField(client, ['logo_url', 'logo', 'imagem_logo', 'brand_logo_url']);
+                const services = this.getServices(client);
+
+                const phoneLabel = phone ? phone : '-';
+                const waLink = this.buildWhatsAppLink(whatsapp || phone);
+                const waLabel = waLink ? 'WhatsApp' : 'Sem WhatsApp';
+
+                const chipsHtml = services.length
+                    ? services.map(s => `<span class="ui-pill">${s}</span>`).join('')
+                    : '<span class="ui-pill">Sem serviços</span>';
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-xs font-semibold text-slate-600 shrink-0">
+                            ${logoUrl ? `<img src="${logoUrl}" alt="Logo" class="h-full w-full object-cover">` : this.getInitials(name)}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-semibold text-slate-900 truncate">${name}</p>
+                                    <p class="text-xs text-slate-500 mt-1">${owner ? `Responsável: ${owner}` : 'Responsável: -'}</p>
+                                </div>
+                                <span class="ui-pill">ID ${String(client.id || '').slice(0, 6)}</span>
+                            </div>
+                            <div class="mt-3 grid grid-cols-1 gap-2">
+                                <div class="flex items-center justify-between text-xs text-slate-500">
+                                    <span>Telefone</span>
+                                    <span class="text-slate-700 font-semibold">${phoneLabel}</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs text-slate-500">
+                                    <span>WhatsApp</span>
+                                    ${waLink ? `<a href="${waLink}" target="_blank" class="text-slate-700 font-semibold hover:underline">${waLabel}</a>` : `<span class="text-slate-400 font-semibold">${waLabel}</span>`}
+                                </div>
+                            </div>
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                ${chipsHtml}
+                            </div>
+                        </div>
+                    </div>
                 `;
 
-                item.addEventListener('click', () => {
-                    // Feedback visual simples
-                    container.querySelectorAll('li').forEach(li => li.classList.remove('ring-2', 'ring-blue-500'));
-                    item.classList.add('ring-2', 'ring-blue-500');
-                    
+                card.addEventListener('click', () => {
+                    container.querySelectorAll('[data-client-card="true"]').forEach(el => el.classList.remove('ring-2', 'ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]'));
+                    card.classList.add('ring-2', 'ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]');
                     if (typeof onSelectCallback === 'function') {
                         onSelectCallback(client);
                     }
                 });
 
-                list.appendChild(item);
+                container.appendChild(card);
             });
-
-            container.appendChild(list);
         },
 
         /**
@@ -64,12 +166,10 @@
             const container = document.getElementById('v2-clients-list');
             if (!container) return;
 
-            container.querySelectorAll('li').forEach(li => {
-                if (li.dataset.id === clientId) {
-                    li.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50');
-                } else {
-                    li.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50');
-                }
+            container.querySelectorAll('[data-client-card="true"]').forEach(card => {
+                const isActive = card.dataset.id === clientId;
+                card.classList.toggle('ring-2', isActive);
+                card.classList.toggle('ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]', isActive);
             });
         }
     };

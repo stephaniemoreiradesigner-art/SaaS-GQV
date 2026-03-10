@@ -145,42 +145,24 @@
                 <section id="view-clients" class="v2-view space-y-6">
                     <div>
                         <h2 class="text-2xl font-bold text-slate-900">Clientes</h2>
-                        <p class="text-sm text-slate-500">Busque e defina o cliente ativo.</p>
+                        <p class="text-sm text-slate-500">Visão em cards para gestão rápida.</p>
                     </div>
-                    <div class="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-6">
-                        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-sm font-semibold text-slate-700">Lista de clientes</h3>
-                                <button id="clients-new-btn" class="text-xs px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800">+ Novo Cliente</button>
+                    <div class="ui-surface p-5">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-900">Clientes</h3>
+                                <p class="text-xs text-slate-500 mt-1">Clique em um card para abrir o modal.</p>
                             </div>
-                            <div class="flex items-center gap-2 mb-4">
-                                <div class="relative flex-1">
-                                    <i class="fas fa-search text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
-                                    <input id="clients-search" type="text" class="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Buscar cliente">
-                                </div>
-                                <button id="clients-clear" class="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-700">Limpar</button>
-                            </div>
-                            <div id="v2-clients-list" class="space-y-2"></div>
+                            <button id="clients-new-btn" class="ui-btn ui-btn-primary">+ Novo Cliente</button>
                         </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <h3 class="text-sm font-semibold text-slate-700 mb-3">Resumo do cliente</h3>
-                            <div class="text-sm text-slate-500" id="client-summary">
-                                Selecione um cliente para visualizar o hub operacional.
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4">
+                            <div class="relative flex-1">
+                                <i class="fas fa-search text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                                <input id="clients-search" type="text" class="ui-input pl-9" placeholder="Buscar cliente">
                             </div>
-                            <div class="mt-6 space-y-3">
-                                <div class="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Status</span>
-                                    <span id="client-status" class="font-medium text-slate-800">Não definido</span>
-                                </div>
-                                <div class="flex items-center justify-between text-sm text-slate-600">
-                                    <span>Responsável</span>
-                                    <span id="client-owner" class="font-medium text-slate-800">Não definido</span>
-                                </div>
-                                <button id="client-open-hub" class="w-full px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>
-                                    Abrir Hub do Cliente
-                                </button>
-                            </div>
+                            <button id="clients-clear" class="ui-btn ui-btn-secondary">Limpar</button>
                         </div>
+                        <div id="v2-clients-list" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3"></div>
                     </div>
                 </section>
 
@@ -253,10 +235,8 @@
 
                         <div class="ui-tabs">
                             <button data-social-tab="overview" data-active="true" class="social-tab-btn ui-tab">Visão Geral</button>
-                            <button data-social-tab="pipeline" data-active="false" class="social-tab-btn ui-tab">Pipeline</button>
-                            <button data-social-tab="calendar" data-active="false" class="social-tab-btn ui-tab">Calendário</button>
                             <button data-social-tab="posts" data-active="false" class="social-tab-btn ui-tab">Posts</button>
-                            <button data-social-tab="approvals" data-active="false" class="social-tab-btn ui-tab">Aprovações</button>
+                            <button data-social-tab="calendar" data-active="false" class="social-tab-btn ui-tab">Calendário</button>
                             <button data-social-tab="insights" data-active="false" class="social-tab-btn ui-tab">Insights</button>
                         </div>
 
@@ -283,18 +263,6 @@
                                     <h3 class="text-sm font-semibold text-slate-700 mb-2">Resumo do cliente</h3>
                                     <p class="text-sm text-slate-500">Acompanhe o fluxo do calendário do cliente ativo e avance no planejamento mensal.</p>
                                 </div>
-                            </div>
-                        </div>
-
-                        <div id="social-tab-pipeline" class="social-tab space-y-6 hidden">
-                            <div class="ui-surface p-6">
-                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
-                                    <div>
-                                        <h3 class="text-sm font-semibold text-slate-900">Pipeline</h3>
-                                        <p class="text-sm text-slate-500">Visão por estágio do workflow</p>
-                                    </div>
-                                </div>
-                                <div id="social-pipeline-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
                             </div>
                         </div>
 
@@ -342,21 +310,23 @@
                                 </div>
                                 <div id="social-calendar-grid" class="grid grid-cols-7 gap-2"></div>
                             </div>
+                            <button id="social-calendar-fab" class="hidden fixed bottom-6 right-6 ui-btn ui-btn-primary h-12 w-12 p-0 rounded-full shadow-lg">
+                                <i class="fas fa-plus"></i>
+                            </button>
                         </div>
 
                         <div id="social-tab-posts" class="social-tab space-y-6 hidden">
-                            <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                                <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-pen-nib"></i></div>
-                                <h2 class="text-2xl font-bold text-slate-800 mb-2">Posts</h2>
-                                <p class="text-sm text-slate-500">Em construção... 🛠️</p>
-                            </div>
-                        </div>
-
-                        <div id="social-tab-approvals" class="social-tab space-y-6 hidden">
-                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <h3 class="text-sm font-semibold text-slate-700 mb-4">Aprovações</h3>
-                                <div class="space-y-3" id="social-approvals-list"></div>
-                                <div id="social-approvals-empty" class="text-sm text-slate-500 hidden">Nenhum calendário aguardando aprovação.</div>
+                            <div class="ui-surface p-6">
+                                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-900">Posts</h3>
+                                        <p class="text-sm text-slate-500">Pipeline operacional do mês</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="ui-pill">Cards por estágio</span>
+                                    </div>
+                                </div>
+                                <div id="social-posts-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
                             </div>
                         </div>
 
@@ -589,7 +559,7 @@
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <div>
                     <p class="text-xs uppercase tracking-widest text-slate-400">Clientes</p>
-                    <h3 class="text-lg font-semibold text-slate-900">Novo Cliente</h3>
+                    <h3 id="client-modal-title" class="text-lg font-semibold text-slate-900">Novo Cliente</h3>
                 </div>
                 <button id="client-modal-close" class="text-slate-400 hover:text-slate-600">
                     <i class="fas fa-times"></i>
@@ -652,111 +622,133 @@
             </div>
             <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
                 <div id="client-detail-access-warning" class="hidden text-sm rounded-lg px-4 py-3 bg-amber-50 text-amber-700 border border-amber-100"></div>
+
+                <div class="flex items-center gap-4 ui-surface-2 p-4">
+                    <div class="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0" id="client-detail-logo-wrap">
+                        <img id="client-detail-logo" src="" alt="Logo" class="h-full w-full object-cover hidden">
+                        <span id="client-detail-logo-fallback">CL</span>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-xs uppercase text-slate-400">Empresa</p>
+                        <p id="client-detail-company" class="text-base font-semibold text-slate-900 truncate">-</p>
+                        <p id="client-detail-subtitle" class="text-sm text-slate-500 truncate">-</p>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div id="client-detail-section-overview" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-semibold text-slate-700">Visão Geral</h4>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Empresa</p>
-                                <p id="client-detail-empresa" class="text-slate-800 font-medium">-</p>
-                            </div>
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Nome fantasia</p>
-                                <p id="client-detail-fantasia" class="text-slate-800 font-medium">-</p>
-                            </div>
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">E-mail</p>
-                                <p id="client-detail-email" class="text-slate-800 font-medium">-</p>
-                            </div>
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Documento</p>
-                                <p id="client-detail-documento" class="text-slate-800 font-medium">-</p>
-                            </div>
-                        </div>
-                        <div class="text-sm">
-                            <p class="text-xs uppercase text-slate-400">Serviços contratados</p>
-                            <p id="client-detail-servicos" class="text-slate-700">-</p>
-                        </div>
-                    </div>
-
-                    <div id="client-detail-section-operation" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-semibold text-slate-700">Operação</h4>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Social responsável</p>
-                                <p id="client-detail-social-owner" class="text-slate-800 font-medium">-</p>
-                            </div>
-                            <div>
-                                <p class="text-xs uppercase text-slate-400">Tráfego responsável</p>
-                                <p id="client-detail-performance-owner" class="text-slate-800 font-medium">-</p>
-                            </div>
-                            <div class="sm:col-span-2">
-                                <p class="text-xs uppercase text-slate-400">Plataformas usadas</p>
-                                <p id="client-detail-plataformas" class="text-slate-700">-</p>
-                            </div>
-                        </div>
-                        <div class="text-sm">
-                            <p class="text-xs uppercase text-slate-400">Observações operacionais</p>
-                            <p id="client-detail-observacoes" class="text-slate-700 whitespace-pre-wrap">-</p>
-                        </div>
-                    </div>
-
-                    <div id="client-detail-section-assets" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-semibold text-slate-700">Ativos Digitais</h4>
-                        </div>
+                    <div id="client-detail-section-contact" class="ui-surface-2 p-5 space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-900">Contato</h4>
                         <div class="space-y-3 text-sm">
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-slate-500">Instagram</span>
-                                <a id="client-detail-instagram" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                                <span class="text-slate-500">Contato</span>
+                                <span id="client-detail-contact" class="text-slate-900 font-semibold truncate">-</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-slate-500">Facebook</span>
-                                <a id="client-detail-facebook" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                                <span class="text-slate-500">Telefone</span>
+                                <span id="client-detail-phone" class="text-slate-900 font-semibold truncate">-</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-slate-500">LinkedIn</span>
-                                <a id="client-detail-linkedin" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                                <span class="text-slate-500">WhatsApp</span>
+                                <a id="client-detail-whatsapp" href="#" target="_blank" class="text-slate-900 font-semibold truncate hover:underline">-</a>
                             </div>
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-slate-500">Website</span>
-                                <a id="client-detail-website" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                                <span class="text-slate-500">E-mail</span>
+                                <span id="client-detail-email" class="text-slate-900 font-semibold truncate">-</span>
                             </div>
                         </div>
                     </div>
 
-                    <div id="client-detail-section-finance" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h4 class="text-sm font-semibold text-slate-700">Financeiro e Contrato</h4>
+                    <div id="client-detail-section-group" class="ui-surface-2 p-5 space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-900">Grupo</h4>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">Nome</span>
+                                <span id="client-detail-group-name" class="text-slate-900 font-semibold truncate">-</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">Link</span>
+                                <a id="client-detail-group-link" href="#" target="_blank" class="text-slate-900 font-semibold truncate hover:underline">-</a>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    </div>
+                </div>
+
+                <div id="client-detail-section-services" class="ui-surface-2 p-5 space-y-3">
+                    <h4 class="text-sm font-semibold text-slate-900">Serviços</h4>
+                    <div id="client-detail-services-chips" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div id="client-detail-section-monthly" class="ui-surface-2 p-5 space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-900">Mensalidade</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                             <div>
-                                <p class="text-xs uppercase text-slate-400">Mensalidade</p>
-                                <p id="client-detail-mensalidade" class="text-slate-800 font-medium">-</p>
+                                <p class="text-xs uppercase text-slate-400">Valor</p>
+                                <p id="client-detail-mensalidade" class="text-slate-900 font-semibold">-</p>
                             </div>
                             <div>
                                 <p class="text-xs uppercase text-slate-400">Vencimento</p>
-                                <p id="client-detail-vencimento" class="text-slate-800 font-medium">-</p>
+                                <p id="client-detail-vencimento" class="text-slate-900 font-semibold">-</p>
                             </div>
-                            <div class="sm:col-span-2">
-                                <p class="text-xs uppercase text-slate-400">Contrato</p>
-                                <a id="client-detail-contrato" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Status</p>
+                                <p id="client-detail-billing-status" class="text-slate-900 font-semibold">-</p>
                             </div>
+                        </div>
+                        <div class="text-sm">
+                            <p class="text-xs uppercase text-slate-400">Contrato</p>
+                            <a id="client-detail-contrato" href="#" target="_blank" class="text-slate-900 font-semibold truncate hover:underline">-</a>
                         </div>
                         <div class="text-sm">
                             <p class="text-xs uppercase text-slate-400">Notas</p>
                             <p id="client-detail-finance-notes" class="text-slate-700 whitespace-pre-wrap">-</p>
                         </div>
                     </div>
+
+                    <div id="client-detail-section-access" class="ui-surface-2 p-5 space-y-4">
+                        <h4 class="text-sm font-semibold text-slate-900">Acesso</h4>
+                        <p class="text-sm text-slate-500">Gerencie o acesso do cliente ao portal.</p>
+                        <button id="client-detail-grant-access" class="ui-btn ui-btn-primary w-full">Liberar acesso ao painel</button>
+                    </div>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
-                <button id="client-detail-set-active" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Definir como ativo</button>
-                <button id="client-detail-open-hub" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50">Abrir Hub</button>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <button id="client-detail-action-edit" class="ui-btn ui-btn-secondary">Editar</button>
+                    <button id="client-detail-action-history" class="ui-btn ui-btn-secondary">Histórico</button>
+                    <button id="client-detail-action-integrations" class="ui-btn ui-btn-secondary">Integrações</button>
+                    <button id="client-detail-action-delete" class="ui-btn ui-btn-secondary">Excluir</button>
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button id="client-detail-set-active" class="ui-btn ui-btn-primary">Definir como ativo</button>
+                    <button id="client-detail-open-hub" class="ui-btn ui-btn-secondary">Abrir Hub</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="client-delete-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
+        <div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Clientes</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Excluir cliente</h3>
+                </div>
+                <button id="client-delete-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600">Esta ação é permanente e remove o cliente e seus vínculos.</p>
+                <div class="ui-surface-2 p-4">
+                    <p class="text-xs uppercase text-slate-400">Cliente</p>
+                    <p id="client-delete-name" class="text-sm font-semibold text-slate-900 mt-1">-</p>
+                </div>
+                <div id="client-delete-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-2">
+                <button id="client-delete-cancel" class="ui-btn ui-btn-secondary">Cancelar</button>
+                <button id="client-delete-confirm" class="ui-btn ui-btn-primary">Excluir</button>
             </div>
         </div>
     </div>
@@ -809,7 +801,6 @@
         const socialSendApprovalBtn = document.getElementById('social-send-approval');
         const socialApprovalsList = document.getElementById('social-approvals-list');
         const socialApprovalsEmpty = document.getElementById('social-approvals-empty');
-        const socialPipelineBoard = document.getElementById('social-pipeline-board');
         const socialCalendarGrid = document.getElementById('social-calendar-grid');
         const socialMonthLabel = document.getElementById('social-month-label');
         const socialMonthPrev = document.getElementById('social-month-prev');
@@ -877,6 +868,7 @@
         const approvalsNewClient = document.getElementById('approvals-new-client');
         const headerSelectClient = document.getElementById('header-select-client');
         const clientModal = document.getElementById('client-modal');
+        const clientModalTitle = document.getElementById('client-modal-title');
         const clientModalClose = document.getElementById('client-modal-close');
         const clientCancelBtn = document.getElementById('client-cancel-btn');
         const clientCreateForm = document.getElementById('client-create-form');
@@ -897,6 +889,17 @@
         const clientDetailAccessWarning = document.getElementById('client-detail-access-warning');
         const clientDetailSetActive = document.getElementById('client-detail-set-active');
         const clientDetailOpenHub = document.getElementById('client-detail-open-hub');
+        const clientDetailEditBtn = document.getElementById('client-detail-action-edit');
+        const clientDetailDeleteBtn = document.getElementById('client-detail-action-delete');
+        const clientDetailIntegrationsBtn = document.getElementById('client-detail-action-integrations');
+        const clientDetailHistoryBtn = document.getElementById('client-detail-action-history');
+        const clientDetailGrantAccessBtn = document.getElementById('client-detail-grant-access');
+        const clientDeleteModal = document.getElementById('client-delete-modal');
+        const clientDeleteClose = document.getElementById('client-delete-close');
+        const clientDeleteCancel = document.getElementById('client-delete-cancel');
+        const clientDeleteConfirm = document.getElementById('client-delete-confirm');
+        const clientDeleteName = document.getElementById('client-delete-name');
+        const clientDeleteFeedback = document.getElementById('client-delete-feedback');
 
         let activeSocialTab = 'overview';
         const setSocialTab = (tabName) => {
@@ -908,6 +911,8 @@
             socialTabSections.forEach((section) => {
                 section.classList.toggle('hidden', section.id !== `social-tab-${tabName}`);
             });
+            const fab = document.getElementById('social-calendar-fab');
+            if (fab) fab.classList.toggle('hidden', tabName !== 'calendar');
         };
 
         const setActiveView = (moduleName, options = {}) => {
@@ -929,6 +934,9 @@
 
         const openClientModal = () => {
             if (!clientModal) return;
+            clientModal.dataset.mode = 'create';
+            clientModal.dataset.clientId = '';
+            if (clientModalTitle) clientModalTitle.textContent = 'Novo Cliente';
             clientModal.classList.remove('hidden');
             clientModal.classList.add('flex');
             if (clientNameInput) clientNameInput.focus();
@@ -939,6 +947,10 @@
             clientModal.classList.add('hidden');
             clientModal.classList.remove('flex');
             if (clientCreateForm) clientCreateForm.reset();
+            clientModal.dataset.mode = 'create';
+            clientModal.dataset.clientId = '';
+            if (clientModalTitle) clientModalTitle.textContent = 'Novo Cliente';
+            editingClientId = null;
             if (clientCreateFeedback) {
                 clientCreateFeedback.classList.add('hidden');
                 clientCreateFeedback.textContent = '';
@@ -946,6 +958,8 @@
         };
 
         let selectedClientForDetail = null;
+        let editingClientId = null;
+        let clientSchemaCache = null;
 
         const getRoleKeys = () => {
             const roles = window.TenantContext?.get ? (window.TenantContext.get().roles || []) : [];
@@ -960,9 +974,9 @@
         const canViewClientSection = (sectionKey) => {
             if (hasAnyRole('super_admin', 'admin')) return true;
             if (hasAnyRole('financeiro', 'legal')) {
-                return sectionKey === 'finance';
+                return sectionKey === 'monthly';
             }
-            return sectionKey === 'overview' || sectionKey === 'operation' || sectionKey === 'assets';
+            return sectionKey === 'contact' || sectionKey === 'group' || sectionKey === 'services' || sectionKey === 'monthly' || sectionKey === 'access';
         };
 
         const setLinkField = (el, value) => {
@@ -996,43 +1010,109 @@
             if (clientDetailStatus) clientDetailStatus.textContent = statusLabel || '-';
             if (clientDetailId) clientDetailId.textContent = `ID: ${String(data.id || '').slice(0, 8)}...`;
 
-            const companyEl = document.getElementById('client-detail-empresa');
-            const fantasyEl = document.getElementById('client-detail-fantasia');
+            const pick = (...keys) => {
+                for (const key of keys) {
+                    const value = data?.[key];
+                    if (value !== undefined && value !== null && String(value).trim() !== '') return String(value).trim();
+                }
+                return '';
+            };
+
+            const company = pick('nome_empresa', 'empresa', 'razao_social') || name;
+            const subtitle = pick('nome_fantasia', 'nome') || '-';
+            const email = pick('email', 'email_contato') || '-';
+            const contact = pick('contato', 'contato_nome', 'responsavel', 'responsavel_nome') || '-';
+            const phone = pick('telefone', 'celular', 'phone', 'telefone_contato', 'contato_telefone') || '-';
+            const whatsappRaw = pick('whatsapp', 'telefone_whatsapp', 'whatsapp_numero', 'whats') || '';
+            const waDigits = String(whatsappRaw || phone).replace(/\D/g, '');
+            const waLink = waDigits ? `https://wa.me/${waDigits.length <= 11 ? `55${waDigits}` : waDigits}` : '';
+            const groupName = pick('grupo', 'nome_grupo', 'grupo_nome', 'whatsapp_grupo_nome') || '-';
+            const groupLink = pick('grupo_link', 'link_grupo', 'whatsapp_grupo_url', 'grupo_whatsapp_url') || '';
+
+            const logoUrl = pick('logo_url', 'logo', 'imagem_logo', 'brand_logo_url');
+            const logoImg = document.getElementById('client-detail-logo');
+            const logoFallback = document.getElementById('client-detail-logo-fallback');
+            if (logoImg && logoFallback) {
+                if (logoUrl) {
+                    logoImg.src = logoUrl;
+                    logoImg.classList.remove('hidden');
+                    logoFallback.classList.add('hidden');
+                } else {
+                    const initials = (String(name || '').trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('') || 'CL').toUpperCase();
+                    logoFallback.textContent = initials;
+                    logoFallback.classList.remove('hidden');
+                    logoImg.classList.add('hidden');
+                    logoImg.src = '';
+                }
+            }
+
+            const companyEl = document.getElementById('client-detail-company');
+            const subtitleEl = document.getElementById('client-detail-subtitle');
             const emailEl = document.getElementById('client-detail-email');
-            const docEl = document.getElementById('client-detail-documento');
-            const servicesEl = document.getElementById('client-detail-servicos');
-            const socialOwnerEl = document.getElementById('client-detail-social-owner');
-            const performanceOwnerEl = document.getElementById('client-detail-performance-owner');
-            const platformsEl = document.getElementById('client-detail-plataformas');
-            const notesEl = document.getElementById('client-detail-observacoes');
+            const contactEl = document.getElementById('client-detail-contact');
+            const phoneEl = document.getElementById('client-detail-phone');
+            const whatsappEl = document.getElementById('client-detail-whatsapp');
+            const groupNameEl = document.getElementById('client-detail-group-name');
+            const groupLinkEl = document.getElementById('client-detail-group-link');
+            const servicesChipsEl = document.getElementById('client-detail-services-chips');
             const monthlyEl = document.getElementById('client-detail-mensalidade');
             const dueEl = document.getElementById('client-detail-vencimento');
+            const billingStatusEl = document.getElementById('client-detail-billing-status');
             const financeNotesEl = document.getElementById('client-detail-finance-notes');
 
-            if (companyEl) companyEl.textContent = data.nome_empresa || data.empresa || data.razao_social || name;
-            if (fantasyEl) fantasyEl.textContent = data.nome_fantasia || name;
-            if (emailEl) emailEl.textContent = data.email || '-';
-            if (docEl) docEl.textContent = data.documento ? `${data.tipo_documento || ''} ${data.documento}`.trim() : '-';
-            if (servicesEl) servicesEl.textContent = data.servicos_contratados || data.servicos || '-';
-            if (socialOwnerEl) socialOwnerEl.textContent = data.social_responsavel || data.responsavel_social || '-';
-            if (performanceOwnerEl) performanceOwnerEl.textContent = data.trafego_responsavel || data.responsavel_trafego || '-';
-            if (platformsEl) platformsEl.textContent = data.plataformas_usadas || data.plataformas || '-';
-            if (notesEl) notesEl.textContent = data.observacoes_operacionais || data.observacoes || '-';
+            if (companyEl) companyEl.textContent = company;
+            if (subtitleEl) subtitleEl.textContent = subtitle;
+            if (emailEl) emailEl.textContent = email;
+            if (contactEl) contactEl.textContent = contact;
+            if (phoneEl) phoneEl.textContent = phone;
+            if (whatsappEl) {
+                if (waLink) {
+                    whatsappEl.textContent = waLink;
+                    whatsappEl.href = waLink;
+                    whatsappEl.classList.remove('pointer-events-none');
+                } else {
+                    whatsappEl.textContent = '-';
+                    whatsappEl.href = '#';
+                    whatsappEl.classList.add('pointer-events-none');
+                }
+            }
+            if (groupNameEl) groupNameEl.textContent = groupName;
+            setLinkField(groupLinkEl, groupLink);
+
+            if (servicesChipsEl) {
+                const rawServices = pick('servicos_ativos', 'servicos_contratados', 'servicos', 'produtos', 'planos');
+                const base = rawServices
+                    ? rawServices.split(/[,;|]/g).map(s => s.trim()).filter(Boolean)
+                    : [
+                        pick('trafego_responsavel', 'responsavel_trafego') ? 'Tráfego Pago' : '',
+                        pick('social_responsavel', 'responsavel_social', 'instagram_url') ? 'Social Media' : '',
+                        pick('automacao_responsavel') ? 'Automação' : '',
+                        pick('consultoria_responsavel') ? 'Consultoria' : ''
+                    ].filter(Boolean);
+                const unique = [];
+                base.forEach((s) => { if (s && !unique.includes(s)) unique.push(s); });
+                servicesChipsEl.innerHTML = '';
+                (unique.length ? unique : ['Sem serviços']).forEach((s) => {
+                    const chip = document.createElement('span');
+                    chip.className = 'ui-pill';
+                    chip.textContent = s;
+                    servicesChipsEl.appendChild(chip);
+                });
+            }
+
             if (monthlyEl) monthlyEl.textContent = data.mensalidade ? `R$ ${data.mensalidade}` : '-';
             if (dueEl) dueEl.textContent = data.vencimento_dia ? `Dia ${data.vencimento_dia}` : '-';
+            if (billingStatusEl) billingStatusEl.textContent = String(statusValue || '-');
             if (financeNotesEl) financeNotesEl.textContent = data.financeiro_notas || '-';
 
-            setLinkField(document.getElementById('client-detail-instagram'), data.instagram_url);
-            setLinkField(document.getElementById('client-detail-facebook'), data.facebook_url);
-            setLinkField(document.getElementById('client-detail-linkedin'), data.linkedin_url);
-            setLinkField(document.getElementById('client-detail-website'), data.website_url);
             setLinkField(document.getElementById('client-detail-contrato'), data.contrato_url);
 
             const sections = [
-                { key: 'overview', id: 'client-detail-section-overview' },
-                { key: 'operation', id: 'client-detail-section-operation' },
-                { key: 'assets', id: 'client-detail-section-assets' },
-                { key: 'finance', id: 'client-detail-section-finance' }
+                { key: 'contact', id: 'client-detail-section-contact' },
+                { key: 'group', id: 'client-detail-section-group' },
+                { key: 'services', id: 'client-detail-section-services' },
+                { key: 'monthly', id: 'client-detail-section-monthly' },
+                { key: 'access', id: 'client-detail-section-access' }
             ];
             sections.forEach((s) => {
                 const el = document.getElementById(s.id);
@@ -1042,7 +1122,7 @@
 
             if (clientDetailAccessWarning) {
                 if (hasAnyRole('financeiro', 'legal')) {
-                    clientDetailAccessWarning.textContent = 'Acesso restrito: este perfil visualiza apenas Financeiro e Contrato.';
+                    clientDetailAccessWarning.textContent = 'Acesso restrito: este perfil visualiza apenas Mensalidade.';
                     clientDetailAccessWarning.classList.remove('hidden');
                 } else {
                     clientDetailAccessWarning.classList.add('hidden');
@@ -1056,6 +1136,92 @@
             clientDetailModal.classList.add('hidden');
             clientDetailModal.classList.remove('flex');
             selectedClientForDetail = null;
+        };
+
+        const detectClientSchema = async () => {
+            if (clientSchemaCache) return clientSchemaCache;
+            const supabase = window.supabaseClient;
+            if (!supabase) return null;
+
+            const exists = async (column) => {
+                const { error } = await supabase.from('clientes').select(column).limit(1);
+                return !error;
+            };
+
+            const pickFirst = async (candidates) => {
+                for (const c of candidates) {
+                    if (await exists(c)) return c;
+                }
+                return null;
+            };
+
+            const nameColumn = await pickFirst(['nome_fantasia', 'nome_empresa', 'nome', 'empresa', 'razao_social']);
+            const emailColumn = await pickFirst(['email']);
+            const docTypeColumn = await pickFirst(['tipo_documento']);
+            const docColumn = await pickFirst(['documento', 'cnpj', 'cpf']);
+            const statusColumn = await pickFirst(['status_cliente', 'status', 'situacao']);
+            const activeColumn = await pickFirst(['ativo']);
+
+            clientSchemaCache = { nameColumn, emailColumn, docTypeColumn, docColumn, statusColumn, activeColumn };
+            return clientSchemaCache;
+        };
+
+        const openClientEditModal = async (client) => {
+            if (!clientModal || !client?.id) return;
+            const detail = window.ClientRepo?.getClientById ? await window.ClientRepo.getClientById(client.id) : client;
+            const data = detail || client;
+            editingClientId = data.id;
+            clientModal.dataset.mode = 'edit';
+            clientModal.dataset.clientId = data.id;
+            if (clientModalTitle) clientModalTitle.textContent = 'Editar Cliente';
+
+            const name = data.nome_fantasia || data.razao_social || data.nome_empresa || data.nome || data.empresa || '';
+            const docType = data.tipo_documento || '';
+            const doc = data.documento || data.cnpj || data.cpf || '';
+            const email = data.email || '';
+            const statusValue = data.status || data.status_cliente || data.situacao || (data.ativo === false ? 'inativo' : 'ativo');
+
+            if (clientNameInput) clientNameInput.value = name;
+            if (clientDocTypeInput) clientDocTypeInput.value = docType;
+            if (clientDocInput) clientDocInput.value = doc;
+            if (clientEmailInput) clientEmailInput.value = email;
+            if (clientStatusInput) clientStatusInput.value = String(statusValue || 'ativo');
+
+            if (clientCreateFeedback) {
+                clientCreateFeedback.classList.add('hidden');
+                clientCreateFeedback.textContent = '';
+            }
+
+            clientModal.classList.remove('hidden');
+            clientModal.classList.add('flex');
+            if (clientNameInput) clientNameInput.focus();
+        };
+
+        const setDeleteFeedback = (message, type = 'error') => {
+            if (!clientDeleteFeedback) return;
+            clientDeleteFeedback.textContent = message;
+            clientDeleteFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-green-50', 'text-green-700');
+            if (type === 'success') {
+                clientDeleteFeedback.classList.add('bg-green-50', 'text-green-700');
+            } else {
+                clientDeleteFeedback.classList.add('bg-red-50', 'text-red-700');
+            }
+        };
+
+        const openClientDeleteModal = (client) => {
+            if (!clientDeleteModal || !client?.id) return;
+            const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Cliente';
+            if (clientDeleteName) clientDeleteName.textContent = name;
+            if (clientDeleteFeedback) clientDeleteFeedback.classList.add('hidden');
+            clientDeleteModal.classList.remove('hidden');
+            clientDeleteModal.classList.add('flex');
+        };
+
+        const closeClientDeleteModal = () => {
+            if (!clientDeleteModal) return;
+            clientDeleteModal.classList.add('hidden');
+            clientDeleteModal.classList.remove('flex');
+            if (clientDeleteFeedback) clientDeleteFeedback.classList.add('hidden');
         };
 
         const setClientFeedback = (message, type = 'success') => {
@@ -1132,6 +1298,7 @@
                     }
                 }
                 setClientFeedback('Salvando cliente...');
+                const mode = clientModal?.dataset?.mode || 'create';
                 const payload = {
                     nome: name,
                     tipo_documento: clientDocTypeInput?.value || '',
@@ -1149,6 +1316,54 @@
                 const tenantId = window.TenantContext?.getTenantId ? window.TenantContext.getTenantId() : null;
                 console.log('[ClientUI] create client payload:', payload);
                 console.log('[ClientUI] tenantId resolved:', tenantId);
+                if (mode === 'edit' && editingClientId) {
+                    const supabase = window.supabaseClient;
+                    if (!supabase) {
+                        setClientFeedback('Supabase não inicializado.', 'error');
+                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        return;
+                    }
+                    const schema = await detectClientSchema();
+                    if (!schema) {
+                        setClientFeedback('Não foi possível detectar schema de clientes.', 'error');
+                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        return;
+                    }
+                    const updatePayload = {};
+                    if (schema.nameColumn) updatePayload[schema.nameColumn] = name;
+                    if (schema.emailColumn) updatePayload[schema.emailColumn] = payload.email || null;
+                    if (schema.docTypeColumn) updatePayload[schema.docTypeColumn] = payload.tipo_documento || null;
+                    if (schema.docColumn) updatePayload[schema.docColumn] = payload.documento || null;
+                    if (schema.statusColumn) updatePayload[schema.statusColumn] = payload.status || 'ativo';
+                    if (schema.activeColumn) updatePayload[schema.activeColumn] = (payload.status || 'ativo') === 'ativo';
+
+                    const { data: updated, error } = await supabase
+                        .from('clientes')
+                        .update(updatePayload)
+                        .eq('id', editingClientId)
+                        .select('*')
+                        .maybeSingle();
+
+                    if (error) {
+                        console.error('[ClientUI] update client error:', error);
+                        setClientFeedback(error.message || 'Não foi possível atualizar o cliente.', 'error');
+                        if (clientSaveBtn) clientSaveBtn.disabled = false;
+                        return;
+                    }
+
+                    await loadClients({ reason: 'client_updated' });
+                    if (window.ClientContext?.getActiveClient && window.ClientContext?.setActiveClient) {
+                        const activeId = window.ClientContext.getActiveClient();
+                        if (activeId === editingClientId) {
+                            window.ClientContext.setActiveClient({ id: editingClientId, name });
+                        }
+                    }
+                    if (updated) selectedClientForDetail = updated;
+                    closeClientModal();
+                    if (clientSaveBtn) clientSaveBtn.disabled = false;
+                    return;
+                }
+
                 const result = window.ClientRepo?.createClient
                     ? await window.ClientRepo.createClient(payload)
                     : { data: null, error: new Error('ClientRepo indisponível') };
@@ -1161,7 +1376,7 @@
                 const created = result.data || {};
                 const createdName = created.nome_fantasia || created.nome_empresa || created.nome || created.empresa || name;
                 const createdId = created.id || null;
-                await loadClients();
+                await loadClients({ reason: 'client_created' });
                 if (createdId && window.ClientContext) {
                     window.ClientContext.setActiveClient({ id: createdId, name: createdName });
                 }
@@ -1470,77 +1685,6 @@
             return cells;
         };
 
-        const PIPELINE_COLUMNS = [
-            { key: 'ideas', label: 'Ideias' },
-            { key: 'briefing', label: 'Briefing' },
-            { key: 'design', label: 'Design' },
-            { key: 'approval', label: 'Aprovação' },
-            { key: 'approved', label: 'Aprovado' }
-        ];
-
-        const getPipelineKey = (status) => {
-            const raw = String(status || '').trim().toLowerCase();
-            if (['aprovado', 'approved'].includes(raw)) return 'approved';
-            if (['aguardando_aprovacao', 'ready_for_approval', 'awaiting_approval', 'pendente_aprovacao'].includes(raw)) return 'approval';
-            if (['in_production', 'em_producao', 'design'].includes(raw)) return 'design';
-            if (['changes_requested', 'ajuste_solicitado', 'rejeitado', 'rejected'].includes(raw)) return 'briefing';
-            return 'ideas';
-        };
-
-        const renderPipelineBoard = () => {
-            if (!socialPipelineBoard) return;
-            const posts = Array.isArray(socialState.posts) ? socialState.posts : [];
-
-            const grouped = {};
-            PIPELINE_COLUMNS.forEach((c) => {
-                grouped[c.key] = [];
-            });
-            posts.forEach((post) => {
-                const key = getPipelineKey(post.status);
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(post);
-            });
-
-            socialPipelineBoard.innerHTML = '';
-            PIPELINE_COLUMNS.forEach((col) => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'ui-surface-2 p-4 flex flex-col gap-3 min-h-[240px]';
-                const count = grouped[col.key]?.length || 0;
-                wrapper.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-slate-900">${col.label}</p>
-                        <span class="ui-pill">${count}</span>
-                    </div>
-                    <div class="flex flex-col gap-2" data-pipeline-col="${col.key}"></div>
-                `;
-                const list = wrapper.querySelector('[data-pipeline-col]');
-                (grouped[col.key] || []).forEach((post) => {
-                    const card = document.createElement('button');
-                    const date = post.date ? new Date(`${post.date}T00:00:00`).toLocaleDateString('pt-BR') : '-';
-                    const channel = String(post.platform || '').toUpperCase();
-                    card.className = 'ui-card text-left p-3';
-                    const mediaUrl = post.mediaPreviewUrl || post.mediaUrl || '';
-                    const hasMedia = !!mediaUrl;
-                    card.innerHTML = `
-                        <div class="flex items-start gap-3">
-                            <div class="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
-                                ${hasMedia ? (mediaUrl.match(/\\.(mp4|webm|mov)$/i) ? `<video src="${mediaUrl}" class="w-full h-full object-cover"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <p class="text-sm font-semibold text-slate-900 truncate">${post.title || 'Post'}</p>
-                                <p class="text-xs text-slate-500 mt-1">${date} • ${channel || '—'}</p>
-                            </div>
-                        </div>
-                    `;
-                    card.addEventListener('click', () => {
-                        openPostDrawer(post);
-                    });
-                    list.appendChild(card);
-                });
-                socialPipelineBoard.appendChild(wrapper);
-            });
-        };
-
         const updateSocialOverview = () => {
             const draftCount = socialState.posts.filter((item) => item.status === 'rascunho').length;
             const pendingCount = socialState.posts.filter((item) => item.status === 'aguardando_aprovacao').length;
@@ -1548,7 +1692,6 @@
             if (socialCountDraft) socialCountDraft.textContent = draftCount;
             if (socialCountPending) socialCountPending.textContent = pendingCount;
             if (socialCountApproved) socialCountApproved.textContent = approvedCount;
-            renderPipelineBoard();
         };
 
         const updateCalendarStatus = (status) => {
@@ -2138,30 +2281,35 @@
         };
 
         const renderClientList = (clients) => {
+            if (window.ClientUI && typeof window.ClientUI.renderClients === 'function') {
+                window.ClientUI.renderClients(clients, openClientDetailModal, 'v2-clients-list');
+                const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
+                if (activeId && window.ClientUI.highlightActive) {
+                    window.ClientUI.highlightActive(activeId);
+                }
+                return;
+            }
             const container = document.getElementById('v2-clients-list');
             if (!container) return;
             container.innerHTML = '';
             if (!clients.length) {
-                container.innerHTML = '<div class="p-4 text-sm text-slate-500">Nenhum cliente encontrado.</div>';
+                container.innerHTML = '<div class="p-6 text-sm text-slate-500">Nenhum cliente encontrado.</div>';
                 return;
             }
             clients.forEach(client => {
                 const button = document.createElement('button');
                 const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Sem nome';
-                const status = getClientStatusLabel(client);
-                button.className = 'w-full text-left border border-slate-200 rounded-xl px-4 py-3 bg-white hover:bg-slate-50 transition';
+                button.className = 'ui-card w-full text-left p-4';
                 button.innerHTML = `
                     <div class="flex items-center justify-between gap-3">
                         <div>
-                            <p class="text-sm font-semibold text-slate-800">${name}</p>
-                            <p class="text-xs text-slate-500">Status: ${status}</p>
+                            <p class="text-sm font-semibold text-slate-900">${name}</p>
+                            <p class="text-xs text-slate-500 mt-1">${getClientOwnerLabel(client)}</p>
                         </div>
-                        <span class="text-xs text-slate-400">Abrir</span>
+                        <span class="ui-pill">Abrir</span>
                     </div>
                 `;
-                button.addEventListener('click', () => {
-                    openClientDetailModal(client);
-                });
+                button.addEventListener('click', () => openClientDetailModal(client));
                 container.appendChild(button);
             });
         };
@@ -2305,6 +2453,75 @@
                 currentClient = client;
                 closeClientDetailModal();
                 setActiveView('hub');
+            });
+        }
+        if (clientDetailEditBtn) {
+            clientDetailEditBtn.addEventListener('click', async () => {
+                if (!selectedClientForDetail) return;
+                closeClientDetailModal();
+                await openClientEditModal(selectedClientForDetail);
+            });
+        }
+        if (clientDetailDeleteBtn) {
+            clientDetailDeleteBtn.addEventListener('click', () => {
+                if (!selectedClientForDetail) return;
+                openClientDeleteModal(selectedClientForDetail);
+            });
+        }
+        if (clientDetailIntegrationsBtn) {
+            clientDetailIntegrationsBtn.addEventListener('click', () => {
+                setClientFeedback('Integrações: em breve.', 'success');
+            });
+        }
+        if (clientDetailHistoryBtn) {
+            clientDetailHistoryBtn.addEventListener('click', () => {
+                setClientFeedback('Histórico: em breve.', 'success');
+            });
+        }
+        if (clientDetailGrantAccessBtn) {
+            clientDetailGrantAccessBtn.addEventListener('click', () => {
+                setClientFeedback('Liberação de acesso: em breve.', 'success');
+            });
+        }
+
+        if (clientDeleteClose) clientDeleteClose.addEventListener('click', closeClientDeleteModal);
+        if (clientDeleteCancel) clientDeleteCancel.addEventListener('click', closeClientDeleteModal);
+        if (clientDeleteModal) {
+            clientDeleteModal.addEventListener('click', (event) => {
+                if (event.target === clientDeleteModal) closeClientDeleteModal();
+            });
+        }
+        if (clientDeleteConfirm) {
+            clientDeleteConfirm.addEventListener('click', async () => {
+                if (!selectedClientForDetail?.id) return;
+                const supabase = window.supabaseClient;
+                if (!supabase) {
+                    setDeleteFeedback('Supabase não inicializado.', 'error');
+                    return;
+                }
+                clientDeleteConfirm.disabled = true;
+                try {
+                    const deletingId = selectedClientForDetail.id;
+                    const { error } = await supabase.from('clientes').delete().eq('id', deletingId);
+                    if (error) {
+                        console.error('[Clients] delete client error:', error);
+                        setDeleteFeedback(error.message || 'Não foi possível excluir o cliente.', 'error');
+                        return;
+                    }
+
+                    const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
+                    if (activeId === deletingId && window.ClientContext?.setActiveClient) {
+                        window.ClientContext.setActiveClient(null);
+                        currentClient = null;
+                        updateClientUI(null, null);
+                    }
+
+                    closeClientDeleteModal();
+                    closeClientDetailModal();
+                    await loadClients({ reason: 'client_deleted' });
+                } finally {
+                    clientDeleteConfirm.disabled = false;
+                }
             });
         }
 

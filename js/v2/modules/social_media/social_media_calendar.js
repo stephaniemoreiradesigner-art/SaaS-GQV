@@ -114,17 +114,27 @@
             const borderClass = statusColors[post.status] || statusColors['draft'];
             el.classList.add(...borderClass.split(' '));
 
-            // Conteúdo resumido
-            const title = post.legenda || post.titulo || 'Sem título';
+            const formatRaw = String(post.formato || post.content_type || post.tipo || '').toLowerCase();
+            const formatLabel = formatRaw.includes('carrossel') ? 'Carrossel' : (formatRaw.includes('reels') || formatRaw.includes('video') || formatRaw.includes('vídeo') ? 'Vídeo' : 'Imagem');
+            const formatStyle = formatLabel === 'Carrossel'
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                : (formatLabel === 'Vídeo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-700 border-slate-100');
+
+            const statusLabel = String(post.status || '').toUpperCase() || '-';
+            const title = post.tema || post.titulo || post.title || post.legenda || 'Sem título';
             const icon = this.getPlatformIcon(post);
             const mediaUrl = post.imagem_url || post.media_url || post.imagemUrl || post.mediaUrl || post.image_url || post.url_midia;
             const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
             
             el.innerHTML = `
-                <div class="flex items-center gap-1 truncate">
-                    ${icon}
-                    <span class="truncate font-medium text-slate-700">${title}</span>
+                <div class="flex items-start justify-between gap-2">
+                    <div class="flex items-center gap-1 min-w-0">
+                        ${icon}
+                        <span class="truncate font-semibold text-slate-700">${title}</span>
+                    </div>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-semibold ${formatStyle}">${formatLabel}</span>
                 </div>
+                <div class="mt-1 text-[10px] text-slate-400">${statusLabel}</div>
                 ${mediaUrl ? (
                     isVideo
                         ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover" muted playsinline preload="metadata"></video></div>'

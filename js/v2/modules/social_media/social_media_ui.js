@@ -10,6 +10,7 @@
             // Setup de listeners de UI (fechar drawer, tabs)
             this.setupDrawer();
             this.setupTabs();
+            this.setupCalendarFab();
         },
 
         setupDrawer: function() {
@@ -81,22 +82,151 @@
             const tabs = document.querySelectorAll('.social-tab-btn');
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
-                    // Remove active state
-                    tabs.forEach(t => {
-                        t.classList.remove('bg-slate-900', 'text-white');
-                        t.classList.add('text-slate-600', 'hover:text-slate-800', 'border', 'border-slate-200');
-                    });
-                    
-                    // Add active state
-                    tab.classList.remove('text-slate-600', 'hover:text-slate-800', 'border', 'border-slate-200');
-                    tab.classList.add('bg-slate-900', 'text-white');
-
-                    // Show content
-                    const targetId = `social-tab-${tab.dataset.socialTab}`;
+                    const tabName = tab.dataset.socialTab;
+                    tabs.forEach(t => t.setAttribute('data-active', t.dataset.socialTab === tabName ? 'true' : 'false'));
                     document.querySelectorAll('.social-tab').forEach(c => c.classList.add('hidden'));
-                    const target = document.getElementById(targetId);
+                    const target = document.getElementById(`social-tab-${tabName}`);
                     if (target) target.classList.remove('hidden');
+
+                    const fab = document.getElementById('social-calendar-fab');
+                    if (fab) fab.classList.toggle('hidden', tabName !== 'calendar');
+
+                    if (tabName === 'posts' && typeof this.renderPostsBoard === 'function') {
+                        const posts = global.SocialMediaCore?.currentPosts || [];
+                        const ref = global.SocialMediaCore?.currentMonthRef || new Date();
+                        this.renderPostsBoard(posts, ref);
+                    }
                 });
+            });
+        },
+
+        normalizeStatus: function(raw) {
+            const status = String(raw || '').trim().toLowerCase();
+            if (['rascunho', 'draft'].includes(status)) return 'draft';
+            if (['producing', 'in_production', 'em_producao', 'design'].includes(status)) return 'producing';
+            if (['pending_approval', 'ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao'].includes(status)) return 'pending_approval';
+            if (['approved', 'aprovado'].includes(status)) return 'approved';
+            if (['scheduled', 'agendado'].includes(status)) return 'scheduled';
+            return 'draft';
+        },
+
+        getFormatInfo: function(post) {
+            const raw = String(post?.formato || post?.content_type || post?.tipo || '').trim().toLowerCase();
+            if (raw.includes('carrossel')) return { label: 'Carrossel', key: 'carrossel', color: 'bg-indigo-50 text-indigo-700 border-indigo-100' };
+            if (raw.includes('reels') || raw.includes('video') || raw.includes('vídeo')) return { label: 'Vídeo', key: 'video', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' };
+            return { label: 'Imagem', key: 'imagem', color: 'bg-slate-50 text-slate-700 border-slate-100' };
+        },
+
+        getPostTitle: function(post) {
+            return post?.tema || post?.titulo || post?.title || 'Post';
+        },
+
+        getPostDate: function(post) {
+            const raw = post?.data_agendada || post?.data_postagem || post?.post_date || '';
+            const date = String(raw).slice(0, 10);
+            return date;
+        },
+
+        getPostMediaUrl: function(post) {
+            return post?.imagem_url || post?.media_url || post?.imagemUrl || post?.mediaUrl || post?.image_url || post?.url_midia || '';
+        },
+
+        renderPostsBoard: function(posts, monthRef) {
+            const board = document.getElementById('social-posts-board');
+            if (!board) return;
+
+            const ref = monthRef instanceof Date ? monthRef : new Date();
+            const monthKey = ref.toISOString().slice(0, 7);
+
+            const columns = [
+                { key: 'draft', label: 'Rascunhos' },
+                { key: 'producing', label: 'Em andamento' },
+                { key: 'pending_approval', label: 'Enviado para aprovação' },
+                { key: 'approved', label: 'Aprovado pelo cliente' },
+                { key: 'scheduled', label: 'Agendado' }
+            ];
+
+            const grouped = {};
+            columns.forEach(c => { grouped[c.key] = []; });
+
+            (posts || []).forEach((post) => {
+                const status = this.normalizeStatus(post?.status);
+                const dateStr = this.getPostDate(post);
+                if (status === 'approved' && dateStr && String(dateStr).slice(0, 7) !== monthKey) {
+                    return;
+                }
+                if (!grouped[status]) grouped[status] = [];
+                grouped[status].push(post);
+            });
+
+            board.innerHTML = '';
+            columns.forEach((col) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'ui-surface-2 p-4 flex flex-col gap-3 min-h-[240px]';
+                const count = grouped[col.key]?.length || 0;
+                wrapper.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <p class="text-sm font-semibold text-slate-900">${col.label}</p>
+                        <span class="ui-pill">${count}</span>
+                    </div>
+                    <div class="flex flex-col gap-2" data-col="${col.key}"></div>
+                `;
+                const list = wrapper.querySelector('[data-col]');
+                (grouped[col.key] || []).forEach((post) => {
+                    const mediaUrl = this.getPostMediaUrl(post);
+                    const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
+                    const title = this.getPostTitle(post);
+                    const dateStr = this.getPostDate(post);
+                    const dateLabel = dateStr ? new Date(`${dateStr}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+                    const format = this.getFormatInfo(post);
+
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'ui-card text-left p-3';
+                    card.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
+                                ${mediaUrl ? (isVideo ? `<video src="${mediaUrl}" class="w-full h-full object-cover" muted playsinline preload="metadata"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-slate-900 truncate">${title}</p>
+                                <p class="text-xs text-slate-500 mt-1">${dateLabel}</p>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <span class="ui-pill ${format.color}">${format.label}</span>
+                                    <span class="ui-pill">${String(post?.status || '').toUpperCase() || '-'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => {
+                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                    });
+                    list.appendChild(card);
+                });
+                board.appendChild(wrapper);
+            });
+
+            const countDraftEl = document.getElementById('social-count-draft');
+            const countPendingEl = document.getElementById('social-count-pending');
+            const countApprovedEl = document.getElementById('social-count-approved');
+            if (countDraftEl) countDraftEl.textContent = String(grouped.draft?.length || 0);
+            if (countPendingEl) countPendingEl.textContent = String(grouped.pending_approval?.length || 0);
+            if (countApprovedEl) countApprovedEl.textContent = String(grouped.approved?.length || 0);
+        },
+
+        setupCalendarFab: function() {
+            const fab = document.getElementById('social-calendar-fab');
+            if (!fab) return;
+            fab.addEventListener('click', () => {
+                const ref = global.SocialMediaCore?.currentMonthRef instanceof Date ? global.SocialMediaCore.currentMonthRef : new Date();
+                const todayStr = new Date().toISOString().slice(0, 10);
+                const monthKey = ref.toISOString().slice(0, 7);
+                const dateStr = todayStr.slice(0, 7) === monthKey ? todayStr : `${monthKey}-01`;
+                if (global.SocialMediaCore?.startCreate) {
+                    global.SocialMediaCore.startCreate(dateStr);
+                    return;
+                }
+                document.dispatchEvent(new CustomEvent('v2:calendar-add', { detail: { date: dateStr } }));
             });
         },
 
