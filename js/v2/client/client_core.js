@@ -104,14 +104,17 @@
             if (!this.activePostId) return;
             if (!confirm('Aprovar este post?')) return;
             
-            const success = await global.ClientRepo.approvePost(this.activePostId);
-            if (success) {
+            const result = await global.ClientRepo.approvePost(this.activePostId);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Post aprovado com sucesso!');
                 if(global.ClientUI) global.ClientUI.showPostModal(false);
                 await this.loadPendingPosts(); // Refresh list
                 await this.loadDashboardData();
             } else {
-                alert('Erro ao aprovar post.');
+                const err = result?.error;
+                console.error('[ClientCore] approvePost falhou:', result);
+                alert(`Erro ao aprovar post.${err?.message ? `\n${err.message}` : ''}`);
             }
         },
 
@@ -126,14 +129,17 @@
                 return;
             }
 
-            const success = await global.ClientRepo.rejectPost(this.activePostId, reason);
-            if (success) {
+            const result = await global.ClientRepo.rejectPost(this.activePostId, reason);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Solicitação de ajuste enviada!');
                 if(global.ClientUI) global.ClientUI.showPostModal(false);
                 await this.loadPendingPosts(); // Refresh list
                 await this.loadDashboardData();
             } else {
-                alert('Erro ao enviar solicitação.');
+                const err = result?.error;
+                console.error('[ClientCore] rejectPost falhou:', result);
+                alert(`Erro ao enviar solicitação.${err?.message ? `\n${err.message}` : ''}`);
             }
         },
 

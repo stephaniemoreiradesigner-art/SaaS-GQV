@@ -117,7 +117,7 @@
             // Conteúdo resumido
             const title = post.legenda || post.titulo || 'Sem título';
             const icon = this.getPlatformIcon(post);
-            const mediaUrl = post.imagem_url || post.media_url;
+            const mediaUrl = post.imagem_url || post.media_url || post.imagemUrl || post.mediaUrl || post.image_url || post.url_midia;
             const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
             
             el.innerHTML = `
@@ -127,8 +127,8 @@
                 </div>
                 ${mediaUrl ? (
                     isVideo
-                        ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover"></video></div>'
-                        : '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover"></div>'
+                        ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover" muted playsinline preload="metadata"></video></div>'
+                        : '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover" onerror="this.closest(\'.mt-1\').remove()"></div>'
                 ) : ''}
             `;
 

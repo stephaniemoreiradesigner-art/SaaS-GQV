@@ -176,24 +176,36 @@
 
             const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
 
+            const payload = {
+                status: approvedStatus,
+                comentario_cliente: null
+            };
+
             const { data, error } = await supabase
                 .from('social_posts')
-                .update({ 
-                    status: approvedStatus,
-                    comentario_cliente: null
-                })
+                .update(payload)
                 .eq('id', postId)
-                .select('id,status');
+                .select('id,status,cliente_id,calendar_id');
 
             if (error) {
-                console.error('[ClientRepo] Erro ao aprovar post:', error);
-                return false;
+                console.error('[ClientRepo] Erro ao aprovar post:', {
+                    postId,
+                    payload,
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                return { ok: false, error, postId, payload };
             }
             if (!data || data.length === 0) {
-                console.error('[ClientRepo] Aprovação não afetou nenhuma linha (possível RLS/filtro).', postId);
-                return false;
+                console.error('[ClientRepo] Aprovação não afetou nenhuma linha (possível RLS/filtro).', {
+                    postId,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
             }
-            return true;
+            return { ok: true, data: data[0] };
         },
 
         /**
@@ -207,24 +219,36 @@
 
             const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
 
+            const payload = {
+                status: changesStatus,
+                comentario_cliente: comment
+            };
+
             const { data, error } = await supabase
                 .from('social_posts')
-                .update({ 
-                    status: changesStatus,
-                    comentario_cliente: comment 
-                })
+                .update(payload)
                 .eq('id', postId)
-                .select('id,status');
+                .select('id,status,cliente_id,calendar_id');
 
             if (error) {
-                console.error('[ClientRepo] Erro ao solicitar ajustes no post:', error);
-                return false;
+                console.error('[ClientRepo] Erro ao solicitar ajustes no post:', {
+                    postId,
+                    payload,
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                return { ok: false, error, postId, payload };
             }
             if (!data || data.length === 0) {
-                console.error('[ClientRepo] Solicitação de ajuste não afetou nenhuma linha (possível RLS/filtro).', postId);
-                return false;
+                console.error('[ClientRepo] Solicitação de ajuste não afetou nenhuma linha (possível RLS/filtro).', {
+                    postId,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
             }
-            return true;
+            return { ok: true, data: data[0] };
         },
 
         /**

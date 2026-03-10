@@ -30,19 +30,23 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 - Na Agency, a thumb de mídia no card do calendário sumia após reload (mesmo com mídia persistida no banco e no Portal).
 
 ### Causa
-- O update no Portal não validava se alguma linha foi realmente atualizada. Em cenários de RLS/filtro (0 linhas afetadas), o Supabase retornava `error: null` e a UI tratava como sucesso.
+- O update no Portal falhava por RLS (cliente autenticado sem policy de UPDATE em `social_posts`) e o erro estava sendo exibido apenas como mensagem genérica.
+- Além disso, o update no Portal não validava se alguma linha foi realmente atualizada. Em cenários de RLS/filtro (0 linhas afetadas), o Supabase podia retornar `error: null` e a UI tratava como sucesso.
 - A Agency ainda mapeava parte dos status legados (`awaiting_approval`) e não reconhecia `ready_for_approval`, gerando inconsistência visual.
 - O calendário da Agency renderizava thumb apenas de `imagem_url` e não tolerava fallback de campo (`media_url`) quando presente.
 
 ### Solução
-- Portal: updates passam a usar `select()` e validam `data.length > 0` antes de retornar sucesso, evitando "sucesso falso".
+- Portal: updates passam a usar `select()` e validam `data.length > 0` antes de retornar sucesso, evitando "sucesso falso", e logam `error.code/message/details` quando falha.
+- Banco: adicionada policy RLS para permitir que o cliente (por e-mail) atualize o status dos próprios posts para `approved`/`changes_requested`.
 - Agency: padronização de status na UI (`ready_for_approval` + `changes_requested`) e ajustes de classes/cor.
-- Agency Calendar: thumb passa a usar `imagem_url || media_url` e renderiza `<img>` ou `<video>` conforme extensão.
+- Agency Calendar: thumb passa a usar `imagem_url || media_url` (com fallbacks adicionais) e renderiza `<img>` ou `<video>` conforme extensão.
 
 ### Arquivos Alterados
 - `js/v2/client/client_repo.js`
+- `js/v2/client/client_core.js`
 - `js/v2/modules/social_media/social_media_core.js`
 - `js/v2/modules/social_media/social_media_calendar.js`
+- `supabase/migrations/fix_social_posts_client_approval_rls.sql`
 
 ### Como Validar Manualmente
 1. Agency: abrir um post com mídia → verificar thumb visível no calendário.
