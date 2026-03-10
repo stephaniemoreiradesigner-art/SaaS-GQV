@@ -300,7 +300,7 @@
             try {
                 const { data: clientData } = await supabase
                     .from('clientes')
-                    .select('id,nome_fantasia,nome,nome_empresa')
+                    .select('*')
                     .eq('id', linkedClientId)
                     .maybeSingle();
                 clientName = clientData?.nome_fantasia || clientData?.nome || clientData?.nome_empresa || clientName;

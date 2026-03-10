@@ -31,13 +31,7 @@
                     </div>
                     <p id="email-invite-note" class="text-xs text-slate-500 mt-2 hidden">E-mail preenchido a partir do convite.</p>
                 </div>
-                <div id="manual-client-id-wrapper" class="hidden">
-                    <label for="manualClientId" class="block text-xs font-medium text-slate-500 mb-1">ID do Cliente (uso interno)</label>
-                    <input id="manualClientId" name="manualClientId" type="number" min="1"
-                        class="appearance-none block w-full px-3 py-2 border border-dashed border-amber-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 sm:text-xs bg-amber-50/40"
-                        placeholder="Ex: 14">
-                    <p class="mt-1 text-[11px] text-amber-700">Preencha apenas se você souber o ID exato do cliente exibido na Agency V2.</p>
-                </div>
+                <div id="manual-client-id-wrapper" class="hidden"></div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-slate-700 mb-1">Senha</label>
                     <div class="relative">
@@ -85,7 +79,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/js/v2/core/supabase.js"></script>
     <script src="/js/v2/shared/auth_guard.js"></script>
-    <script src="/js/app.js"></script>
     <script src="/js/v2/client/client_auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -97,7 +90,6 @@
             const params = new URLSearchParams(window.location.search);
             const inviteEmail = String(params.get('email') || '').trim().toLowerCase();
             const inviteClientId = String(params.get('client_id') || params.get('cliente_id') || params.get('tenant_id') || '').trim();
-            const manualClientIdInput = document.getElementById('manualClientId');
             const manualClientIdWrapper = document.getElementById('manual-client-id-wrapper');
 
             const setFeedback = (message, type = 'error') => {
@@ -119,7 +111,15 @@
                 emailInputElement.classList.add('bg-slate-100');
                 if (inviteNote) inviteNote.classList.remove('hidden');
             }
-            if (!inviteClientId && manualClientIdWrapper) {
+            const allowManual = params.get('manual') === '1';
+            if (!inviteClientId && allowManual && manualClientIdWrapper) {
+                manualClientIdWrapper.innerHTML = `
+                    <label for="manualClientId" class="block text-xs font-medium text-slate-500 mb-1">ID do Cliente (uso interno)</label>
+                    <input id="manualClientId" name="manualClientId" type="number" min="1"
+                        class="appearance-none block w-full px-3 py-2 border border-dashed border-amber-300 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 sm:text-xs bg-amber-50/40"
+                        placeholder="Ex: 14">
+                    <p class="mt-1 text-[11px] text-amber-700">Use apenas para depuração. Prefira o link gerado pela Agency.</p>
+                `;
                 manualClientIdWrapper.classList.remove('hidden');
             }
 
@@ -140,11 +140,11 @@
                     setFeedback('As senhas não conferem.', 'error');
                     return;
                 }
+                const manualClientIdInput = document.getElementById('manualClientId');
                 const manualClientId = manualClientIdInput ? String(manualClientIdInput.value || '').trim() : '';
                 const effectiveClientId = inviteClientId || manualClientId;
                 if (!effectiveClientId) {
-                    setFeedback('Informe o ID do cliente (veja o ID no card da Agency V2) ou utilize um link de convite com client_id.', 'warn');
-                    if (manualClientIdInput) manualClientIdInput.focus();
+                    setFeedback('Solicite o link de primeiro acesso gerado pela Agency (com client_id).', 'warn');
                     return;
                 }
 

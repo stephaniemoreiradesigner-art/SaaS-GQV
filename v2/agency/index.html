@@ -2581,8 +2581,31 @@
             });
         }
         if (clientDetailGrantAccessBtn) {
-            clientDetailGrantAccessBtn.addEventListener('click', () => {
-                setClientFeedback('Liberação de acesso: em breve.', 'success');
+            clientDetailGrantAccessBtn.addEventListener('click', async () => {
+                if (!selectedClientForDetail?.id) {
+                    setClientFeedback('Selecione um cliente primeiro.', 'error');
+                    return;
+                }
+
+                const clientId = selectedClientForDetail.id;
+                const email = String(selectedClientForDetail.email || '').trim().toLowerCase();
+                const origin = window.location.origin;
+                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${email ? `&email=${encodeURIComponent(email)}` : ''}`;
+
+                try {
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(url);
+                        setClientFeedback('Link de acesso copiado. Envie para o cliente.', 'success');
+                        return;
+                    }
+                } catch {}
+
+                try {
+                    window.prompt('Copie e envie este link para o cliente:', url);
+                    setClientFeedback('Link gerado. Envie para o cliente.', 'success');
+                } catch {
+                    setClientFeedback('Não foi possível copiar o link.', 'error');
+                }
             });
         }
 
