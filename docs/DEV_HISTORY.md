@@ -244,3 +244,27 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 3. Logout → voltar ao login e permanecer estável.
 4. Reload no dashboard → permanecer estável.
 5. Simular vínculo inexistente → exibir mensagem amigável e não entrar em loop.
+
+## 2026-03-10 — Agency Clientes: fluxo de edição completo (cards + modal V2)
+
+### Problema
+- Na tela Agency V2 → Clientes, o botão "Editar" não executava nenhuma ação.
+- O modal de clientes não contemplava os campos principais esperados para edição (responsável/telefones/serviços).
+
+### Solução
+- Cards de clientes agora exibem botão "Editar" que abre o modal em modo edição (sem sair da view de Clientes).
+- Modal de clientes foi adaptado para suportar claramente:
+  - modo create (Novo Cliente)
+  - modo edit (Editar Cliente)
+- Campos de edição incluídos no modal: nome da empresa, nome fantasia, responsável, e-mail, telefone, whatsapp, documento, status e serviços contratados.
+- Salvamento em modo edição executa UPDATE via `ClientRepo.updateClient` e atualiza a lista/cards imediatamente após sucesso (sem recarregar a página inteira).
+
+### Arquivos Alterados
+- `v2/agency/index.html`
+- `js/v2/modules/clientes/clientes_ui.js`
+- `js/v2/modules/clientes/clientes_repo.js`
+
+### Como Validar Manualmente
+1. Agency → Clientes: clicar em "Editar" em um card → modal abre preenchido.
+2. Alterar 2 campos (ex.: responsável + telefone) e salvar → modal fecha e card reflete mudanças.
+3. Abrir detalhes do cliente → clicar "Editar" → modal abre em modo edição.

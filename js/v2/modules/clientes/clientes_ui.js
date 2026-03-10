@@ -95,11 +95,12 @@
             }
 
             clients.forEach(client => {
-                const card = document.createElement('button');
-                card.type = 'button';
-                card.className = 'ui-card w-full text-left p-4';
+                const card = document.createElement('div');
+                card.className = 'ui-card w-full text-left p-4 cursor-pointer';
                 card.dataset.id = client.id;
                 card.dataset.clientCard = 'true';
+                card.setAttribute('role', 'button');
+                card.tabIndex = 0;
 
                 const name = this.getClientName(client);
                 const owner = this.getField(client, ['responsavel', 'responsavel_nome', 'social_responsavel', 'trafego_responsavel', 'gestor', 'owner']);
@@ -127,7 +128,10 @@
                                     <p class="text-sm font-semibold text-slate-900 truncate">${name}</p>
                                     <p class="text-xs text-slate-500 mt-1">${owner ? `Responsável: ${owner}` : 'Responsável: -'}</p>
                                 </div>
-                                <span class="ui-pill">ID ${String(client.id || '').slice(0, 6)}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="ui-pill">ID ${String(client.id || '').slice(0, 6)}</span>
+                                    <button type="button" class="ui-btn ui-btn-secondary px-3 py-1 text-xs" data-action="edit-client">Editar</button>
+                                </div>
                             </div>
                             <div class="mt-3 grid grid-cols-1 gap-2">
                                 <div class="flex items-center justify-between text-xs text-slate-500">
@@ -146,13 +150,35 @@
                     </div>
                 `;
 
-                card.addEventListener('click', () => {
+                const handleSelect = () => {
                     container.querySelectorAll('[data-client-card="true"]').forEach(el => el.classList.remove('ring-2', 'ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]'));
                     card.classList.add('ring-2', 'ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)]');
                     if (typeof onSelectCallback === 'function') {
                         onSelectCallback(client);
                     }
+                };
+
+                card.addEventListener('click', handleSelect);
+                card.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleSelect();
+                    }
                 });
+
+                const editBtn = card.querySelector('[data-action="edit-client"]');
+                if (editBtn) {
+                    editBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        global.dispatchEvent(new CustomEvent('gqv:client-edit', { detail: { client } }));
+                    });
+                }
+
+                const waAnchor = card.querySelector('a[href^="https://wa.me/"]');
+                if (waAnchor) {
+                    waAnchor.addEventListener('click', (event) => event.stopPropagation());
+                }
 
                 container.appendChild(card);
             });

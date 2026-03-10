@@ -24,12 +24,33 @@
             'nome',
             'empresa',
             'email',
+            'responsavel_nome',
+            'responsavel',
+            'contato',
+            'contato_nome',
+            'telefone',
+            'celular',
+            'phone',
+            'telefone_contato',
+            'contato_telefone',
+            'whatsapp',
+            'responsavel_whatsapp',
+            'telefone_whatsapp',
+            'whatsapp_numero',
+            'whats',
+            'servicos',
+            'servicos_contratados',
+            'servicos_ativos',
+            'produtos',
+            'planos',
             'status',
             'status_cliente',
             'situacao',
             'ativo',
             'tipo_documento',
             'documento',
+            'cnpj',
+            'cpf',
             'tenant_id'
         ];
 
@@ -50,10 +71,52 @@
             (columns.situacao && 'situacao') ||
             null;
 
+        const contactColumn =
+            (columns.responsavel_nome && 'responsavel_nome') ||
+            (columns.responsavel && 'responsavel') ||
+            (columns.contato_nome && 'contato_nome') ||
+            (columns.contato && 'contato') ||
+            null;
+
+        const phoneColumn =
+            (columns.telefone && 'telefone') ||
+            (columns.celular && 'celular') ||
+            (columns.telefone_contato && 'telefone_contato') ||
+            (columns.contato_telefone && 'contato_telefone') ||
+            (columns.phone && 'phone') ||
+            null;
+
+        const whatsappColumn =
+            (columns.responsavel_whatsapp && 'responsavel_whatsapp') ||
+            (columns.telefone_whatsapp && 'telefone_whatsapp') ||
+            (columns.whatsapp && 'whatsapp') ||
+            (columns.whatsapp_numero && 'whatsapp_numero') ||
+            (columns.whats && 'whats') ||
+            null;
+
+        const servicesColumn =
+            (columns.servicos && 'servicos') ||
+            (columns.servicos_contratados && 'servicos_contratados') ||
+            (columns.servicos_ativos && 'servicos_ativos') ||
+            (columns.planos && 'planos') ||
+            (columns.produtos && 'produtos') ||
+            null;
+
+        const docColumn =
+            (columns.documento && 'documento') ||
+            (columns.cnpj && 'cnpj') ||
+            (columns.cpf && 'cpf') ||
+            null;
+
         schemaCache = {
             columns,
             nameColumn,
             statusColumn,
+            contactColumn,
+            phoneColumn,
+            whatsappColumn,
+            servicesColumn,
+            docColumn,
             hasTenantId: !!columns.tenant_id,
             hasAtivo: !!columns.ativo
         };
@@ -63,6 +126,75 @@
     };
 
     const ClientRepo = {
+        updateClient: async function(clientId, input) {
+            if (!global.supabaseClient) {
+                console.error('[ClientRepo] Supabase não inicializado');
+                return { data: null, error: new Error('Supabase não inicializado') };
+            }
+            const normalizedId = clientId ? String(clientId).trim() : '';
+            if (!normalizedId) {
+                return { data: null, error: new Error('clientId obrigatório') };
+            }
+
+            try {
+                const schema = await detectSchema();
+                if (!schema) return { data: null, error: new Error('Schema de clientes não identificado') };
+
+                const companyName = String(input?.nome_empresa || input?.nome || '').trim();
+                const tradeName = String(input?.nome_fantasia || '').trim();
+                const email = input?.email ? String(input.email).trim() : null;
+                const contact = input?.responsavel ? String(input.responsavel).trim() : (input?.responsavel_nome ? String(input.responsavel_nome).trim() : null);
+                const phone = input?.telefone ? String(input.telefone).trim() : null;
+                const whatsapp = input?.whatsapp ? String(input.whatsapp).trim() : null;
+                const docType = input?.tipo_documento ? String(input.tipo_documento).trim() : null;
+                const documento = input?.documento ? String(input.documento).trim() : null;
+                const statusValue = input?.status ? String(input.status).trim() : null;
+
+                const updatePayload = {};
+                if (schema.columns.nome_empresa && companyName) updatePayload.nome_empresa = companyName;
+                if (schema.columns.nome_fantasia && tradeName) updatePayload.nome_fantasia = tradeName;
+                if (!updatePayload[schema.nameColumn] && schema.nameColumn) {
+                    const fallbackName = companyName || tradeName;
+                    if (fallbackName) updatePayload[schema.nameColumn] = fallbackName;
+                }
+                if (schema.columns.nome && companyName && schema.nameColumn !== 'nome') updatePayload.nome = companyName;
+                if (schema.columns.empresa && companyName && schema.nameColumn !== 'empresa') updatePayload.empresa = companyName;
+                if (schema.columns.email) updatePayload.email = email || null;
+                if (schema.contactColumn && contact !== null) updatePayload[schema.contactColumn] = contact || null;
+                if (schema.phoneColumn && phone !== null) updatePayload[schema.phoneColumn] = phone || null;
+                if (schema.whatsappColumn && whatsapp !== null) updatePayload[schema.whatsappColumn] = whatsapp || null;
+                if (schema.columns.tipo_documento && docType !== null) updatePayload.tipo_documento = docType || null;
+                if (schema.docColumn && documento !== null) updatePayload[schema.docColumn] = documento || null;
+                if (schema.statusColumn && statusValue) updatePayload[schema.statusColumn] = statusValue;
+                if (schema.hasAtivo && statusValue) updatePayload.ativo = statusValue === 'ativo';
+
+                if (schema.servicesColumn) {
+                    const services = Array.isArray(input?.servicos) ? input.servicos : null;
+                    if (schema.servicesColumn === 'servicos') {
+                        if (services) updatePayload[schema.servicesColumn] = services;
+                    } else if (services) {
+                        updatePayload[schema.servicesColumn] = services.join(', ');
+                    }
+                }
+
+                const { data, error } = await global.supabaseClient
+                    .from('clientes')
+                    .update(updatePayload)
+                    .eq('id', normalizedId)
+                    .select('*')
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('[ClientRepo] Erro ao atualizar cliente:', error, updatePayload);
+                    return { data: null, error };
+                }
+                return { data: data || null, error: null };
+            } catch (error) {
+                console.error('[ClientRepo] Erro inesperado ao atualizar cliente:', error);
+                return { data: null, error };
+            }
+        },
+
         /**
          * Busca todos os clientes ativos do tenant atual
          * @returns {Promise<Array>} Lista de clientes
@@ -100,7 +232,7 @@
                 return { data: null, error: new Error('Supabase não inicializado') };
             }
 
-            const name = String(input?.nome || '').trim();
+            const name = String(input?.nome_empresa || input?.nome_fantasia || input?.nome || '').trim();
             if (!name) {
                 return { data: null, error: new Error('Nome obrigatório') };
             }
@@ -132,16 +264,32 @@
                 console.warn('[ClientRepo] tenant_id não resolvido para insert em clientes.');
             }
             const payload = {};
-            if (schema?.columns?.nome_fantasia) payload.nome_fantasia = name;
-            if (schema?.columns?.nome_empresa) payload.nome_empresa = name;
+            if (schema?.columns?.nome_empresa) payload.nome_empresa = String(input?.nome_empresa || name).trim();
+            if (schema?.columns?.nome_fantasia) {
+                const tradeName = String(input?.nome_fantasia || '').trim();
+                if (tradeName) payload.nome_fantasia = tradeName;
+            }
             if (schema?.columns?.nome) payload.nome = name;
             if (schema?.columns?.empresa) payload.empresa = name;
             if (schema?.columns?.email) payload.email = input?.email ? String(input.email).trim() : null;
             if (schema?.columns?.tipo_documento) payload.tipo_documento = input?.tipo_documento || null;
-            if (schema?.columns?.documento) payload.documento = input?.documento ? String(input.documento).trim() : null;
+            if (schema?.docColumn && input?.documento) payload[schema.docColumn] = String(input.documento).trim();
             if (schema?.statusColumn) payload[schema.statusColumn] = input?.status || 'ativo';
             if (schema?.hasAtivo) payload.ativo = true;
             if (schema?.hasTenantId && tenantId) payload.tenant_id = tenantId;
+            if (schema?.contactColumn && (input?.responsavel || input?.responsavel_nome)) {
+                payload[schema.contactColumn] = String(input?.responsavel || input?.responsavel_nome || '').trim() || null;
+            }
+            if (schema?.phoneColumn && input?.telefone) {
+                payload[schema.phoneColumn] = String(input.telefone).trim() || null;
+            }
+            if (schema?.whatsappColumn && input?.whatsapp) {
+                payload[schema.whatsappColumn] = String(input.whatsapp).trim() || null;
+            }
+            if (schema?.servicesColumn && Array.isArray(input?.servicos) && input.servicos.length) {
+                if (schema.servicesColumn === 'servicos') payload[schema.servicesColumn] = input.servicos;
+                else payload[schema.servicesColumn] = input.servicos.join(', ');
+            }
 
             const attempts = [payload];
 

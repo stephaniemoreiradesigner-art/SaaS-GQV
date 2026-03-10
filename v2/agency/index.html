@@ -566,9 +566,35 @@
                 </button>
             </div>
             <form id="client-create-form" class="p-6 space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Nome</label>
-                    <input id="client-name" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nome do cliente" required>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nome da empresa</label>
+                        <input id="client-name" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nome da empresa" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Nome fantasia</label>
+                        <input id="client-trade-name" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nome fantasia">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Responsável</label>
+                        <input id="client-owner" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Nome do responsável">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                        <input id="client-email" type="email" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="cliente@email.com">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Telefone</label>
+                        <input id="client-phone" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="(00) 00000-0000">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">WhatsApp</label>
+                        <input id="client-whatsapp" type="text" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="(00) 00000-0000">
+                    </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -585,15 +611,32 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
-                        <input id="client-email" type="email" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="cliente@email.com">
-                    </div>
-                    <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
                         <select id="client-status-input" class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                             <option value="ativo">Ativo</option>
                             <option value="inativo">Inativo</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Serviços contratados</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input type="checkbox" class="rounded border-slate-300 text-slate-900 focus:ring-primary" name="client-services" value="Social Media" id="client-service-social">
+                                Social Media
+                            </label>
+                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input type="checkbox" class="rounded border-slate-300 text-slate-900 focus:ring-primary" name="client-services" value="Tráfego Pago" id="client-service-traffic">
+                                Tráfego Pago
+                            </label>
+                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input type="checkbox" class="rounded border-slate-300 text-slate-900 focus:ring-primary" name="client-services" value="Automação" id="client-service-automation">
+                                Automação
+                            </label>
+                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                                <input type="checkbox" class="rounded border-slate-300 text-slate-900 focus:ring-primary" name="client-services" value="Consultoria" id="client-service-consulting">
+                                Consultoria
+                            </label>
+                        </div>
                     </div>
                 </div>
                 <div id="client-create-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
@@ -874,10 +917,15 @@
         const clientCreateForm = document.getElementById('client-create-form');
         const clientSaveBtn = document.getElementById('client-save-btn');
         const clientNameInput = document.getElementById('client-name');
+        const clientTradeNameInput = document.getElementById('client-trade-name');
+        const clientOwnerInput = document.getElementById('client-owner');
         const clientDocTypeInput = document.getElementById('client-doc-type');
         const clientDocInput = document.getElementById('client-doc');
         const clientEmailInput = document.getElementById('client-email');
+        const clientPhoneInput = document.getElementById('client-phone');
+        const clientWhatsappInput = document.getElementById('client-whatsapp');
         const clientStatusInput = document.getElementById('client-status-input');
+        const clientServicesInputs = Array.from(document.querySelectorAll('input[name="client-services"]'));
         const clientCreateFeedback = document.getElementById('client-create-feedback');
         const hubFilesBtn = document.getElementById('hub-files-btn');
         const hubFilesCard = document.getElementById('hub-files-card');
@@ -1166,6 +1214,29 @@
             return clientSchemaCache;
         };
 
+        const normalizeServiceLabel = (value) => {
+            const v = String(value || '').trim().toLowerCase();
+            if (!v) return '';
+            if (v.includes('social')) return 'Social Media';
+            if (v.includes('tráfego') || v.includes('trafego') || v.includes('ads') || v.includes('performance')) return 'Tráfego Pago';
+            if (v.includes('autom')) return 'Automação';
+            if (v.includes('consult')) return 'Consultoria';
+            return String(value || '').trim();
+        };
+
+        const setClientServicesSelection = (services) => {
+            const normalized = new Set((services || []).map(normalizeServiceLabel).filter(Boolean));
+            (clientServicesInputs || []).forEach((input) => {
+                input.checked = normalized.has(input.value);
+            });
+        };
+
+        const getSelectedClientServices = () => {
+            return (clientServicesInputs || [])
+                .filter((input) => input.checked)
+                .map((input) => input.value);
+        };
+
         const openClientEditModal = async (client) => {
             if (!clientModal || !client?.id) return;
             const detail = window.ClientRepo?.getClientById ? await window.ClientRepo.getClientById(client.id) : client;
@@ -1175,17 +1246,35 @@
             clientModal.dataset.clientId = data.id;
             if (clientModalTitle) clientModalTitle.textContent = 'Editar Cliente';
 
-            const name = data.nome_fantasia || data.razao_social || data.nome_empresa || data.nome || data.empresa || '';
+            const companyName = data.nome_empresa || data.razao_social || data.nome || data.empresa || data.nome_fantasia || '';
+            const tradeName = data.nome_fantasia || '';
+            const owner = data.responsavel_nome || data.responsavel || data.contato_nome || data.contato || data.gestor || data.owner || '';
+            const phone = data.telefone || data.celular || data.phone || data.telefone_contato || data.contato_telefone || '';
+            const whatsapp = data.responsavel_whatsapp || data.telefone_whatsapp || data.whatsapp || data.whatsapp_numero || data.whats || '';
             const docType = data.tipo_documento || '';
             const doc = data.documento || data.cnpj || data.cpf || '';
             const email = data.email || '';
             const statusValue = data.status || data.status_cliente || data.situacao || (data.ativo === false ? 'inativo' : 'ativo');
 
-            if (clientNameInput) clientNameInput.value = name;
+            if (clientNameInput) clientNameInput.value = companyName;
+            if (clientTradeNameInput) clientTradeNameInput.value = tradeName;
+            if (clientOwnerInput) clientOwnerInput.value = owner;
             if (clientDocTypeInput) clientDocTypeInput.value = docType;
             if (clientDocInput) clientDocInput.value = doc;
             if (clientEmailInput) clientEmailInput.value = email;
+            if (clientPhoneInput) clientPhoneInput.value = phone;
+            if (clientWhatsappInput) clientWhatsappInput.value = whatsapp;
             if (clientStatusInput) clientStatusInput.value = String(statusValue || 'ativo');
+
+            let services = [];
+            if (Array.isArray(data.servicos)) {
+                services = data.servicos;
+            } else if (typeof data.servicos === 'string') {
+                services = String(data.servicos).split(/[,;|]/g).map(s => s.trim()).filter(Boolean);
+            } else if (window.ClientUI?.getServices) {
+                services = window.ClientUI.getServices(data);
+            }
+            setClientServicesSelection(services);
 
             if (clientCreateFeedback) {
                 clientCreateFeedback.classList.add('hidden');
@@ -1280,8 +1369,9 @@
         if (clientCreateForm) {
             clientCreateForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
-                const name = String(clientNameInput?.value || '').trim();
-                if (!name) {
+                const companyName = String(clientNameInput?.value || '').trim();
+                const tradeName = String(clientTradeNameInput?.value || '').trim();
+                if (!companyName) {
                     setClientFeedback('Informe o nome do cliente.', 'error');
                     return;
                 }
@@ -1300,7 +1390,13 @@
                 setClientFeedback('Salvando cliente...');
                 const mode = clientModal?.dataset?.mode || 'create';
                 const payload = {
-                    nome: name,
+                    nome: companyName,
+                    nome_empresa: companyName,
+                    nome_fantasia: tradeName,
+                    responsavel: String(clientOwnerInput?.value || '').trim(),
+                    telefone: String(clientPhoneInput?.value || '').trim(),
+                    whatsapp: String(clientWhatsappInput?.value || '').trim(),
+                    servicos: getSelectedClientServices(),
                     tipo_documento: clientDocTypeInput?.value || '',
                     documento: clientDocInput?.value || '',
                     email: clientEmailInput?.value || '',
@@ -1317,48 +1413,27 @@
                 console.log('[ClientUI] create client payload:', payload);
                 console.log('[ClientUI] tenantId resolved:', tenantId);
                 if (mode === 'edit' && editingClientId) {
-                    const supabase = window.supabaseClient;
-                    if (!supabase) {
-                        setClientFeedback('Supabase não inicializado.', 'error');
+                    const result = window.ClientRepo?.updateClient
+                        ? await window.ClientRepo.updateClient(editingClientId, payload)
+                        : { data: null, error: new Error('ClientRepo.updateClient indisponível') };
+                    if (result.error) {
+                        console.error('[ClientUI] update client error:', result.error);
+                        setClientFeedback(result.error?.message || 'Não foi possível atualizar o cliente.', 'error');
                         if (clientSaveBtn) clientSaveBtn.disabled = false;
                         return;
                     }
-                    const schema = await detectClientSchema();
-                    if (!schema) {
-                        setClientFeedback('Não foi possível detectar schema de clientes.', 'error');
-                        if (clientSaveBtn) clientSaveBtn.disabled = false;
-                        return;
-                    }
-                    const updatePayload = {};
-                    if (schema.nameColumn) updatePayload[schema.nameColumn] = name;
-                    if (schema.emailColumn) updatePayload[schema.emailColumn] = payload.email || null;
-                    if (schema.docTypeColumn) updatePayload[schema.docTypeColumn] = payload.tipo_documento || null;
-                    if (schema.docColumn) updatePayload[schema.docColumn] = payload.documento || null;
-                    if (schema.statusColumn) updatePayload[schema.statusColumn] = payload.status || 'ativo';
-                    if (schema.activeColumn) updatePayload[schema.activeColumn] = (payload.status || 'ativo') === 'ativo';
-
-                    const { data: updated, error } = await supabase
-                        .from('clientes')
-                        .update(updatePayload)
-                        .eq('id', editingClientId)
-                        .select('*')
-                        .maybeSingle();
-
-                    if (error) {
-                        console.error('[ClientUI] update client error:', error);
-                        setClientFeedback(error.message || 'Não foi possível atualizar o cliente.', 'error');
-                        if (clientSaveBtn) clientSaveBtn.disabled = false;
-                        return;
-                    }
-
+                    const updated = result.data || null;
+                    setClientFeedback('Cliente atualizado com sucesso.', 'success');
                     await loadClients({ reason: 'client_updated' });
                     if (window.ClientContext?.getActiveClient && window.ClientContext?.setActiveClient) {
                         const activeId = window.ClientContext.getActiveClient();
                         if (activeId === editingClientId) {
-                            window.ClientContext.setActiveClient({ id: editingClientId, name });
+                            const updatedName = tradeName || companyName;
+                            window.ClientContext.setActiveClient({ id: editingClientId, name: updatedName });
                         }
                     }
                     if (updated) selectedClientForDetail = updated;
+                    await new Promise((resolve) => setTimeout(resolve, 350));
                     closeClientModal();
                     if (clientSaveBtn) clientSaveBtn.disabled = false;
                     return;
@@ -1374,7 +1449,7 @@
                     return;
                 }
                 const created = result.data || {};
-                const createdName = created.nome_fantasia || created.nome_empresa || created.nome || created.empresa || name;
+                const createdName = created.nome_fantasia || created.nome_empresa || created.nome || created.empresa || tradeName || companyName;
                 const createdId = created.id || null;
                 await loadClients({ reason: 'client_created' });
                 if (createdId && window.ClientContext) {
@@ -2483,6 +2558,12 @@
                 setClientFeedback('Liberação de acesso: em breve.', 'success');
             });
         }
+
+        window.addEventListener('gqv:client-edit', async (event) => {
+            const client = event?.detail?.client;
+            if (!client?.id) return;
+            await openClientEditModal(client);
+        });
 
         if (clientDeleteClose) clientDeleteClose.addEventListener('click', closeClientDeleteModal);
         if (clientDeleteCancel) clientDeleteCancel.addEventListener('click', closeClientDeleteModal);
