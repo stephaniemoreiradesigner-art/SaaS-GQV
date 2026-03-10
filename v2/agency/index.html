@@ -1044,6 +1044,9 @@
             btn.addEventListener('click', () => {
                 const moduleName = btn.dataset.module;
                 setActiveView(moduleName);
+                if (moduleName === 'clients') {
+                    loadClients({ reason: 'nav_click_clients' });
+                }
             });
         });
         if (window.WorkspaceState?.subscribe) {
@@ -1058,7 +1061,10 @@
         });
 
         if (headerSelectClient) {
-            headerSelectClient.addEventListener('click', () => setActiveView('clients'));
+            headerSelectClient.addEventListener('click', () => {
+                setActiveView('clients');
+                loadClients({ reason: 'header_select_client' });
+            });
         }
 
         if (clientModalClose) clientModalClose.addEventListener('click', closeClientModal);
@@ -1140,6 +1146,11 @@
 
         let allClients = [];
         let currentClient = null;
+        let clientsLoadState = {
+            inFlight: false,
+            loadedOnce: false,
+            retryScheduled: false
+        };
         let socialState = {
             clientId: null,
             calendarMonth: new Date().toISOString().slice(0, 7),
@@ -2067,10 +2078,70 @@
             renderClientList(filtered);
         };
 
-        const loadClients = async () => {
-            if (!window.ClientRepo) return;
-            allClients = await window.ClientRepo.getClients();
-            renderClientList(allClients);
+        const ensureSupabaseReady = async () => {
+            if (window.supabaseClient) return true;
+            console.log('[ClientsView] Aguardando supabaseReady...');
+            await new Promise(resolve => window.addEventListener('supabaseReady', resolve, { once: true }));
+            return !!window.supabaseClient;
+        };
+
+        const ensureV2Ready = async () => {
+            if (document.body.classList.contains('v2-ready')) return true;
+            console.log('[ClientsView] Aguardando v2:ready...');
+            await new Promise(resolve => window.addEventListener('v2:ready', resolve, { once: true }));
+            return document.body.classList.contains('v2-ready');
+        };
+
+        const loadClients = async (meta = {}) => {
+            const reason = meta?.reason || 'unknown';
+            if (clientsLoadState.inFlight) {
+                console.log('[ClientsView] loadClients ignorado (inFlight)', { reason });
+                return;
+            }
+            if (!window.ClientRepo) {
+                console.warn('[ClientsView] ClientRepo ausente, abortando loadClients', { reason });
+                return;
+            }
+
+            clientsLoadState.inFlight = true;
+            const container = document.getElementById('v2-clients-list');
+            if (container) {
+                container.innerHTML = '<div class="p-4 text-gray-500">Carregando clientes...</div>';
+            }
+
+            try {
+                await ensureSupabaseReady();
+                await ensureV2Ready();
+                if (window.TenantContext?.init) {
+                    await window.TenantContext.init();
+                }
+
+                const session = window.supabaseClient?.auth?.getSession ? await window.supabaseClient.auth.getSession() : null;
+                console.log('[ClientsView] loadClients start', {
+                    reason,
+                    hasSession: !!session?.data?.session,
+                    tenantId: window.TenantContext?.getTenantId ? window.TenantContext.getTenantId() : null
+                });
+
+                const clients = await window.ClientRepo.getClients();
+                allClients = Array.isArray(clients) ? clients : [];
+                clientsLoadState.loadedOnce = true;
+                console.log('[ClientsView] loadClients result', { count: allClients.length, reason });
+                renderClientList(allClients);
+
+                if (!clientsLoadState.retryScheduled && allClients.length === 0) {
+                    clientsLoadState.retryScheduled = true;
+                    console.warn('[ClientsView] Lista vazia após load. Agendando retry único em 1200ms.', { reason });
+                    setTimeout(() => {
+                        loadClients({ reason: 'retry_after_empty' });
+                    }, 1200);
+                }
+            } catch (e) {
+                console.error('[ClientsView] loadClients erro fatal:', e);
+                renderClientList([]);
+            } finally {
+                clientsLoadState.inFlight = false;
+            }
         };
 
         if (window.ClientContext) {
@@ -2137,7 +2208,10 @@
         }
 
         document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
-            btn.addEventListener('click', () => setActiveView('clients'));
+            btn.addEventListener('click', () => {
+                setActiveView('clients');
+                loadClients({ reason: 'action_go_clients' });
+            });
         });
 
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
@@ -2328,9 +2402,19 @@
             });
         }
 
-        loadClients();
-        refreshSocialMonth();
-        setActiveView('clients');
+        const startUp = async () => {
+            setActiveView('clients');
+            await loadClients({ reason: 'startup' });
+            refreshSocialMonth();
+        };
+
+        if (document.body.classList.contains('v2-ready')) {
+            startUp();
+        } else {
+            window.addEventListener('v2:ready', () => {
+                startUp();
+            }, { once: true });
+        }
     </script>
 </body>
 </html>

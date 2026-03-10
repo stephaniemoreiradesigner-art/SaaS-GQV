@@ -84,3 +84,26 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
    - financeiro/legal: enxerga apenas Financeiro e Contrato.
 3. Agency → Performance: selecionar cliente ativo → ver cards de conexão (Meta/Google/LinkedIn).
 4. Agency → Performance: clicar em Conectar → status muda para Pendente e persiste ao recarregar (após aplicar migrações no Supabase).
+
+## 2026-03-10 — Clients List Rehydration After Reload
+
+### Problema
+- Na tela de Clientes da Agency, a lista carregava na primeira interação, mas após reload a UI era sobrescrita por estado vazio ("Nenhum cliente encontrado").
+
+### Causa
+- O `loadClients()` era executado imediatamente no carregamento da página, antes do boot v2 concluir (`supabaseReady` + `v2:ready`). Em reload, isso acionava `getClients()` cedo demais (supabase/contexto ainda não prontos), resultando em lista vazia e a UI não re-renderizava novamente com dados reais.
+
+### Solução
+- Tornou-se o carregamento da lista dependente do boot v2: `loadClients()` aguarda `supabaseReady` e `v2:ready` antes de consultar o repositório.
+- Adicionados logs de diagnóstico (`[ClientsView]`) e um retry único quando o retorno é vazio para capturar condições de corrida.
+- Gatilhos adicionais para recarregar a lista ao navegar para a view "clients" (nav/header/go-clients), garantindo estabilidade após reload e navegação.
+
+### Arquivos Alterados
+- `v2/agency/index.html`
+
+### Como Validar Manualmente
+1. Agency → Clientes: abrir a tela → lista aparece.
+2. Recarregar página → lista continua visível (sem estado vazio indevido).
+3. Buscar cliente (campo Buscar) → filtro funciona.
+4. Clicar em cliente → modal abre.
+5. Voltar/recarregar → lista permanece estável.
