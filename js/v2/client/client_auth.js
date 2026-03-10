@@ -14,7 +14,7 @@
                 const client = await global.SupabaseFactory.getClientPortalClient();
                 if (client) {
                     global.clientPortalSupabase = client;
-                    // [FIX] Não dar return aqui para garantir que o listener abaixo seja registrado
+                    return;
                 }
             }
 
