@@ -26,6 +26,7 @@
                 <input id="password" type="password" autocomplete="current-password" class="w-full rounded-lg border border-slate-200 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary bg-white" placeholder="********">
             </div>
             <button id="client-login-button" type="submit" class="w-full bg-slate-900 text-white font-semibold py-2 rounded-lg hover:bg-slate-800 transition">Entrar</button>
+            <div id="client-login-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
         </form>
         <div class="text-center mt-4 pt-4 border-t border-slate-100 space-y-2">
             <a id="client-create-password-link" href="/v2/client/register.html" class="block text-sm text-slate-600 hover:text-primary transition-colors">
@@ -44,11 +45,59 @@
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('client-login-form');
             const button = document.getElementById('client-login-button');
+            const feedback = document.getElementById('client-login-feedback');
+
+            const setFeedback = (message, type = 'error') => {
+                if (!feedback) return;
+                feedback.textContent = message;
+                feedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border', 'border-red-100', 'bg-amber-50', 'text-amber-800', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100');
+                if (type === 'success') {
+                    feedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                } else if (type === 'warn') {
+                    feedback.classList.add('bg-amber-50', 'text-amber-800', 'border', 'border-amber-100');
+                } else {
+                    feedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
+                }
+            };
+
+            const params = new URLSearchParams(window.location.search);
+            const errorCode = params.get('error');
+            if (errorCode) {
+                const map = {
+                    client_not_found: 'Seu acesso está vinculado a um cliente inexistente ou removido. Atualize o vínculo do cliente.',
+                    client_email_duplicate: 'Seu e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.',
+                    no_email: 'Não foi possível identificar seu e-mail na sessão. Faça login novamente.',
+                    ensure_missing: 'Não foi possível validar seu contexto. Faça login novamente.',
+                    client_context_error: 'Não foi possível validar seu contexto. Faça login novamente.'
+                };
+                setFeedback(map[errorCode] || 'Falha ao validar seu acesso. Faça login novamente.', 'warn');
+            }
 
             // [CLIENT_PORTAL_LOGIN] Logs de debug para verificar inicialização
             console.log('[CLIENT_PORTAL_LOGIN] script carregado');
             if (form) console.log('[CLIENT_PORTAL_LOGIN] form encontrado');
             else console.error('[CLIENT_PORTAL_LOGIN] ERRO: form não encontrado');
+
+            const tryHydrateAndRedirect = async () => {
+                if (!window.ClientAuth) return;
+                await window.ClientAuth.init();
+                if (!window.clientPortalSupabase) return;
+                const { data } = await window.clientPortalSupabase.auth.getSession();
+                if (!data?.session) return;
+                if (!window.ClientAuth.ensurePortalSession) return;
+                const ensured = await window.ClientAuth.ensurePortalSession();
+                if (ensured.ok) {
+                    window.location.href = '/v2/client/index.html';
+                    return;
+                }
+                const map = {
+                    client_not_found: 'Seu acesso está vinculado a um cliente inexistente ou removido. Atualize o vínculo do cliente.',
+                    client_email_duplicate: 'Seu e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.'
+                };
+                setFeedback(map[ensured.reason] || 'Não foi possível validar seu acesso. Faça login novamente.', 'warn');
+            };
+
+            tryHydrateAndRedirect();
 
             if (form) {
                 // Remover listeners antigos (caso existam, embora em page load seja raro)
@@ -72,7 +121,7 @@
                     console.log('[CLIENT_PORTAL_LOGIN] login iniciado');
 
                     if (!email || !password) {
-                        alert('Preencha todos os campos.');
+                        setFeedback('Preencha todos os campos.', 'error');
                         return;
                     }
 
@@ -96,13 +145,13 @@
                             // O redirect é feito pelo client_auth.js agora
                         } else {
                             console.error('[CLIENT_PORTAL_LOGIN] Erro:', result.error);
-                            alert(result.error);
+                            setFeedback(result.error || 'Não foi possível fazer login.', 'error');
                             button.disabled = false;
                             button.textContent = originalText;
                         }
                     } catch (err) {
                         console.error('[CLIENT_PORTAL_LOGIN] Erro inesperado:', err);
-                        alert('Erro inesperado: ' + err.message);
+                        setFeedback(err.message ? `Erro inesperado: ${err.message}` : 'Erro inesperado no login.', 'error');
                         button.disabled = false;
                         button.textContent = originalText;
                     }

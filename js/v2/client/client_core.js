@@ -15,14 +15,26 @@
 
             // [ISOLATION] Ensure isolated client is ready
             await global.ClientAuth.init();
+            const ensured = global.ClientAuth.ensurePortalSession
+                ? await global.ClientAuth.ensurePortalSession()
+                : { ok: false, reason: 'ensure_missing' };
 
-            const session = global.ClientAuth.checkSession();
-            if (!session) {
-                // Se não tiver sessão válida, redireciona para login do cliente
-                window.location.href = '/v2/client/login.html';
+            if (!ensured.ok) {
+                if (ensured.reason === 'no_auth_session') {
+                    window.location.href = '/v2/client/login.html';
+                    return;
+                }
+                try {
+                    if (global.clientPortalSupabase) {
+                        await global.clientPortalSupabase.auth.signOut();
+                    }
+                } catch {}
+                localStorage.removeItem(global.ClientAuth.sessionKey || 'V2_CLIENT_SESSION');
+                window.location.href = `/v2/client/login.html?error=${encodeURIComponent(ensured.reason || 'client_context_error')}`;
                 return;
             }
-            this.currentClient = session;
+
+            this.currentClient = ensured.session;
 
             // 2. Init UI
             if (global.ClientUI) {

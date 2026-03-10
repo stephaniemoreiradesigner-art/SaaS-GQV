@@ -206,3 +206,36 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 4. Agency → Clientes: abrir modal de cliente → confirmar botões Editar e Excluir.
 5. Editar cliente: salvar → lista atualiza sem sumir.
 6. Excluir cliente: confirmar no modal → lista atualiza; se era cliente ativo, cliente ativo é limpo.
+
+## 2026-03-10 — Portal do Cliente: loop login↔dashboard após exclusão de cliente duplicado
+
+### Incidente
+- Existiam dois clientes duplicados (ID 14 correto, ID 73 incorreto).
+- O cliente ID 73 foi excluído manualmente.
+- Após isso, o Portal do Cliente entrou em loop entre Login e Dashboard para o usuário afetado.
+
+### Causa raiz
+- O guard de autenticação do Portal usava a sessão do Supabase para redirecionar (login → dashboard), mas o Portal dependia de um cache adicional local (`V2_CLIENT_SESSION`) para montar o contexto do cliente.
+- Com a sessão do Supabase persistida e o `V2_CLIENT_SESSION` ausente/inconsistente (apontando para o ID removido), o guard redirecionava para o dashboard e o core do portal devolvia para o login, causando loop.
+
+### Correção
+- Portal agora re-hidrata o `V2_CLIENT_SESSION` a partir da sessão do Supabase antes de permitir redirect automático.
+- Se o vínculo estiver inválido (cliente removido/inexistente), o portal:
+  - limpa caches relacionados,
+  - impede o loop (não redireciona em cascata),
+  - exibe mensagem controlada no login com instrução clara.
+- Repair do caso do ID 73 → ID 14:
+  - ao detectar `V2_CLIENT_SESSION.client_id = 73` e cliente inexistente, o portal reescreve o vínculo para `client_id = 14` e tenta sincronizar `tenant_id` via metadata/profile quando possível.
+
+### Arquivos Alterados
+- `js/v2/shared/auth_guard.js`
+- `js/v2/client/client_auth.js`
+- `js/v2/client/client_core.js`
+- `v2/client/login.html`
+
+### Como Validar Manualmente
+1. Portal do Cliente: abrir `/v2/client/login.html` com sessão antiga → não deve entrar em loop.
+2. Logar com o e-mail correto → resolver cliente ID 14 e abrir dashboard.
+3. Logout → voltar ao login e permanecer estável.
+4. Reload no dashboard → permanecer estável.
+5. Simular vínculo inexistente → exibir mensagem amigável e não entrar em loop.

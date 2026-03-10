@@ -81,9 +81,14 @@
             if (this.context === 'client') {
                 const targetIndex = '/v2/client/index.html';
                 const targetLogin = '/v2/client/login.html';
+                const hasPortalSessionMeta = !!localStorage.getItem('V2_CLIENT_SESSION');
 
                 // Caso 1: Usuário logado na página de login -> Dashboard
                 if (session && isLoginPage) {
+                    if (!hasPortalSessionMeta) {
+                        console.warn('[AuthGuard] Sessão Supabase ativa, mas V2_CLIENT_SESSION ausente. Mantendo no login para re-hidratar contexto.');
+                        return;
+                    }
                     if (path !== targetIndex) {
                         console.log('[AuthGuard] Cliente logado no login -> Dashboard');
                         window.location.href = targetIndex;
