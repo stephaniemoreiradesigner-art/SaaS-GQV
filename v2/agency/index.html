@@ -354,10 +354,34 @@
                         </div>
                     </div>
                     <div id="performance-content" class="space-y-6">
-                        <div class="bg-white rounded-2xl border border-slate-200 p-10 text-center shadow-sm">
-                            <div class="text-5xl text-slate-300 mb-4"><i class="fas fa-bullhorn"></i></div>
-                            <h2 class="text-2xl font-bold text-slate-800 mb-2">Performance</h2>
-                            <p class="text-sm text-slate-500">Em construção... 🛠️</p>
+                        <div class="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-700">Conexões do cliente</h3>
+                                        <p class="text-xs text-slate-500 mt-1">Meta, Google Ads e LinkedIn</p>
+                                    </div>
+                                    <span id="performance-client-badge" class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">Nenhum cliente</span>
+                                </div>
+                                <div id="performance-connections-list" class="space-y-3"></div>
+                                <div id="performance-connections-empty" class="hidden text-sm text-slate-500">Selecione um cliente para ver conexões.</div>
+                            </div>
+                            <div class="space-y-6">
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-slate-700">Métricas (placeholder)</h3>
+                                            <p class="text-xs text-slate-500 mt-1">Estrutura pronta para sincronização por cliente</p>
+                                        </div>
+                                        <span id="performance-last-sync" class="text-xs text-slate-400">Último sync: -</span>
+                                    </div>
+                                    <div id="performance-metrics-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+                                </div>
+                                <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                    <h3 class="text-sm font-semibold text-slate-700 mb-2">Observações</h3>
+                                    <p class="text-sm text-slate-500">Tokens/segredos não são exibidos na UI. Apenas status e IDs externos.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -580,6 +604,132 @@
         </div>
     </div>
 
+    <div id="client-detail-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
+        <div class="w-full max-w-4xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Detalhes do cliente</p>
+                    <h3 id="client-detail-title" class="text-lg font-semibold text-slate-900">Cliente</h3>
+                    <div class="mt-1 flex items-center gap-2">
+                        <span id="client-detail-status" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">-</span>
+                        <span id="client-detail-id" class="text-xs text-slate-400">ID: -</span>
+                    </div>
+                </div>
+                <button id="client-detail-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+                <div id="client-detail-access-warning" class="hidden text-sm rounded-lg px-4 py-3 bg-amber-50 text-amber-700 border border-amber-100"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div id="client-detail-section-overview" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-slate-700">Visão Geral</h4>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Empresa</p>
+                                <p id="client-detail-empresa" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Nome fantasia</p>
+                                <p id="client-detail-fantasia" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">E-mail</p>
+                                <p id="client-detail-email" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Documento</p>
+                                <p id="client-detail-documento" class="text-slate-800 font-medium">-</p>
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <p class="text-xs uppercase text-slate-400">Serviços contratados</p>
+                            <p id="client-detail-servicos" class="text-slate-700">-</p>
+                        </div>
+                    </div>
+
+                    <div id="client-detail-section-operation" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-slate-700">Operação</h4>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Social responsável</p>
+                                <p id="client-detail-social-owner" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Tráfego responsável</p>
+                                <p id="client-detail-performance-owner" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <p class="text-xs uppercase text-slate-400">Plataformas usadas</p>
+                                <p id="client-detail-plataformas" class="text-slate-700">-</p>
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <p class="text-xs uppercase text-slate-400">Observações operacionais</p>
+                            <p id="client-detail-observacoes" class="text-slate-700 whitespace-pre-wrap">-</p>
+                        </div>
+                    </div>
+
+                    <div id="client-detail-section-assets" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-slate-700">Ativos Digitais</h4>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">Instagram</span>
+                                <a id="client-detail-instagram" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">Facebook</span>
+                                <a id="client-detail-facebook" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">LinkedIn</span>
+                                <a id="client-detail-linkedin" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-slate-500">Website</span>
+                                <a id="client-detail-website" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="client-detail-section-finance" class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-slate-700">Financeiro e Contrato</h4>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Mensalidade</p>
+                                <p id="client-detail-mensalidade" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase text-slate-400">Vencimento</p>
+                                <p id="client-detail-vencimento" class="text-slate-800 font-medium">-</p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <p class="text-xs uppercase text-slate-400">Contrato</p>
+                                <a id="client-detail-contrato" href="#" target="_blank" class="text-slate-800 font-medium truncate hover:underline">-</a>
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <p class="text-xs uppercase text-slate-400">Notas</p>
+                            <p id="client-detail-finance-notes" class="text-slate-700 whitespace-pre-wrap">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+                <button id="client-detail-set-active" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Definir como ativo</button>
+                <button id="client-detail-open-hub" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50">Abrir Hub</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/js/v2/shared/constants.js"></script>
     <script src="/js/v2/core/supabase.js"></script>
@@ -595,6 +745,9 @@
     <script src="/js/v2/modules/social_media/social_media_ui.js"></script>
     <script src="/js/v2/modules/social_media/social_media_calendar.js"></script>
     <script src="/js/v2/modules/social_media/social_media_core.js"></script>
+    <script src="/js/v2/modules/performance/performance_connections_repo.js"></script>
+    <script src="/js/v2/modules/performance/performance_connections_ui.js"></script>
+    <script src="/js/v2/modules/performance/performance_connections_core.js"></script>
     <script src="/js/v2/bootstrap.js"></script>
     <script>
         const navButtons = document.querySelectorAll('.v2-nav-btn');
@@ -704,6 +857,14 @@
         const clientCreateFeedback = document.getElementById('client-create-feedback');
         const hubFilesBtn = document.getElementById('hub-files-btn');
         const hubFilesCard = document.getElementById('hub-files-card');
+        const clientDetailModal = document.getElementById('client-detail-modal');
+        const clientDetailClose = document.getElementById('client-detail-close');
+        const clientDetailTitle = document.getElementById('client-detail-title');
+        const clientDetailStatus = document.getElementById('client-detail-status');
+        const clientDetailId = document.getElementById('client-detail-id');
+        const clientDetailAccessWarning = document.getElementById('client-detail-access-warning');
+        const clientDetailSetActive = document.getElementById('client-detail-set-active');
+        const clientDetailOpenHub = document.getElementById('client-detail-open-hub');
 
         let activeSocialTab = 'overview';
         const setSocialTab = (tabName) => {
@@ -753,6 +914,119 @@
                 clientCreateFeedback.classList.add('hidden');
                 clientCreateFeedback.textContent = '';
             }
+        };
+
+        let selectedClientForDetail = null;
+
+        const getRoleKeys = () => {
+            const roles = window.TenantContext?.get ? (window.TenantContext.get().roles || []) : [];
+            return (roles || []).map((r) => String(r || '').trim().toLowerCase()).filter(Boolean);
+        };
+
+        const hasAnyRole = (...keys) => {
+            const roles = getRoleKeys();
+            return keys.some((k) => roles.includes(String(k).trim().toLowerCase()));
+        };
+
+        const canViewClientSection = (sectionKey) => {
+            if (hasAnyRole('super_admin', 'admin')) return true;
+            if (hasAnyRole('financeiro', 'legal')) {
+                return sectionKey === 'finance';
+            }
+            return sectionKey === 'overview' || sectionKey === 'operation' || sectionKey === 'assets';
+        };
+
+        const setLinkField = (el, value) => {
+            if (!el) return;
+            const url = String(value || '').trim();
+            if (!url) {
+                el.textContent = '-';
+                el.setAttribute('href', '#');
+                el.classList.add('pointer-events-none');
+                return;
+            }
+            el.textContent = url;
+            el.setAttribute('href', url);
+            el.classList.remove('pointer-events-none');
+        };
+
+        const openClientDetailModal = async (client) => {
+            if (!clientDetailModal || !client?.id) return;
+            selectedClientForDetail = client;
+            clientDetailModal.classList.remove('hidden');
+            clientDetailModal.classList.add('flex');
+
+            const detail = window.ClientRepo?.getClientById ? await window.ClientRepo.getClientById(client.id) : client;
+            const data = detail || client;
+
+            const name = data.nome_fantasia || data.razao_social || data.nome_empresa || data.nome || data.empresa || 'Cliente';
+            const statusValue = data.status || data.status_cliente || data.situacao || (data.ativo === false ? 'inativo' : 'ativo');
+            const statusLabel = String(statusValue || '').toUpperCase();
+
+            if (clientDetailTitle) clientDetailTitle.textContent = name;
+            if (clientDetailStatus) clientDetailStatus.textContent = statusLabel || '-';
+            if (clientDetailId) clientDetailId.textContent = `ID: ${String(data.id || '').slice(0, 8)}...`;
+
+            const companyEl = document.getElementById('client-detail-empresa');
+            const fantasyEl = document.getElementById('client-detail-fantasia');
+            const emailEl = document.getElementById('client-detail-email');
+            const docEl = document.getElementById('client-detail-documento');
+            const servicesEl = document.getElementById('client-detail-servicos');
+            const socialOwnerEl = document.getElementById('client-detail-social-owner');
+            const performanceOwnerEl = document.getElementById('client-detail-performance-owner');
+            const platformsEl = document.getElementById('client-detail-plataformas');
+            const notesEl = document.getElementById('client-detail-observacoes');
+            const monthlyEl = document.getElementById('client-detail-mensalidade');
+            const dueEl = document.getElementById('client-detail-vencimento');
+            const financeNotesEl = document.getElementById('client-detail-finance-notes');
+
+            if (companyEl) companyEl.textContent = data.nome_empresa || data.empresa || data.razao_social || name;
+            if (fantasyEl) fantasyEl.textContent = data.nome_fantasia || name;
+            if (emailEl) emailEl.textContent = data.email || '-';
+            if (docEl) docEl.textContent = data.documento ? `${data.tipo_documento || ''} ${data.documento}`.trim() : '-';
+            if (servicesEl) servicesEl.textContent = data.servicos_contratados || data.servicos || '-';
+            if (socialOwnerEl) socialOwnerEl.textContent = data.social_responsavel || data.responsavel_social || '-';
+            if (performanceOwnerEl) performanceOwnerEl.textContent = data.trafego_responsavel || data.responsavel_trafego || '-';
+            if (platformsEl) platformsEl.textContent = data.plataformas_usadas || data.plataformas || '-';
+            if (notesEl) notesEl.textContent = data.observacoes_operacionais || data.observacoes || '-';
+            if (monthlyEl) monthlyEl.textContent = data.mensalidade ? `R$ ${data.mensalidade}` : '-';
+            if (dueEl) dueEl.textContent = data.vencimento_dia ? `Dia ${data.vencimento_dia}` : '-';
+            if (financeNotesEl) financeNotesEl.textContent = data.financeiro_notas || '-';
+
+            setLinkField(document.getElementById('client-detail-instagram'), data.instagram_url);
+            setLinkField(document.getElementById('client-detail-facebook'), data.facebook_url);
+            setLinkField(document.getElementById('client-detail-linkedin'), data.linkedin_url);
+            setLinkField(document.getElementById('client-detail-website'), data.website_url);
+            setLinkField(document.getElementById('client-detail-contrato'), data.contrato_url);
+
+            const sections = [
+                { key: 'overview', id: 'client-detail-section-overview' },
+                { key: 'operation', id: 'client-detail-section-operation' },
+                { key: 'assets', id: 'client-detail-section-assets' },
+                { key: 'finance', id: 'client-detail-section-finance' }
+            ];
+            sections.forEach((s) => {
+                const el = document.getElementById(s.id);
+                if (!el) return;
+                el.classList.toggle('hidden', !canViewClientSection(s.key));
+            });
+
+            if (clientDetailAccessWarning) {
+                if (hasAnyRole('financeiro', 'legal')) {
+                    clientDetailAccessWarning.textContent = 'Acesso restrito: este perfil visualiza apenas Financeiro e Contrato.';
+                    clientDetailAccessWarning.classList.remove('hidden');
+                } else {
+                    clientDetailAccessWarning.classList.add('hidden');
+                    clientDetailAccessWarning.textContent = '';
+                }
+            }
+        };
+
+        const closeClientDetailModal = () => {
+            if (!clientDetailModal) return;
+            clientDetailModal.classList.add('hidden');
+            clientDetailModal.classList.remove('flex');
+            selectedClientForDetail = null;
         };
 
         const setClientFeedback = (message, type = 'success') => {
@@ -1774,14 +2048,7 @@
                     </div>
                 `;
                 button.addEventListener('click', () => {
-                    currentClient = client;
-                    if (window.ClientContext) {
-                        window.ClientContext.setActiveClient({
-                            id: client.id,
-                            name: name
-                        });
-                    }
-                    setActiveView('hub');
+                    openClientDetailModal(client);
                 });
                 container.appendChild(button);
             });
@@ -1835,6 +2102,38 @@
         }
         if (clientOpenHub) {
             clientOpenHub.addEventListener('click', () => setActiveView('hub'));
+        }
+
+        if (clientDetailClose) clientDetailClose.addEventListener('click', closeClientDetailModal);
+        if (clientDetailModal) {
+            clientDetailModal.addEventListener('click', (event) => {
+                if (event.target === clientDetailModal) closeClientDetailModal();
+            });
+        }
+        if (clientDetailSetActive) {
+            clientDetailSetActive.addEventListener('click', () => {
+                if (!selectedClientForDetail) return;
+                const client = selectedClientForDetail;
+                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Cliente';
+                if (window.ClientContext) {
+                    window.ClientContext.setActiveClient({ id: client.id, name });
+                }
+                currentClient = client;
+                closeClientDetailModal();
+            });
+        }
+        if (clientDetailOpenHub) {
+            clientDetailOpenHub.addEventListener('click', () => {
+                if (!selectedClientForDetail) return;
+                const client = selectedClientForDetail;
+                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Cliente';
+                if (window.ClientContext) {
+                    window.ClientContext.setActiveClient({ id: client.id, name });
+                }
+                currentClient = client;
+                closeClientDetailModal();
+                setActiveView('hub');
+            });
         }
 
         document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {

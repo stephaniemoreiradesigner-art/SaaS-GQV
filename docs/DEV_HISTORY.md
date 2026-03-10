@@ -52,3 +52,35 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 1. Agency: abrir um post com mídia → verificar thumb visível no calendário.
 2. Portal do Cliente: aprovar um post pendente → confirmar que ele sai da lista pendente após refresh.
 3. Agency: recarregar após aprovação → confirmar status atualizado vindo do banco e thumb ainda presente.
+
+## 2026-03-10 — Client Details Access Model & Performance Connections Foundation
+
+### Problema
+- O módulo Clientes precisava de uma tela de detalhes por cliente, com blocos bem definidos e controle de acesso por tipo de informação.
+- O módulo Tráfego Pago precisava de uma base correta para conexões por cliente (Meta, Google Ads, LinkedIn) sem implementar integrações completas hoje.
+
+### Causa
+- Não existia uma camada de permissão no frontend para segmentar a visualização (operacional vs financeiro/legal vs admin).
+- Não existia uma estrutura de dados única para armazenar o estado de conexão por plataforma por cliente, nem uma UI mínima como fonte de verdade operacional.
+
+### Solução
+- Clientes: adicionada modal de detalhes ao clicar no card, com blocos (Visão Geral, Operação, Ativos Digitais, Financeiro/Contrato) e um modelo de acesso por role (via `TenantContext.roles`).
+- Banco: adicionadas colunas opcionais em `clientes` para suportar campos operacionais/ativos/financeiro (sem segredos).
+- Tráfego Pago: criada tabela `client_platform_connections` com RLS para Agência e UI base em Performance para visualizar status e registrar conexões como pendentes.
+
+### Arquivos Alterados
+- `v2/agency/index.html`
+- `js/v2/modules/performance/performance_connections_repo.js`
+- `js/v2/modules/performance/performance_connections_ui.js`
+- `js/v2/modules/performance/performance_connections_core.js`
+- `supabase/migrations/add_client_detail_fields.sql`
+- `supabase/migrations/create_client_platform_connections.sql`
+
+### Como Validar Manualmente
+1. Agency → Clientes: clicar em um cliente → modal de detalhes abre sem definir cliente automaticamente.
+2. Agency → Clientes: testar roles:
+   - admin/super_admin: enxerga todos os blocos.
+   - operacional: enxerga Visão Geral + Operação + Ativos Digitais.
+   - financeiro/legal: enxerga apenas Financeiro e Contrato.
+3. Agency → Performance: selecionar cliente ativo → ver cards de conexão (Meta/Google/LinkedIn).
+4. Agency → Performance: clicar em Conectar → status muda para Pendente e persiste ao recarregar (após aplicar migrações no Supabase).

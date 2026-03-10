@@ -145,22 +145,28 @@
 
         handleApprovePost: async function(postId) {
             if (!confirm('Aprovar este post?')) return;
-            const success = await global.ClientRepo.approvePost(postId);
-            if (success) {
+            const result = await global.ClientRepo.approvePost(postId);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Post aprovado!');
                 await this.loadPendingPosts();
             } else {
-                alert('Erro ao aprovar post.');
+                const err = result?.error;
+                console.error('[ClientCore] approvePost falhou:', result);
+                alert(`Erro ao aprovar post.${err?.message ? `\n${err.message}` : ''}`);
             }
         },
 
         handleRejectPost: async function(postId, reason) {
-            const success = await global.ClientRepo.rejectPost(postId, reason);
-            if (success) {
+            const result = await global.ClientRepo.rejectPost(postId, reason);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Solicitação enviada!');
                 await this.loadPendingPosts();
             } else {
-                alert('Erro ao enviar solicitação.');
+                const err = result?.error;
+                console.error('[ClientCore] rejectPost falhou:', result);
+                alert(`Erro ao enviar solicitação.${err?.message ? `\n${err.message}` : ''}`);
             }
         },
 
