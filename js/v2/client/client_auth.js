@@ -51,6 +51,55 @@
             // Listener removido daqui para evitar conflitos
         },
 
+        getPortalLink: async function(userId) {
+            await this.init();
+            const supabase = global.clientPortalSupabase;
+            if (!supabase || !userId) return { data: null, error: new Error('Supabase ou userId ausente') };
+
+            const { data, error } = await supabase
+                .from('client_portal_users')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            return { data, error };
+        },
+
+        createPortalLink: async function({ userId, clientId, tenantId, email }) {
+            await this.init();
+            const supabase = global.clientPortalSupabase;
+            if (!supabase) return { ok: false, reason: 'supabase_missing' };
+            if (!userId) return { ok: false, reason: 'user_missing' };
+            const normalizedClientId = clientId ? Number(clientId) : null;
+            if (!normalizedClientId || Number.isNaN(normalizedClientId)) return { ok: false, reason: 'client_id_missing' };
+
+            const payload = {
+                user_id: userId,
+                client_id: normalizedClientId,
+                tenant_id: tenantId ? Number(tenantId) : normalizedClientId
+            };
+
+            const { error } = await supabase.from('client_portal_users').insert(payload);
+            if (error) return { ok: false, reason: 'portal_link_insert_failed', error };
+
+            try {
+                await supabase.auth.updateUser({ data: { tenant_id: normalizedClientId } });
+            } catch {}
+            try {
+                const refreshed = await supabase.auth.refreshSession();
+                const newToken = refreshed?.data?.session?.access_token || null;
+                if (newToken) {
+                    const existing = this.checkSession();
+                    const updated = existing && typeof existing === 'object' ? { ...existing, token: newToken } : null;
+                    if (updated) localStorage.setItem(this.sessionKey, JSON.stringify(updated));
+                }
+            } catch {}
+
+            return { ok: true };
+        },
+
         /**
          * Realiza login do cliente
          * @param {string} email 
@@ -71,36 +120,38 @@
 
                 if (!user) throw new Error('Sessão não criada.');
 
-                // 2. Verificar se é cliente na tabela 'clientes'
-                // Usa o cliente isolado para a query também (mesmo banco)
-                const { data: clientDataList, error: clientError } = await global.clientPortalSupabase
-                    .from('clientes')
-                    .select('*')
-                    .eq('email', email);
-
-                if (clientError) {
-                    console.error('[ClientAuth] Erro ao buscar cliente:', clientError);
+                // 2. Resolver vínculo via tabela do portal
+                const { data: link, error: linkError } = await this.getPortalLink(user.id);
+                if (linkError) {
+                    console.error('[ClientAuth] Erro ao buscar vínculo do portal:', linkError);
                 }
-
-                if (!clientDataList || clientDataList.length === 0) {
+                if (!link?.client_id) {
                     await global.clientPortalSupabase.auth.signOut();
-                    throw new Error('Este e-mail não está vinculado a nenhum cliente ativo. Solicite acesso à sua agência.');
+                    throw new Error('Seu usuário do portal ainda não está vinculado a um cliente. Solicite o convite correto.');
                 }
 
-                if (clientDataList.length > 1) {
-                    await global.clientPortalSupabase.auth.signOut();
-                    console.warn('[ClientAuth] E-mail duplicado em clientes:', email);
-                    throw new Error('Este e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.');
-                }
+                const linkedClientId = String(link.client_id);
+                try {
+                    await global.clientPortalSupabase.auth.updateUser({ data: { tenant_id: Number(link.client_id) } });
+                    await global.clientPortalSupabase.auth.refreshSession();
+                } catch {}
 
-                const clientData = clientDataList[0];
+                let clientData = null;
+                try {
+                    const { data } = await global.clientPortalSupabase
+                        .from('clientes')
+                        .select('*')
+                        .eq('id', linkedClientId)
+                        .maybeSingle();
+                    clientData = data || null;
+                } catch {}
 
                 // 3. Salvar sessão do cliente (Metadados extras)
                 const sessionPayload = {
                     auth_id: user.id,
-                    client_id: clientData.id,
-                    name: clientData.nome_fantasia || clientData.nome || 'Cliente',
-                    email: clientData.email,
+                    client_id: linkedClientId,
+                    name: clientData?.nome_fantasia || clientData?.nome || clientData?.nome_empresa || 'Cliente',
+                    email: email,
                     token: authData.session.access_token
                 };
                 
@@ -142,6 +193,39 @@
             }
         },
 
+        registerAndLink: async function(email, password, { clientId, tenantId } = {}) {
+            await this.init();
+            const supabase = global.clientPortalSupabase;
+            if (!supabase) return { success: false, error: 'Falha ao iniciar autenticação do portal.' };
+
+            try {
+                const signUpResult = await this.register(email, password);
+                if (!signUpResult.success) return signUpResult;
+
+                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+                if (signInError) throw signInError;
+
+                const userId = signInData?.session?.user?.id || null;
+                if (!userId) throw new Error('Usuário não encontrado após registro.');
+
+                const linkResult = await this.createPortalLink({ userId, clientId, tenantId, email });
+                if (!linkResult.ok) {
+                    await supabase.auth.signOut();
+                    if (linkResult.reason === 'client_id_missing') {
+                        throw new Error('Não foi possível identificar o cliente do convite. Solicite um link de registro com client_id.');
+                    }
+                    throw new Error('Não foi possível vincular o usuário ao cliente. Solicite suporte.');
+                }
+
+                await supabase.auth.signOut();
+                localStorage.removeItem(this.sessionKey);
+                return { success: true };
+            } catch (error) {
+                console.error('[ClientAuth] Falha no registro com vínculo:', error);
+                return { success: false, error: error.message || 'Erro desconhecido' };
+            }
+        },
+
         logout: async function() {
             await this.init();
             if (global.clientPortalSupabase) {
@@ -172,123 +256,49 @@
                 return { ok: false, reason: 'no_email' };
             }
 
-            const previous = this.checkSession();
-            const previousClientId = previous?.client_id ? String(previous.client_id) : null;
-
-            let clientData = null;
-            let source = null;
-
-            if (previousClientId) {
-                const { data: byId, error: byIdError } = await supabase
-                    .from('clientes')
-                    .select('*')
-                    .eq('id', previousClientId)
-                    .maybeSingle();
-                if (!byIdError && byId) {
-                    clientData = byId;
-                    source = 'id';
-                }
-            }
-
-            if (!clientData) {
-                const { data: clientDataList, error: clientError } = await supabase
-                    .from('clientes')
-                    .select('*')
-                    .eq('email', email);
-
-                if (clientError) {
-                    return { ok: false, reason: 'client_query_error', error: clientError };
-                }
-
-                if (clientDataList && clientDataList.length === 1) {
-                    clientData = clientDataList[0];
-                    source = 'email';
-                } else if (clientDataList && clientDataList.length > 1) {
-                    await supabase.auth.signOut();
-                    localStorage.removeItem(this.sessionKey);
-                    return { ok: false, reason: 'client_email_duplicate' };
-                }
-            }
-
-            if (!clientData && previousClientId === '73') {
-                const forcedClientId = 14;
-                const forcedName = previous?.name || 'Gestão Que Vende';
-                const forcedPayload = {
-                    auth_id: authSession.user?.id,
-                    client_id: forcedClientId,
-                    name: forcedName,
-                    email: email,
-                    token: authSession.access_token
-                };
-                localStorage.setItem(this.sessionKey, JSON.stringify(forcedPayload));
-
-                try {
-                    await supabase.auth.updateUser({ data: { tenant_id: forcedClientId } });
-                } catch {}
-                try {
-                    const refreshed = await supabase.auth.refreshSession();
-                    const newToken = refreshed?.data?.session?.access_token || null;
-                    if (newToken) {
-                        forcedPayload.token = newToken;
-                        localStorage.setItem(this.sessionKey, JSON.stringify(forcedPayload));
-                    }
-                } catch {}
-                try {
-                    await supabase.from('profiles').update({ tenant_id: forcedClientId }).eq('id', authSession.user?.id);
-                } catch {}
-                try {
-                    await supabase.from('client_portal_users').update({ client_id: forcedClientId }).eq('user_id', authSession.user?.id);
-                } catch {}
-
-                return {
-                    ok: true,
-                    session: forcedPayload,
-                    repaired: true,
-                    forced: true,
-                    previousClientId,
-                    newClientId: String(forcedClientId)
-                };
-            }
-
-            if (!clientData) {
+            const { data: link, error: linkError } = await this.getPortalLink(authSession.user?.id);
+            if (linkError) {
                 await supabase.auth.signOut();
                 localStorage.removeItem(this.sessionKey);
-                return { ok: false, reason: 'client_not_found' };
+                return { ok: false, reason: 'portal_link_query_error', error: linkError };
             }
+
+            if (!link?.client_id) {
+                await supabase.auth.signOut();
+                localStorage.removeItem(this.sessionKey);
+                return { ok: false, reason: 'portal_link_missing' };
+            }
+
+            const linkedClientId = String(link.client_id);
+            try {
+                await supabase.auth.updateUser({ data: { tenant_id: Number(link.client_id) } });
+            } catch {}
+            try {
+                const refreshed = await supabase.auth.refreshSession();
+                const newToken = refreshed?.data?.session?.access_token || null;
+                if (newToken) authSession.access_token = newToken;
+            } catch {}
+
+            let clientName = 'Cliente';
+            try {
+                const { data: clientData } = await supabase
+                    .from('clientes')
+                    .select('id,nome_fantasia,nome,nome_empresa')
+                    .eq('id', linkedClientId)
+                    .maybeSingle();
+                clientName = clientData?.nome_fantasia || clientData?.nome || clientData?.nome_empresa || clientName;
+            } catch {}
 
             const sessionPayload = {
                 auth_id: authSession.user?.id,
-                client_id: clientData.id,
-                name: clientData.nome_fantasia || clientData.nome || clientData.nome_empresa || 'Cliente',
-                email: clientData.email || email,
+                client_id: linkedClientId,
+                name: clientName,
+                email,
                 token: authSession.access_token
             };
 
             localStorage.setItem(this.sessionKey, JSON.stringify(sessionPayload));
-            if (source === 'email') {
-                try {
-                    await supabase.auth.updateUser({ data: { tenant_id: clientData.id } });
-                } catch {}
-                try {
-                    const refreshed = await supabase.auth.refreshSession();
-                    const newToken = refreshed?.data?.session?.access_token || null;
-                    if (newToken) {
-                        sessionPayload.token = newToken;
-                        localStorage.setItem(this.sessionKey, JSON.stringify(sessionPayload));
-                    }
-                } catch {}
-                try {
-                    await supabase.from('profiles').update({ tenant_id: clientData.id }).eq('id', authSession.user?.id);
-                } catch {}
-                try {
-                    await supabase.from('client_portal_users').update({ client_id: clientData.id }).eq('user_id', authSession.user?.id);
-                } catch {}
-            }
-
-            const newClientId = sessionPayload.client_id ? String(sessionPayload.client_id) : null;
-            const repaired = !!(previousClientId && newClientId && previousClientId !== newClientId);
-
-            return { ok: true, session: sessionPayload, repaired, previousClientId, newClientId };
+            return { ok: true, session: sessionPayload };
         },
 
         checkSession: function() {

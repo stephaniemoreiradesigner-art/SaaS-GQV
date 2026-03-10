@@ -64,8 +64,8 @@
             const errorCode = params.get('error');
             if (errorCode) {
                 const map = {
-                    client_not_found: 'Seu acesso está vinculado a um cliente inexistente ou removido. Atualize o vínculo do cliente.',
-                    client_email_duplicate: 'Seu e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.',
+                    portal_link_missing: 'Seu usuário do portal não está vinculado a nenhum cliente. Solicite um convite com client_id.',
+                    portal_link_query_error: 'Não foi possível validar o vínculo do seu usuário. Tente novamente.',
                     no_email: 'Não foi possível identificar seu e-mail na sessão. Faça login novamente.',
                     ensure_missing: 'Não foi possível validar seu contexto. Faça login novamente.',
                     client_context_error: 'Não foi possível validar seu contexto. Faça login novamente.'
@@ -91,8 +91,7 @@
                     return;
                 }
                 const map = {
-                    client_not_found: 'Seu acesso está vinculado a um cliente inexistente ou removido. Atualize o vínculo do cliente.',
-                    client_email_duplicate: 'Seu e-mail está vinculado a mais de um cliente. Ajuste o cadastro para usar um e-mail exclusivo no portal.'
+                    portal_link_missing: 'Seu usuário do portal não está vinculado a nenhum cliente. Solicite um convite com client_id.'
                 };
                 setFeedback(map[ensured.reason] || 'Não foi possível validar seu acesso. Faça login novamente.', 'warn');
             };

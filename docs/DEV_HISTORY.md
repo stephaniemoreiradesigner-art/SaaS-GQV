@@ -220,12 +220,14 @@ Implementou-se uma lógica de "hidratação" no momento de abertura do drawer de
 
 ### Correção
 - Portal agora re-hidrata o `V2_CLIENT_SESSION` a partir da sessão do Supabase antes de permitir redirect automático.
-- Se o vínculo estiver inválido (cliente removido/inexistente), o portal:
+- A resolução de `client_id` passa a vir exclusivamente da tabela de vínculo do portal (`client_portal_users`).
+- Se o vínculo estiver inválido (cliente removido/inexistente ou vínculo ausente), o portal:
   - limpa caches relacionados,
   - impede o loop (não redireciona em cascata),
   - exibe mensagem controlada no login com instrução clara.
-- Repair do caso do ID 73 → ID 14:
-  - ao detectar `V2_CLIENT_SESSION.client_id = 73` e cliente inexistente, o portal reescreve o vínculo para `client_id = 14` e tenta sincronizar `tenant_id` via metadata/profile quando possível.
+
+### Ajuste adicional (registro)
+- O fluxo de `register.html` agora cria o vínculo do usuário recém-criado na tabela `client_portal_users` usando o `client_id` do convite (URL), garantindo que o login subsequente resolva o cliente corretamente.
 
 ### Arquivos Alterados
 - `js/v2/shared/auth_guard.js`

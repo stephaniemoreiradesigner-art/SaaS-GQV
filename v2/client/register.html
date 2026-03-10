@@ -54,6 +54,7 @@
                     </div>
                 </div>
             </div>
+            <div id="client-register-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
             <div>
                 <button type="submit"
                     class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-md hover:shadow-lg">
@@ -85,8 +86,23 @@
             if (!form) return;
             const emailInputElement = document.getElementById('email');
             const inviteNote = document.getElementById('email-invite-note');
+            const feedback = document.getElementById('client-register-feedback');
             const params = new URLSearchParams(window.location.search);
             const inviteEmail = String(params.get('email') || '').trim().toLowerCase();
+            const inviteClientId = String(params.get('client_id') || params.get('cliente_id') || params.get('tenant_id') || '').trim();
+
+            const setFeedback = (message, type = 'error') => {
+                if (!feedback) return;
+                feedback.textContent = message;
+                feedback.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border', 'border-red-100', 'bg-amber-50', 'text-amber-800', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100');
+                if (type === 'success') {
+                    feedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                } else if (type === 'warn') {
+                    feedback.classList.add('bg-amber-50', 'text-amber-800', 'border', 'border-amber-100');
+                } else {
+                    feedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
+                }
+            };
             
             if (inviteEmail && emailInputElement) {
                 emailInputElement.value = inviteEmail;
@@ -104,12 +120,16 @@
                 const originalContent = btn.innerHTML;
 
                 if (!email) {
-                    alert('Informe um e-mail válido.');
+                    setFeedback('Informe um e-mail válido.', 'error');
                     return;
                 }
 
                 if (password !== confirmPassword) {
-                    alert('As senhas não conferem!');
+                    setFeedback('As senhas não conferem.', 'error');
+                    return;
+                }
+                if (!inviteClientId) {
+                    setFeedback('Link de registro inválido (client_id ausente). Solicite um convite com client_id.', 'warn');
                     return;
                 }
 
@@ -117,16 +137,19 @@
                 btn.disabled = true;
 
                 try {
-                    const result = await window.ClientAuth.register(email, password);
+                    if (!window.ClientAuth?.registerAndLink) {
+                        throw new Error('Módulo de registro do portal não carregou corretamente.');
+                    }
+                    const result = await window.ClientAuth.registerAndLink(email, password, { clientId: inviteClientId });
 
                     if (result.success) {
-                        alert('Conta criada com sucesso! Faça login.');
+                        setFeedback('Conta criada com sucesso! Faça login.', 'success');
                         window.location.href = '/v2/client/login.html';
                     } else {
-                        alert(result.error || 'Erro ao criar conta.');
+                        setFeedback(result.error || 'Erro ao criar conta.', 'error');
                     }
                 } catch (error) {
-                    alert('Erro inesperado: ' + error.message);
+                    setFeedback(error.message ? `Erro inesperado: ${error.message}` : 'Erro inesperado no registro.', 'error');
                 } finally {
                     btn.innerHTML = originalContent;
                     btn.disabled = false;
