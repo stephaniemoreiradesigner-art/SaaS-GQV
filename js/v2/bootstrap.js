@@ -10,10 +10,18 @@
     console.log('[V2 Bootstrap] Iniciando sequência de boot...');
 
     async function boot() {
-        // 1. Aguardar Supabase e Auth (app.js legado)
+        // 1. Garantir Supabase Client (V2)
         if (!global.supabaseClient) {
-            console.log('[V2 Bootstrap] Aguardando supabaseReady...');
-            await new Promise(resolve => window.addEventListener('supabaseReady', resolve, { once: true }));
+            const client = global.SupabaseFactory?.getAgencyClient
+                ? await global.SupabaseFactory.getAgencyClient()
+                : null;
+            if (client) global.supabaseClient = client;
+        }
+        if (global.supabaseClient) {
+            window.dispatchEvent(new CustomEvent('supabaseReady'));
+        } else {
+            console.error('[V2 Bootstrap] Falha ao inicializar Supabase.');
+            return;
         }
 
         console.log('[V2 Bootstrap] Supabase detectado. Inicializando contextos...');

@@ -804,7 +804,6 @@
     <script src="/js/v2/shared/constants.js"></script>
     <script src="/js/v2/core/supabase.js"></script>
     <script src="/js/v2/shared/auth_guard.js"></script>
-    <script src="/js/app.js"></script>
     <script src="/js/v2/shared/tenantContext.js"></script>
     <script src="/js/v2/shared/clientContext.js"></script>
     <script src="/js/v2/shared/workspaceState.js"></script>
@@ -1720,9 +1719,9 @@
 
         const getSupabaseClient = async () => {
             if (window.supabaseClient) return window.supabaseClient;
-            if (typeof window.initSupabase === 'function') {
-                const ok = await window.initSupabase();
-                if (ok && window.supabaseClient) return window.supabaseClient;
+            if (window.SupabaseFactory?.getAgencyClient) {
+                const client = await window.SupabaseFactory.getAgencyClient();
+                if (client) window.supabaseClient = client;
             }
             return window.supabaseClient || null;
         };
