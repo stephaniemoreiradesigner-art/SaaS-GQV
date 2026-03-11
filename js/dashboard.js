@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const renderHybridDashboard = () => {
         const mocks = typeof window.getPresentationMocks === 'function' ? window.getPresentationMocks() : null;
-        const demoClientName = localStorage.getItem('demo_client_name') || 'Cliente Demonstração';
+        const demoClientName = localStorage.getItem('demo_client_name') || 'Tekohá';
         const demoUserName = localStorage.getItem('demo_user_name') || mocks?.user?.name || 'Stéphanie Demo';
 
         const metricCampanhas = document.getElementById('metric-campanhas');

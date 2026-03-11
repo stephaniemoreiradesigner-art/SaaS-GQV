@@ -12,11 +12,11 @@ window.enterDemoMode = function() {
     localStorage.setItem('demo_mode', 'true');
     localStorage.setItem('demo_user_name', 'Stéphanie Demo');
     if (typeof window.setActiveDemoClient === 'function') {
-        window.setActiveDemoClient('demo-client-001');
+        window.setActiveDemoClient('demo-client-tekoha');
     } else {
-        localStorage.setItem('demo_client_id', 'demo-client-001');
-        localStorage.setItem('demo_client_name', 'Cliente Demonstração');
-        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', 'demo-client-001');
+        localStorage.setItem('demo_client_id', 'demo-client-tekoha');
+        localStorage.setItem('demo_client_name', 'Tekohá');
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', 'demo-client-tekoha');
     }
 };
 
@@ -32,15 +32,13 @@ const DEMO_ACTIVE_CLIENT_KEY = 'GQV_DEMO_ACTIVE_CLIENT';
 
 window.getDemoClients = function() {
     return [
-        { id: 'demo-client-001', nome: 'Cliente Demonstração', empresa: 'Tekohá', status: 'Ativo' },
-        { id: 'demo-client-002', nome: 'UsePi Equipamentos', empresa: 'UsePi', status: 'Ativo' },
-        { id: 'demo-client-003', nome: 'NeuroEduca', empresa: 'NeuroEduca', status: 'Ativo' }
+        { id: 'demo-client-tekoha', nome: 'Tekohá', empresa: 'Tekohá', status: 'Ativo', segmento: 'Cliente Demo' }
     ];
 };
 
 window.getActiveDemoClient = function() {
     const list = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
-    const fallback = Array.isArray(list) && list.length ? list[0] : { id: 'demo-client-001', nome: 'Cliente Demonstração', empresa: 'Tekohá', status: 'Ativo' };
+    const fallback = Array.isArray(list) && list.length ? list[0] : { id: 'demo-client-tekoha', nome: 'Tekohá', empresa: 'Tekohá', status: 'Ativo', segmento: 'Cliente Demo' };
     try {
         const raw = localStorage.getItem(DEMO_ACTIVE_CLIENT_KEY);
         if (raw) {
@@ -67,10 +65,11 @@ window.setActiveDemoClient = function(client) {
     const id = String(value || '').trim();
     const resolved = (Array.isArray(list) ? list : []).find((c) => String(c.id) === id) || (typeof client === 'object' && client ? client : null) || window.getActiveDemoClient();
     const payload = {
-        id: String(resolved.id || id || 'demo-client-001'),
-        nome: String(resolved.nome || 'Cliente Demonstração'),
+        id: String(resolved.id || id || 'demo-client-tekoha'),
+        nome: String(resolved.nome || 'Tekohá'),
         empresa: String(resolved.empresa || resolved.nome || 'Tekohá'),
-        status: String(resolved.status || 'Ativo')
+        status: String(resolved.status || 'Ativo'),
+        segmento: String(resolved.segmento || 'Cliente Demo')
     };
     try {
         localStorage.setItem(DEMO_ACTIVE_CLIENT_KEY, JSON.stringify(payload));
@@ -118,9 +117,9 @@ if (typeof window.setActiveClientId !== 'function') {
 window.getDemoClient = function() {
     const active = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
     return {
-        id: active?.id || localStorage.getItem('demo_client_id') || 'demo-client-001',
-        nome_fantasia: active?.nome || localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
-        nome_empresa: active?.empresa || active?.nome || localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
+        id: active?.id || localStorage.getItem('demo_client_id') || 'demo-client-tekoha',
+        nome_fantasia: active?.nome || localStorage.getItem('demo_client_name') || 'Tekohá',
+        nome_empresa: active?.empresa || active?.nome || localStorage.getItem('demo_client_name') || 'Tekohá',
         plataformas_social: ['instagram', 'facebook', 'linkedin', 'tiktok'],
         link_briefing: '',
         link_persona: '',
@@ -147,7 +146,7 @@ window.getDemoSocialPosts = function(monthKey) {
         { day: 16, status: 'ready_for_approval', tema: 'Reels: 3 gatilhos de atenção' },
         { day: 20, status: 'in_production', tema: 'Carrossel: estrutura RETINA' }
     ];
-    const demoClient = window.getDemoClient ? window.getDemoClient() : { id: 'demo-client-001' };
+    const demoClient = window.getDemoClient ? window.getDemoClient() : { id: 'demo-client-tekoha' };
     return list.map((item, index) => {
         const id = `demo-post-${String(index + 1).padStart(3, '0')}`;
         const date = safe(item.day);
@@ -340,6 +339,25 @@ window.getConnectedPlatforms = async function(clientId) {
         return { all: fallbackList, connected: [], map: fallbackMap };
     }
 
+    const isDemo = typeof window.isDemoMode === 'function' ? window.isDemoMode() : false;
+    if (isDemo) {
+        let meta = null;
+        try {
+            meta = JSON.parse(localStorage.getItem('GQV_DEMO_META_TEKOHA') || 'null');
+        } catch {
+            meta = null;
+        }
+        const hasMeta = !!(meta?.ad_account_id || meta?.ad_account_name);
+        const map = { ...fallbackMap };
+        if (hasMeta) {
+            map.facebook = { ...map.facebook, status: 'connected', external_id: meta.ad_account_id || '', external_name: meta.ad_account_name || '' };
+            map.instagram = { ...map.instagram, status: 'connected', external_id: meta.ad_account_id || '', external_name: meta.ad_account_name || '' };
+        }
+        const all = platforms.map(platform => map[platform]);
+        const connected = all.filter(item => item.status === 'connected');
+        return { all, connected, map };
+    }
+
     try {
         const headers = {};
         if (window.supabaseClient?.auth?.getSession) {
@@ -384,7 +402,11 @@ window.renderPlatformNotConnectedCTA = function(clientId, platform) {
         meta: 'Meta Ads'
     };
     const label = labels[platform] || platform;
-    const url = `clientes.html?cliente_id=${encodeURIComponent(clientId)}#conexoes`;
+    const isDemo = typeof window.isDemoMode === 'function' ? window.isDemoMode() : false;
+    const isMetaLabel = ['instagram', 'facebook', 'meta_ads', 'meta'].includes(String(platform));
+    const url = isDemo
+        ? `trafego_pago.html?tab=overview#meta`
+        : `clientes.html?cliente_id=${encodeURIComponent(clientId)}#conexoes`;
     return `
         <div class="col-span-full flex flex-col items-center justify-center py-12 text-center bg-white rounded-xl border border-dashed border-gray-300">
             <div class="bg-blue-50 p-6 rounded-full mb-4">
@@ -392,9 +414,10 @@ window.renderPlatformNotConnectedCTA = function(clientId, platform) {
             </div>
             <h3 class="text-lg font-bold text-gray-900 mb-2">Conexão necessária</h3>
             <p class="text-gray-500 max-w-md mx-auto mb-4">Conecte ${label} no cadastro do cliente para usar este recurso.</p>
-            <a href="${url}" class="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium">
-                Ir para Conexões
-            </a>
+            ${isDemo && isMetaLabel
+                ? `<button type="button" onclick="window.openDemoMetaConnect && window.openDemoMetaConnect()" class="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium">Conectar Meta</button>`
+                : `<a href="${url}" class="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium">Ir para Conexões</a>`
+            }
         </div>
     `;
 };

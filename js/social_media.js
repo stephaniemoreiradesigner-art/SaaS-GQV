@@ -40,13 +40,13 @@ function isDemoModeActive() {
 function getDemoClientId() {
     const fromContext = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
     const fromStorage = String(localStorage.getItem('demo_client_id') || '').trim();
-    return String(fromContext?.id || fromStorage || 'demo-client-001').trim() || 'demo-client-001';
+    return String(fromContext?.id || fromStorage || 'demo-client-tekoha').trim() || 'demo-client-tekoha';
 }
 
 function getDemoClientName() {
     const fromContext = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
     const fromStorage = String(localStorage.getItem('demo_client_name') || '').trim();
-    return String(fromContext?.nome || fromStorage || 'Cliente Demonstração').trim() || 'Cliente Demonstração';
+    return String(fromContext?.nome || fromStorage || 'Tekohá').trim() || 'Tekohá';
 }
 
 function getDemoMonthKey() {
@@ -266,7 +266,7 @@ function getClientIdFromQuery() {
     const value = String(raw || '').trim();
     if (!value) return '';
     if (/^\d+$/.test(value)) return value;
-    if (isDemoModeActive() && /^demo-client-\d{3}$/.test(value)) return value;
+    if (isDemoModeActive() && /^demo-client-[a-z0-9-]+$/i.test(value)) return value;
     return '';
 }
 

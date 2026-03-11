@@ -326,11 +326,15 @@ window.generateTrafficReport = async function() {
 
             // Se não houver dados no Supabase, busca DIRETAMENTE DA API (Meta Ads, etc.)
             if (platformData.length === 0) {
-                if (platform === 'meta_ads' && platformAdAccountId) {
+                const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
+                const demoMeta = isDemo ? getDemoMetaState() : null;
+                const resolvedMetaAccount = platformAdAccountId || demoMeta?.ad_account_id || null;
+
+                if (platform === 'meta_ads' && resolvedMetaAccount) {
                     try {
                         // VIBECODE SECURITY: Token gerenciado pelo backend.
                         // Chamada direta ao proxy (token=null)
-                        const apiData = await fetchMetaAdsData(platformAdAccountId, null, startDateVal, endDateVal);
+                        const apiData = await fetchMetaAdsData(resolvedMetaAccount, null, startDateVal, endDateVal);
                         
                         if (apiData && apiData.length > 0) {
                             platformData = apiData;
@@ -510,6 +514,18 @@ window.fetchMetaAdsData = async function(accountId, token, startDate, endDate) {
     // VIBECODE SECURITY: 
     // A token (param 2) é ignorada aqui pois o backend injeta a chave segura.
     // Mantemos a assinatura da função para compatibilidade, mas passamos null na chamada.
+
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
+    if (isDemo) {
+        const demo = getDemoMetaState();
+        const resolved = String(accountId || demo?.ad_account_id || '').replace(/^act_/, '').trim();
+        if (!resolved) return [];
+        const url = `/api/demo/meta/insights?account_id=${encodeURIComponent(resolved)}&since=${encodeURIComponent(startDate)}&until=${encodeURIComponent(endDate)}`;
+        const res = await fetch(url);
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) return [];
+        return Array.isArray(json.items) ? json.items : [];
+    }
 
     const cleanId = accountId.replace('act_', '');
     const actId = `act_${cleanId}`;
@@ -1085,7 +1101,175 @@ function renderDemoTrafficKpis(clientId) {
     setText('kpi-clicks', cliques.toLocaleString('pt-BR'));
     setText('kpi-conversoes', conversoes.toLocaleString('pt-BR'));
     setText('kpi-roas', `${roas.toFixed(2)}x`);
+
+    tryRenderDemoMetaKpis();
 }
+
+function getDemoMetaState() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem('GQV_DEMO_META_TEKOHA') || 'null');
+        if (!parsed || typeof parsed !== 'object') return null;
+        return {
+            ad_account_id: String(parsed.ad_account_id || '').replace(/^act_/, '').trim(),
+            ad_account_name: String(parsed.ad_account_name || '').trim()
+        };
+    } catch {
+        return null;
+    }
+}
+
+function setDemoMetaState(state) {
+    const payload = {
+        ad_account_id: String(state?.ad_account_id || '').replace(/^act_/, '').trim(),
+        ad_account_name: String(state?.ad_account_name || '').trim()
+    };
+    localStorage.setItem('GQV_DEMO_META_TEKOHA', JSON.stringify(payload));
+    return payload;
+}
+
+function formatDateYYYYMMDD(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+async function tryRenderDemoMetaKpis() {
+    const state = getDemoMetaState();
+    if (!state?.ad_account_id) return;
+    try {
+        const until = new Date();
+        const since = new Date();
+        since.setDate(until.getDate() - 30);
+        const url = `/api/demo/meta/insights?account_id=${encodeURIComponent(state.ad_account_id)}&since=${encodeURIComponent(formatDateYYYYMMDD(since))}&until=${encodeURIComponent(formatDateYYYYMMDD(until))}`;
+        const res = await fetch(url);
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) return;
+
+        const sum = json.summary || {};
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = value;
+        };
+
+        if (typeof window.formatCurrency === 'function') {
+            setText('kpi-investimento', window.formatCurrency(Number(sum.spend || 0)));
+        } else {
+            setText('kpi-investimento', `R$ ${Number(sum.spend || 0).toLocaleString('pt-BR')}`);
+        }
+        setText('kpi-impressoes', Number(sum.impressions || 0).toLocaleString('pt-BR'));
+        setText('kpi-clicks', Number(sum.clicks || 0).toLocaleString('pt-BR'));
+        setText('kpi-conversoes', Number(sum.conversions || 0).toLocaleString('pt-BR'));
+        setText('kpi-roas', `${Number(sum.roas || 0).toFixed(2)}x`);
+
+        const statusEl = document.getElementById('meta-demo-status');
+        if (statusEl) {
+            statusEl.textContent = state.ad_account_name ? `Meta conectado: ${state.ad_account_name}` : 'Meta conectado';
+            statusEl.classList.remove('hidden');
+        }
+    } catch (err) {
+        const statusEl = document.getElementById('meta-demo-status');
+        if (statusEl) {
+            statusEl.textContent = 'Meta indisponível no momento. Usando dados de demonstração.';
+            statusEl.classList.remove('hidden');
+        }
+    }
+}
+
+window.openDemoMetaConnect = async function() {
+    const modal = document.getElementById('demo-meta-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.id = 'demo-meta-modal';
+    wrapper.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4';
+    wrapper.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <div class="text-lg font-bold text-gray-900">Conectar Meta (Tekohá)</div>
+                    <div class="text-sm text-gray-500">Selecione a conta de anúncios autorizada para a demo.</div>
+                </div>
+                <button id="demo-meta-close" class="text-gray-500 hover:text-gray-700 px-2 py-1">Fechar</button>
+            </div>
+            <div class="p-6">
+                <div id="demo-meta-error" class="hidden mb-4 text-sm text-red-600"></div>
+                <div id="demo-meta-loading" class="text-sm text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando contas...</div>
+                <div id="demo-meta-list" class="hidden space-y-2 max-h-[45vh] overflow-auto"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button id="demo-meta-cancel" class="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Cancelar</button>
+                <button id="demo-meta-save" class="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover">Salvar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(wrapper);
+
+    const close = () => wrapper.classList.add('hidden');
+    wrapper.querySelector('#demo-meta-close').addEventListener('click', close);
+    wrapper.querySelector('#demo-meta-cancel').addEventListener('click', close);
+
+    const loadingEl = wrapper.querySelector('#demo-meta-loading');
+    const listEl = wrapper.querySelector('#demo-meta-list');
+    const errorEl = wrapper.querySelector('#demo-meta-error');
+
+    const current = getDemoMetaState();
+    try {
+        const res = await fetch('/api/demo/meta/adaccounts');
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+            throw new Error(json?.error || 'Não foi possível listar as contas.');
+        }
+        const accounts = Array.isArray(json.adaccounts) ? json.adaccounts : [];
+        loadingEl.classList.add('hidden');
+        listEl.classList.remove('hidden');
+        listEl.innerHTML = accounts.length
+            ? accounts.map((acc) => {
+                const id = String(acc?.id || '').replace(/^act_/, '');
+                const name = String(acc?.name || id);
+                const checked = current?.ad_account_id && current.ad_account_id === id ? 'checked' : '';
+                return `
+                    <label class="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <input type="radio" name="demo-meta-account" value="${id}" data-name="${name.replace(/"/g, '&quot;')}" ${checked} />
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">${name.replace(/</g, '&lt;')}</div>
+                                <div class="text-xs text-gray-500">ID: ${id.replace(/</g, '&lt;')}</div>
+                            </div>
+                        </div>
+                    </label>
+                `;
+            }).join('')
+            : `<div class="text-sm text-gray-500">Nenhuma conta disponível.</div>`;
+    } catch (err) {
+        loadingEl.classList.add('hidden');
+        errorEl.textContent = String(err?.message || err || 'Erro ao carregar contas.');
+        errorEl.classList.remove('hidden');
+    }
+
+    wrapper.querySelector('#demo-meta-save').addEventListener('click', () => {
+        const selected = wrapper.querySelector('input[name="demo-meta-account"]:checked');
+        if (!selected) {
+            errorEl.textContent = 'Selecione uma conta para continuar.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        const id = String(selected.value || '').trim();
+        const name = String(selected.dataset.name || '').trim();
+        setDemoMetaState({ ad_account_id: id, ad_account_name: name });
+        close();
+        const filterSelect = document.getElementById('filter-cliente');
+        const clientId = filterSelect?.value || (typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient()?.id : '');
+        renderDemoTrafficKpis(clientId);
+        if (typeof updateTrafficPlatformAvailability === 'function') {
+            updateTrafficPlatformAvailability(clientId);
+        }
+    });
+};
 
 window.loadTrafficClients = async function() {
     console.log('Iniciando carregamento de clientes do Tráfego Pago...');

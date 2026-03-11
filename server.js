@@ -6454,6 +6454,165 @@ const server = http.createServer(async (request, response) => {
         }
     }
 
+    if (pathname === '/api/demo/meta/adaccounts' && request.method === 'GET') {
+        try {
+            const systemUserToken = envVars['META_SYSTEM_USER_TOKEN'] || process.env.META_SYSTEM_USER_TOKEN || '';
+            if (!systemUserToken) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: 'META_SYSTEM_USER_TOKEN não configurado' }));
+                return;
+            }
+
+            const allowedRaw = String(envVars['DEMO_TEKOHA_AD_ACCOUNT_ID'] || process.env.DEMO_TEKOHA_AD_ACCOUNT_ID || '').trim();
+            const allowed = allowedRaw ? allowedRaw.replace(/^act_/, '') : '';
+
+            const graphParams = new URLSearchParams();
+            graphParams.set('fields', 'id,name,account_id');
+            graphParams.set('limit', '100');
+            graphParams.set('access_token', systemUserToken);
+
+            const graphRes = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?${graphParams.toString()}`);
+            const graphJson = await graphRes.json().catch(() => null);
+            if (!graphRes.ok || !graphJson) {
+                const message = graphJson?.error?.message || 'erro_ao_listar_adaccounts';
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: message }));
+                return;
+            }
+
+            let adaccounts = Array.isArray(graphJson.data) ? graphJson.data : [];
+            if (allowed) {
+                adaccounts = adaccounts.filter(acc => {
+                    const id = String(acc?.id || '').replace(/^act_/, '');
+                    const accountId = String(acc?.account_id || '').replace(/^act_/, '');
+                    return id === allowed || accountId === allowed;
+                });
+            }
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: true, adaccounts }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: false, error: error?.message || 'erro_demo_meta_adaccounts' }));
+            return;
+        }
+    }
+
+    if (pathname === '/api/demo/meta/insights' && request.method === 'GET') {
+        try {
+            const systemUserToken = envVars['META_SYSTEM_USER_TOKEN'] || process.env.META_SYSTEM_USER_TOKEN || '';
+            if (!systemUserToken) {
+                response.writeHead(500, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: 'META_SYSTEM_USER_TOKEN não configurado' }));
+                return;
+            }
+
+            const query = parsedUrl.query || {};
+            const rawAccountId = String(query.account_id || query.accountId || query.ad_account_id || query.adAccountId || '').trim();
+            const since = String(query.since || query.start_date || '').trim();
+            const until = String(query.until || query.end_date || '').trim();
+            if (!rawAccountId || !since || !until) {
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: 'parametros_invalidos' }));
+                return;
+            }
+
+            const allowedRaw = String(envVars['DEMO_TEKOHA_AD_ACCOUNT_ID'] || process.env.DEMO_TEKOHA_AD_ACCOUNT_ID || '').trim();
+            const allowed = allowedRaw ? allowedRaw.replace(/^act_/, '') : '';
+            const normalizedAccount = rawAccountId.replace(/^act_/, '');
+            if (allowed && normalizedAccount !== allowed) {
+                response.writeHead(403, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: 'ad_account_nao_permitida' }));
+                return;
+            }
+
+            const actId = `act_${normalizedAccount}`;
+            const fields = 'campaign_name,impressions,clicks,spend,actions,action_values,cpc,ctr,date_start';
+            const timeRange = JSON.stringify({ since, until });
+
+            const params = new URLSearchParams();
+            params.set('level', 'campaign');
+            params.set('fields', fields);
+            params.set('time_range', timeRange);
+            params.set('time_increment', '1');
+            params.set('limit', '200');
+            params.set('access_token', systemUserToken);
+
+            const graphRes = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(actId)}/insights?${params.toString()}`);
+            const graphJson = await graphRes.json().catch(() => null);
+            if (!graphRes.ok || !graphJson) {
+                const message = graphJson?.error?.message || 'erro_ao_buscar_insights';
+                response.writeHead(400, { 'Content-Type': 'application/json' });
+                response.end(JSON.stringify({ ok: false, error: message }));
+                return;
+            }
+
+            const rows = Array.isArray(graphJson.data) ? graphJson.data : [];
+            const items = rows.map(item => {
+                let conversions = 0;
+                let revenue = 0;
+                const actions = Array.isArray(item.actions) ? item.actions : [];
+                const actionValues = Array.isArray(item.action_values) ? item.action_values : [];
+
+                actions.forEach(act => {
+                    const t = String(act?.action_type || '');
+                    if (['purchase', 'lead', 'submit_application', 'complete_registration', 'contact', 'schedule'].includes(t)) {
+                        conversions += Number(act?.value || 0) || 0;
+                    }
+                });
+                actionValues.forEach(val => {
+                    const t = String(val?.action_type || '');
+                    if (t === 'purchase' || t === 'purchase_value') {
+                        revenue += Number(val?.value || 0) || 0;
+                    }
+                });
+
+                return {
+                    date: item.date_start,
+                    campaign_name: item.campaign_name,
+                    impressions: Number(item.impressions || 0) || 0,
+                    clicks: Number(item.clicks || 0) || 0,
+                    spend: Number(item.spend || 0) || 0,
+                    conversions,
+                    conversion_values: revenue
+                };
+            });
+
+            const summary = items.reduce((acc, item) => {
+                acc.spend += Number(item.spend || 0) || 0;
+                acc.impressions += Number(item.impressions || 0) || 0;
+                acc.clicks += Number(item.clicks || 0) || 0;
+                acc.conversions += Number(item.conversions || 0) || 0;
+                acc.revenue += Number(item.conversion_values || 0) || 0;
+                return acc;
+            }, { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 });
+
+            const ctr = summary.impressions > 0 ? (summary.clicks / summary.impressions) * 100 : 0;
+            const roas = summary.spend > 0 ? (summary.revenue / summary.spend) : 0;
+
+            response.writeHead(200, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({
+                ok: true,
+                summary: {
+                    spend: summary.spend,
+                    impressions: summary.impressions,
+                    clicks: summary.clicks,
+                    ctr,
+                    conversions: summary.conversions,
+                    roas,
+                    revenue: summary.revenue
+                },
+                items
+            }));
+            return;
+        } catch (error) {
+            response.writeHead(500, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok: false, error: error?.message || 'erro_demo_meta_insights' }));
+            return;
+        }
+    }
+
     if (pathname === '/api/clients/list' && request.method === 'GET') {
         try {
             const { supabaseUrl, serviceRoleKey } = getSupabaseConfig();
