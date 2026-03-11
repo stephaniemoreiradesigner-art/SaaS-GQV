@@ -129,13 +129,6 @@
         }
     };
 
-    // Auto-init se DOM estiver pronto, ou aguarda
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => AuthGuard.init());
-    } else {
-        AuthGuard.init();
-    }
-
     global.AuthGuard = AuthGuard;
 
 })(window);

@@ -10,6 +10,9 @@
     console.log('[V2 Bootstrap] Iniciando sequência de boot...');
 
     async function boot() {
+        if (global.__GQV_V2_BOOTSTRAPPED__ === true) return;
+        global.__GQV_V2_BOOTSTRAPPED__ = true;
+
         // 1. Garantir Supabase Client (V2)
         if (!global.supabaseClient) {
             const client = global.SupabaseFactory?.getAgencyClient
@@ -19,6 +22,7 @@
         }
         if (global.supabaseClient) {
             window.dispatchEvent(new CustomEvent('supabaseReady'));
+            window.dispatchEvent(new CustomEvent('gqv:v2:supabaseReady'));
         } else {
             console.error('[V2 Bootstrap] Falha ao inicializar Supabase.');
             return;
@@ -26,12 +30,14 @@
 
         console.log('[V2 Bootstrap] Supabase detectado. Inicializando contextos...');
 
+        if (global.AuthGuard?.init) {
+            await global.AuthGuard.init();
+        }
+
         const path = window.location.pathname || '';
         if (path.includes('/v2/agency/index.html') && global.supabaseClient?.auth?.getSession) {
             const { data } = await global.supabaseClient.auth.getSession();
             if (!data?.session) {
-                console.warn('[V2 Bootstrap] Sessão ausente. Redirecionando para login da Agency V2.');
-                window.location.href = '/v2/agency/login.html';
                 return;
             }
         }
@@ -57,6 +63,7 @@
         // 4. Sinalizar Prontidão
         console.log('[V2 Bootstrap] Boot completo. Disparando v2:ready');
         window.dispatchEvent(new CustomEvent('v2:ready'));
+        window.dispatchEvent(new CustomEvent('gqv:v2:ready'));
         document.body.classList.add('v2-ready');
     }
 
