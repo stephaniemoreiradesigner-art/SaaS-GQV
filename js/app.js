@@ -4,7 +4,8 @@ window.supabaseConfig = null;
 let supabaseConfigPromise = null;
 
 window.isDemoMode = function() {
-    return String(localStorage.getItem('demo_mode')) === 'true';
+    if (String(localStorage.getItem('demo_mode')) === 'true') return true;
+    return window.__demo_auto === true;
 };
 
 window.enterDemoMode = function() {
@@ -75,6 +76,17 @@ async function loadSupabaseConfig() {
     if (window.supabaseConfig) return window.supabaseConfig;
     if (supabaseConfigPromise) return supabaseConfigPromise;
 
+    try {
+        const cached = localStorage.getItem('gqv_supabase_config_cache');
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed?.supabaseUrl && parsed?.supabaseAnonKey) {
+                window.supabaseConfig = { supabaseUrl: parsed.supabaseUrl, supabaseAnonKey: parsed.supabaseAnonKey };
+                return window.supabaseConfig;
+            }
+        }
+    } catch {}
+
     supabaseConfigPromise = fetch('/config')
         .then(async (response) => {
             if (!response.ok) {
@@ -87,13 +99,24 @@ async function loadSupabaseConfig() {
             const supabaseAnonKey = data?.supabaseAnonKey;
             if (data?.missing || !supabaseUrl || !supabaseAnonKey) {
                 console.error('Configuração Supabase ausente ou incompleta em /config', data);
+                window.__demo_auto = true;
+                if (typeof window.enterDemoMode === 'function') {
+                    window.enterDemoMode();
+                }
                 return null;
             }
             window.supabaseConfig = { supabaseUrl, supabaseAnonKey };
+            try {
+                localStorage.setItem('gqv_supabase_config_cache', JSON.stringify(window.supabaseConfig));
+            } catch {}
             return window.supabaseConfig;
         })
         .catch((err) => {
             console.error('Erro ao carregar /config do Supabase:', err);
+            window.__demo_auto = true;
+            if (typeof window.enterDemoMode === 'function') {
+                window.enterDemoMode();
+            }
             return null;
         });
 
@@ -129,6 +152,10 @@ async function initSupabase() {
         }
     } catch (err) {
         console.error('Erro fatal ao inicializar Supabase:', err);
+        window.__demo_auto = true;
+        if (typeof window.enterDemoMode === 'function') {
+            window.enterDemoMode();
+        }
         return false;
     }
 }
@@ -252,8 +279,6 @@ window.renderPlatformNotConnectedCTA = function(clientId, platform) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Sistema GQV Iniciado - v2.0 (Resiliente)');
-
-    const demoModeEnabled = String(localStorage.getItem('demo_mode')) === 'true';
     
     // REDE DE SEGURANÇA: Timeout Global
     // Se em 4 segundos a tela de loading ainda estiver lá, força a abertura
@@ -270,6 +295,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const path = window.location.pathname;
         const isLoginPage = path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/');
         const isRestrictedPage = !isLoginPage;
+
+        const demoModeEnabled =
+            (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false)
+            || String(localStorage.getItem('demo_mode')) === 'true';
 
         if (demoModeEnabled) {
             if (isLoginPage) {
@@ -471,6 +500,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Evento supabaseReady recebido. Iniciando auth check...');
             checkAuthAndLoad();
         });
+
+        setTimeout(() => {
+            const demoNow =
+                (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false)
+                || String(localStorage.getItem('demo_mode')) === 'true';
+            if (!window.supabaseClient && demoNow) {
+                checkAuthAndLoad();
+            }
+        }, 800);
     }
 
     // --- Funções Auxiliares ---

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -1538,8 +1539,7 @@ const server = http.createServer(async (request, response) => {
     // --- API ENDPOINTS ---
 
     if (pathname === '/config' && request.method === 'GET') {
-        const supabaseUrl = process.env.SUPABASE_URL || '';
-        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+        const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
         const payload = {
             supabaseUrl,
             supabaseAnonKey,
