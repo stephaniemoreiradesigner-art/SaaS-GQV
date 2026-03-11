@@ -72,6 +72,28 @@ window.getDemoSocialPosts = function(monthKey) {
     });
 };
 
+window.getPresentationMocks = function() {
+    const demoUserName = localStorage.getItem('demo_user_name') || 'Stéphanie Demo';
+    return {
+        user: { name: demoUserName },
+        clientes: [
+            { id: 1, nome: 'Tekohá', status: 'Ativo' },
+            { id: 2, nome: 'UsePi Equipamentos', status: 'Ativo' },
+            { id: 3, nome: 'NeuroEduca', status: 'Proposta' }
+        ],
+        lembretes: [
+            { id: 1, texto: 'Revisar planejamento social media' },
+            { id: 2, texto: 'Enviar relatório mensal ao cliente' }
+        ],
+        reunioes: [
+            { id: 1, titulo: 'Alinhamento campanha', data: 'Hoje 14:00' }
+        ],
+        aniversarios: [
+            { id: 1, nome: 'Cliente Tekohá', data: '18/03' }
+        ]
+    };
+};
+
 async function loadSupabaseConfig() {
     if (window.supabaseConfig) return window.supabaseConfig;
     if (supabaseConfigPromise) return supabaseConfigPromise;
@@ -179,6 +201,15 @@ document.addEventListener('DOMContentLoaded', () => {
             window.dispatchEvent(new CustomEvent('supabaseReady'));
         }
     });
+
+    setTimeout(() => {
+        if (window.supabaseClient) return;
+        window.__demo_auto = true;
+        if (typeof window.enterDemoMode === 'function') {
+            window.enterDemoMode();
+        }
+        window.dispatchEvent(new CustomEvent('supabaseReady'));
+    }, 1500);
 });
 
 

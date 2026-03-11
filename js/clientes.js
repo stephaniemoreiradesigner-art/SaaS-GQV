@@ -374,6 +374,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 1. Função para Carregar Clientes
     async function loadClientes() {
+        const isHybridMode =
+            (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true')
+            || !window.supabaseClient;
+
+        if (isHybridMode) {
+            const mocks = typeof window.getPresentationMocks === 'function' ? window.getPresentationMocks() : null;
+            const demoUserName = localStorage.getItem('demo_user_name') || mocks?.user?.name || 'Stéphanie Demo';
+            const list = Array.isArray(mocks?.clientes) ? mocks.clientes : [];
+            const clientesMock = list.map((c) => ({
+                id: c.id,
+                nome_fantasia: c.nome,
+                nome_empresa: c.nome,
+                status: c.status,
+                logo_url: '',
+                servicos: [],
+                gestor_trafego_email: '',
+                social_media_email: '',
+                responsavel_nome: demoUserName,
+                link_briefing: '',
+                link_persona: '',
+                link_conteudos_anteriores: '',
+                link_referencias: '',
+                link_identidade_visual: ''
+            }));
+            renderClientes(clientesMock);
+            if (window.showContent) window.showContent();
+            return;
+        }
+
         if (!window.supabaseClient) {
             console.warn('Supabase não carregado, aguardando...');
             setTimeout(loadClientes, 500);

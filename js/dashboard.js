@@ -2,14 +2,77 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Verifica se estamos na página de dashboard
     if (!window.location.pathname.includes('dashboard.html')) return;
 
-    const demoModeEnabled = String(localStorage.getItem('demo_mode')) === 'true';
-    if (demoModeEnabled) {
+    const isHybridMode =
+        (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true')
+        || !window.supabaseClient;
+
+    const renderHybridDashboard = () => {
+        const mocks = typeof window.getPresentationMocks === 'function' ? window.getPresentationMocks() : null;
         const demoClientName = localStorage.getItem('demo_client_name') || 'Cliente Demonstração';
+        const demoUserName = localStorage.getItem('demo_user_name') || mocks?.user?.name || 'Stéphanie Demo';
+
         const metricCampanhas = document.getElementById('metric-campanhas');
         if (metricCampanhas) metricCampanhas.innerText = '2';
+
         const clientNameEl = document.getElementById('active-client-name') || document.getElementById('dashboard-client-name');
         if (clientNameEl) clientNameEl.textContent = demoClientName;
+
+        const nameEl = document.getElementById('user-name-sidebar');
+        if (nameEl) nameEl.innerText = demoUserName.split(' ')[0] || demoUserName;
+
+        const todoList = document.getElementById('todo-list');
+        if (todoList) {
+            const items = Array.isArray(mocks?.lembretes) ? mocks.lembretes : [];
+            todoList.innerHTML = '';
+            items.forEach((item) => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2';
+                li.innerHTML = `<span class="text-sm text-gray-700">${String(item?.texto || '').replace(/</g, '&lt;')}</span>`;
+                todoList.appendChild(li);
+            });
+        }
+
+        const systemContainer = document.getElementById('system-reminders-container');
+        const systemList = document.getElementById('system-reminders-list');
+        if (systemContainer && systemList) {
+            const items = Array.isArray(mocks?.reunioes) ? mocks.reunioes : [];
+            systemList.innerHTML = '';
+            if (items.length) {
+                systemContainer.classList.remove('hidden');
+                items.forEach((item) => {
+                    const li = document.createElement('li');
+                    li.className = 'flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2';
+                    li.innerHTML = `
+                        <span class="text-sm text-gray-700">${String(item?.titulo || '').replace(/</g, '&lt;')}</span>
+                        <span class="text-xs text-gray-500">${String(item?.data || '').replace(/</g, '&lt;')}</span>
+                    `;
+                    systemList.appendChild(li);
+                });
+            } else {
+                systemContainer.classList.add('hidden');
+            }
+        }
+
+        const birthdayList = document.getElementById('birthdays-month-list');
+        if (birthdayList) {
+            const items = Array.isArray(mocks?.aniversarios) ? mocks.aniversarios : [];
+            birthdayList.innerHTML = '';
+            items.forEach((item) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-4 py-2';
+                row.innerHTML = `
+                    <span class="text-sm font-medium text-gray-700">${String(item?.nome || '').replace(/</g, '&lt;')}</span>
+                    <span class="text-xs text-gray-500">${String(item?.data || '').replace(/</g, '&lt;')}</span>
+                `;
+                birthdayList.appendChild(row);
+            });
+        }
+
         if (window.showContent) window.showContent();
+    };
+
+    if (isHybridMode) {
+        renderHybridDashboard();
         return;
     }
 
@@ -26,7 +89,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!window.supabaseClient) {
                 await new Promise(r => setTimeout(r, 500));
             }
-            if (!window.supabaseClient) return;
+            if (!window.supabaseClient) {
+                const shouldFallback =
+                    (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true')
+                    || !window.supabaseClient;
+                if (shouldFallback) {
+                    renderHybridDashboard();
+                }
+                return;
+            }
 
             const { data: { session } } = await window.supabaseClient.auth.getSession();
             if (session) {

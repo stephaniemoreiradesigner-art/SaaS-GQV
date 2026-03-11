@@ -2712,21 +2712,12 @@ async function loadCalendarData() {
     if (isDemoModeActive()) {
         const monthKey = getDemoMonthKey();
         currentMonth = monthKey;
-        const [year, month] = currentMonth.split('-').map(Number);
-        const lastDay = new Date(year, month, 0).getDate();
-        const startDate = `${currentMonth}-01`;
-        const endDate = `${currentMonth}-${String(lastDay).padStart(2, '0')}`;
-        const data = getDemoPostsForMonth(currentMonth).filter((post) => {
-            const date = String(post?.data_agendada || '').slice(0, 10);
-            return date >= startDate && date <= endDate;
-        });
-
-        socialPostsCache = Array.isArray(data) ? data : [];
+        socialPostsCache = [];
 
         const btnDelete = document.getElementById('btn-delete-calendar');
         const btnApprove = document.getElementById('btn-approve');
         const btnApproveWeek = document.getElementById('btn-approve-week');
-        const hasPosts = socialPostsCache.length > 0;
+        const hasPosts = false;
 
         if (btnDelete) {
             btnDelete.disabled = !hasPosts;
@@ -2760,14 +2751,6 @@ async function loadCalendarData() {
         }
 
         calendar.removeAllEvents();
-        socialPostsCache.forEach((post) => {
-            calendar.addEvent({
-                id: post.id,
-                title: post.tema,
-                start: post.data_agendada,
-                extendedProps: post
-            });
-        });
         return;
     }
     
@@ -3366,6 +3349,7 @@ Regras obrigatórias:
         };
 
         const clienteIdValue = currentClienteId; // UUID
+        const calendarIdForPosts = currentCalendarId || `demo-calendar-${year}-${String(month).padStart(2, '0')}`;
 
         const postsToInsert = [];
         rawPosts.forEach((post, index) => {
@@ -3409,7 +3393,7 @@ Regras obrigatórias:
 
             postsToInsert.push({
                 cliente_id: clienteIdValue,
-                calendar_id: calendar.id,
+                calendar_id: calendarIdForPosts,
                 data_agendada: dataAgendada,
                 hora_agendada: scheduledTime,
                 formato: normalizeFormat(post.format || post.formato),
@@ -3433,6 +3417,44 @@ Regras obrigatórias:
         console.debug('[generateCalendar] preparing_insert', { count: postsToInsert.length });
         if (postsToInsert.length === 0) {
             throw new Error('Nenhum post válido para inserir.');
+        }
+
+        const persistEnabled = !!window.supabaseClient && !isDemoModeActive();
+        if (!persistEnabled) {
+            socialPostsCache = postsToInsert.map((post, index) => ({
+                ...post,
+                id: `ai-post-${String(index + 1).padStart(3, '0')}`,
+                status: post.status || POST_STATUS.DRAFT
+            }));
+
+            const btnDelete = document.getElementById('btn-delete-calendar');
+            const btnApprove = document.getElementById('btn-approve');
+            const btnApproveWeek = document.getElementById('btn-approve-week');
+            if (btnDelete) btnDelete.disabled = true;
+            if (btnApprove) btnApprove.disabled = true;
+            if (btnApproveWeek) btnApproveWeek.disabled = true;
+
+            const ready = await ensureCalendarRendered();
+            if (ready) {
+                calendar.removeAllEvents();
+                socialPostsCache.forEach((post) => {
+                    calendar.addEvent({
+                        id: post.id,
+                        title: post.tema,
+                        start: post.data_agendada,
+                        extendedProps: post
+                    });
+                });
+            }
+
+            stopStepLogs();
+            appendGenerationLog('Concluído.');
+            setGenerationLogMessage('Calendário gerado (modo apresentação).');
+            setGenerationLoading(false);
+            generationSucceeded = true;
+            window.closeGenerationModal();
+            hideGenerationLog();
+            return;
         }
 
         // Warmup do cache antes do insert
@@ -3522,6 +3544,11 @@ async function generateCalendar(config = {}) {
 
     if (!clientDataMap[currentClienteId]) {
         await loadClientContext(currentClienteId);
+    }
+
+    if (isDemoModeActive() || !window.supabaseClient) {
+        await generateCalendarLegacy(config);
+        return;
     }
 
     if (window.__calendarGenerationInProgress === true) {
