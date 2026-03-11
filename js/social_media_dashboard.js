@@ -1768,6 +1768,12 @@ window.refreshOperationalHub = async function() {
     const statusEl = document.getElementById('operational-status');
     const kpisEl = document.getElementById('operational-kpis');
     if (!statusEl || !kpisEl) return;
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
+    if (isDemo) {
+        statusEl.textContent = 'Modo demonstração: insights indisponível.';
+        kpisEl.innerHTML = '';
+        return;
+    }
     const clientId = typeof window.getActiveClientId === 'function' ? window.getActiveClientId() : '';
     const period = typeof window.getActivePeriod === 'function' ? window.getActivePeriod() : '30d';
     const platform = window.socialMediaState?.platform || 'instagram';

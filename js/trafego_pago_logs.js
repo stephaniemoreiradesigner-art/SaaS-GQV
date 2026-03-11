@@ -39,6 +39,62 @@ window.loadTrafficLogs = async function(clientIdOverride = null, containerId = n
         targetContainer.innerHTML = `<div class="p-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando...</div>`;
     }
 
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
+    if (isDemo) {
+        const demoClients = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+        const clientNameMap = new Map((Array.isArray(demoClients) ? demoClients : []).map(c => [String(c.id), String(c.empresa || c.nome || '')]));
+        const resolvedClientName = clientNameMap.get(String(clienteId || '')) || 'Cliente';
+        const now = new Date();
+        const demoLogs = [
+            { id: 'demo-log-001', cliente_id: clienteId || 'demo-client-001', tipo_alteracao: 'Ajuste de orçamento', descricao: 'Aumentar orçamento em campanhas de conversão.', prioridade: 'alta', status: 'pendente', created_at: now.toISOString(), prazo: new Date(now.getTime() + 3 * 86400000).toISOString() },
+            { id: 'demo-log-002', cliente_id: clienteId || 'demo-client-001', tipo_alteracao: 'Otimização de criativo', descricao: 'Testar variações de imagem e headline.', prioridade: 'media', status: 'em_andamento', created_at: new Date(now.getTime() - 86400000).toISOString(), prazo: new Date(now.getTime() + 2 * 86400000).toISOString() },
+            { id: 'demo-log-003', cliente_id: clienteId || 'demo-client-001', tipo_alteracao: 'Relatório semanal', descricao: 'Consolidar performance e próximos passos.', prioridade: 'baixa', status: 'feito', created_at: new Date(now.getTime() - 3 * 86400000).toISOString(), prazo: new Date(now.getTime() - 2 * 86400000).toISOString() }
+        ];
+
+        window.currentTrafficLogs = demoLogs;
+        if (isTable) {
+            targetContainer.innerHTML = '';
+            demoLogs.forEach((log) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50 transition-colors border-b border-gray-100';
+                const createdLabel = new Date(log.created_at).toLocaleString('pt-BR');
+                const prazoLabel = log.prazo ? new Date(log.prazo).toLocaleDateString('pt-BR') : '-';
+                const statusLabel = String(log.status || 'pendente');
+                const prioridadeLabel = String(log.prioridade || 'media');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${createdLabel}</td>
+                    <td class="px-6 py-4 text-sm text-gray-800 whitespace-nowrap">${(clientNameMap.get(String(log.cliente_id)) || resolvedClientName).replace(/</g, '&lt;')}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">${String(log.tipo_alteracao || '').replace(/</g, '&lt;')}</td>
+                    <td class="px-6 py-4 text-sm text-gray-700">${String(log.descricao || '').replace(/</g, '&lt;')}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${prazoLabel}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${prioridadeLabel.toUpperCase()}</td>
+                    <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">${statusLabel.toUpperCase()}</td>
+                `;
+                targetContainer.appendChild(tr);
+            });
+        } else {
+            targetContainer.innerHTML = `
+                <div class="p-4 bg-white border border-gray-200 rounded-xl">
+                    <div class="text-sm font-semibold text-gray-800 mb-1">Modo demonstração</div>
+                    <div class="text-xs text-gray-500 mb-3">Registros simulados para ${resolvedClientName.replace(/</g, '&lt;')}.</div>
+                    <div class="space-y-2">
+                        ${demoLogs.map(log => `
+                            <div class="p-3 rounded-lg border border-gray-100 bg-gray-50">
+                                <div class="text-sm font-semibold text-gray-800">${String(log.tipo_alteracao || '').replace(/</g, '&lt;')}</div>
+                                <div class="text-xs text-gray-600 mt-1">${String(log.descricao || '').replace(/</g, '&lt;')}</div>
+                                <div class="text-xs text-gray-500 mt-2 flex gap-3">
+                                    <span>Status: ${String(log.status || '').toUpperCase()}</span>
+                                    <span>Prioridade: ${String(log.prioridade || '').toUpperCase()}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        return;
+    }
+
     try {
         // 1. Mapa de Clientes
         const { data: clientesData } = await window.supabaseClient.from('clientes').select('id, nome_fantasia, nome_empresa');

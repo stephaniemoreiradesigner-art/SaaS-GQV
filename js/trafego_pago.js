@@ -1053,13 +1053,44 @@ window.initTrafegoPago = function() {
     }
 };
 
+function renderDemoTrafficKpis(clientId) {
+    const base = {
+        investimento: 3200,
+        impressoes: 185000,
+        cliques: 4200,
+        conversoes: 73,
+        roas: 4.2
+    };
+
+    const key = String(clientId || '').trim();
+    const mod = key.endsWith('002') ? 1.1 : key.endsWith('003') ? 0.85 : 1;
+    const investimento = Math.round(base.investimento * mod);
+    const impressoes = Math.round(base.impressoes * mod);
+    const cliques = Math.round(base.cliques * mod);
+    const conversoes = Math.round(base.conversoes * mod);
+    const roas = base.roas * mod;
+
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = value;
+    };
+
+    if (typeof window.formatCurrency === 'function') {
+        setText('kpi-investimento', window.formatCurrency(investimento));
+    } else {
+        setText('kpi-investimento', `R$ ${investimento.toLocaleString('pt-BR')},00`);
+    }
+    setText('kpi-impressoes', impressoes.toLocaleString('pt-BR'));
+    setText('kpi-clicks', cliques.toLocaleString('pt-BR'));
+    setText('kpi-conversoes', conversoes.toLocaleString('pt-BR'));
+    setText('kpi-roas', `${roas.toFixed(2)}x`);
+}
+
 window.loadTrafficClients = async function() {
     console.log('Iniciando carregamento de clientes do Tráfego Pago...');
     
-    if (!window.supabaseClient) {
-        console.warn('Supabase não disponível para carregar clientes.');
-        return;
-    }
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
 
     const clientSelects = [
         document.getElementById('filter-cliente'),
@@ -1073,6 +1104,34 @@ window.loadTrafficClients = async function() {
     }
 
     try {
+        if (isDemo) {
+            const demoClients = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+            const active = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
+            const activeId = String(active?.id || '').trim();
+
+            clientSelects.forEach((select) => {
+                const keepFirst = select.options.length ? select.options[0].cloneNode(true) : null;
+                select.innerHTML = '';
+                if (keepFirst) select.appendChild(keepFirst);
+                (Array.isArray(demoClients) ? demoClients : []).forEach((c) => {
+                    const option = document.createElement('option');
+                    option.value = String(c.id);
+                    option.textContent = String(c.empresa || c.nome || '');
+                    select.appendChild(option);
+                });
+                if (activeId) select.value = activeId;
+            });
+
+            const mainSelect = document.getElementById('filter-cliente');
+            const selectedId = mainSelect?.value || activeId;
+            if (selectedId && typeof window.setActiveDemoClient === 'function') {
+                window.setActiveDemoClient(selectedId);
+            }
+            renderDemoTrafficKpis(selectedId);
+            window.initTrafegoPago();
+            return;
+        }
+
         console.log('Consultando clientes no Supabase...');
         const { data: clients, error } = await window.supabaseClient
             .from('clientes')
@@ -1355,6 +1414,7 @@ window.addEventListener('supabaseReady', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : false) || !window.supabaseClient;
     const tabs = document.querySelectorAll('.tab-btn');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -1363,22 +1423,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    if (window.supabaseClient) {
-        window.loadTrafficClients();
-    }
+    window.loadTrafficClients();
     
     // Polling de segurança
-    let attempts = 0;
-    const poll = setInterval(() => {
-        attempts++;
-        const select = document.getElementById('filter-cliente');
-        if (select && select.options.length > 1) {
-            clearInterval(poll);
-        } else if (window.supabaseClient) {
-            window.loadTrafficClients();
-        }
-        if (attempts > 5) clearInterval(poll);
-    }, 2000);
+    if (!isDemo) {
+        let attempts = 0;
+        const poll = setInterval(() => {
+            attempts++;
+            const select = document.getElementById('filter-cliente');
+            if (select && select.options.length > 1) {
+                clearInterval(poll);
+            } else if (window.supabaseClient) {
+                window.loadTrafficClients();
+            }
+            if (attempts > 5) clearInterval(poll);
+        }, 2000);
+    }
     
     window.addEventListener('focus', () => {
         const select = document.getElementById('filter-cliente');
@@ -1399,6 +1459,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof window.setActiveClientId === 'function') {
                 window.setActiveClientId(event.target.value);
             }
+            if (isDemo) {
+                renderDemoTrafficKpis(event.target.value);
+            }
             updateTrafficPlatformAvailability(event.target.value);
             clearCampaignConnectionCTA();
         });
@@ -1409,6 +1472,9 @@ document.addEventListener('DOMContentLoaded', () => {
         reportSelect.addEventListener('change', (event) => {
             if (typeof window.setActiveClientId === 'function') {
                 window.setActiveClientId(event.target.value);
+            }
+            if (isDemo) {
+                renderDemoTrafficKpis(event.target.value);
             }
             updateTrafficPlatformAvailability(event.target.value);
         });

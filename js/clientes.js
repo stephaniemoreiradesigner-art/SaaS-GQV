@@ -379,14 +379,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             || !window.supabaseClient;
 
         if (isHybridMode) {
-            const mocks = typeof window.getPresentationMocks === 'function' ? window.getPresentationMocks() : null;
-            const demoUserName = localStorage.getItem('demo_user_name') || mocks?.user?.name || 'Stéphanie Demo';
-            const list = Array.isArray(mocks?.clientes) ? mocks.clientes : [];
-            const clientesMock = list.map((c) => ({
-                id: c.id,
-                nome_fantasia: c.nome,
-                nome_empresa: c.nome,
-                status: c.status,
+            const demoList = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+            const active = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
+            const demoUserName = localStorage.getItem('demo_user_name') || 'Stéphanie Demo';
+            const clientesMock = (Array.isArray(demoList) ? demoList : []).map((c) => ({
+                id: String(c.id),
+                nome_fantasia: String(c.nome || ''),
+                nome_empresa: String(c.empresa || c.nome || ''),
+                status: String(c.status || 'Ativo'),
+                is_demo: true,
                 logo_url: '',
                 servicos: [],
                 gestor_trafego_email: '',
@@ -398,6 +399,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link_referencias: '',
                 link_identidade_visual: ''
             }));
+
+            window.clientCardsMap = window.clientCardsMap || {};
+            clientesMock.forEach((c) => {
+                window.clientCardsMap[String(c.id)] = c;
+            });
+
+            if (active?.id && typeof window.setActiveDemoClient === 'function') {
+                window.setActiveDemoClient(active.id);
+            }
             renderClientes(clientesMock);
             if (window.showContent) window.showContent();
             return;
@@ -914,6 +924,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const modal = document.getElementById('client-view-modal');
         if (!modal) return;
         let cliente = window.clientCardsMap ? window.clientCardsMap[String(clientId)] : null;
+        const isDemo = typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true';
+        if (isDemo) {
+            if (!cliente) {
+                alert('Cliente demo não encontrado.');
+                return;
+            }
+            if (typeof window.setActiveDemoClient === 'function') {
+                window.setActiveDemoClient(cliente.id);
+            }
+            renderClientView(cliente);
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            return;
+        }
         if (!cliente) {
             try {
                 const { data, error } = await window.supabaseClient

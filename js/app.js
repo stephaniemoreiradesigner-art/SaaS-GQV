@@ -10,9 +10,14 @@ window.isDemoMode = function() {
 
 window.enterDemoMode = function() {
     localStorage.setItem('demo_mode', 'true');
-    localStorage.setItem('demo_client_id', 'demo-client-001');
-    localStorage.setItem('demo_client_name', 'Cliente Demonstração');
     localStorage.setItem('demo_user_name', 'Stéphanie Demo');
+    if (typeof window.setActiveDemoClient === 'function') {
+        window.setActiveDemoClient('demo-client-001');
+    } else {
+        localStorage.setItem('demo_client_id', 'demo-client-001');
+        localStorage.setItem('demo_client_name', 'Cliente Demonstração');
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', 'demo-client-001');
+    }
 };
 
 window.exitDemoMode = function() {
@@ -20,13 +25,102 @@ window.exitDemoMode = function() {
     localStorage.removeItem('demo_client_id');
     localStorage.removeItem('demo_client_name');
     localStorage.removeItem('demo_user_name');
+    localStorage.removeItem('GQV_DEMO_ACTIVE_CLIENT');
 };
 
+const DEMO_ACTIVE_CLIENT_KEY = 'GQV_DEMO_ACTIVE_CLIENT';
+
+window.getDemoClients = function() {
+    return [
+        { id: 'demo-client-001', nome: 'Cliente Demonstração', empresa: 'Tekohá', status: 'Ativo' },
+        { id: 'demo-client-002', nome: 'UsePi Equipamentos', empresa: 'UsePi', status: 'Ativo' },
+        { id: 'demo-client-003', nome: 'NeuroEduca', empresa: 'NeuroEduca', status: 'Ativo' }
+    ];
+};
+
+window.getActiveDemoClient = function() {
+    const list = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+    const fallback = Array.isArray(list) && list.length ? list[0] : { id: 'demo-client-001', nome: 'Cliente Demonstração', empresa: 'Tekohá', status: 'Ativo' };
+    try {
+        const raw = localStorage.getItem(DEMO_ACTIVE_CLIENT_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            const id = String(parsed?.id || '').trim();
+            if (id) {
+                const match = (Array.isArray(list) ? list : []).find((c) => String(c.id) === id);
+                if (match) return match;
+                return { ...fallback, ...parsed, id };
+            }
+        }
+    } catch {}
+    const legacyId = String(localStorage.getItem('demo_client_id') || '').trim();
+    if (legacyId) {
+        const match = (Array.isArray(list) ? list : []).find((c) => String(c.id) === legacyId);
+        if (match) return match;
+    }
+    return fallback;
+};
+
+window.setActiveDemoClient = function(client) {
+    const list = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+    const value = typeof client === 'string' ? client : (client && typeof client === 'object' ? client.id : '');
+    const id = String(value || '').trim();
+    const resolved = (Array.isArray(list) ? list : []).find((c) => String(c.id) === id) || (typeof client === 'object' && client ? client : null) || window.getActiveDemoClient();
+    const payload = {
+        id: String(resolved.id || id || 'demo-client-001'),
+        nome: String(resolved.nome || 'Cliente Demonstração'),
+        empresa: String(resolved.empresa || resolved.nome || 'Tekohá'),
+        status: String(resolved.status || 'Ativo')
+    };
+    try {
+        localStorage.setItem(DEMO_ACTIVE_CLIENT_KEY, JSON.stringify(payload));
+    } catch {}
+    localStorage.setItem('demo_client_id', payload.id);
+    localStorage.setItem('demo_client_name', payload.nome);
+    localStorage.setItem('GQV_ACTIVE_CLIENT_ID', payload.id);
+    window.currentClienteId = payload.id;
+    return payload;
+};
+
+if (typeof window.getActiveClientId !== 'function') {
+    window.getActiveClientId = function() {
+        const current = String(window.currentClienteId || '').trim();
+        if (current) return current;
+        const stored = String(localStorage.getItem('GQV_ACTIVE_CLIENT_ID') || '').trim();
+        if (stored) {
+            window.currentClienteId = stored;
+            return stored;
+        }
+        if (typeof window.isDemoMode === 'function' && window.isDemoMode()) {
+            return String(window.getActiveDemoClient?.()?.id || '').trim();
+        }
+        return '';
+    };
+}
+
+if (typeof window.setActiveClientId !== 'function') {
+    window.setActiveClientId = function(clienteId) {
+        const value = String(clienteId || '').trim();
+        if (!value) return false;
+        if (typeof window.isDemoMode === 'function' && window.isDemoMode()) {
+            window.setActiveDemoClient(value);
+            return true;
+        }
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed) || parsed <= 0) return false;
+        const normalized = String(Math.trunc(parsed));
+        window.currentClienteId = normalized;
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', normalized);
+        return true;
+    };
+}
+
 window.getDemoClient = function() {
+    const active = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
     return {
-        id: localStorage.getItem('demo_client_id') || 'demo-client-001',
-        nome_fantasia: localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
-        nome_empresa: localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
+        id: active?.id || localStorage.getItem('demo_client_id') || 'demo-client-001',
+        nome_fantasia: active?.nome || localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
+        nome_empresa: active?.empresa || active?.nome || localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
         plataformas_social: ['instagram', 'facebook', 'linkedin', 'tiktok'],
         link_briefing: '',
         link_persona: '',
@@ -74,13 +168,10 @@ window.getDemoSocialPosts = function(monthKey) {
 
 window.getPresentationMocks = function() {
     const demoUserName = localStorage.getItem('demo_user_name') || 'Stéphanie Demo';
+    const demoClients = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
     return {
         user: { name: demoUserName },
-        clientes: [
-            { id: 1, nome: 'Tekohá', status: 'Ativo' },
-            { id: 2, nome: 'UsePi Equipamentos', status: 'Ativo' },
-            { id: 3, nome: 'NeuroEduca', status: 'Proposta' }
-        ],
+        clientes: demoClients.map((c) => ({ id: c.id, nome: c.nome, empresa: c.empresa, status: c.status })),
         lembretes: [
             { id: 1, texto: 'Revisar planejamento social media' },
             { id: 2, texto: 'Enviar relatório mensal ao cliente' }

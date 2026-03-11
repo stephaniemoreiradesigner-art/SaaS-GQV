@@ -38,11 +38,15 @@ function isDemoModeActive() {
 }
 
 function getDemoClientId() {
-    return String(localStorage.getItem('demo_client_id') || 'demo-client-001').trim() || 'demo-client-001';
+    const fromContext = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
+    const fromStorage = String(localStorage.getItem('demo_client_id') || '').trim();
+    return String(fromContext?.id || fromStorage || 'demo-client-001').trim() || 'demo-client-001';
 }
 
 function getDemoClientName() {
-    return String(localStorage.getItem('demo_client_name') || 'Cliente Demonstração').trim() || 'Cliente Demonstração';
+    const fromContext = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
+    const fromStorage = String(localStorage.getItem('demo_client_name') || '').trim();
+    return String(fromContext?.nome || fromStorage || 'Cliente Demonstração').trim() || 'Cliente Demonstração';
 }
 
 function getDemoMonthKey() {
@@ -83,6 +87,9 @@ window.getActiveClientId = function() {
 };
 
 window.setActiveClientId = function(id) {
+    if (window.__gqvSettingSocialClientId === true) return false;
+    window.__gqvSettingSocialClientId = true;
+    try {
     const value = String(id || '').trim();
     if (!value) {
         window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
@@ -92,26 +99,24 @@ window.setActiveClientId = function(id) {
         localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
         persistSocialMediaState();
         setClientRequiredMessage(true);
-        if (typeof window.refreshOperationalHub === 'function') {
-            window.refreshOperationalHub();
-        }
         return false;
     }
     const demoActive = isDemoModeActive();
     if (demoActive) {
+        if (typeof window.setActiveDemoClient === 'function') {
+            window.setActiveDemoClient(value);
+        }
         window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
         window.socialMediaState.clientId = value;
         currentClienteId = value;
         window.currentClienteId = value;
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', value);
         persistSocialMediaState();
         const select = getSocialClientSelect();
         if (select && value) select.value = String(value);
         const insightsSelect = document.getElementById('insights-cliente');
         if (insightsSelect && value) insightsSelect.value = String(value);
         setClientRequiredMessage(false);
-        if (typeof window.refreshOperationalHub === 'function') {
-            window.refreshOperationalHub();
-        }
         return true;
     }
 
@@ -133,6 +138,9 @@ window.setActiveClientId = function(id) {
         window.refreshOperationalHub();
     }
     return true;
+    } finally {
+        window.__gqvSettingSocialClientId = false;
+    }
 };
 
 window.getActivePeriod = function() {
@@ -257,8 +265,9 @@ function getClientIdFromQuery() {
     const raw = params.get('cliente_id') || params.get('clientId') || params.get('id') || params.get('tenant_id') || '';
     const value = String(raw || '').trim();
     if (!value) return '';
-    if (!/^\d+$/.test(value)) return '';
-    return value;
+    if (/^\d+$/.test(value)) return value;
+    if (isDemoModeActive() && /^demo-client-\d{3}$/.test(value)) return value;
+    return '';
 }
 
 function getSocialClientSelect() {
@@ -2518,21 +2527,39 @@ async function loadClientes() {
     }
 
     if (isDemoModeActive()) {
-        const demoId = getDemoClientId();
-        const demoLabel = getDemoClientName();
+        const demoClients = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+        const activeDemo = typeof window.getActiveDemoClient === 'function' ? window.getActiveDemoClient() : null;
+        const demoId = String(activeDemo?.id || getDemoClientId()).trim() || getDemoClientId();
         selects.forEach((select) => {
             select.innerHTML = '<option value="">Selecione o Cliente...</option>';
-            const opt = document.createElement('option');
-            opt.value = demoId;
-            opt.textContent = demoLabel;
-            select.appendChild(opt);
-            select.value = demoId;
+            (Array.isArray(demoClients) ? demoClients : []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = String(c.id);
+                opt.textContent = String(c.empresa || c.nome || '');
+                select.appendChild(opt);
+            });
+            if (demoId) select.value = demoId;
         });
 
         clientDataMap = clientDataMap || {};
-        clientDataMap[demoId] = window.getDemoClient ? window.getDemoClient() : { id: demoId, nome_fantasia: demoLabel, nome_empresa: demoLabel };
-        window.setActiveClientId(demoId);
+        (Array.isArray(demoClients) ? demoClients : []).forEach((c) => {
+            const id = String(c.id);
+            clientDataMap[id] = {
+                id,
+                nome_fantasia: String(c.nome || ''),
+                nome_empresa: String(c.empresa || c.nome || ''),
+                plataformas_social: ['instagram', 'facebook', 'linkedin', 'tiktok'],
+                editorial_profile: { nicho_atuacao: 'Geral', visual_identity: '' }
+            };
+        });
+
+        window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+        window.socialMediaState.clientId = demoId;
         currentClienteId = demoId;
+        window.currentClienteId = demoId;
+        localStorage.setItem('GQV_ACTIVE_CLIENT_ID', demoId);
+        persistSocialMediaState();
+        setClientRequiredMessage(!demoId);
         await loadClientContext(demoId);
         return;
     }

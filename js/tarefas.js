@@ -38,8 +38,56 @@ function normalizeEmail(value) {
 }
 
 async function loadTasks() {
-    if (!window.supabaseClient) {
-        setTimeout(loadTasks, 500);
+    const isDemo =
+        (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true')
+        || !window.supabaseClient;
+
+    if (isDemo) {
+        const demoTasks = [
+            { id: 1, titulo: 'Criar calendário de abril', cliente: 'Tekohá', status: 'pendente', prazo_data: '2026-03-20' },
+            { id: 2, titulo: 'Revisar campanha Meta', cliente: 'UsePi', status: 'em_andamento', prazo_data: '2026-03-18' },
+            { id: 3, titulo: 'Solicitar criativos', cliente: 'NeuroEduca', status: 'concluido', prazo_data: '2026-03-15' },
+            { id: 4, titulo: 'Validar briefing do cliente', cliente: 'Tekohá', status: 'pendente', prazo_data: '2026-03-22' }
+        ];
+
+        currentTasks = demoTasks.map((t) => ({
+            id: String(t.id),
+            titulo: t.titulo,
+            descricao: '',
+            prazo_data: t.prazo_data,
+            prazo_tipo: 'ate_dia',
+            cliente_id: '',
+            tipo: 'tarefa',
+            criado_por: 'demo-user-001',
+            status: t.status,
+            clientes: { nome_empresa: t.cliente, nome_fantasia: t.cliente },
+            tarefa_atribuicoes: []
+        }));
+
+        allCollaborators = [{
+            id: 'demo-user-001',
+            nome: localStorage.getItem('demo_user_name') || 'Stéphanie Demo',
+            email: 'demo@gqv.com',
+            times_acesso: [],
+            perfil_acesso: 'admin'
+        }];
+
+        const select = document.getElementById('task-cliente');
+        if (select) {
+            const demos = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+            select.innerHTML = '<option value="">Selecione o Cliente</option>';
+            (Array.isArray(demos) ? demos : []).forEach((c) => {
+                const opt = document.createElement('option');
+                opt.value = String(c.id);
+                opt.textContent = String(c.empresa || c.nome || '');
+                select.appendChild(opt);
+            });
+        }
+
+        renderTaskList();
+        renderCalendar();
+        const loading = document.getElementById('loading-screen');
+        if (loading) loading.classList.add('hidden');
         return;
     }
 
@@ -417,6 +465,14 @@ async function loadCreatorInfo() {
     const creatorAvatar = document.getElementById('creator-avatar');
     if (!creatorName && !creatorAvatar) return;
 
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true') || !window.supabaseClient;
+    if (isDemo) {
+        const email = 'demo@gqv.com';
+        if (creatorName) creatorName.textContent = email;
+        if (creatorAvatar) creatorAvatar.src = 'assets/avatar-placeholder.png';
+        return;
+    }
+
     try {
         const { data: { session } } = await window.supabaseClient.auth.getSession();
         const email = session?.user?.email || '';
@@ -565,7 +621,19 @@ window.submitNewTask = async function(event) {
 async function loadClientesForSelect() {
     const select = document.getElementById('task-cliente');
     if (!select || select.options.length > 1) return;
-    
+
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true') || !window.supabaseClient;
+    if (isDemo) {
+        const demos = typeof window.getDemoClients === 'function' ? window.getDemoClients() : [];
+        (Array.isArray(demos) ? demos : []).forEach((c) => {
+            const opt = document.createElement('option');
+            opt.value = String(c.id);
+            opt.textContent = String(c.empresa || c.nome || '');
+            select.appendChild(opt);
+        });
+        return;
+    }
+
     const { data } = await window.supabaseClient.from('clientes').select('id, nome_fantasia');
     if (data) {
         data.forEach(c => {
@@ -618,6 +686,26 @@ window.openViewTaskModal = async function(taskId) {
     modal.classList.remove('hidden');
     content.innerHTML = '<div class="text-center p-5 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i> Carregando detalhes...</div>';
     
+    const isDemo = (typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true') || !window.supabaseClient;
+    if (isDemo) {
+        const task = currentTasks.find((t) => String(t.id) === String(taskId));
+        if (!task) {
+            content.innerHTML = '<p class="text-gray-500 text-center">Tarefa não encontrada.</p>';
+            return;
+        }
+        const prazo = String(task.prazo_data || '').slice(0, 10);
+        const clienteNome = task.clientes?.nome_empresa || task.clientes?.nome_fantasia || 'Sem cliente';
+        content.innerHTML = `
+            <h2 class="text-xl font-bold text-[var(--color-primary)] mb-3">${String(task.titulo || '')}</h2>
+            <div class="space-y-2 text-sm text-gray-700">
+                <div><span class="font-semibold">Cliente:</span> ${String(clienteNome).replace(/</g, '&lt;')}</div>
+                <div><span class="font-semibold">Status:</span> ${String(task.status || '').toUpperCase()}</div>
+                <div><span class="font-semibold">Prazo:</span> ${String(prazo).replace(/</g, '&lt;')}</div>
+            </div>
+        `;
+        return;
+    }
+
     try {
         const { data: task, error } = await window.supabaseClient
             .from('tarefas')
