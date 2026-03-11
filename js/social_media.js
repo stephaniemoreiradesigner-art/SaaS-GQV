@@ -32,6 +32,33 @@ window.socialMediaState = window.socialMediaState || {
     ...storedSocialMediaState
 };
 
+function isDemoModeActive() {
+    if (typeof window.isDemoMode === 'function') return window.isDemoMode();
+    return String(localStorage.getItem('demo_mode')) === 'true';
+}
+
+function getDemoClientId() {
+    return String(localStorage.getItem('demo_client_id') || 'demo-client-001').trim() || 'demo-client-001';
+}
+
+function getDemoClientName() {
+    return String(localStorage.getItem('demo_client_name') || 'Cliente Demonstração').trim() || 'Cliente Demonstração';
+}
+
+function getDemoMonthKey() {
+    const key = String(currentMonth || '').trim();
+    if (/^\d{4}-\d{2}$/.test(key)) return key;
+    return new Date().toISOString().slice(0, 7);
+}
+
+function getDemoPostsForMonth(monthKey) {
+    if (typeof window.getDemoSocialPosts === 'function') {
+        const posts = window.getDemoSocialPosts(monthKey);
+        return Array.isArray(posts) ? posts : [];
+    }
+    return [];
+}
+
 function persistSocialMediaState() {
     try {
         localStorage.setItem(SOCIAL_MEDIA_STATE_KEY, JSON.stringify(window.socialMediaState || socialMediaStateDefaults));
@@ -50,7 +77,9 @@ window.getActiveClientId = function() {
     const fromState = String(window.socialMediaState?.clientId || '').trim();
     const fromWindow = String(window.currentClienteId || '').trim();
     const fromStorage = String(localStorage.getItem('GQV_ACTIVE_CLIENT_ID') || '').trim();
-    return fromState || fromWindow || fromStorage || '';
+    if (fromState || fromWindow || fromStorage) return fromState || fromWindow || fromStorage || '';
+    if (isDemoModeActive()) return getDemoClientId();
+    return '';
 };
 
 window.setActiveClientId = function(id) {
@@ -68,6 +97,24 @@ window.setActiveClientId = function(id) {
         }
         return false;
     }
+    const demoActive = isDemoModeActive();
+    if (demoActive) {
+        window.socialMediaState = window.socialMediaState || { ...socialMediaStateDefaults };
+        window.socialMediaState.clientId = value;
+        currentClienteId = value;
+        window.currentClienteId = value;
+        persistSocialMediaState();
+        const select = getSocialClientSelect();
+        if (select && value) select.value = String(value);
+        const insightsSelect = document.getElementById('insights-cliente');
+        if (insightsSelect && value) insightsSelect.value = String(value);
+        setClientRequiredMessage(false);
+        if (typeof window.refreshOperationalHub === 'function') {
+            window.refreshOperationalHub();
+        }
+        return true;
+    }
+
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) return false;
     const normalized = String(Math.trunc(parsed));
@@ -285,6 +332,10 @@ function ensureCalendarCTAContainer() {
 
 async function ensureSocialMediaPermission() {
     if (socialMediaPermission !== null) return socialMediaPermission;
+    if (isDemoModeActive()) {
+        socialMediaPermission = true;
+        return true;
+    }
     if (!window.supabaseClient) return false;
     try {
         const { data: { user } } = await window.supabaseClient.auth.getUser();
@@ -334,6 +385,18 @@ function updateGenerateButtonState() {
 }
 
 async function updateCalendarConnections(clientId) {
+    if (isDemoModeActive()) {
+        socialMediaPermission = true;
+        const btnModalGenerate = document.getElementById('btn-modal-generate');
+        const container = ensureCalendarCTAContainer();
+        if (btnModalGenerate) btnModalGenerate.disabled = !clientId;
+        if (container) {
+            container.innerHTML = '';
+            container.classList.add('hidden');
+        }
+        updateGenerateButtonState();
+        return;
+    }
     if (!clientId) {
         const container = ensureCalendarCTAContainer();
         if (container) {
@@ -2454,6 +2517,26 @@ async function loadClientes() {
         return;
     }
 
+    if (isDemoModeActive()) {
+        const demoId = getDemoClientId();
+        const demoLabel = getDemoClientName();
+        selects.forEach((select) => {
+            select.innerHTML = '<option value="">Selecione o Cliente...</option>';
+            const opt = document.createElement('option');
+            opt.value = demoId;
+            opt.textContent = demoLabel;
+            select.appendChild(opt);
+            select.value = demoId;
+        });
+
+        clientDataMap = clientDataMap || {};
+        clientDataMap[demoId] = window.getDemoClient ? window.getDemoClient() : { id: demoId, nome_fantasia: demoLabel, nome_empresa: demoLabel };
+        window.setActiveClientId(demoId);
+        currentClienteId = demoId;
+        await loadClientContext(demoId);
+        return;
+    }
+
     // Retry se o Supabase não estiver pronto
     if (!window.supabaseClient) {
         console.warn('[SocialMedia] Supabase ainda não inicializado.');
@@ -2547,6 +2630,15 @@ async function loadClientes() {
 
 async function loadClientContext(clientId) {
     if (!clientId) return;
+    if (isDemoModeActive()) {
+        const demoId = String(clientId || '').trim() || getDemoClientId();
+        const demoClient = window.getDemoClient ? window.getDemoClient() : { id: demoId, nome_fantasia: getDemoClientName(), nome_empresa: getDemoClientName() };
+        clientDataMap = clientDataMap || {};
+        clientDataMap[demoId] = { ...demoClient, id: demoId };
+        currentClienteId = demoId;
+        checkSelection();
+        return;
+    }
     if (!window.supabaseClient) return;
     try {
         const [clientRes, editorialRes] = await Promise.all([
@@ -2614,6 +2706,68 @@ async function loadCalendarData() {
     const calendarEl = document.getElementById('calendar');
     if (!calendarEl || !calendar) {
         console.error('[generateCalendar] container não encontrado');
+        return;
+    }
+
+    if (isDemoModeActive()) {
+        const monthKey = getDemoMonthKey();
+        currentMonth = monthKey;
+        const [year, month] = currentMonth.split('-').map(Number);
+        const lastDay = new Date(year, month, 0).getDate();
+        const startDate = `${currentMonth}-01`;
+        const endDate = `${currentMonth}-${String(lastDay).padStart(2, '0')}`;
+        const data = getDemoPostsForMonth(currentMonth).filter((post) => {
+            const date = String(post?.data_agendada || '').slice(0, 10);
+            return date >= startDate && date <= endDate;
+        });
+
+        socialPostsCache = Array.isArray(data) ? data : [];
+
+        const btnDelete = document.getElementById('btn-delete-calendar');
+        const btnApprove = document.getElementById('btn-approve');
+        const btnApproveWeek = document.getElementById('btn-approve-week');
+        const hasPosts = socialPostsCache.length > 0;
+
+        if (btnDelete) {
+            btnDelete.disabled = !hasPosts;
+            btnDelete.className = hasPosts
+                ? 'flex items-center gap-2 px-4 py-2.5 bg-white border border-red-200 text-red-600 rounded-lg cursor-pointer hover:bg-red-50 font-medium text-sm shadow-sm transition-all'
+                : 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+        }
+
+        if (btnApprove) {
+            btnApprove.disabled = !hasPosts;
+            btnApprove.className = hasPosts
+                ? 'flex items-center gap-2 px-4 py-2.5 bg-green-500 text-white border border-green-600 rounded-lg cursor-pointer hover:bg-green-600 font-medium text-sm shadow-md transition-all'
+                : 'flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-400 rounded-lg cursor-not-allowed font-medium text-sm shadow-sm transition-all';
+            if (!hasPosts) {
+                setApproveButtonLabel(btnApprove, 'Enviar calendário para aprovação');
+                btnApprove.dataset.approvalSent = 'false';
+            } else {
+                setApproveButtonLabel(btnApprove, 'Enviar calendário para aprovação');
+                btnApprove.dataset.approvalSent = 'false';
+                delete btnApprove.dataset.approvalStatus;
+            }
+        }
+        if (btnApproveWeek) {
+            updateWeeklyApproveState();
+        }
+
+        const ready = await ensureCalendarRendered();
+        if (!ready) {
+            console.error('[generateCalendar] container não encontrado');
+            return;
+        }
+
+        calendar.removeAllEvents();
+        socialPostsCache.forEach((post) => {
+            calendar.addEvent({
+                id: post.id,
+                title: post.tema,
+                start: post.data_agendada,
+                extendedProps: post
+            });
+        });
         return;
     }
     

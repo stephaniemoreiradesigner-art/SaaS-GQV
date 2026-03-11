@@ -3,6 +3,74 @@ window.API_BASE_URL = window.API_BASE_URL || 'https://api.gestaoquevende.cloud';
 window.supabaseConfig = null;
 let supabaseConfigPromise = null;
 
+window.isDemoMode = function() {
+    return String(localStorage.getItem('demo_mode')) === 'true';
+};
+
+window.enterDemoMode = function() {
+    localStorage.setItem('demo_mode', 'true');
+    localStorage.setItem('demo_client_id', 'demo-client-001');
+    localStorage.setItem('demo_client_name', 'Cliente Demonstração');
+    localStorage.setItem('demo_user_name', 'Stéphanie Demo');
+};
+
+window.exitDemoMode = function() {
+    localStorage.removeItem('demo_mode');
+    localStorage.removeItem('demo_client_id');
+    localStorage.removeItem('demo_client_name');
+    localStorage.removeItem('demo_user_name');
+};
+
+window.getDemoClient = function() {
+    return {
+        id: localStorage.getItem('demo_client_id') || 'demo-client-001',
+        nome_fantasia: localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
+        nome_empresa: localStorage.getItem('demo_client_name') || 'Cliente Demonstração',
+        plataformas_social: ['instagram', 'facebook', 'linkedin', 'tiktok'],
+        link_briefing: '',
+        link_persona: '',
+        link_conteudos_anteriores: '',
+        link_referencias: '',
+        link_identidade_visual: ''
+    };
+};
+
+window.getDemoSocialPosts = function(monthKey) {
+    const baseKey = /^\d{4}-\d{2}$/.test(String(monthKey || '').trim())
+        ? String(monthKey).trim()
+        : new Date().toISOString().slice(0, 7);
+    const year = Number(baseKey.slice(0, 4));
+    const month = Number(baseKey.slice(5, 7));
+    const safe = (day) => `${baseKey}-${String(day).padStart(2, '0')}`;
+    const list = [
+        { day: 2, status: 'draft', tema: 'Boas-vindas e posicionamento' },
+        { day: 4, status: 'in_production', tema: 'Autoridade: erro comum do mercado' },
+        { day: 6, status: 'ready_for_approval', tema: 'Prova: case resumido' },
+        { day: 8, status: 'approved', tema: 'Conteúdo educativo: passo a passo' },
+        { day: 10, status: 'scheduled', tema: 'Conversão: CTA estratégico' },
+        { day: 13, status: 'draft', tema: 'Conteúdo: checklist do mês' },
+        { day: 16, status: 'ready_for_approval', tema: 'Reels: 3 gatilhos de atenção' },
+        { day: 20, status: 'in_production', tema: 'Carrossel: estrutura RETINA' }
+    ];
+    const demoClient = window.getDemoClient ? window.getDemoClient() : { id: 'demo-client-001' };
+    return list.map((item, index) => {
+        const id = `demo-post-${String(index + 1).padStart(3, '0')}`;
+        const date = safe(item.day);
+        return {
+            id,
+            cliente_id: demoClient.id,
+            calendar_id: `demo-calendar-${year}-${String(month).padStart(2, '0')}`,
+            data_agendada: date,
+            tema: item.tema,
+            formato: index % 3 === 0 ? 'carrossel' : (index % 3 === 1 ? 'reels' : 'estatico'),
+            legenda: 'Conteúdo demonstrativo para apresentação.',
+            status: item.status,
+            cta: 'Saiba mais',
+            hashtags: '#gestao #marketing #performance'
+        };
+    });
+};
+
 async function loadSupabaseConfig() {
     if (window.supabaseConfig) return window.supabaseConfig;
     if (supabaseConfigPromise) return supabaseConfigPromise;
@@ -199,6 +267,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Lógica de Autenticação Isolada ---
     async function checkAuthAndLoad() {
+        const path = window.location.pathname;
+        const isLoginPage = path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/');
+        const isRestrictedPage = !isLoginPage;
+
+        if (demoModeEnabled) {
+            if (isLoginPage) {
+                window.location.href = 'dashboard.html';
+                return;
+            }
+
+            const demoUserName = localStorage.getItem('demo_user_name') || 'Stéphanie Demo';
+            const email = 'demo@gqv.com';
+
+            const userEmailElement = document.getElementById('user-email-display');
+            if (userEmailElement) userEmailElement.innerText = email;
+
+            const nameEl = document.getElementById('user-name-sidebar');
+            if (nameEl) {
+                nameEl.innerText = demoUserName.split(' ')[0] || demoUserName;
+                nameEl.title = demoUserName;
+            }
+
+            window.currentUserData = {
+                id: 'demo-user-001',
+                user_id: 'demo-user-001',
+                nome: demoUserName,
+                email,
+                perfil_acesso: 'admin',
+                permissoes: ['*']
+            };
+
+            if (typeof window.canAccessModule === 'function') {
+                applyUserPermissions('admin', ['*']);
+            }
+            if (typeof window.checkPermissions === 'function') {
+                window.checkPermissions();
+            }
+
+            const logoutBtn = document.getElementById('btn-logout-sidebar');
+            if (logoutBtn) {
+                const newBtn = logoutBtn.cloneNode(true);
+                logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
+                newBtn.addEventListener('click', () => {
+                    if (typeof window.exitDemoMode === 'function') window.exitDemoMode();
+                    window.location.href = 'index.html';
+                });
+            }
+
+            window.showContent();
+            return;
+        }
+
         if (!window.supabaseClient) return;
 
         // --- 1. Tentativa de Recuperação via URL (Prioridade Máxima) ---
@@ -236,9 +356,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { data } = await window.supabaseClient.auth.getSession();
             let session = data.session;
 
-            const path = window.location.pathname;
-            const isLoginPage = path.includes('index.html') || path.endsWith('/') || path.endsWith('/SaaS-GQV/');
-            const isRestrictedPage = !isLoginPage;
             const isDashboardPage = path.includes('dashboard.html');
 
             if (session) {
@@ -867,7 +984,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const newBtn = logoutBtn.cloneNode(true);
             logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
             newBtn.addEventListener('click', async () => {
-                await window.supabaseClient.auth.signOut();
+                const demoActive = typeof window.isDemoMode === 'function' ? window.isDemoMode() : String(localStorage.getItem('demo_mode')) === 'true';
+                if (demoActive) {
+                    if (typeof window.exitDemoMode === 'function') window.exitDemoMode();
+                    window.location.href = 'index.html';
+                    return;
+                }
+                if (window.supabaseClient?.auth?.signOut) {
+                    await window.supabaseClient.auth.signOut();
+                }
                 window.location.href = 'index.html';
             });
         }

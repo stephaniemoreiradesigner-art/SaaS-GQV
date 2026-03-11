@@ -110,26 +110,19 @@
             }
             
             const supabase = await getSupabaseClient();
-            if (!supabase) {
-                console.error('Supabase não carregado');
-                alert('Erro de carregamento. Verifique sua conexão.');
-                return;
-            }
 
             const demoBadge = document.getElementById('demo-login-badge');
             const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
             const isDemoEmail = (value) => normalizeEmail(value) === 'demo@gqv.com';
             const updateDemoBadge = () => {
                 if (!demoBadge) return;
-                const isDemo = localStorage.getItem('is_demo') === '1';
+                const isDemo = String(localStorage.getItem('demo_mode')) === 'true';
                 demoBadge.classList.toggle('hidden', !isDemo);
             };
             const setDemoState = (enabled) => {
                 if (enabled) {
-                    localStorage.setItem('is_demo', '1');
                     localStorage.setItem('demo_mode', 'true');
                 } else {
-                    localStorage.removeItem('is_demo');
                     localStorage.removeItem('demo_mode');
                 }
                 updateDemoBadge();
@@ -138,16 +131,18 @@
             updateDemoBadge();
 
             // Verificar sessão existente
-            try {
-                const { data } = await supabase.auth.getSession();
-                if (data.session) {
-                    setDemoState(isDemoEmail(data.session?.user?.email));
-                    console.log('Sessão ativa, redirecionando...');
-                    window.location.href = 'dashboard.html';
-                    return;
+            if (supabase) {
+                try {
+                    const { data } = await supabase.auth.getSession();
+                    if (data.session) {
+                        setDemoState(isDemoEmail(data.session?.user?.email));
+                        console.log('Sessão ativa, redirecionando...');
+                        window.location.href = 'dashboard.html';
+                        return;
+                    }
+                } catch (err) {
+                    console.warn('Erro ao verificar sessão:', err);
                 }
-            } catch (err) {
-                console.warn('Erro ao verificar sessão:', err);
             }
 
             const loginForm = document.getElementById('loginForm');
@@ -155,6 +150,11 @@
                 loginForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     console.log('Login submit capturado');
+
+                    if (!supabase) {
+                        alert('Login indisponível no momento. Use "Modo Demonstração" para apresentar.');
+                        return;
+                    }
 
                     const email = document.getElementById('email').value;
                     const password = document.getElementById('password').value;
@@ -207,51 +207,17 @@
             const demoButton = document.getElementById('btn-demo-mode');
             if (demoButton) {
                 demoButton.addEventListener('click', async () => {
-                    const originalText = demoButton.textContent;
                     demoButton.disabled = true;
-                    demoButton.textContent = 'Ativando demo...';
-                    setDemoState(true);
-                    try {
-                        const response = await fetch(`${window.API_BASE_URL}/api/demo/seed`, { method: 'POST' });
-                        let payload = null;
-                        try {
-                            payload = await response.json();
-                        } catch {
-                            payload = null;
-                        }
-                        if (!response.ok || payload?.error) {
-                            const reason = payload?.details?.error || payload?.error || 'Não foi possível ativar o modo demo.';
-                            console.error('Erro demo seed:', payload || reason);
-                            alert('Erro ao ativar o modo demo: ' + reason);
-                            setDemoState(false);
-                            return;
-                        }
-                        localStorage.setItem('tenant_id', '00000000-0000-0000-0000-000000000999');
-                        setDemoState(true);
-                        const { data, error } = await supabase.auth.signInWithPassword({
-                            email: 'demo@gqv.com',
-                            password: 'Demo@123456'
-                        });
-                        if (error) {
-                            console.error('Erro login demo:', error);
-                            alert('Erro ao entrar no modo demo: ' + error.message);
-                            setDemoState(false);
-                            return;
-                        }
-                        if (data?.session) {
-                            window.location.href = 'dashboard.html';
-                        } else {
-                            setDemoState(false);
-                            alert('Não foi possível iniciar a sessão demo.');
-                        }
-                    } catch (error) {
-                        console.error('Erro ao ativar demo:', error);
-                        alert('Erro ao ativar o modo demo: ' + error.message);
-                        setDemoState(false);
-                    } finally {
-                        demoButton.disabled = false;
-                        demoButton.textContent = originalText;
+                    if (typeof window.enterDemoMode === 'function') {
+                        window.enterDemoMode();
+                    } else {
+                        localStorage.setItem('demo_mode', 'true');
+                        localStorage.setItem('demo_client_id', 'demo-client-001');
+                        localStorage.setItem('demo_client_name', 'Cliente Demonstração');
+                        localStorage.setItem('demo_user_name', 'Stéphanie Demo');
                     }
+                    setDemoState(true);
+                    window.location.href = 'dashboard.html';
                 });
             }
         });

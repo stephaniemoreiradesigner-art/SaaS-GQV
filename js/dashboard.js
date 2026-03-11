@@ -2,6 +2,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Verifica se estamos na página de dashboard
     if (!window.location.pathname.includes('dashboard.html')) return;
 
+    const demoModeEnabled = String(localStorage.getItem('demo_mode')) === 'true';
+    if (demoModeEnabled) {
+        const demoClientName = localStorage.getItem('demo_client_name') || 'Cliente Demonstração';
+        const metricCampanhas = document.getElementById('metric-campanhas');
+        if (metricCampanhas) metricCampanhas.innerText = '2';
+        const clientNameEl = document.getElementById('active-client-name') || document.getElementById('dashboard-client-name');
+        if (clientNameEl) clientNameEl.textContent = demoClientName;
+        if (window.showContent) window.showContent();
+        return;
+    }
+
     let socialChartInstance = null;
     let currentUserRole = 'usuario';
     let currentUserEmail = '';
