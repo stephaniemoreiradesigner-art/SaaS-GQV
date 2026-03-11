@@ -13,16 +13,45 @@
         if (global.__GQV_V2_BOOTSTRAPPED__ === true) return;
         global.__GQV_V2_BOOTSTRAPPED__ = true;
 
-        // 1. Garantir Supabase Client (V2)
-        if (!global.supabaseClient) {
-            const client = global.SupabaseFactory?.getAgencyClient
-                ? await global.SupabaseFactory.getAgencyClient()
-                : null;
-            if (client) global.supabaseClient = client;
+        // 1) Garantir Supabase Client (V2) - ordem obrigatória:
+        // a) loadConfig
+        // b) getAgencyClient
+        try {
+            if (!global.SupabaseFactory) {
+                console.error('[V2 Bootstrap] SupabaseFactory indisponível.');
+                return;
+            }
+
+            if (!global.supabaseClient) {
+                const config = typeof global.SupabaseFactory.loadConfig === 'function'
+                    ? await global.SupabaseFactory.loadConfig()
+                    : null;
+
+                if (!config) {
+                    console.error('[V2 Bootstrap] Configuração do Supabase indisponível.');
+                    return;
+                }
+
+                if (!global.supabase) {
+                    console.error('[V2 Bootstrap] SDK do Supabase (window.supabase) indisponível.');
+                    return;
+                }
+
+                const supabase = typeof global.SupabaseFactory.getAgencyClient === 'function'
+                    ? await global.SupabaseFactory.getAgencyClient()
+                    : null;
+
+                if (supabase) global.supabaseClient = supabase;
+            }
+        } catch (err) {
+            console.error('[V2 Bootstrap] Erro no boot:', err);
+            return;
         }
+
         if (global.supabaseClient) {
             window.dispatchEvent(new CustomEvent('supabaseReady'));
             window.dispatchEvent(new CustomEvent('gqv:v2:supabaseReady'));
+            console.log('[V2 Bootstrap] Supabase inicializado.');
         } else {
             console.error('[V2 Bootstrap] Falha ao inicializar Supabase.');
             return;
