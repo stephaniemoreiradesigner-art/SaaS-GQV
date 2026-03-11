@@ -13,6 +13,57 @@
             this.setupCalendarFab();
         },
 
+        getSelectedMonthKey: function(clientId) {
+            const safeClientId = clientId ? String(clientId) : '';
+            if (!safeClientId) {
+                return new Date().toISOString().slice(0, 7);
+            }
+            const stored = localStorage.getItem(`GQV_SOCIAL_MONTH_${safeClientId}`);
+            const monthKey = String(stored || '').trim();
+            if (/^\d{4}-\d{2}$/.test(monthKey)) {
+                return monthKey;
+            }
+            return new Date().toISOString().slice(0, 7);
+        },
+
+        getMonthStartEnd: function(monthKey) {
+            const base = new Date(`${monthKey}-01T00:00:00`);
+            if (Number.isNaN(base.getTime())) {
+                const fallback = new Date();
+                const fallbackKey = fallback.toISOString().slice(0, 7);
+                return this.getMonthStartEnd(fallbackKey);
+            }
+            const startDate = `${monthKey}-01`;
+            const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+            const endDate = end.toISOString().slice(0, 10);
+            return { startDate, endDate, dateRef: base };
+        },
+
+        isTabActive: function(tabName) {
+            const btn = document.querySelector(`.social-tab-btn[data-social-tab="${tabName}"]`);
+            return btn ? btn.getAttribute('data-active') === 'true' : false;
+        },
+
+        refreshPostsBoardFromRepo: async function() {
+            const clientId = global.ClientContext?.getActiveClient?.() || global.SocialMediaCore?.currentClientId || null;
+            if (!clientId) {
+                this.renderPostsBoard([], new Date());
+                return;
+            }
+
+            const monthKey = this.getSelectedMonthKey(clientId);
+            const { startDate, endDate, dateRef } = this.getMonthStartEnd(monthKey);
+            const posts = await global.SocialMediaRepo?.getPostsByDateRange?.(clientId, startDate, endDate);
+            const safePosts = Array.isArray(posts) ? posts : [];
+
+            if (global.SocialMediaCore) {
+                global.SocialMediaCore.currentPosts = safePosts;
+                global.SocialMediaCore.currentMonthRef = dateRef;
+            }
+
+            this.renderPostsBoard(safePosts, dateRef);
+        },
+
         setupDrawer: function() {
             const closeBtn = document.getElementById('social-post-close');
             const cancelBtn = document.getElementById('social-post-cancel');
@@ -92,12 +143,19 @@
                     if (fab) fab.classList.toggle('hidden', tabName !== 'calendar');
 
                     if (tabName === 'posts' && typeof this.renderPostsBoard === 'function') {
-                        const posts = global.SocialMediaCore?.currentPosts || [];
-                        const ref = global.SocialMediaCore?.currentMonthRef || new Date();
-                        this.renderPostsBoard(posts, ref);
+                        this.refreshPostsBoardFromRepo();
                     }
                 });
             });
+
+            const prevBtn = document.getElementById('social-month-prev');
+            const nextBtn = document.getElementById('social-month-next');
+            const scheduleRefresh = () => {
+                if (!this.isTabActive('posts')) return;
+                setTimeout(() => this.refreshPostsBoardFromRepo(), 100);
+            };
+            if (prevBtn) prevBtn.addEventListener('click', scheduleRefresh);
+            if (nextBtn) nextBtn.addEventListener('click', scheduleRefresh);
         },
 
         normalizeStatus: function(raw) {
