@@ -1567,14 +1567,11 @@ const legacyHandler = async (request, response) => {
     // --- API ENDPOINTS ---
 
     if (pathname === '/config' && request.method === 'GET') {
-        const supabaseUrl = process.env.SUPABASE_URL || '';
-        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
-        const payload = {
-            supabaseUrl,
-            supabaseAnonKey,
-            missing: !supabaseUrl || !supabaseAnonKey
-        };
-        response.writeHead(200, { 'Content-Type': 'application/json' });
+        const supabaseUrl = process.env.SUPABASE_URL || null;
+        const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || null;
+        const payload = { supabaseUrl, supabaseAnonKey };
+        const status = supabaseUrl && supabaseAnonKey ? 200 : 500;
+        response.writeHead(status, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(payload));
         return;
     }
