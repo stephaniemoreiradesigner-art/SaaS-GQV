@@ -116,8 +116,12 @@
         handleApprovePostInModal: async function() {
             if (!this.activePostId) return;
             if (!confirm('Aprovar este post?')) return;
-            
-            const result = await global.ClientRepo.approvePost(this.activePostId);
+
+            const clientId = this.currentClient?.client_id || null;
+            const commentInput = document.getElementById('client-post-modal-comment');
+            const comment = commentInput ? commentInput.value.trim() : '';
+
+            const result = await global.ClientRepo.approvePost(this.activePostId, clientId, comment);
             const ok = result === true || result?.ok === true;
             if (ok) {
                 alert('Post aprovado com sucesso!');
@@ -142,7 +146,8 @@
                 return;
             }
 
-            const result = await global.ClientRepo.rejectPost(this.activePostId, reason);
+            const clientId = this.currentClient?.client_id || null;
+            const result = await global.ClientRepo.rejectPost(this.activePostId, clientId, reason);
             const ok = result === true || result?.ok === true;
             if (ok) {
                 alert('Solicitação de ajuste enviada!');
@@ -158,7 +163,8 @@
 
         handleApprovePost: async function(postId) {
             if (!confirm('Aprovar este post?')) return;
-            const result = await global.ClientRepo.approvePost(postId);
+            const clientId = this.currentClient?.client_id || null;
+            const result = await global.ClientRepo.approvePost(postId, clientId, '');
             const ok = result === true || result?.ok === true;
             if (ok) {
                 alert('Post aprovado!');
@@ -171,7 +177,8 @@
         },
 
         handleRejectPost: async function(postId, reason) {
-            const result = await global.ClientRepo.rejectPost(postId, reason);
+            const clientId = this.currentClient?.client_id || null;
+            const result = await global.ClientRepo.rejectPost(postId, clientId, reason);
             const ok = result === true || result?.ok === true;
             if (ok) {
                 alert('Solicitação enviada!');
@@ -202,7 +209,8 @@
             if (global.ClientUI) global.ClientUI.showCalendarModal(true);
 
             // Load Posts
-            const posts = await global.ClientRepo.getCalendarPosts(calendarId);
+            const clientId = this.currentClient?.client_id || null;
+            const posts = await global.ClientRepo.getCalendarPosts(calendarId, clientId);
             if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(posts);
 
             // Bind Actions
@@ -225,7 +233,10 @@
             if (!this.activeCalendarId) return;
             if (!confirm('Confirmar a aprovação deste calendário?')) return;
 
-            const success = await global.ClientRepo.approveCalendar(this.activeCalendarId);
+            const clientId = this.currentClient?.client_id || null;
+            const commentInput = document.getElementById('client-calendar-approval-comment');
+            const comment = commentInput ? commentInput.value.trim() : '';
+            const success = await global.ClientRepo.approveCalendar(this.activeCalendarId, clientId, comment);
             if (success) {
                 alert('Calendário aprovado com sucesso!');
                 if (global.ClientUI) global.ClientUI.showCalendarModal(false);
@@ -246,7 +257,8 @@
                 return;
             }
 
-            const success = await global.ClientRepo.rejectCalendar(this.activeCalendarId, comment);
+            const clientId = this.currentClient?.client_id || null;
+            const success = await global.ClientRepo.rejectCalendar(this.activeCalendarId, clientId, comment);
             if (success) {
                 alert('Solicitação de ajuste enviada!');
                 if (global.ClientUI) global.ClientUI.showCalendarModal(false);

@@ -197,6 +197,10 @@
                 const statusMap = {
                     'draft': 'Rascunho',
                     'ready_for_approval': 'Pendente',
+                    'pendente_aprovacao': 'Pendente',
+                    'pendente_aprovação': 'Pendente',
+                    'aguardando_aprovacao': 'Pendente',
+                    'awaiting_approval': 'Pendente',
                     'approved': 'Aprovado',
                     'changes_requested': 'Ajustes Solicitados',
                     'scheduled': 'Agendado',
