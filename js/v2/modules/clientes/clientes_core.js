@@ -70,18 +70,6 @@
         ClientCore.init();
     });
 
-    // Fallback se o v2:ready já tiver passado
-    if (global.ClientContext && global.ClientContext.isReady) { // Assumindo propriedade isReady ou checando se existe
-        ClientCore.init();
-    } else {
-         // Se carregou depois do bootstrap, tenta iniciar brevemente
-         setTimeout(() => {
-             if (!ClientCore.initialized && global.ClientContext) {
-                 ClientCore.init();
-             }
-         }, 1000);
-    }
-
     global.ClientCore = ClientCore;
 
 })(window);

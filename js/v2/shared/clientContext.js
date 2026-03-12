@@ -9,6 +9,13 @@
     
     let activeClientId = null;
     let isInitialized = false;
+    const normalizeClientId = (value) => {
+        const raw = value === null || value === undefined ? '' : String(value).trim();
+        if (!raw) return null;
+        const lowered = raw.toLowerCase();
+        if (lowered === 'null' || lowered === 'undefined') return null;
+        return raw;
+    };
 
     const ClientContext = {
         /**
@@ -20,11 +27,17 @@
             // Aguardar TenantContext estar pronto para validação de segurança (opcional por enquanto)
             // const tenantId = global.TenantContext?.getTenantId();
 
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = normalizeClientId(localStorage.getItem(STORAGE_KEY));
             if (saved) {
                 activeClientId = saved;
                 console.log('[ClientContext v2] Inicializado com cliente:', activeClientId);
             } else {
+                activeClientId = null;
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem('selectedClientId');
+                localStorage.removeItem('sm_active_client');
+                localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
+                localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
                 console.log('[ClientContext v2] Inicializado sem cliente ativo');
             }
             isInitialized = true;
@@ -57,12 +70,13 @@
                 clientId = input;
             }
 
-            const normalizedId = clientId ? String(clientId).trim() : null;
+            const normalizedId = normalizeClientId(clientId);
             
             // Mesmo se o ID for igual, o nome pode ter mudado (ou sido carregado agora)
             // Mas para evitar loops, checamos se realmente mudou algo relevante
             if (normalizedId === activeClientId && !clientName) return; 
 
+            const previousClientId = activeClientId;
             activeClientId = normalizedId;
             
             if (activeClientId) {
@@ -84,7 +98,9 @@
                 localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
             }
 
-            console.log('[ClientContext v2] Cliente alterado para:', activeClientId, clientName);
+            if (previousClientId !== activeClientId) {
+                console.log('[ClientContext v2] Cliente alterado para:', activeClientId, clientName);
+            }
             this.notifyListeners();
             this.dispatchGlobalEvent(clientName);
         },
@@ -159,9 +175,8 @@
     // Escutar eventos de storage (para sincronia entre abas)
     window.addEventListener('storage', (e) => {
         if (e.key === STORAGE_KEY || e.key === 'selectedClientId') {
-            const newVal = e.newValue;
+            const newVal = normalizeClientId(e.newValue);
             if (newVal !== activeClientId) {
-                console.log('[ClientContext v2] Sincronizado via storage:', newVal);
                 activeClientId = newVal;
                 ClientContext.notifyListeners();
                 ClientContext.dispatchGlobalEvent();

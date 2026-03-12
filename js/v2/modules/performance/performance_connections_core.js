@@ -82,8 +82,5 @@
     global.PerformanceConnectionsCore = PerformanceConnectionsCore;
 
     global.addEventListener('v2:ready', () => PerformanceConnectionsCore.init());
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(() => PerformanceConnectionsCore.init(), 50);
-    }
 })(window);
 
