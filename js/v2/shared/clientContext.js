@@ -6,6 +6,7 @@
     console.log('[V2] clientContext carregado');
     const STORAGE_KEY = 'GQV_ACTIVE_CLIENT_ID';
     const LISTENERS = new Set();
+    const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
     
     let activeClientId = null;
     let isInitialized = false;
@@ -31,6 +32,12 @@
             if (saved) {
                 activeClientId = saved;
                 console.log('[ClientContext v2] Inicializado com cliente:', activeClientId);
+                if (isDebug()) {
+                    console.log('[ClientContext] active client restored:', {
+                        clientId: activeClientId,
+                        clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null
+                    });
+                }
             } else {
                 activeClientId = null;
                 localStorage.removeItem(STORAGE_KEY);
@@ -39,6 +46,9 @@
                 localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
                 localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
                 console.log('[ClientContext v2] Inicializado sem cliente ativo');
+                if (isDebug()) {
+                    console.log('[ClientContext] active client restored:', { clientId: null, clientName: null });
+                }
             }
             isInitialized = true;
             this.notifyListeners();
@@ -98,8 +108,17 @@
                 localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
             }
 
+            if (isDebug()) {
+                console.log('[ClientContext] active client set:', {
+                    clientId: activeClientId,
+                    clientName: clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null
+                });
+            }
             if (previousClientId !== activeClientId) {
                 console.log('[ClientContext v2] Cliente alterado para:', activeClientId, clientName);
+                if (isDebug()) {
+                    console.log('[ClientContext] client changed:', { from: previousClientId, to: activeClientId });
+                }
             }
             this.notifyListeners();
             this.dispatchGlobalEvent(clientName);
@@ -178,6 +197,13 @@
             const newVal = normalizeClientId(e.newValue);
             if (newVal !== activeClientId) {
                 activeClientId = newVal;
+                if (isDebug()) {
+                    console.log('[ClientContext] active client restored:', {
+                        clientId: activeClientId,
+                        clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null,
+                        source: 'storage'
+                    });
+                }
                 ClientContext.notifyListeners();
                 ClientContext.dispatchGlobalEvent();
             }

@@ -7,10 +7,12 @@
         init: function() {
             if (this.initialized) return;
             if (!global.PerformanceConnectionsRepo || !global.PerformanceConnectionsUI) return;
+            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
 
             if (global.ClientContext?.subscribe) {
                 global.ClientContext.subscribe((clientId) => {
                     const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                    if (isDebug()) console.log('[PerformanceV2] active client received:', { clientId, clientName: name || null });
                     this.onClientChange(clientId, name);
                 });
             }
@@ -18,6 +20,7 @@
             const activeId = global.ClientContext?.getActiveClient ? global.ClientContext.getActiveClient() : null;
             if (activeId) {
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                if (isDebug()) console.log('[PerformanceV2] active client received:', { clientId: activeId, clientName: name || null });
                 this.onClientChange(activeId, name);
             } else {
                 global.PerformanceConnectionsUI.render({ clienteId: null, clientName: null, connections: [] });
@@ -28,6 +31,7 @@
         },
 
         onClientChange: async function(clientId, clientName) {
+            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
             this.currentClientId = clientId || null;
             this.currentClientName = clientName || '';
 
@@ -37,6 +41,7 @@
                 return;
             }
 
+            if (isDebug()) console.log('[PerformanceV2] filter by client_id:', { clientId });
             const connections = await global.PerformanceConnectionsRepo.getConnections(clientId);
             const lastSyncAt = connections.reduce((acc, c) => {
                 const ts = c.last_sync_at || null;

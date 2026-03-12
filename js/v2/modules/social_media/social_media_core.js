@@ -14,6 +14,7 @@
         init: async function() {
             if (this.initialized) return;
             console.log('[SOCIAL] Inicializando Core...');
+            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
 
             // Dependências
             if (!global.SocialMediaRepo) console.warn('[SOCIAL] Repo não carregado!');
@@ -24,6 +25,7 @@
             if (global.ClientContext) {
                 global.ClientContext.subscribe((clientId) => {
                     const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null;
+                    if (isDebug()) console.log('[SocialMediaV2] active client received:', { clientId, clientName: name });
                     this.onClientChange(clientId, name);
                 });
             }
@@ -31,6 +33,7 @@
             // Ouvir evento global também (segurança)
             window.addEventListener('gqv:client-changed', (e) => {
                 if (e.detail && e.detail.clientId) {
+                    if (isDebug()) console.log('[SocialMediaV2] client changed received:', { clientId: e.detail.clientId, clientName: e.detail.clientName || null });
                     this.onClientChange(e.detail.clientId, e.detail.clientName);
                 }
             });
@@ -111,6 +114,7 @@
         },
 
         onClientChange: async function(clientId, clientName) {
+            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
             if (!clientId) {
                 this.currentClientId = null;
                 this.currentClientName = null;
@@ -119,6 +123,7 @@
             }
 
             const resolvedName = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || 'Cliente';
+            if (isDebug()) console.log('[SocialMediaV2] render for client:', { clientId, clientName: resolvedName });
 
             // Se mudou o cliente, reseta o estado
             if (clientId !== this.currentClientId) {
@@ -153,10 +158,12 @@
         },
 
         loadCalendarForMonth: async function(dateRef) {
+            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
             if (!this.currentClientId) return;
 
             this.currentMonthRef = dateRef;
             const monthStr = dateRef.toISOString().slice(0, 7) + '-01'; // YYYY-MM-01
+            if (isDebug()) console.log('[SocialMediaV2] render for client:', { clientId: this.currentClientId, monthRef: monthStr });
 
             if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
                 global.SocialMediaUI.showLoading();
