@@ -281,6 +281,14 @@
             }
 
             try {
+                if (global.TenantContext?.init) {
+                    try {
+                        await global.TenantContext.init();
+                    } catch (err) {
+                        console.error('[ClientRepo] Falha ao inicializar TenantContext:', err);
+                    }
+                }
+
                 const schema = await detectSchema();
                 const buildBaseQuery = () => {
                     let query = global.supabaseClient.from('clientes').select('*');
@@ -300,10 +308,22 @@
                 if (tenantCtx?.tenantUuid) tenantCandidates.push(tenantCtx.tenantUuid);
                 if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push(tenantCtx.tenantId);
 
+                if (global.__GQV_DEBUG_CLIENTES__ === true) {
+                    console.log('[ClientRepo] getClients debug:', {
+                        tenantCtx,
+                        tenantCandidates,
+                        hasTenantId: !!schema?.hasTenantId
+                    });
+                }
+
                 if (schema?.hasTenantId && tenantCandidates.length) {
                     for (const tenantValue of tenantCandidates) {
                         const { data, error } = await buildBaseQuery().eq('tenant_id', tenantValue);
-                        if (!error) return data || [];
+                        if (!error) {
+                            const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                            if (rows.length) return rows;
+                            continue;
+                        }
 
                         const msg = String(error?.message || '');
                         const canFallback =
@@ -331,6 +351,9 @@
                     }
                 }
                 if (error) throw error;
+                if (global.__GQV_DEBUG_CLIENTES__ === true) {
+                    console.log('[ClientRepo] getClients unfiltered count:', Array.isArray(data) ? data.length : (data ? 1 : 0));
+                }
                 return data || [];
             } catch (error) {
                 console.error('[ClientRepo] Erro ao buscar clientes:', error);
