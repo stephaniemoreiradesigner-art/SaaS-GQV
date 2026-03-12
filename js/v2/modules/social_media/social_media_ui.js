@@ -5,6 +5,10 @@
 (function(global) {
     const SocialMediaUI = {
         drawerId: 'social-post-drawer',
+
+        isDebug: function() {
+            return global.__GQV_DEBUG_CONTEXT__ === true;
+        },
         
         init: function() {
             // Setup de listeners de UI (fechar drawer, tabs)
@@ -55,6 +59,19 @@
             const { startDate, endDate, dateRef } = this.getMonthStartEnd(monthKey);
             const posts = await global.SocialMediaRepo?.getPostsByDateRange?.(clientId, startDate, endDate);
             const safePosts = Array.isArray(posts) ? posts : [];
+
+            if (this.isDebug()) {
+                const statuses = safePosts.map((p) => String(p?.status ?? '')).filter(Boolean);
+                const uniqueStatuses = Array.from(new Set(statuses)).sort();
+                console.log('[SocialMediaPosts] fetched posts:', {
+                    clientId,
+                    monthKey,
+                    startDate,
+                    endDate,
+                    total: safePosts.length
+                });
+                console.log('[SocialMediaPosts] fetched statuses:', uniqueStatuses);
+            }
 
             if (global.SocialMediaCore) {
                 global.SocialMediaCore.currentPosts = safePosts;
@@ -159,12 +176,13 @@
         },
 
         normalizeStatus: function(raw) {
-            const status = String(raw || '').trim().toLowerCase();
-            if (['rascunho', 'draft'].includes(status)) return 'draft';
-            if (['producing', 'in_production', 'em_producao', 'design'].includes(status)) return 'producing';
-            if (['pending_approval', 'ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao'].includes(status)) return 'pending_approval';
-            if (['approved', 'aprovado'].includes(status)) return 'approved';
-            if (['scheduled', 'agendado'].includes(status)) return 'scheduled';
+            const rawStatus = String(raw || '').trim().toLowerCase();
+            const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
+            if (['rascunho', 'draft'].includes(normalized)) return 'draft';
+            if (['producing', 'in_production', 'em_producao', 'em_produção', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'producing';
+            if (['pending_approval', 'ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao', 'pendente_aprovação'].includes(normalized)) return 'pending_approval';
+            if (['approved', 'aprovado'].includes(normalized)) return 'approved';
+            if (['scheduled', 'agendado'].includes(normalized)) return 'scheduled';
             return 'draft';
         },
 
@@ -180,7 +198,7 @@
         },
 
         getPostDate: function(post) {
-            const raw = post?.data_agendada || post?.data_postagem || post?.post_date || '';
+            const raw = post?.data_agendada || post?.data_postagem || post?.post_date || post?.date || '';
             const date = String(raw).slice(0, 10);
             return date;
         },
@@ -216,6 +234,23 @@
                 if (!grouped[status]) grouped[status] = [];
                 grouped[status].push(post);
             });
+
+            if (this.isDebug()) {
+                const rawStatuses = (posts || []).map((p) => String(p?.status ?? '')).filter(Boolean);
+                const uniqueRawStatuses = Array.from(new Set(rawStatuses)).sort();
+                const groupedCounts = Object.keys(grouped).reduce((acc, key) => {
+                    acc[key] = grouped[key]?.length || 0;
+                    return acc;
+                }, {});
+                console.log('[SocialMediaPosts] grouped by status:', {
+                    monthKey,
+                    total: (posts || []).length,
+                    rawStatuses: uniqueRawStatuses,
+                    buckets: groupedCounts
+                });
+                console.log('[SocialMediaPosts] drafts bucket:', (grouped.draft || []).map((p) => p?.id).filter(Boolean));
+                console.log('[SocialMediaPosts] approval bucket:', (grouped.pending_approval || []).map((p) => p?.id).filter(Boolean));
+            }
 
             board.innerHTML = '';
             columns.forEach((col) => {
