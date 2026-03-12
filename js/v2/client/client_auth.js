@@ -31,21 +31,21 @@
             await this.init();
             const supabase = global.clientPortalSupabase;
             if (!supabase) return null;
-            const normalizedClientId = this.normalizeBigIntId(clientId);
-            if (!normalizedClientId) return null;
+            const id = Number(clientId);
+            if (!Number.isFinite(id) || Number.isNaN(id)) return null;
 
             if (this.isDebug()) {
                 console.log('[ClientPortal] resolveTenantUuidForClient query:', {
                     table: 'clientes',
                     select: 'tenant_id',
-                    filter: { id: normalizedClientId }
+                    filter: { id }
                 });
             }
 
             const { data, error } = await supabase
                 .from('clientes')
                 .select('tenant_id')
-                .eq('id', normalizedClientId)
+                .eq('id', id)
                 .maybeSingle();
 
             if (this.isDebug()) {
