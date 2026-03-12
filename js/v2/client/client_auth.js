@@ -34,54 +34,38 @@
             const normalizedClientId = this.normalizeBigIntId(clientId);
             if (!normalizedClientId) return null;
 
-            const trySelect = async (columns) => {
-                const { data, error } = await supabase
-                    .from('clientes')
-                    .select(columns)
-                    .eq('id', String(normalizedClientId))
-                    .maybeSingle();
-                if (error) {
-                    const msg = String(error.message || '');
-                    if (msg.includes('column') && msg.includes('does not exist')) {
-                        return { data: null, error: null, missing: true };
-                    }
-                    return { data: null, error, missing: false };
-                }
-                return { data: data || null, error: null, missing: false };
-            };
-
-            const columnSets = [
-                'tenant_id',
-                'tenant_uuid',
-                'tenantUuid',
-                'tenant_uuid_id',
-                'client_uuid',
-                'client_id_uuid',
-                'uuid',
-                'time_id'
-            ];
-
-            for (const col of columnSets) {
-                const res = await trySelect(col);
-                if (res?.missing) continue;
-                if (res?.error) {
-                    if (this.isDebug()) {
-                        console.log('[ClientPortal] resolveTenantUuidForClient query error:', {
-                            clientId: normalizedClientId,
-                            column: col,
-                            errorCode: res.error?.code,
-                            errorMessage: res.error?.message,
-                            errorDetails: res.error?.details
-                        });
-                    }
-                    return null;
-                }
-                const value = res?.data?.[col];
-                const uuid = this.normalizeUuid(value);
-                if (uuid) return uuid;
+            if (this.isDebug()) {
+                console.log('[ClientPortal] resolveTenantUuidForClient query:', {
+                    table: 'clientes',
+                    select: 'tenant_id',
+                    filter: { id: normalizedClientId }
+                });
             }
 
-            return null;
+            const { data, error } = await supabase
+                .from('clientes')
+                .select('tenant_id')
+                .eq('id', normalizedClientId)
+                .maybeSingle();
+
+            if (this.isDebug()) {
+                console.log('[ClientPortal] resolveTenantUuidForClient response:', {
+                    ok: !error,
+                    hasData: !!data,
+                    errorCode: error?.code,
+                    errorMessage: error?.message,
+                    errorDetails: error?.details,
+                    errorHint: error?.hint,
+                    dataTenantId: data?.tenant_id ?? null
+                });
+            }
+
+            if (error) return null;
+            const resolved = this.normalizeUuid(data?.tenant_id);
+            if (this.isDebug()) {
+                console.log('[ClientPortal] resolveTenantUuidForClient resolved tenant_id:', resolved);
+            }
+            return resolved;
         },
 
         init: async function() {
