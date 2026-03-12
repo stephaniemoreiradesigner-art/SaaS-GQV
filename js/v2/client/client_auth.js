@@ -351,18 +351,27 @@
                     }
                 };
 
-                const { error: signUpError } = await supabase.auth.signUp(signUpPayload);
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp(signUpPayload);
                 if (signUpError) {
                     let msg = signUpError.message;
                     if (msg.includes('already registered')) msg = 'Este e-mail já possui cadastro. Tente fazer login.';
                     return { success: false, error: msg };
                 }
 
-                const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-                if (signInError) throw signInError;
-
-                const userId = signInData?.session?.user?.id || null;
+                const userId = signUpData?.user?.id || null;
                 if (!userId) throw new Error('Usuário não encontrado após registro.');
+
+                if (this.isDebug()) {
+                    console.log('[ClientPortal] registerAndLink signUp user:', {
+                        userId,
+                        hasSession: !!signUpData?.session
+                    });
+                }
+
+                if (!signUpData?.session) {
+                    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+                    if (signInError) throw signInError;
+                }
 
                 const linkResult = await this.createPortalLink({ userId, clientId, tenantId: resolvedTenantUuid, email });
                 if (!linkResult.ok) {
