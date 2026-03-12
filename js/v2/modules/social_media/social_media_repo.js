@@ -3,6 +3,8 @@
 // Responsável por buscar posts e dados de calendário no Supabase
 
 (function(global) {
+    const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
+
     const SocialMediaRepo = {
         /**
          * Busca ou cria o calendário para um mês específico
@@ -12,6 +14,8 @@
          */
         getCalendarByMonth: async function(clientId, monthRef) {
             if (!global.supabaseClient || !clientId || !monthRef) return null;
+
+            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthRef });
 
             try {
                 // Tenta buscar existente
@@ -87,6 +91,8 @@
          * @returns {Promise<Object>} Resultado da operação
          */
         createPost: async function(input) {
+            if (isDebug()) console.log('[SocialMediaRepo] createPost payload:', input);
+
             if (!global.supabaseClient) {
                 throw new Error('Banco de dados não conectado');
             }
@@ -192,6 +198,7 @@
                     .single();
 
                 if (error) throw error;
+                if (isDebug()) console.log('[SocialMediaRepo] createPost success:', data);
                 return data;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao criar post:', err);
@@ -206,6 +213,8 @@
          * @returns {Promise<Object>} Resultado da operação
          */
         updatePost: async function(postId, input) {
+            if (isDebug()) console.log('[SocialMediaRepo] updatePost:', { postId, input });
+
             if (!global.supabaseClient || !postId) return null;
 
             const dbPayload = {};
@@ -255,6 +264,7 @@
                     .select();
 
                 if (error) throw error;
+                if (isDebug()) console.log('[SocialMediaRepo] updatePost success:', data);
                 return data;
             } catch (err) {
                 console.error('[SOCIAL] Falha ao atualizar post:', err);

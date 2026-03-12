@@ -2236,6 +2236,7 @@
         };
 
         const generateAiSuggestions = () => {
+            const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
                 return;
@@ -2249,6 +2250,10 @@
             if (!goal && !briefing) {
                 setSocialFeedback('Informe objetivo ou briefing para gerar sugestões.', 'error');
                 return;
+            }
+            if (isDebug) {
+                console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
+                console.log('[SocialMediaV2] generate calendar payload:', { client_id: socialState.clientId, month: socialState.calendarMonth, goal, briefing });
             }
             const suggestions = [
                 `Dica prática: ${goal || 'conteúdo educativo'}`,
@@ -2280,6 +2285,9 @@
             setSocialFeedback('Sugestões adicionadas ao calendário.');
             updateSocialOverview();
             renderCalendarGrid();
+            if (isDebug) {
+                console.log('[SocialMediaV2] generate calendar response:', { added: suggestions.length, totalPosts: socialState.posts.length });
+            }
         };
 
         const loadCalendarMeta = async () => {
@@ -2298,6 +2306,7 @@
         };
 
         const loadSocialPosts = async () => {
+            const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) {
                 socialState.posts = [];
                 updateSocialOverview();
@@ -2312,6 +2321,7 @@
                 setSocialFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
+            if (isDebug) console.log('[SocialMediaV2] list/render filter by client_id:', { clientId: socialState.clientId, startDate, endDate });
             const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDate);
             socialState.posts = (Array.isArray(data) ? data : []).map(normalizePost);
             updateSocialOverview();
@@ -2338,18 +2348,30 @@
         };
 
         const ensureCalendarDraft = async () => {
+            const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) return null;
             const repo = window.SocialMediaRepo;
             const monthRef = `${socialState.calendarMonth}-01`;
             if (!repo?.getCalendarByMonth) return null;
+            if (isDebug) {
+                console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
+                console.log('[SocialMediaV2] generate calendar payload:', { client_id: socialState.clientId, month_ref: monthRef });
+            }
             const calendar = await repo.getCalendarByMonth(socialState.clientId, monthRef);
             socialState.calendarId = calendar?.id || null;
             socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(calendar?.status || null) || 'rascunho';
             updateCalendarStatus(socialState.calendarStatus);
+            if (isDebug) {
+                console.log('[SocialMediaV2] generate calendar response:', {
+                    calendarId: socialState.calendarId,
+                    status: socialState.calendarStatus
+                });
+            }
             return calendar || null;
         };
 
         const saveDraft = async () => {
+            const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de salvar.', 'error');
                 return;
@@ -2357,6 +2379,16 @@
             if (socialState.calendarStatus === 'aguardando_aprovacao') {
                 setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 return;
+            }
+            if (isDebug) {
+                const dirtyCount = socialState.posts.filter((p) => p && (p.isTemp || p.isDirty)).length;
+                console.log('[SocialMediaV2] save draft payload:', {
+                    clientId: socialState.clientId,
+                    calendarMonth: socialState.calendarMonth,
+                    calendarId: socialState.calendarId || null,
+                    postsTotal: socialState.posts.length,
+                    postsDirty: dirtyCount
+                });
             }
             const calendar = await ensureCalendarDraft();
             if (!calendar) return;
@@ -2376,9 +2408,17 @@
             setSocialFeedback('Rascunho salvo com sucesso.');
             await loadSocialPosts();
             renderCalendarGrid();
+            if (isDebug) {
+                console.log('[SocialMediaV2] save draft response:', {
+                    clientId: socialState.clientId,
+                    calendarId: socialState.calendarId || null,
+                    postsTotal: socialState.posts.length
+                });
+            }
         };
 
         const sendForApproval = async () => {
+            const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de enviar.', 'error');
                 return;
@@ -2395,12 +2435,20 @@
                 setSocialFeedback('Falha ao conectar ao banco.', 'error');
                 return;
             }
+            if (isDebug) {
+                console.log('[SocialMediaV2] approval payload:', {
+                    calendarId: calendar.id,
+                    clientId: socialState.clientId,
+                    status: 'aguardando_aprovacao'
+                });
+            }
             const { error } = await supabase
                 .from('social_calendars')
                 .update({ status: normalizeSocialCalendarStatusToDb('aguardando_aprovacao') })
                 .eq('id', calendar.id)
                 .eq('cliente_id', socialState.clientId);
             if (error) {
+                if (isDebug) console.log('[SocialMediaV2] approval response:', { ok: false, error: error?.message || String(error) });
                 setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
                 return;
             }
@@ -2415,6 +2463,7 @@
             updateCalendarStatus(socialState.calendarStatus);
             await loadSocialPosts();
             setSocialFeedback('Calendário enviado para aprovação.');
+            if (isDebug) console.log('[SocialMediaV2] approval response:', { ok: true, calendarId: calendar.id });
         };
 
         const renderClientList = (clients) => {

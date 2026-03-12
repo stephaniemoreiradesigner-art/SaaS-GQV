@@ -11,11 +11,15 @@
         currentMonthRef: new Date(),
         currentPosts: [],
 
+        // Helper de debug
+        isDebug: function() {
+            return window.__GQV_DEBUG_CONTEXT__ === true;
+        },
+
         init: async function() {
             if (this.initialized) return;
             console.log('[SOCIAL] Inicializando Core...');
-            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
-
+            
             // Dependências
             if (!global.SocialMediaRepo) console.warn('[SOCIAL] Repo não carregado!');
             if (!global.SocialMediaCalendar) console.warn('[SOCIAL] Calendar não carregado!');
@@ -25,7 +29,7 @@
             if (global.ClientContext) {
                 global.ClientContext.subscribe((clientId) => {
                     const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null;
-                    if (isDebug()) console.log('[SocialMediaV2] active client received:', { clientId, clientName: name });
+                    if (this.isDebug()) console.log('[SocialMediaV2] active client received:', { clientId, clientName: name });
                     this.onClientChange(clientId, name);
                 });
             }
@@ -33,7 +37,7 @@
             // Ouvir evento global também (segurança)
             window.addEventListener('gqv:client-changed', (e) => {
                 if (e.detail && e.detail.clientId) {
-                    if (isDebug()) console.log('[SocialMediaV2] client changed received:', { clientId: e.detail.clientId, clientName: e.detail.clientName || null });
+                    if (this.isDebug()) console.log('[SocialMediaV2] client changed received:', { clientId: e.detail.clientId, clientName: e.detail.clientName || null });
                     this.onClientChange(e.detail.clientId, e.detail.clientName);
                 }
             });
@@ -114,7 +118,6 @@
         },
 
         onClientChange: async function(clientId, clientName) {
-            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
             if (!clientId) {
                 this.currentClientId = null;
                 this.currentClientName = null;
@@ -123,7 +126,7 @@
             }
 
             const resolvedName = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || 'Cliente';
-            if (isDebug()) console.log('[SocialMediaV2] render for client:', { clientId, clientName: resolvedName });
+            if (this.isDebug()) console.log('[SocialMediaV2] render for client:', { clientId, clientName: resolvedName });
 
             // Se mudou o cliente, reseta o estado
             if (clientId !== this.currentClientId) {
@@ -158,12 +161,11 @@
         },
 
         loadCalendarForMonth: async function(dateRef) {
-            const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
             if (!this.currentClientId) return;
 
             this.currentMonthRef = dateRef;
             const monthStr = dateRef.toISOString().slice(0, 7) + '-01'; // YYYY-MM-01
-            if (isDebug()) console.log('[SocialMediaV2] render for client:', { clientId: this.currentClientId, monthRef: monthStr });
+            if (this.isDebug()) console.log('[SocialMediaV2] loadCalendarForMonth:', { clientId: this.currentClientId, monthRef: monthStr });
 
             if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
                 global.SocialMediaUI.showLoading();
@@ -272,7 +274,7 @@
             const mode = drawer.dataset.mode;
             const postId = drawer.dataset.postId;
             
-            console.log(`[SOCIAL] handleSavePost acionado. Mode: ${mode}, PostID: ${postId}`);
+            if (this.isDebug()) console.log(`[SocialMediaV2] handleSavePost start. Mode: ${mode}, PostID: ${postId}`);
 
             // Get data from UI
             const formData = global.SocialMediaUI.getFormData();
@@ -281,6 +283,8 @@
                 cliente_id: this.currentClientId,
                 ...formData
             };
+
+            if (this.isDebug()) console.log('[SocialMediaV2] handleSavePost payload:', input);
 
             const saveBtn = document.getElementById('social-post-save');
             const originalText = saveBtn ? saveBtn.innerHTML : 'Salvar';
@@ -291,17 +295,19 @@
 
             try {
                 if (mode === 'edit' && postId && postId !== 'undefined' && postId !== '') {
-                    console.log('[SOCIAL] Atualizando post existente...', postId);
+                    if (this.isDebug()) console.log('[SocialMediaV2] Updating existing post...', postId);
                     const updated = await global.SocialMediaRepo.updatePost(postId, input);
                     if (updated) {
+                         if (this.isDebug()) console.log('[SocialMediaV2] Post updated successfully:', updated);
                          if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado com sucesso!', 'success');
                     } else {
                          throw new Error('Falha ao atualizar (retorno vazio).');
                     }
                 } else {
-                    console.log('[SOCIAL] Criando novo post...', input);
+                    if (this.isDebug()) console.log('[SocialMediaV2] Creating new post...', input);
                     const created = await global.SocialMediaRepo.createPost(input);
                     if (created) {
+                         if (this.isDebug()) console.log('[SocialMediaV2] Post created successfully:', created);
                          if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Post criado com sucesso!', 'success');
                     } else {
                          throw new Error('Falha ao criar post (retorno vazio).');
