@@ -38,4 +38,15 @@ router.get('/me/tenant', (req, res) => {
   });
 });
 
+router.get('/me', (req, res) => {
+  const tenant = req.tenant || {};
+  res.status(200).json({
+    user_id: req.user.id,
+    tenant_id: tenant.tenant_id,
+    membership_id: tenant.membership_id,
+    roles: tenant.roles,
+    email: req.user.email
+  });
+});
+
 module.exports = router;
