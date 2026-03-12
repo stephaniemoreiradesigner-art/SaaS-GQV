@@ -5,6 +5,10 @@
     const ClientAuth = {
         sessionKey: 'V2_CLIENT_SESSION',
 
+        isDebug: function() {
+            return global.__GQV_DEBUG_CONTEXT__ === true;
+        },
+
         normalizeBigIntId: function(value) {
             const raw = String(value ?? '').trim();
             if (!raw) return null;
@@ -66,38 +70,27 @@
             const supabase = global.clientPortalSupabase;
             if (!supabase || !userId) return { data: null, error: new Error('Supabase ou userId ausente') };
 
-            const normalizeLinkRow = (row) => {
-                if (!row) return null;
-                const normalized = { ...row };
-                if (normalized.client_id == null && normalized.cliente_id != null) normalized.client_id = normalized.cliente_id;
-                if (normalized.tenant_id == null && normalized.tenantId != null) normalized.tenant_id = normalized.tenantId;
-                if (normalized.user_id == null && normalized.auth_user_id != null) normalized.user_id = normalized.auth_user_id;
-                return normalized;
-            };
+            if (this.isDebug()) console.log('[ClientPortal] getPortalLink query:', { userId });
 
-            try {
-                const { data, error } = await supabase
-                    .from('client_portal_users')
-                    .select('*')
-                    .eq('user_id', userId)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                if (data || !error) return { data: normalizeLinkRow(data), error };
-            } catch {}
+            const { data, error } = await supabase
+                .from('client_portal_users')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-            try {
-                const { data, error } = await supabase
-                    .from('client_portal_users')
-                    .select('*')
-                    .eq('auth_user_id', userId)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                return { data: normalizeLinkRow(data), error };
-            } catch (error) {
-                return { data: null, error };
+            if (this.isDebug()) {
+                console.log('[ClientPortal] getPortalLink response:', {
+                    ok: !error,
+                    hasData: !!data,
+                    errorCode: error?.code,
+                    errorMessage: error?.message,
+                    errorDetails: error?.details
+                });
             }
+
+            return { data, error };
         },
 
         createPortalLink: async function({ userId, clientId, tenantId, email }) {
@@ -109,60 +102,37 @@
             const normalizedTenantId = this.normalizeBigIntId(tenantId) || normalizedClientId;
             if (!normalizedClientId) return { ok: false, reason: 'client_id_missing' };
 
-            const attemptInsert = async (payload) => {
-                return supabase
-                    .from('client_portal_users')
-                    .insert(payload)
-                    .select('*')
-                    .maybeSingle();
+            const payload = {
+                user_id: userId,
+                client_id: normalizedClientId,
+                tenant_id: normalizedTenantId
             };
 
-            const candidates = [
-                { user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
-                { user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId },
-                { user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
-                { user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId },
-                { auth_user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
-                { auth_user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId },
-                { auth_user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
-                { auth_user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId }
-            ];
+            if (this.isDebug()) console.log('[ClientPortal] createPortalLink insert payload:', payload);
 
-            let inserted = null;
-            let lastError = null;
-            for (const payload of candidates) {
-                try {
-                    const { data, error } = await attemptInsert(payload);
-                    if (error) {
-                        lastError = error;
-                        const message = String(error.message || '');
-                        if (message.includes('duplicate key') || message.includes('already exists')) {
-                            break;
-                        }
-                        continue;
-                    }
-                    if (data) {
-                        inserted = data;
-                        break;
-                    }
-                } catch (error) {
-                    lastError = error;
-                }
+            const { data: inserted, error } = await supabase
+                .from('client_portal_users')
+                .insert(payload)
+                .select('*')
+                .maybeSingle();
+
+            if (this.isDebug()) {
+                console.log('[ClientPortal] createPortalLink insert response:', {
+                    ok: !error,
+                    hasData: !!inserted,
+                    errorCode: error?.code,
+                    errorMessage: error?.message,
+                    errorDetails: error?.details,
+                    errorHint: error?.hint
+                });
+            }
+
+            if (error) {
+                return { ok: false, reason: 'portal_link_insert_failed', error };
             }
 
             if (!inserted) {
-                const verify = await this.getPortalLink(userId);
-                if (verify?.data?.client_id) {
-                    inserted = verify.data;
-                } else {
-                    console.error('[ClientAuth] Falha ao criar vínculo em client_portal_users:', {
-                        userId,
-                        clientId: normalizedClientId,
-                        tenantId: normalizedTenantId,
-                        lastError: lastError?.message || lastError
-                    });
-                    return { ok: false, reason: 'portal_link_insert_failed', error: lastError || null };
-                }
+                return { ok: false, reason: 'portal_link_insert_no_return' };
             }
 
             try {
