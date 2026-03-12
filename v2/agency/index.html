@@ -2707,7 +2707,14 @@
                     || String(document.getElementById('client-detail-email')?.textContent || '').trim();
                 const normalizedEmail = rawEmail ? rawEmail.toLowerCase() : '';
                 const safeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? normalizedEmail : '';
-                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${safeEmail ? `&email=${encodeURIComponent(safeEmail)}` : ''}`;
+                const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                const rawTenantId =
+                    String(selectedClientForDetail.tenant_id || '').trim()
+                    || String(selectedClientForDetail.tenantId || '').trim()
+                    || String(selectedClientForDetail.tenant_uuid || '').trim()
+                    || String(selectedClientForDetail.tenantUuid || '').trim();
+                const safeTenantId = uuidRe.test(rawTenantId) ? rawTenantId : '';
+                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${safeTenantId ? `&tenant_id=${encodeURIComponent(safeTenantId)}` : ''}${safeEmail ? `&email=${encodeURIComponent(safeEmail)}` : ''}`;
 
                 const detailFeedback = document.getElementById('client-detail-access-warning');
                 const showDetailFeedback = (message, type) => {
@@ -2730,6 +2737,7 @@
                     clientDetailFirstAccessLink.focus();
                     clientDetailFirstAccessLink.select();
                 }
+                if (window.__GQV_DEBUG_CONTEXT__ === true) console.log('[ClientAccess] first access link:', url);
                 showDetailFeedback('Link de primeiro acesso gerado.', 'success');
             });
         }

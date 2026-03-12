@@ -27,6 +27,15 @@
             return this.UUID_RE.test(raw) ? raw : null;
         },
 
+        getTenantUuidFromUrl: function() {
+            try {
+                const params = new URLSearchParams(global.location?.search || '');
+                return this.normalizeUuid(params.get('tenant_id'));
+            } catch {
+                return null;
+            }
+        },
+
         resolveTenantUuidForClient: async function(clientId) {
             await this.init();
             const supabase = global.clientPortalSupabase;
@@ -152,6 +161,7 @@
 
             const resolvedTenantUuid =
                 this.normalizeUuid(tenantId)
+                || this.getTenantUuidFromUrl()
                 || (await this.resolveTenantUuidForClient(normalizedClientId));
 
             if (!resolvedTenantUuid) {
@@ -322,6 +332,7 @@
                 const normalizedClientId = this.normalizeBigIntId(clientId);
                 const resolvedTenantUuid =
                     this.normalizeUuid(tenantId)
+                    || this.getTenantUuidFromUrl()
                     || (await this.resolveTenantUuidForClient(normalizedClientId));
 
                 if (!resolvedTenantUuid) {
