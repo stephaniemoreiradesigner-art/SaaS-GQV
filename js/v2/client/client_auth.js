@@ -9,6 +9,8 @@
             return global.__GQV_DEBUG_CONTEXT__ === true;
         },
 
+        UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+
         normalizeBigIntId: function(value) {
             const raw = String(value ?? '').trim();
             if (!raw) return null;
@@ -17,6 +19,69 @@
             const intVal = Math.trunc(num);
             if (intVal <= 0) return null;
             return intVal;
+        },
+
+        normalizeUuid: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            return this.UUID_RE.test(raw) ? raw : null;
+        },
+
+        resolveTenantUuidForClient: async function(clientId) {
+            await this.init();
+            const supabase = global.clientPortalSupabase;
+            if (!supabase) return null;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            if (!normalizedClientId) return null;
+
+            const trySelect = async (columns) => {
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select(columns)
+                    .eq('id', String(normalizedClientId))
+                    .maybeSingle();
+                if (error) {
+                    const msg = String(error.message || '');
+                    if (msg.includes('column') && msg.includes('does not exist')) {
+                        return { data: null, error: null, missing: true };
+                    }
+                    return { data: null, error, missing: false };
+                }
+                return { data: data || null, error: null, missing: false };
+            };
+
+            const columnSets = [
+                'tenant_id',
+                'tenant_uuid',
+                'tenantUuid',
+                'tenant_uuid_id',
+                'client_uuid',
+                'client_id_uuid',
+                'uuid',
+                'time_id'
+            ];
+
+            for (const col of columnSets) {
+                const res = await trySelect(col);
+                if (res?.missing) continue;
+                if (res?.error) {
+                    if (this.isDebug()) {
+                        console.log('[ClientPortal] resolveTenantUuidForClient query error:', {
+                            clientId: normalizedClientId,
+                            column: col,
+                            errorCode: res.error?.code,
+                            errorMessage: res.error?.message,
+                            errorDetails: res.error?.details
+                        });
+                    }
+                    return null;
+                }
+                const value = res?.data?.[col];
+                const uuid = this.normalizeUuid(value);
+                if (uuid) return uuid;
+            }
+
+            return null;
         },
 
         init: async function() {
@@ -99,13 +164,21 @@
             if (!supabase) return { ok: false, reason: 'supabase_missing' };
             if (!userId) return { ok: false, reason: 'user_missing' };
             const normalizedClientId = this.normalizeBigIntId(clientId);
-            const normalizedTenantId = this.normalizeBigIntId(tenantId) || normalizedClientId;
             if (!normalizedClientId) return { ok: false, reason: 'client_id_missing' };
+
+            const resolvedTenantUuid =
+                this.normalizeUuid(tenantId)
+                || (await this.resolveTenantUuidForClient(normalizedClientId));
+
+            if (!resolvedTenantUuid) {
+                if (this.isDebug()) console.log('[ClientPortal] tenant UUID não resolvido para vínculo:', { clientId: normalizedClientId, tenantId });
+                return { ok: false, reason: 'tenant_uuid_missing' };
+            }
 
             const payload = {
                 user_id: userId,
                 client_id: normalizedClientId,
-                tenant_id: normalizedTenantId
+                tenant_id: resolvedTenantUuid
             };
 
             if (this.isDebug()) console.log('[ClientPortal] createPortalLink insert payload:', payload);
@@ -138,7 +211,7 @@
             try {
                 await supabase.auth.updateUser({
                     data: {
-                        tenant_id: normalizedTenantId,
+                        tenant_id: resolvedTenantUuid,
                         client_id: normalizedClientId,
                         role: 'client'
                     }
@@ -189,7 +262,13 @@
 
                 const linkedClientId = String(link.client_id);
                 try {
-                    await global.clientPortalSupabase.auth.updateUser({ data: { tenant_id: Number(link.client_id) } });
+                    const tenantUuid = this.normalizeUuid(link?.tenant_id);
+                    await global.clientPortalSupabase.auth.updateUser({
+                        data: {
+                            tenant_id: tenantUuid || null,
+                            client_id: Number(link.client_id)
+                        }
+                    });
                     await global.clientPortalSupabase.auth.refreshSession();
                 } catch {}
 
@@ -257,7 +336,13 @@
 
             try {
                 const normalizedClientId = this.normalizeBigIntId(clientId);
-                const normalizedTenantId = this.normalizeBigIntId(tenantId) || normalizedClientId;
+                const resolvedTenantUuid =
+                    this.normalizeUuid(tenantId)
+                    || (await this.resolveTenantUuidForClient(normalizedClientId));
+
+                if (!resolvedTenantUuid) {
+                    return { success: false, error: 'Não foi possível resolver o tenant do convite. Solicite um novo link.' };
+                }
 
                 const signUpPayload = {
                     email,
@@ -265,7 +350,7 @@
                     options: {
                         data: {
                             role: 'client',
-                            tenant_id: normalizedTenantId,
+                            tenant_id: resolvedTenantUuid,
                             client_id: normalizedClientId
                         }
                     }
@@ -284,11 +369,14 @@
                 const userId = signInData?.session?.user?.id || null;
                 if (!userId) throw new Error('Usuário não encontrado após registro.');
 
-                const linkResult = await this.createPortalLink({ userId, clientId, tenantId, email });
+                const linkResult = await this.createPortalLink({ userId, clientId, tenantId: resolvedTenantUuid, email });
                 if (!linkResult.ok) {
                     await supabase.auth.signOut();
                     if (linkResult.reason === 'client_id_missing') {
                         throw new Error('Não foi possível identificar o cliente do convite. Solicite um link de registro com client_id.');
+                    }
+                    if (linkResult.reason === 'tenant_uuid_missing') {
+                        throw new Error('Não foi possível resolver o tenant do convite. Solicite suporte.');
                     }
                     throw new Error('Não foi possível vincular o usuário ao cliente. Solicite suporte.');
                 }
