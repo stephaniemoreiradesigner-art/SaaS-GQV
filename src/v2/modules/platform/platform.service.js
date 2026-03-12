@@ -10,11 +10,21 @@ const bootstrapTenant = async (userId, tenantName) => {
     // 3. Garantir role owner
     let role = await repo.getRoleByName('owner');
     if (!role) {
-        role = await repo.createRole('owner', 'Owner');
+        try {
+            role = await repo.createRole('owner', 'Owner');
+        } catch (error) {
+            role = await repo.getRoleByName('owner');
+            if (!role) throw error;
+        }
     }
     
     // 4. Atribuir role ao membro
-    await repo.assignRoleToMember(membership.id, role.id);
+    try {
+        await repo.assignRoleToMember(membership.id, role.id);
+    } catch (error) {
+        const message = String(error?.message || '');
+        if (!/duplicate/i.test(message)) throw error;
+    }
     
     // 5. Criar entitlements padrão
     const defaultEntitlements = {
@@ -22,7 +32,12 @@ const bootstrapTenant = async (userId, tenantName) => {
         feature_social: true,
         feature_ads: true
     };
-    await repo.createEntitlements(tenant.id, defaultEntitlements);
+    try {
+        await repo.createEntitlements(tenant.id, defaultEntitlements);
+    } catch (error) {
+        const message = String(error?.message || '');
+        if (!/duplicate/i.test(message)) throw error;
+    }
     
     return {
         tenant_id: tenant.id,
