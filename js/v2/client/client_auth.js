@@ -5,6 +5,16 @@
     const ClientAuth = {
         sessionKey: 'V2_CLIENT_SESSION',
 
+        normalizeBigIntId: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            const num = Number(raw);
+            if (!Number.isFinite(num) || Number.isNaN(num)) return null;
+            const intVal = Math.trunc(num);
+            if (intVal <= 0) return null;
+            return intVal;
+        },
+
         init: async function() {
             // Se já temos o cliente isolado, retorna
             if (global.clientPortalSupabase) return;
@@ -56,15 +66,38 @@
             const supabase = global.clientPortalSupabase;
             if (!supabase || !userId) return { data: null, error: new Error('Supabase ou userId ausente') };
 
-            const { data, error } = await supabase
-                .from('client_portal_users')
-                .select('*')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            const normalizeLinkRow = (row) => {
+                if (!row) return null;
+                const normalized = { ...row };
+                if (normalized.client_id == null && normalized.cliente_id != null) normalized.client_id = normalized.cliente_id;
+                if (normalized.tenant_id == null && normalized.tenantId != null) normalized.tenant_id = normalized.tenantId;
+                if (normalized.user_id == null && normalized.auth_user_id != null) normalized.user_id = normalized.auth_user_id;
+                return normalized;
+            };
 
-            return { data, error };
+            try {
+                const { data, error } = await supabase
+                    .from('client_portal_users')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (data || !error) return { data: normalizeLinkRow(data), error };
+            } catch {}
+
+            try {
+                const { data, error } = await supabase
+                    .from('client_portal_users')
+                    .select('*')
+                    .eq('auth_user_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                return { data: normalizeLinkRow(data), error };
+            } catch (error) {
+                return { data: null, error };
+            }
         },
 
         createPortalLink: async function({ userId, clientId, tenantId, email }) {
@@ -72,37 +105,74 @@
             const supabase = global.clientPortalSupabase;
             if (!supabase) return { ok: false, reason: 'supabase_missing' };
             if (!userId) return { ok: false, reason: 'user_missing' };
-            const normalizedClientId = clientId ? Number(clientId) : null;
-            if (!normalizedClientId || Number.isNaN(normalizedClientId)) return { ok: false, reason: 'client_id_missing' };
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const normalizedTenantId = this.normalizeBigIntId(tenantId) || normalizedClientId;
+            if (!normalizedClientId) return { ok: false, reason: 'client_id_missing' };
 
-            const payload = {
-                user_id: userId,
-                client_id: normalizedClientId,
-                tenant_id: tenantId ? Number(tenantId) : normalizedClientId
+            const attemptInsert = async (payload) => {
+                return supabase
+                    .from('client_portal_users')
+                    .insert(payload)
+                    .select('*')
+                    .maybeSingle();
             };
 
-            const { data: inserted, error } = await supabase
-                .from('client_portal_users')
-                .insert(payload)
-                .select('*')
-                .maybeSingle();
-            if (error) {
-                console.error('[ClientAuth] Falha ao inserir vínculo em client_portal_users:', {
-                    code: error.code,
-                    message: error.message,
-                    details: error.details,
-                    hint: error.hint,
-                    payload
-                });
-                return { ok: false, reason: 'portal_link_insert_failed', error };
+            const candidates = [
+                { user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
+                { user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId },
+                { user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
+                { user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId },
+                { auth_user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
+                { auth_user_id: userId, client_id: normalizedClientId, tenant_id: normalizedTenantId },
+                { auth_user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId, role: 'client' },
+                { auth_user_id: userId, cliente_id: normalizedClientId, tenant_id: normalizedTenantId }
+            ];
+
+            let inserted = null;
+            let lastError = null;
+            for (const payload of candidates) {
+                try {
+                    const { data, error } = await attemptInsert(payload);
+                    if (error) {
+                        lastError = error;
+                        const message = String(error.message || '');
+                        if (message.includes('duplicate key') || message.includes('already exists')) {
+                            break;
+                        }
+                        continue;
+                    }
+                    if (data) {
+                        inserted = data;
+                        break;
+                    }
+                } catch (error) {
+                    lastError = error;
+                }
             }
+
             if (!inserted) {
-                console.error('[ClientAuth] Insert não retornou registro em client_portal_users:', payload);
-                return { ok: false, reason: 'portal_link_insert_no_return' };
+                const verify = await this.getPortalLink(userId);
+                if (verify?.data?.client_id) {
+                    inserted = verify.data;
+                } else {
+                    console.error('[ClientAuth] Falha ao criar vínculo em client_portal_users:', {
+                        userId,
+                        clientId: normalizedClientId,
+                        tenantId: normalizedTenantId,
+                        lastError: lastError?.message || lastError
+                    });
+                    return { ok: false, reason: 'portal_link_insert_failed', error: lastError || null };
+                }
             }
 
             try {
-                await supabase.auth.updateUser({ data: { tenant_id: normalizedClientId } });
+                await supabase.auth.updateUser({
+                    data: {
+                        tenant_id: normalizedTenantId,
+                        client_id: normalizedClientId,
+                        role: 'client'
+                    }
+                });
             } catch {}
             try {
                 const refreshed = await supabase.auth.refreshSession();
@@ -216,8 +286,27 @@
             if (!supabase) return { success: false, error: 'Falha ao iniciar autenticação do portal.' };
 
             try {
-                const signUpResult = await this.register(email, password);
-                if (!signUpResult.success) return signUpResult;
+                const normalizedClientId = this.normalizeBigIntId(clientId);
+                const normalizedTenantId = this.normalizeBigIntId(tenantId) || normalizedClientId;
+
+                const signUpPayload = {
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            role: 'client',
+                            tenant_id: normalizedTenantId,
+                            client_id: normalizedClientId
+                        }
+                    }
+                };
+
+                const { error: signUpError } = await supabase.auth.signUp(signUpPayload);
+                if (signUpError) {
+                    let msg = signUpError.message;
+                    if (msg.includes('already registered')) msg = 'Este e-mail já possui cadastro. Tente fazer login.';
+                    return { success: false, error: msg };
+                }
 
                 const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
                 if (signInError) throw signInError;
@@ -232,6 +321,12 @@
                         throw new Error('Não foi possível identificar o cliente do convite. Solicite um link de registro com client_id.');
                     }
                     throw new Error('Não foi possível vincular o usuário ao cliente. Solicite suporte.');
+                }
+
+                const verify = await this.getPortalLink(userId);
+                if (!verify?.data?.client_id) {
+                    await supabase.auth.signOut();
+                    throw new Error('Vínculo do portal não foi criado. Solicite suporte.');
                 }
 
                 await supabase.auth.signOut();
