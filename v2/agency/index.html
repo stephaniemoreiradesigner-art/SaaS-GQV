@@ -756,6 +756,14 @@
                         <h4 class="text-sm font-semibold text-slate-900">Acesso</h4>
                         <p class="text-sm text-slate-500">Gerencie o acesso do cliente ao portal.</p>
                         <button id="client-detail-grant-access" class="ui-btn ui-btn-primary w-full">Liberar acesso ao painel</button>
+                        <div id="client-detail-first-access" class="hidden space-y-2">
+                            <p class="text-xs uppercase tracking-widest text-slate-400">Link de primeiro acesso</p>
+                            <div class="flex items-center gap-2">
+                                <input id="client-detail-first-access-link" class="ui-input flex-1" readonly value="">
+                                <button id="client-detail-first-access-copy" type="button" class="ui-btn ui-btn-secondary whitespace-nowrap">Copiar link</button>
+                            </div>
+                            <p class="text-xs text-slate-500">Envie este link para o cliente criar a senha e acessar o portal.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -946,6 +954,9 @@
         const clientDetailIntegrationsBtn = document.getElementById('client-detail-action-integrations');
         const clientDetailHistoryBtn = document.getElementById('client-detail-action-history');
         const clientDetailGrantAccessBtn = document.getElementById('client-detail-grant-access');
+        const clientDetailFirstAccessWrap = document.getElementById('client-detail-first-access');
+        const clientDetailFirstAccessLink = document.getElementById('client-detail-first-access-link');
+        const clientDetailFirstAccessCopyBtn = document.getElementById('client-detail-first-access-copy');
         const clientDeleteModal = document.getElementById('client-delete-modal');
         const clientDeleteClose = document.getElementById('client-delete-close');
         const clientDeleteCancel = document.getElementById('client-delete-cancel');
@@ -1075,6 +1086,9 @@
             const detail = window.ClientRepo?.getClientById ? await window.ClientRepo.getClientById(client.id) : client;
             const data = detail || client;
             selectedClientForDetail = { ...(client || {}), ...(data || {}) };
+
+            if (clientDetailFirstAccessWrap) clientDetailFirstAccessWrap.classList.add('hidden');
+            if (clientDetailFirstAccessLink) clientDetailFirstAccessLink.value = '';
 
             const name = data.nome_fantasia || data.razao_social || data.nome_empresa || data.nome || data.empresa || 'Cliente';
             const statusValue = data.status || data.status_cliente || data.situacao || (data.ativo === false ? 'inativo' : 'ativo');
@@ -2710,26 +2724,43 @@
                     }
                 };
 
-                try {
-                    clientDetailGrantAccessBtn.disabled = true;
-                    if (navigator.clipboard?.writeText) {
-                        await navigator.clipboard.writeText(url);
-                        setClientFeedback('Link de acesso copiado. Envie para o cliente.', 'success');
-                        showDetailFeedback('Link de primeiro acesso copiado. Envie para o cliente.', 'success');
-                        return;
-                    }
-                } catch {}
-                finally {
-                    clientDetailGrantAccessBtn.disabled = false;
+                if (clientDetailFirstAccessWrap) clientDetailFirstAccessWrap.classList.remove('hidden');
+                if (clientDetailFirstAccessLink) {
+                    clientDetailFirstAccessLink.value = url;
+                    clientDetailFirstAccessLink.focus();
+                    clientDetailFirstAccessLink.select();
+                }
+                showDetailFeedback('Link de primeiro acesso gerado.', 'success');
+            });
+        }
+
+        if (clientDetailFirstAccessCopyBtn) {
+            clientDetailFirstAccessCopyBtn.addEventListener('click', async () => {
+                const url = String(clientDetailFirstAccessLink?.value || '').trim();
+                if (!url) {
+                    setClientFeedback('Gere o link primeiro.', 'error');
+                    return;
                 }
 
                 try {
-                    window.prompt('Copie e envie este link para o cliente:', url);
-                    setClientFeedback('Link gerado. Envie para o cliente.', 'success');
-                    showDetailFeedback('Link de primeiro acesso gerado. Copie e envie para o cliente.', 'success');
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(url);
+                        setClientFeedback('Link copiado.', 'success');
+                        if (clientDetailAccessWarning) {
+                            clientDetailAccessWarning.textContent = 'Link copiado para a área de transferência.';
+                            clientDetailAccessWarning.classList.remove('hidden');
+                            clientDetailAccessWarning.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
+                            clientDetailAccessWarning.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                        }
+                        return;
+                    }
+                } catch {}
+
+                try {
+                    window.prompt('Copie o link de primeiro acesso:', url);
+                    setClientFeedback('Link exibido para cópia.', 'success');
                 } catch {
                     setClientFeedback('Não foi possível copiar o link.', 'error');
-                    showDetailFeedback('Não foi possível gerar/copiar o link de primeiro acesso.', 'error');
                 }
             });
         }
