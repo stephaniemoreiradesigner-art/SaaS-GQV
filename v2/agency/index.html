@@ -1074,6 +1074,7 @@
 
             const detail = window.ClientRepo?.getClientById ? await window.ClientRepo.getClientById(client.id) : client;
             const data = detail || client;
+            selectedClientForDetail = { ...(client || {}), ...(data || {}) };
 
             const name = data.nome_fantasia || data.razao_social || data.nome_empresa || data.nome || data.empresa || 'Cliente';
             const statusValue = data.status || data.status_cliente || data.situacao || (data.ativo === false ? 'inativo' : 'ativo');
@@ -1093,7 +1094,7 @@
 
             const company = pick('nome_empresa', 'empresa', 'razao_social') || name;
             const subtitle = pick('nome_fantasia', 'nome') || '-';
-            const email = pick('email', 'email_contato') || '-';
+            const email = pick('email', 'email_contato', 'email_responsavel', 'responsavel_email', 'email_empresa') || '-';
             const contact = pick('contato', 'contato_nome', 'responsavel', 'responsavel_nome') || '-';
             const phone = pick('telefone', 'celular', 'phone', 'telefone_contato', 'contato_telefone') || '-';
             const whatsappRaw = pick('whatsapp', 'telefone_whatsapp', 'whatsapp_numero', 'whats') || '';
@@ -2682,23 +2683,53 @@
                 }
 
                 const clientId = selectedClientForDetail.id;
-                const email = String(selectedClientForDetail.email || '').trim().toLowerCase();
                 const origin = window.location.origin;
-                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${email ? `&email=${encodeURIComponent(email)}` : ''}`;
+                const rawEmail =
+                    String(selectedClientForDetail.email || '').trim()
+                    || String(selectedClientForDetail.email_contato || '').trim()
+                    || String(selectedClientForDetail.email_responsavel || '').trim()
+                    || String(selectedClientForDetail.responsavel_email || '').trim()
+                    || String(selectedClientForDetail.email_empresa || '').trim()
+                    || String(document.getElementById('client-detail-email')?.textContent || '').trim();
+                const normalizedEmail = rawEmail ? rawEmail.toLowerCase() : '';
+                const safeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? normalizedEmail : '';
+                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${safeEmail ? `&email=${encodeURIComponent(safeEmail)}` : ''}`;
+
+                const detailFeedback = document.getElementById('client-detail-access-warning');
+                const showDetailFeedback = (message, type) => {
+                    if (!detailFeedback) return;
+                    detailFeedback.textContent = message;
+                    detailFeedback.classList.remove('hidden');
+                    detailFeedback.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
+                    if (type === 'success') {
+                        detailFeedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                    } else if (type === 'error') {
+                        detailFeedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
+                    } else {
+                        detailFeedback.classList.add('bg-amber-50', 'text-amber-700', 'border', 'border-amber-100');
+                    }
+                };
 
                 try {
+                    clientDetailGrantAccessBtn.disabled = true;
                     if (navigator.clipboard?.writeText) {
                         await navigator.clipboard.writeText(url);
                         setClientFeedback('Link de acesso copiado. Envie para o cliente.', 'success');
+                        showDetailFeedback('Link de primeiro acesso copiado. Envie para o cliente.', 'success');
                         return;
                     }
                 } catch {}
+                finally {
+                    clientDetailGrantAccessBtn.disabled = false;
+                }
 
                 try {
                     window.prompt('Copie e envie este link para o cliente:', url);
                     setClientFeedback('Link gerado. Envie para o cliente.', 'success');
+                    showDetailFeedback('Link de primeiro acesso gerado. Copie e envie para o cliente.', 'success');
                 } catch {
                     setClientFeedback('Não foi possível copiar o link.', 'error');
+                    showDetailFeedback('Não foi possível gerar/copiar o link de primeiro acesso.', 'error');
                 }
             });
         }
