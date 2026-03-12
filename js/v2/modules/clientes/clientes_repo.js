@@ -282,15 +282,44 @@
 
             try {
                 const schema = await detectSchema();
-                let query = global.supabaseClient.from('clientes').select('*');
-                if (schema?.hasAtivo) {
-                    query = query.eq('ativo', true);
-                } else if (schema?.statusColumn) {
-                    query = query.eq(schema.statusColumn, 'ativo');
+                const buildBaseQuery = () => {
+                    let query = global.supabaseClient.from('clientes').select('*');
+                    if (schema?.hasAtivo) {
+                        query = query.eq('ativo', true);
+                    } else if (schema?.statusColumn) {
+                        query = query.eq(schema.statusColumn, 'ativo');
+                    }
+                    if (schema?.nameColumn) {
+                        query = query.order(schema.nameColumn, { ascending: true });
+                    }
+                    return query;
+                };
+
+                const tenantCtx = global.TenantContext?.get ? global.TenantContext.get() : null;
+                const tenantCandidates = [];
+                if (tenantCtx?.tenantUuid) tenantCandidates.push(tenantCtx.tenantUuid);
+                if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push(tenantCtx.tenantId);
+
+                if (schema?.hasTenantId && tenantCandidates.length) {
+                    for (const tenantValue of tenantCandidates) {
+                        const { data, error } = await buildBaseQuery().eq('tenant_id', tenantValue);
+                        if (!error) return data || [];
+
+                        const msg = String(error?.message || '');
+                        const canFallback =
+                            error?.code === '42883' ||
+                            error?.code === '42703' ||
+                            msg.includes('invalid input syntax') ||
+                            msg.includes('bigint = uuid') ||
+                            msg.includes('uuid = bigint');
+                        if (!canFallback) {
+                            console.error('[ClientRepo] Erro ao buscar clientes:', error);
+                            return [];
+                        }
+                    }
                 }
-                if (schema?.nameColumn) {
-                    query = query.order(schema.nameColumn, { ascending: true });
-                }
+
+                let query = buildBaseQuery();
                 let { data, error } = await query;
 
                 if (error) {
@@ -329,21 +358,27 @@
             }
 
             const schema = await detectSchema();
-            let tenantId = schema?.hasTenantId && global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
-            let tenantSource = 'tenantContext';
+            const tenantCandidates = [];
+            const tenantCtx = global.TenantContext?.get ? global.TenantContext.get() : null;
+            if (tenantCtx?.tenantUuid) tenantCandidates.push({ value: tenantCtx.tenantUuid, source: 'tenantContext_uuid' });
+            if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push({ value: tenantCtx.tenantId, source: 'tenantContext_legacy' });
+
+            let tenantSource = tenantCandidates[0]?.source || 'none';
             const { data: userData, error: userError } = await global.supabaseClient.auth.getUser();
             if (userError) {
                 console.error('[ClientRepo] Erro ao obter usuário autenticado:', userError);
             }
             const user = userData?.user || null;
-            if (!tenantId && user) {
-                const rawTenant = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id || user.user_metadata?.cliente_id || user.app_metadata?.cliente_id;
+            if (!tenantCandidates.length && user) {
+                const rawTenant = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
                 if (rawTenant) {
-                    tenantId = Number(rawTenant);
-                    tenantSource = 'auth_metadata';
+                    const raw = String(rawTenant || '').trim();
+                    if (/^-?\d+$/.test(raw)) tenantCandidates.push({ value: Number(raw), source: 'auth_metadata_legacy' });
+                    else tenantCandidates.push({ value: raw, source: 'auth_metadata_uuid' });
+                    tenantSource = tenantCandidates[0]?.source || tenantSource;
                 }
             }
-            if (!tenantId && schema?.hasTenantId) {
+            if (!tenantCandidates.length && schema?.hasTenantId) {
                 console.warn('[ClientRepo] tenant_id não resolvido para insert em clientes.');
             }
             const payload = {};
@@ -359,7 +394,6 @@
             if (schema?.docColumn && input?.documento) payload[schema.docColumn] = String(input.documento).trim();
             if (schema?.statusColumn) payload[schema.statusColumn] = input?.status || 'ativo';
             if (schema?.hasAtivo) payload.ativo = true;
-            if (schema?.hasTenantId && tenantId) payload.tenant_id = tenantId;
             if (schema?.contactColumn && (input?.responsavel || input?.responsavel_nome)) {
                 payload[schema.contactColumn] = String(input?.responsavel || input?.responsavel_nome || '').trim() || null;
             }
@@ -377,20 +411,26 @@
                 payload[schema.logoColumn] = String(input.logo_url).trim() || null;
             }
 
-            const attempts = [payload];
+            const attempts = [];
+            if (schema?.hasTenantId && tenantCandidates.length) {
+                for (const candidate of tenantCandidates) {
+                    attempts.push({ ...payload, tenant_id: candidate.value });
+                }
+            }
+            attempts.push(payload);
 
             if (!Object.keys(payload).length) {
                 return { data: null, error: new Error('Schema de clientes não identificado') };
             }
 
-            const withoutTenant = { ...payload };
-            delete withoutTenant.tenant_id;
-            if (schema?.hasTenantId && Object.keys(withoutTenant).length) {
-                attempts.push(withoutTenant);
+            if (schema?.hasTenantId) {
+                const withoutTenant = { ...payload };
+                delete withoutTenant.tenant_id;
+                if (Object.keys(withoutTenant).length) attempts.push(withoutTenant);
             }
 
             console.log('[ClientRepo] createClient payload:', payload);
-            console.log('[ClientRepo] createClient tenantId:', tenantId, 'source:', tenantSource);
+            console.log('[ClientRepo] createClient tenant source:', tenantSource);
 
             let lastError = null;
             for (const payload of attempts) {

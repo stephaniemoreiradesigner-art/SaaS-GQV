@@ -75,7 +75,7 @@
         if (global.TenantContext) {
             await global.TenantContext.init();
             const tenant = global.TenantContext.get();
-            if (!tenant.tenantId) {
+            if (!tenant.tenantId && !tenant.tenantUuid) {
                 console.warn('[V2 Bootstrap] Tenant ID não resolvido. App pode estar em estado inconsistente.');
             }
         } else {

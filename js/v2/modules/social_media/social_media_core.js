@@ -22,7 +22,10 @@
 
             // Inscrever-se no Contexto
             if (global.ClientContext) {
-                global.ClientContext.subscribe(this.onClientChange.bind(this));
+                global.ClientContext.subscribe((clientId) => {
+                    const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null;
+                    this.onClientChange(clientId, name);
+                });
             }
 
             // Ouvir evento global também (segurança)
@@ -115,10 +118,12 @@
                 return;
             }
 
+            const resolvedName = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || 'Cliente';
+
             // Se mudou o cliente, reseta o estado
             if (clientId !== this.currentClientId) {
                 this.currentClientId = clientId;
-                this.currentClientName = clientName || 'Cliente';
+                this.currentClientName = resolvedName;
                 console.log(`[SOCIAL] Cliente alterado: ${clientId}`);
                 
                 // Atualiza UI básica
@@ -131,6 +136,10 @@
                 
                 // Carrega calendário do mês atual
                 await this.loadCalendarForMonth(new Date());
+            } else if (resolvedName && resolvedName !== this.currentClientName) {
+                this.currentClientName = resolvedName;
+                const nameEl = document.getElementById('social-client-name');
+                if (nameEl) nameEl.textContent = this.currentClientName;
             }
         },
 
@@ -337,11 +346,6 @@
 
     global.SocialMediaCore = SocialMediaCore;
 
-    // Inicialização automática se já estiver carregado
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(() => SocialMediaCore.init(), 100);
-    } else {
-        document.addEventListener('DOMContentLoaded', () => SocialMediaCore.init());
-    }
+    global.addEventListener('v2:ready', () => SocialMediaCore.init());
 
 })(window);
