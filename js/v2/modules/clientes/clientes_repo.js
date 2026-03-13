@@ -6,6 +6,7 @@
     let schemaCache = null;
     let schemaInFlight = null;
     let schemaAssumed = null;
+    const isDebug = () => global.__GQV_DEBUG_CLIENTES__ === true;
 
     const parseMissingColumnError = (error) => {
         const msg = String(error?.message || '');
@@ -303,19 +304,32 @@
                 if (tenantCtx?.tenantUuid) tenantCandidates.push(tenantCtx.tenantUuid);
                 if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push(tenantCtx.tenantId);
 
-                if (global.__GQV_DEBUG_CLIENTES__ === true) {
+                if (isDebug()) {
                     console.log('[ClientRepo] getClients debug:', {
                         tenantCtx,
                         tenantCandidates,
-                        hasTenantId: !!schema?.hasTenantId
+                        hasTenantId: !!schema?.hasTenantId,
+                        activeClientId: global.ClientContext?.getActiveClient ? global.ClientContext.getActiveClient() : null
                     });
                 }
 
                 if (schema?.hasTenantId && tenantCandidates.length) {
                     for (const tenantValue of tenantCandidates) {
+                        if (isDebug()) {
+                            console.log('[ClientRepo] getClients query attempt:', {
+                                filter: { tenant_id: tenantValue },
+                                type: typeof tenantValue
+                            });
+                        }
                         const { data, error } = await buildBaseQuery().eq('tenant_id', tenantValue);
                         if (!error) {
                             const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                            if (isDebug()) {
+                                console.log('[ClientRepo] getClients query result:', {
+                                    count: rows.length,
+                                    ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null)
+                                });
+                            }
                             if (rows.length) return rows;
                             continue;
                         }
@@ -346,8 +360,12 @@
                     }
                 }
                 if (error) throw error;
-                if (global.__GQV_DEBUG_CLIENTES__ === true) {
-                    console.log('[ClientRepo] getClients unfiltered count:', Array.isArray(data) ? data.length : (data ? 1 : 0));
+                if (isDebug()) {
+                    const rows = Array.isArray(data) ? data : (data ? [data] : []);
+                    console.log('[ClientRepo] getClients unfiltered result:', {
+                        count: rows.length,
+                        ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null)
+                    });
                 }
                 return data || [];
             } catch (error) {
