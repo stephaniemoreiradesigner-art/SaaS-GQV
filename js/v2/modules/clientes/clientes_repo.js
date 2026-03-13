@@ -309,6 +309,7 @@
                         tenantCtx,
                         tenantCandidates,
                         hasTenantId: !!schema?.hasTenantId,
+                        schema: schema ? { hasTenantId: !!schema.hasTenantId, nameColumn: schema.nameColumn, empty: !!schema.empty, assumed: !!schema.assumed } : null,
                         activeClientId: global.ClientContext?.getActiveClient ? global.ClientContext.getActiveClient() : null
                     });
                 }
@@ -327,11 +328,39 @@
                             if (isDebug()) {
                                 console.log('[ClientRepo] getClients query result:', {
                                     count: rows.length,
-                                    ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null)
+                                    ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
+                                    tenantIds: rows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null).slice(0, 6)
                                 });
                             }
                             if (rows.length) return rows;
+                            if (isDebug()) {
+                                try {
+                                    const preview = await global.supabaseClient
+                                        .from('clientes')
+                                        .select('id,tenant_id')
+                                        .order('id', { ascending: true })
+                                        .limit(10);
+                                    const pRows = Array.isArray(preview?.data) ? preview.data : (preview?.data ? [preview.data] : []);
+                                    console.log('[ClientRepo] getClients fallback preview (no tenant filter):', {
+                                        count: pRows.length,
+                                        ids: pRows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
+                                        tenantIds: pRows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null)
+                                    });
+                                } catch (e) {
+                                    console.log('[ClientRepo] getClients fallback preview error:', e);
+                                }
+                            }
                             continue;
+                        }
+
+                        if (isDebug()) {
+                            console.log('[ClientRepo] getClients query error:', {
+                                filter: { tenant_id: tenantValue },
+                                errorCode: error?.code,
+                                errorMessage: error?.message,
+                                errorDetails: error?.details,
+                                errorHint: error?.hint
+                            });
                         }
 
                         const msg = String(error?.message || '');
@@ -364,7 +393,8 @@
                     const rows = Array.isArray(data) ? data : (data ? [data] : []);
                     console.log('[ClientRepo] getClients unfiltered result:', {
                         count: rows.length,
-                        ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null)
+                        ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
+                        tenantIds: rows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null).slice(0, 6)
                     });
                 }
                 return data || [];
