@@ -292,11 +292,6 @@
                 const schema = await detectSchema();
                 const buildBaseQuery = () => {
                     let query = global.supabaseClient.from('clientes').select('*');
-                    if (schema?.hasAtivo) {
-                        query = query.eq('ativo', true);
-                    } else if (schema?.statusColumn) {
-                        query = query.eq(schema.statusColumn, 'ativo');
-                    }
                     if (schema?.nameColumn) {
                         query = query.order(schema.nameColumn, { ascending: true });
                     }
