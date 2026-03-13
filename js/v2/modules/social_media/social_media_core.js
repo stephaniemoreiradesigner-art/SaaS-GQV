@@ -10,7 +10,6 @@
         currentCalendarId: null,
         currentMonthRef: new Date(),
         currentPosts: [],
-
         // Helper de debug
         isDebug: function() {
             return window.__GQV_DEBUG_CONTEXT__ === true;

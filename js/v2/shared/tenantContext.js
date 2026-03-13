@@ -18,6 +18,52 @@
     const LISTENERS = new Set();
 
     const TenantContext = {
+        async resolveTenantIdFromUuid(supabase, tenantUuid) {
+            const uuid = String(tenantUuid || '').trim();
+            if (!UUID_RE.test(uuid)) return { tenantId: null, tenantUuid: null };
+            if (!supabase) return { tenantId: uuid, tenantUuid: uuid };
+
+            const parseMissingColumn = (error) => {
+                const msg = String(error?.message || '');
+                const match = msg.match(/Could not find the '([^']+)' column of 'tenants' in the schema cache/i);
+                return match ? match[1] : null;
+            };
+
+            const attempt = async (selectExpr) => {
+                return supabase
+                    .from('tenants')
+                    .select(selectExpr)
+                    .eq('id', uuid)
+                    .maybeSingle();
+            };
+
+            let data = null;
+            let error = null;
+
+            try {
+                ({ data, error } = await attempt('id,legacy_id'));
+                if (error) {
+                    const missing = parseMissingColumn(error);
+                    if (missing === 'legacy_id') {
+                        ({ data, error } = await attempt('id'));
+                    }
+                }
+            } catch (e) {
+                error = e;
+            }
+
+            if (error) return { tenantId: uuid, tenantUuid: uuid };
+            const row = data || null;
+            const legacy = row?.legacy_id;
+            if (legacy !== undefined && legacy !== null && String(legacy).match(/^-?\d+$/)) {
+                const parsed = Number(legacy);
+                if (Number.isFinite(parsed) && !Number.isNaN(parsed)) {
+                    return { tenantId: parsed, tenantUuid: uuid };
+                }
+            }
+            return { tenantId: row?.id ? String(row.id) : uuid, tenantUuid: uuid };
+        },
+
         /**
          * Inicializa o contexto buscando dados reais
          */
@@ -48,8 +94,9 @@
                     if (fallbackTenant) {
                         const raw = String(fallbackTenant || '').trim();
                         if (UUID_RE.test(raw)) {
-                            state.tenantUuid = raw;
-                            state.tenantId = null;
+                            const resolved = await this.resolveTenantIdFromUuid(supabase, raw);
+                            state.tenantUuid = resolved.tenantUuid;
+                            state.tenantId = resolved.tenantId;
                         } else if (/^-?\d+$/.test(raw)) {
                             state.tenantId = Number(raw);
                             state.tenantUuid = null;
@@ -92,8 +139,9 @@
                 if (tenantId) {
                     const raw = String(tenantId || '').trim();
                     if (UUID_RE.test(raw)) {
-                        state.tenantUuid = raw;
-                        state.tenantId = null;
+                        const resolved = await this.resolveTenantIdFromUuid(supabase, raw);
+                        state.tenantUuid = resolved.tenantUuid;
+                        state.tenantId = resolved.tenantId;
                     } else if (/^-?\d+$/.test(raw)) {
                         state.tenantId = Number(raw);
                         state.tenantUuid = null;
@@ -122,8 +170,9 @@
                     if (fallbackTenant) {
                         const raw = String(fallbackTenant || '').trim();
                         if (UUID_RE.test(raw)) {
-                            state.tenantUuid = raw;
-                            state.tenantId = null;
+                            const resolved = await this.resolveTenantIdFromUuid(supabase, raw);
+                            state.tenantUuid = resolved.tenantUuid;
+                            state.tenantId = resolved.tenantId;
                         } else if (/^-?\d+$/.test(raw)) {
                             state.tenantId = Number(raw);
                             state.tenantUuid = null;
@@ -147,7 +196,7 @@
         },
 
         getTenantId() {
-            return state.tenantId;
+            return state.tenantId ?? state.tenantUuid;
         },
 
         getTenantUuid() {
