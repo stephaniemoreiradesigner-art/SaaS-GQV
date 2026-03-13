@@ -438,6 +438,24 @@
                 console.error('[SOCIAL] Erro ao buscar posts:', error);
                 return [];
             }
+        },
+
+        getPostAuditEvents: async function(postId) {
+            if (!global.supabaseClient || !postId) return [];
+
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_approvals')
+                    .select('post_id,status_anterior,status_novo,action_type,comment,actor_user_id,created_at')
+                    .eq('post_id', postId)
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+                return data || [];
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao buscar histórico do post:', err);
+                return [];
+            }
         }
     };
 

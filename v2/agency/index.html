@@ -432,6 +432,17 @@
                 </button>
             </div>
             <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                <div id="social-post-audit-panel" class="hidden rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                    <div class="flex items-center justify-between gap-3">
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Status do post</p>
+                        <span id="social-post-status-badge" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">-</span>
+                    </div>
+                    <div id="social-post-last-decision" class="hidden text-sm text-slate-700"></div>
+                    <div class="space-y-2">
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Histórico</p>
+                        <div id="social-post-history" class="space-y-2"></div>
+                    </div>
+                </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
                     <input id="social-post-date" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">

@@ -181,9 +181,149 @@
             if (['rascunho', 'draft'].includes(normalized)) return 'draft';
             if (['producing', 'in_production', 'em_producao', 'em_produção', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'producing';
             if (['pending_approval', 'ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao', 'pendente_aprovação'].includes(normalized)) return 'pending_approval';
+            if (['changes_requested', 'needs_revision', 'ajuste_solicitado', 'rejected', 'rejeitado'].includes(normalized)) return 'needs_revision';
             if (['approved', 'aprovado'].includes(normalized)) return 'approved';
             if (['scheduled', 'agendado'].includes(normalized)) return 'scheduled';
             return 'draft';
+        },
+
+        getStatusBadgeInfo: function(raw) {
+            const rawStatus = String(raw || '').trim().toLowerCase();
+            const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
+
+            const base = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
+            const map = {
+                draft: { label: 'Rascunho', className: base },
+                briefing_sent: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                design_in_progress: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                in_production: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                producing: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                ready_for_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
+                awaiting_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
+                approved: { label: 'Aprovado', className: `${base} bg-green-100 text-green-700` },
+                changes_requested: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
+                rejected: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
+                scheduled: { label: 'Agendado', className: `${base} bg-indigo-100 text-indigo-700` },
+                published: { label: 'Publicado', className: `${base} bg-emerald-100 text-emerald-700` },
+                archived: { label: 'Arquivado', className: `${base} bg-slate-200 text-slate-700` }
+            };
+
+            if (map[normalized]) return map[normalized];
+            return { label: normalized ? normalized.replace(/_/g, ' ') : '-', className: base };
+        },
+
+        getAuditActionLabel: function(actionType) {
+            const key = String(actionType || '').trim().toLowerCase();
+            if (key === 'submit_for_approval') return 'Enviado para aprovação';
+            if (key === 'approve') return 'Aprovado';
+            if (key === 'request_changes') return 'Solicitou ajustes';
+            if (key === 'reject') return 'Reprovado';
+            if (key === 'return_to_review') return 'Retornou para revisão';
+            if (key === 'status_change') return 'Status alterado';
+            return key || 'Evento';
+        },
+
+        renderPostAuditPanel: function(post, events) {
+            const panel = document.getElementById('social-post-audit-panel');
+            if (!panel) return;
+
+            const badgeEl = document.getElementById('social-post-status-badge');
+            const historyEl = document.getElementById('social-post-history');
+            const lastDecisionEl = document.getElementById('social-post-last-decision');
+
+            const isEdit = !!(post && post.id);
+            panel.classList.toggle('hidden', !isEdit);
+            if (!isEdit) return;
+
+            const badge = this.getStatusBadgeInfo(post?.status);
+            if (badgeEl) {
+                badgeEl.textContent = badge.label;
+                badgeEl.className = badge.className;
+            }
+
+            const list = Array.isArray(events) ? events : [];
+            const lastDecision =
+                list.find((e) => ['approve', 'request_changes', 'reject'].includes(String(e?.action_type || '').trim().toLowerCase()) && String(e?.comment || '').trim())
+                || list.find((e) => String(e?.comment || '').trim());
+            const fallbackComment = String(post?.comentario_cliente || '').trim();
+            const lastComment = String(lastDecision?.comment || '').trim() || fallbackComment;
+
+            if (lastDecisionEl) {
+                if (lastComment) {
+                    lastDecisionEl.textContent = `Última decisão: ${lastComment}`;
+                    lastDecisionEl.classList.remove('hidden');
+                } else {
+                    lastDecisionEl.textContent = '';
+                    lastDecisionEl.classList.add('hidden');
+                }
+            }
+
+            if (!historyEl) return;
+            historyEl.innerHTML = '';
+
+            if (!list.length) {
+                const empty = document.createElement('div');
+                empty.className = 'text-sm text-slate-400';
+                empty.textContent = 'Nenhum evento ainda.';
+                historyEl.appendChild(empty);
+                return;
+            }
+
+            list.slice(0, 12).forEach((item) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'rounded-lg border border-slate-200 bg-white p-3';
+
+                const createdAt = item?.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
+                const actor = String(item?.actor_user_id || '').trim();
+                const actorShort = actor ? actor.slice(0, 8) : '';
+                const actionLabel = this.getAuditActionLabel(item?.action_type);
+
+                const meta = document.createElement('div');
+                meta.className = 'text-xs text-slate-400';
+                meta.textContent = `${actionLabel}${createdAt ? ` • ${createdAt}` : ''}${actorShort ? ` • ${actorShort}` : ''}`;
+
+                const change = document.createElement('div');
+                change.className = 'text-sm text-slate-700 mt-1';
+                const from = String(item?.status_anterior || '').trim();
+                const to = String(item?.status_novo || '').trim();
+                change.textContent = from || to ? `${from || '-'} → ${to || '-'}` : '-';
+
+                const comment = String(item?.comment || '').trim();
+                const commentEl = document.createElement('div');
+                commentEl.className = 'text-sm text-slate-600 mt-2';
+                commentEl.textContent = comment;
+                if (!comment) commentEl.classList.add('hidden');
+
+                wrap.appendChild(meta);
+                wrap.appendChild(change);
+                wrap.appendChild(commentEl);
+                historyEl.appendChild(wrap);
+            });
+        },
+
+        refreshPostAuditPanel: async function(post) {
+            if (!post || !post.id) return;
+            const historyEl = document.getElementById('social-post-history');
+            if (historyEl) {
+                historyEl.innerHTML = '';
+                const loading = document.createElement('div');
+                loading.className = 'text-sm text-slate-400';
+                loading.textContent = 'Carregando histórico...';
+                historyEl.appendChild(loading);
+            }
+
+            try {
+                const events = await global.SocialMediaRepo?.getPostAuditEvents?.(String(post.id));
+                this.renderPostAuditPanel(post, events);
+            } catch (err) {
+                if (historyEl) {
+                    historyEl.innerHTML = '';
+                    const msg = document.createElement('div');
+                    msg.className = 'text-sm text-slate-400';
+                    msg.textContent = 'Não foi possível carregar o histórico.';
+                    historyEl.appendChild(msg);
+                }
+            }
         },
 
         getFormatInfo: function(post) {
@@ -218,6 +358,7 @@
                 { key: 'draft', label: 'Rascunhos' },
                 { key: 'producing', label: 'Em andamento' },
                 { key: 'pending_approval', label: 'Enviado para aprovação' },
+                { key: 'needs_revision', label: 'Ajustes solicitados' },
                 { key: 'approved', label: 'Aprovado pelo cliente' },
                 { key: 'scheduled', label: 'Agendado' }
             ];
@@ -351,6 +492,9 @@
             // Título do Drawer
             const titleEl = document.getElementById('social-post-title');
             if (titleEl) titleEl.textContent = isEdit ? 'Editar Post' : 'Novo Post';
+
+            this.renderPostAuditPanel(post, []);
+            if (isEdit) this.refreshPostAuditPanel(post);
 
             // Preencher campos
             this.setFieldValue('social-post-title-input', post?.titulo || post?.tema || ''); // DB field: legenda/tema
