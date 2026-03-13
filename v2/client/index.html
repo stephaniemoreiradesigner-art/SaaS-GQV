@@ -47,6 +47,10 @@
                     <i class="fas fa-clapperboard text-slate-400"></i>
                     Aprovar Posts
                 </button>
+                <button data-view="files" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
+                    <i class="fas fa-folder text-slate-400"></i>
+                    Arquivos
+                </button>
                 <button data-view="future-library" class="portal-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100">
                     <i class="fas fa-folder-open text-slate-400"></i>
                     Biblioteca de Criativos
@@ -144,6 +148,24 @@
                         <h2 class="text-2xl font-bold text-slate-900">Home</h2>
                         <p class="text-sm text-slate-500">Resumo rápido do seu status.</p>
                     </div>
+                    <div class="ui-surface p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs uppercase tracking-wider text-slate-400">Cliente</p>
+                                <p class="text-lg font-semibold text-slate-900" data-client-name>Cliente</p>
+                                <p class="text-xs text-slate-500">ID <span id="client-dashboard-client-id">-</span> • Tenant <span id="client-dashboard-tenant-id">-</span></p>
+                            </div>
+                        </div>
+                        <div>
+                            <span id="client-dashboard-status-badge" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                                Status: -
+                            </span>
+                        </div>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Aprovações pendentes</p>
@@ -194,6 +216,7 @@
                         <h2 class="text-2xl font-bold text-slate-900">Aprovação de Posts</h2>
                         <p class="text-sm text-slate-500">Acompanhe e aprove conteúdos semanais.</p>
                     </div>
+                    <div id="posts-loading" class="text-sm text-slate-500">Carregando posts...</div>
                     <div id="client-approvals-list" class="grid grid-cols-1 gap-4"></div>
                     <div id="client-approvals-empty" class="hidden ui-empty p-8 text-center">
                         <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
@@ -208,6 +231,7 @@
                         <h2 class="text-2xl font-bold text-slate-900">Métricas</h2>
                         <p class="text-sm text-slate-500">Resumo executivo do desempenho.</p>
                     </div>
+                    <div id="metrics-loading" class="hidden text-sm text-slate-500">Carregando métricas...</div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div class="ui-card p-5">
                             <p class="text-xs uppercase text-slate-400">Investimento</p>
@@ -232,6 +256,27 @@
                             <canvas id="metrics-chart"></canvas>
                         </div>
                     </div>
+                    <div id="metrics-empty-state" class="ui-empty p-8 text-center">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <p class="mt-3 text-sm text-slate-600">Nenhuma métrica disponível ainda.</p>
+                    </div>
+                </section>
+
+                <section id="view-files" class="portal-view hidden space-y-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900">Arquivos</h2>
+                        <p class="text-sm text-slate-500">Acesse e organize arquivos enviados pela agência.</p>
+                    </div>
+                    <div id="files-loading" class="hidden text-sm text-slate-500">Carregando arquivos...</div>
+                    <div id="files-empty-state" class="ui-empty p-8 text-center">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <i class="fas fa-folder-open"></i>
+                        </div>
+                        <p class="mt-3 text-sm text-slate-600">Nenhum arquivo disponível ainda.</p>
+                    </div>
+                    <div id="files-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </section>
 
                 <section id="view-requests" class="portal-view hidden space-y-6">
@@ -537,10 +582,25 @@
     <script src="/js/v2/core/supabase.js"></script>
     <script src="/js/v2/client/client_auth.js"></script>
     <script src="/js/v2/shared/auth_guard.js"></script>
+    <script src="/js/v2/shared/tenantContext.js"></script>
+    <script src="/js/v2/shared/clientContext.js"></script>
     <script src="/js/v2/client/client_repo.js"></script>
     <script src="/js/v2/client/client_ui.js"></script>
     <script src="/js/v2/client/client_core.js"></script>
     <script>
+        (() => {
+            if (window.ClientCore?.init) {
+                const boot = async () => {
+                    await window.ClientCore.init();
+                };
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', boot);
+                } else {
+                    boot();
+                }
+                return;
+            }
+
         const portalViews = Array.from(document.querySelectorAll('.portal-view'));
         const portalNavButtons = Array.from(document.querySelectorAll('.portal-nav-btn'));
         const overlay = document.getElementById('portal-overlay');
@@ -814,6 +874,7 @@
                 });
             }
         });
+        })();
     </script>
 </body>
 </html>

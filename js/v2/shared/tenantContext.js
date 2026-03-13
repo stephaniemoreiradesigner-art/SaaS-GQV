@@ -25,7 +25,9 @@
             if (state.isReady) return state;
 
             try {
-                const supabase = global.supabaseClient;
+                const path = String(global.location?.pathname || '');
+                const isClientPortal = path.includes('/v2/client/');
+                const supabase = global.supabaseClient || global.clientPortalSupabase;
                 if (!supabase) {
                     throw new Error('Supabase client não disponível');
                 }
@@ -36,6 +38,35 @@
                     console.warn('[TenantContext] Usuário não logado');
                     return null;
                 }
+
+                if (isClientPortal) {
+                    const { data: userData } = await supabase.auth.getUser();
+                    const user = userData?.user || null;
+                    if (!user) return null;
+
+                    const fallbackTenant = user?.user_metadata?.tenant_id || user?.app_metadata?.tenant_id || null;
+                    if (fallbackTenant) {
+                        const raw = String(fallbackTenant || '').trim();
+                        if (UUID_RE.test(raw)) {
+                            state.tenantUuid = raw;
+                            state.tenantId = null;
+                        } else if (/^-?\d+$/.test(raw)) {
+                            state.tenantId = Number(raw);
+                            state.tenantUuid = null;
+                        } else {
+                            state.tenantId = null;
+                            state.tenantUuid = null;
+                        }
+                    }
+                    state.userId = user?.id || session.user?.id || null;
+                    const role = String(user?.user_metadata?.role || user?.app_metadata?.role || '').trim().toLowerCase();
+                    state.roles = role ? [role] : [];
+                    state.membership = null;
+                    state.isReady = true;
+                    this.notifyListeners();
+                    return state;
+                }
+
                 const res = await fetch('/api/v2/me', {
                     method: 'GET',
                     headers: {
@@ -84,7 +115,7 @@
             } catch (err) {
                 console.error('[TenantContext] Erro fatal na inicialização:', err);
                 try {
-                    const supabase = global.supabaseClient;
+                    const supabase = global.supabaseClient || global.clientPortalSupabase;
                     const { data: userData } = supabase?.auth?.getUser ? await supabase.auth.getUser() : { data: { user: null } };
                     const user = userData?.user || null;
                     const fallbackTenant = user?.user_metadata?.tenant_id || user?.app_metadata?.tenant_id || null;

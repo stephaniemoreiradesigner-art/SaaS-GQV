@@ -4,7 +4,9 @@
 
 (function(global) {
     console.log('[V2] clientContext carregado');
-    const STORAGE_KEY = 'GQV_ACTIVE_CLIENT_ID';
+    const isClientPortal = String(global.location?.pathname || '').includes('/v2/client/');
+    const STORAGE_KEY = isClientPortal ? 'GQV_CLIENT_PORTAL_ACTIVE_CLIENT_ID' : 'GQV_ACTIVE_CLIENT_ID';
+    const NAME_KEY = isClientPortal ? 'GQV_CLIENT_PORTAL_ACTIVE_CLIENT_NAME' : 'GQV_ACTIVE_CLIENT_NAME';
     const LISTENERS = new Set();
     const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
     
@@ -35,16 +37,19 @@
                 if (isDebug()) {
                     console.log('[ClientContext] active client restored:', {
                         clientId: activeClientId,
-                        clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null
+                        clientName: localStorage.getItem(NAME_KEY) || null
                     });
                 }
             } else {
                 activeClientId = null;
                 localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem('selectedClientId');
-                localStorage.removeItem('sm_active_client');
-                localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
-                localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
+                localStorage.removeItem(NAME_KEY);
+                if (!isClientPortal) {
+                    localStorage.removeItem('selectedClientId');
+                    localStorage.removeItem('sm_active_client');
+                    localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
+                    localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
+                }
                 console.log('[ClientContext v2] Inicializado sem cliente ativo');
                 if (isDebug()) {
                     console.log('[ClientContext] active client restored:', { clientId: null, clientName: null });
@@ -91,27 +96,31 @@
             
             if (activeClientId) {
                 localStorage.setItem(STORAGE_KEY, activeClientId);
-                // Manter compatibilidade com v1
-                localStorage.setItem('selectedClientId', activeClientId);
-                localStorage.setItem('sm_active_client', activeClientId);
-                localStorage.setItem('GQV_ACTIVE_CLIENT_ID', activeClientId);
+                if (!isClientPortal) {
+                    localStorage.setItem('selectedClientId', activeClientId);
+                    localStorage.setItem('sm_active_client', activeClientId);
+                    localStorage.setItem('GQV_ACTIVE_CLIENT_ID', activeClientId);
+                }
                 
                 // Persistir nome se disponível (opcional, mas útil para UI)
                 if (clientName) {
-                    localStorage.setItem('GQV_ACTIVE_CLIENT_NAME', clientName);
+                    localStorage.setItem(NAME_KEY, clientName);
                 }
             } else {
                 localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem('selectedClientId');
-                localStorage.removeItem('sm_active_client');
-                localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
-                localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
+                localStorage.removeItem(NAME_KEY);
+                if (!isClientPortal) {
+                    localStorage.removeItem('selectedClientId');
+                    localStorage.removeItem('sm_active_client');
+                    localStorage.removeItem('GQV_ACTIVE_CLIENT_ID');
+                    localStorage.removeItem('GQV_ACTIVE_CLIENT_NAME');
+                }
             }
 
             if (isDebug()) {
                 console.log('[ClientContext] active client set:', {
                     clientId: activeClientId,
-                    clientName: clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null
+                    clientName: clientName || localStorage.getItem(NAME_KEY) || null
                 });
             }
             if (previousClientId !== activeClientId) {
@@ -166,7 +175,7 @@
         dispatchGlobalEvent(clientName) {
             try {
                 // Tenta recuperar nome do storage se não passado
-                const name = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME');
+                const name = clientName || localStorage.getItem(NAME_KEY);
 
                 const event = new CustomEvent('gqv:client-changed', { 
                     detail: { 
@@ -178,9 +187,11 @@
                 document.dispatchEvent(event); // Dispara no document também conforme solicitado
                 
                 // Evento legado específico do Social Media
-                window.dispatchEvent(new CustomEvent('sm:clientChanged', { 
-                    detail: { clientId: activeClientId } 
-                }));
+                if (!isClientPortal) {
+                    window.dispatchEvent(new CustomEvent('sm:clientChanged', { 
+                        detail: { clientId: activeClientId } 
+                    }));
+                }
             } catch (e) {
                 console.error('[ClientContext v2] Erro ao disparar eventos globais:', e);
             }
@@ -200,7 +211,7 @@
                 if (isDebug()) {
                     console.log('[ClientContext] active client restored:', {
                         clientId: activeClientId,
-                        clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null,
+                        clientName: localStorage.getItem(NAME_KEY) || null,
                         source: 'storage'
                     });
                 }

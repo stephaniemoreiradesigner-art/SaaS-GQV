@@ -3,7 +3,8 @@
 
 (function(global) {
     const ClientUI = {
-        views: ['home', 'approvals-calendar', 'approvals-posts', 'metrics', 'requests'],
+        views: ['home', 'approvals-calendar', 'approvals-posts', 'metrics', 'files', 'requests'],
+        metricsChart: null,
 
         init: function() {
             this.setupNavigation();
@@ -87,6 +88,54 @@
         updateUserInfo: function(client) {
             const nameEls = document.querySelectorAll('[data-client-name]');
             nameEls.forEach(el => el.textContent = client.name || 'Cliente');
+        },
+
+        setDashboardHeader: function({ clientId, tenantId, status } = {}) {
+            const clientIdEl = document.getElementById('client-dashboard-client-id');
+            const tenantIdEl = document.getElementById('client-dashboard-tenant-id');
+            const statusBadge = document.getElementById('client-dashboard-status-badge');
+
+            if (clientIdEl) clientIdEl.textContent = clientId ? String(clientId) : '-';
+            if (tenantIdEl) tenantIdEl.textContent = tenantId ? String(tenantId) : '-';
+
+            if (statusBadge) {
+                const value = String(status || '').trim();
+                statusBadge.innerHTML = `
+                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                    Status: ${value || '-'}
+                `;
+            }
+        },
+
+        initMetricsChart: function() {
+            if (this.metricsChart) return;
+            const canvas = document.getElementById('metrics-chart');
+            if (!canvas || typeof global.Chart === 'undefined') return;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            this.metricsChart = new global.Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Sem1', 'Sem2', 'Sem3', 'Sem4'],
+                    datasets: [{
+                        label: 'Resultados',
+                        data: [0, 0, 0, 0],
+                        borderColor: '#111827',
+                        backgroundColor: 'rgba(17,24,39,0.08)',
+                        tension: 0.35,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#9CA3AF' } },
+                        x: { ticks: { color: '#9CA3AF' } }
+                    }
+                }
+            });
         },
 
         renderCalendarList: function(calendars) {
@@ -237,7 +286,9 @@
         renderPendingPostsList: function(posts) {
             const container = document.getElementById('client-approvals-list');
             const empty = document.getElementById('client-approvals-empty');
+            const loading = document.getElementById('posts-loading');
             
+            if (loading) loading.classList.add('hidden');
             if (!container) return;
             container.innerHTML = '';
 
@@ -288,6 +339,39 @@
                     });
                 }
                 container.appendChild(el);
+            });
+        },
+
+        renderFilesList: function(files) {
+            const container = document.getElementById('files-list');
+            const empty = document.getElementById('files-empty-state');
+            const loading = document.getElementById('files-loading');
+            if (loading) loading.classList.add('hidden');
+            if (!container) return;
+            container.innerHTML = '';
+            const items = Array.isArray(files) ? files : [];
+            if (items.length === 0) {
+                if (empty) empty.classList.remove('hidden');
+                return;
+            }
+            if (empty) empty.classList.add('hidden');
+            items.forEach((file) => {
+                const card = document.createElement('div');
+                card.className = 'ui-card p-4 flex items-center justify-between';
+                const name = file?.name || file?.nome || 'Arquivo';
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500">
+                            <i class="fas fa-file"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">${String(name)}</p>
+                            <p class="text-xs text-slate-500">Disponível</p>
+                        </div>
+                    </div>
+                    <span class="text-xs text-slate-400">Em breve</span>
+                `;
+                container.appendChild(card);
             });
         },
 

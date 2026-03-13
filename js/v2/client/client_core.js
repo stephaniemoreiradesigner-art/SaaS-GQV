@@ -5,6 +5,7 @@
     const ClientCore = {
         currentClient: null,
         activeCalendarId: null,
+        clientProfile: null,
 
         init: async function() {
             // 1. Check Auth & Init Supabase Isolated
@@ -36,10 +37,34 @@
 
             this.currentClient = ensured.session;
 
+            try {
+                if (!global.supabaseClient && global.clientPortalSupabase) {
+                    global.supabaseClient = global.clientPortalSupabase;
+                }
+            } catch {}
+
+            try {
+                await global.TenantContext?.init?.();
+            } catch {}
+
+            try {
+                await global.ClientContext?.init?.();
+                const clientId = this.currentClient?.client_id || null;
+                const clientName = this.currentClient?.name || null;
+                if (clientId) global.ClientContext?.setActiveClient?.({ id: clientId, name: clientName });
+            } catch {}
+
+            await this.loadClientProfile();
+
             // 2. Init UI
             if (global.ClientUI) {
                 global.ClientUI.init();
                 global.ClientUI.updateUserInfo(this.currentClient);
+                global.ClientUI.setDashboardHeader({
+                    clientId: this.currentClient?.client_id || null,
+                    tenantId: this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null,
+                    status: this.currentClient?.status || this.clientProfile?.status || null
+                });
                 global.ClientUI.switchView('home'); // Default view
             }
 
@@ -54,6 +79,54 @@
                 await this.loadPendingPosts();
             } else if (viewName === 'home') {
                 await this.loadDashboardData();
+            } else if (viewName === 'metrics') {
+                if (global.ClientUI?.initMetricsChart) global.ClientUI.initMetricsChart();
+            } else if (viewName === 'files') {
+                await this.loadFiles();
+            }
+        },
+
+        loadClientProfile: async function() {
+            if (!this.currentClient || !global.clientPortalSupabase) return null;
+            const clientIdNum = Number(this.currentClient.client_id);
+            if (!Number.isFinite(clientIdNum) || Number.isNaN(clientIdNum)) return null;
+
+            try {
+                const { data, error } = await global.clientPortalSupabase
+                    .from('clientes')
+                    .select('*')
+                    .eq('id', clientIdNum)
+                    .maybeSingle();
+                if (error) return null;
+                this.clientProfile = data || null;
+
+                const tenantUuid = global.TenantContext?.getTenantUuid?.() || null;
+                const clientTenant = data?.tenant_id ? String(data.tenant_id) : null;
+                if (tenantUuid && clientTenant && tenantUuid !== clientTenant) {
+                    await global.clientPortalSupabase.auth.signOut();
+                    localStorage.removeItem(global.ClientAuth?.sessionKey || 'V2_CLIENT_SESSION');
+                    window.location.href = '/v2/client/login.html?error=tenant_mismatch';
+                    return null;
+                }
+
+                const clientName =
+                    data?.nome_fantasia
+                    || data?.nome
+                    || data?.nome_empresa
+                    || data?.razao_social
+                    || this.currentClient.name
+                    || 'Cliente';
+
+                this.currentClient = {
+                    ...this.currentClient,
+                    name: clientName,
+                    status: data?.status || this.currentClient.status || null,
+                    tenant_id: clientTenant || this.currentClient.tenant_id || tenantUuid || null
+                };
+
+                return this.clientProfile;
+            } catch {
+                return null;
             }
         },
 
@@ -68,6 +141,11 @@
             if (global.ClientUI) {
                 global.ClientUI.setDashboardMetrics({ 
                     approvals: calendars.length + pendingPosts.length 
+                });
+                global.ClientUI.setDashboardHeader({
+                    clientId: this.currentClient?.client_id || null,
+                    tenantId: this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null,
+                    status: this.currentClient?.status || this.clientProfile?.status || null
                 });
             }
         },
@@ -86,12 +164,20 @@
         loadPendingPosts: async function() {
             if (!this.currentClient) return;
             const clientId = this.currentClient.client_id;
+            const loading = document.getElementById('posts-loading');
+            if (loading) loading.classList.remove('hidden');
             
             const posts = await global.ClientRepo.getPendingPosts(clientId);
             
             if (global.ClientUI) {
                 global.ClientUI.renderPendingPostsList(posts);
             }
+        },
+
+        loadFiles: async function() {
+            const loading = document.getElementById('files-loading');
+            if (loading) loading.classList.remove('hidden');
+            if (global.ClientUI?.renderFilesList) global.ClientUI.renderFilesList([]);
         },
 
         openPostModal: function(post) {
