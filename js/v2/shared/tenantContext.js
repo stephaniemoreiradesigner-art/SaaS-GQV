@@ -3,7 +3,9 @@
 // Unifica a descoberta do tenant ID e dados do membro logado
 
 (function(global) {
-    console.log('[V2] tenantContext carregado');
+    const VERSION = '2026-03-13.3';
+    global.__TENANT_CONTEXT_VERSION__ = VERSION;
+    console.log('[V2] tenantContext carregado', VERSION);
     
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     let state = {
@@ -19,7 +21,8 @@
 
     const TenantContext = {
         async resolveTenantIdFromUuid(supabase, tenantUuid) {
-            const uuid = String(tenantUuid || '').trim();
+            let uuid = String(tenantUuid || '').trim();
+            uuid = uuid.replace(/^urn:uuid:/i, '').replace(/[{}]/g, '').trim();
             if (!UUID_RE.test(uuid)) return { tenantId: null, tenantUuid: null };
             if (!supabase) return { tenantId: uuid, tenantUuid: uuid };
 
@@ -68,8 +71,6 @@
          * Inicializa o contexto buscando dados reais
          */
         async init() {
-            if (state.isReady) return state;
-
             try {
                 const path = String(global.location?.pathname || '');
                 const isClientPortal = path.includes('/v2/client/');
@@ -83,6 +84,16 @@
                 if (!session?.access_token) {
                     console.warn('[TenantContext] Usuário não logado');
                     return null;
+                }
+
+                if (state.isReady) {
+                    if (state.tenantUuid && (state.tenantId === null || state.tenantId === undefined)) {
+                        const resolved = await this.resolveTenantIdFromUuid(supabase, state.tenantUuid);
+                        if (resolved?.tenantUuid) state.tenantUuid = resolved.tenantUuid;
+                        if (resolved?.tenantId !== null && resolved?.tenantId !== undefined) state.tenantId = resolved.tenantId;
+                        this.notifyListeners();
+                    }
+                    return state;
                 }
 
                 if (isClientPortal) {
@@ -109,6 +120,11 @@
                     const role = String(user?.user_metadata?.role || user?.app_metadata?.role || '').trim().toLowerCase();
                     state.roles = role ? [role] : [];
                     state.membership = null;
+                    if (state.tenantUuid && (state.tenantId === null || state.tenantId === undefined)) {
+                        const resolved = await this.resolveTenantIdFromUuid(supabase, state.tenantUuid);
+                        if (resolved?.tenantUuid) state.tenantUuid = resolved.tenantUuid;
+                        if (resolved?.tenantId !== null && resolved?.tenantId !== undefined) state.tenantId = resolved.tenantId;
+                    }
                     state.isReady = true;
                     this.notifyListeners();
                     return state;
@@ -151,6 +167,12 @@
                     }
                 } else {
                     console.error('[TenantContext] Não foi possível resolver o Tenant ID');
+                }
+
+                if (state.tenantUuid && (state.tenantId === null || state.tenantId === undefined)) {
+                    const resolved = await this.resolveTenantIdFromUuid(supabase, state.tenantUuid);
+                    if (resolved?.tenantUuid) state.tenantUuid = resolved.tenantUuid;
+                    if (resolved?.tenantId !== null && resolved?.tenantId !== undefined) state.tenantId = resolved.tenantId;
                 }
 
                 state.isReady = true;
