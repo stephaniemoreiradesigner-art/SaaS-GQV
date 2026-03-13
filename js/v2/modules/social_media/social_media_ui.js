@@ -242,14 +242,14 @@
             }
 
             const list = Array.isArray(events) ? events : [];
-            const lastDecision =
-                list.find((e) => ['approve', 'request_changes', 'reject'].includes(String(e?.action_type || '').trim().toLowerCase()) && String(e?.comment || '').trim())
-                || list.find((e) => String(e?.comment || '').trim());
+            const lastDecisionEvent = list.find((e) =>
+                ['approve', 'request_changes', 'reject'].includes(String(e?.action_type || '').trim().toLowerCase())
+            );
             const fallbackComment = String(post?.comentario_cliente || '').trim();
-            const lastComment = String(lastDecision?.comment || '').trim() || fallbackComment;
+            const lastComment = String(lastDecisionEvent?.comment || '').trim() || fallbackComment;
 
             if (lastDecisionEl) {
-                if (lastComment) {
+                if (lastDecisionEvent && lastComment) {
                     lastDecisionEl.textContent = `Última decisão: ${lastComment}`;
                     lastDecisionEl.classList.remove('hidden');
                 } else {
