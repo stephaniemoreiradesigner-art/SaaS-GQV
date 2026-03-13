@@ -252,7 +252,6 @@
                 .from('social_posts')
                 .update(payload)
                 .eq('id', normalizedPostId);
-            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
             const { data, error } = await query.select('id,status,cliente_id,calendar_id');
 
             if (error) {
@@ -314,7 +313,6 @@
                 .from('social_posts')
                 .update(payload)
                 .eq('id', normalizedPostId);
-            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
             const { data, error } = await query.select('id,status,cliente_id,calendar_id');
 
             if (error) {
