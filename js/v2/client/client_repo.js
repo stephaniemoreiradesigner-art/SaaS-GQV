@@ -3,6 +3,20 @@
 
 (function(global) {
     const ClientRepo = {
+        isDebug: function() {
+            return global.__GQV_DEBUG_CONTEXT__ === true;
+        },
+
+        normalizeBigIntId: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            const num = Number(raw);
+            if (!Number.isFinite(num) || Number.isNaN(num)) return null;
+            const intVal = Math.trunc(num);
+            if (intVal <= 0) return null;
+            return intVal;
+        },
+
         getPendingCalendarStatuses: function() {
             const base = [
                 'awaiting_approval',
@@ -212,6 +226,7 @@
 
             const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
             const normalizedPostId = postId ? String(postId).trim() : '';
+            const normalizedClientId = this.normalizeBigIntId(clientId);
             const { data: userData } = await supabase.auth.getUser();
             const email = userData?.user?.email || null;
             const trimmedComment = String(comment || '').trim();
@@ -221,11 +236,23 @@
                 comentario_cliente: trimmedComment || null
             };
 
+            if (this.isDebug()) {
+                console.log('[ClientRepo] approvePost update:', {
+                    table: 'social_posts',
+                    payload,
+                    filter: {
+                        id: normalizedPostId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
+
             let query = supabase
                 .from('social_posts')
                 .update(payload)
                 .eq('id', normalizedPostId);
-            if (clientId) query = query.eq('cliente_id', clientId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
             const { data, error } = await query.select('id,status,cliente_id,calendar_id');
 
             if (error) {
@@ -262,6 +289,7 @@
 
             const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
             const normalizedPostId = postId ? String(postId).trim() : '';
+            const normalizedClientId = this.normalizeBigIntId(clientId);
             const { data: userData } = await supabase.auth.getUser();
             const email = userData?.user?.email || null;
 
@@ -270,11 +298,23 @@
                 comentario_cliente: comment
             };
 
+            if (this.isDebug()) {
+                console.log('[ClientRepo] rejectPost update:', {
+                    table: 'social_posts',
+                    payload,
+                    filter: {
+                        id: normalizedPostId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
+
             let query = supabase
                 .from('social_posts')
                 .update(payload)
                 .eq('id', normalizedPostId);
-            if (clientId) query = query.eq('cliente_id', clientId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
             const { data, error } = await query.select('id,status,cliente_id,calendar_id');
 
             if (error) {
