@@ -19,16 +19,13 @@
             if (!supabase) throw new Error('Supabase não inicializado');
 
             const referenceDate = `${month}-01`;
-            const title = meta.title || 'Calendário social';
-            const content = meta.content || 'Sem conteúdo';
-            const tenantId = meta.tenant_id || null;
 
             // Verifica se já existe
             const { data: existing } = await supabase
                 .from('social_calendars')
                 .select('id, status')
-                .eq('client_id', clientId)
-                .eq('post_date', referenceDate)
+                .eq('cliente_id', clientId)
+                .eq('mes_referencia', referenceDate)
                 .maybeSingle();
 
             if (existing) {
@@ -38,12 +35,9 @@
 
             // Cria novo
             const payload = {
-                client_id: clientId,
-                tenant_id: tenantId,
-                title,
-                content,
-                post_date: referenceDate,
-                status: 'rascunho',
+                cliente_id: clientId,
+                mes_referencia: referenceDate,
+                status: 'draft',
                 updated_at: new Date().toISOString()
             };
             console.log('[SocialCalendar] payload final', payload);
@@ -68,8 +62,8 @@
             const { data, error } = await supabase
                 .from('social_calendars')
                 .select('*')
-                .eq('client_id', clientId)
-                .eq('post_date', referenceDate)
+                .eq('cliente_id', clientId)
+                .eq('mes_referencia', referenceDate)
                 .maybeSingle();
                 
             if (error) console.error('Erro ao buscar calendário:', error);
