@@ -9,6 +9,7 @@
         calendarMonthRef: null,
         clientProfile: null,
         _initStarted: false,
+        _pendingEditorialCalendars: [],
 
         init: async function() {
             if (this._initStarted) return;
@@ -81,7 +82,6 @@
             if (viewName === 'approvals') {
                 await this.loadPendingPosts();
             } else if (viewName === 'calendar') {
-                await this.loadCalendars();
                 await this.loadCalendarMonth();
             } else if (viewName === 'history') {
                 await this.loadHistory();
@@ -140,7 +140,14 @@
             if (!this.currentClient) return;
             const clientId = this.currentClient.client_id;
             
+            const pendingCalendars = await global.ClientRepo.getPendingCalendars(clientId);
+            this._pendingEditorialCalendars = Array.isArray(pendingCalendars) ? pendingCalendars : [];
+
             const pendingPosts = await global.ClientRepo.getPendingPosts(clientId);
+            const pendingPostsWithMedia = (pendingPosts || []).filter((p) => {
+                const mediaUrl = p?.imagem_url || p?.media_url || p?.mediaUrl || p?.imagemUrl || null;
+                return !!String(mediaUrl || '').trim();
+            });
             const now = new Date();
             const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -176,7 +183,7 @@
             if (global.ClientUI) {
                 global.ClientUI.setDashboardMetrics({ 
                     monthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
-                    awaitingApproval: pendingPosts.length,
+                    awaitingApproval: pendingPostsWithMedia.length,
                     approved: approvedCount,
                     published: publishedCount,
                     nextPost: {
@@ -184,6 +191,10 @@
                         meta: `${nextPlatform} • ${nextDateLabel}`,
                         statusLabel: nextStatusLabelMap[nextStatusRaw] || (nextStatusRaw ? nextStatusRaw.replace(/_/g, ' ') : '-')
                     }
+                });
+                global.ClientUI.setHomeApprovalAlerts?.({
+                    pendingCalendarsCount: this._pendingEditorialCalendars.length,
+                    pendingPostsWithMediaCount: pendingPostsWithMedia.length
                 });
                 global.ClientUI.setDashboardHeader({
                     clientId: this.currentClient?.client_id || null,
@@ -211,10 +222,30 @@
             if (loading) loading.classList.remove('hidden');
             
             const posts = await global.ClientRepo.getPendingPosts(clientId);
+            const filtered = (posts || []).filter((p) => {
+                const mediaUrl = p?.imagem_url || p?.media_url || p?.mediaUrl || p?.imagemUrl || null;
+                return !!String(mediaUrl || '').trim();
+            });
             
             if (global.ClientUI) {
-                global.ClientUI.renderPendingPostsList(posts);
+                global.ClientUI.renderPendingPostsList(filtered);
             }
+        },
+
+        openPendingEditorialCalendar: async function() {
+            const list = Array.isArray(this._pendingEditorialCalendars) ? this._pendingEditorialCalendars : [];
+            const first = list[0] || null;
+            if (!first?.id) {
+                alert('Nenhum calendário editorial pendente.');
+                return;
+            }
+            const raw = first.mes_referencia ? String(first.mes_referencia).slice(0, 10) : '';
+            const date = raw ? new Date(`${raw}T00:00:00`) : null;
+            const monthName = date
+                ? date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+                : 'Calendário';
+            const label = monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : 'Calendário';
+            await this.openCalendarModal(first.id, label, first.status || null);
         },
 
         loadCalendarMonth: async function() {

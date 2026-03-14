@@ -563,6 +563,23 @@
             btn.addEventListener('click', () => this.switchView('approvals'));
         },
 
+        setHomeApprovalAlerts: function({ pendingCalendarsCount = 0, pendingPostsWithMediaCount = 0 } = {}) {
+            const editorialEl = document.getElementById('home-alert-editorial');
+            const editorialCountEl = document.getElementById('home-alert-editorial-count');
+            const editorialAction = document.getElementById('home-alert-editorial-action');
+            const postsEl = document.getElementById('home-alert-posts');
+            const postsCountEl = document.getElementById('home-alert-posts-count');
+            const postsAction = document.getElementById('home-alert-posts-action');
+
+            if (editorialCountEl) editorialCountEl.textContent = String(pendingCalendarsCount || 0);
+            if (editorialEl) editorialEl.classList.toggle('hidden', !(pendingCalendarsCount > 0));
+            if (editorialAction) editorialAction.onclick = () => global.ClientCore?.openPendingEditorialCalendar?.();
+
+            if (postsCountEl) postsCountEl.textContent = String(pendingPostsWithMediaCount || 0);
+            if (postsEl) postsEl.classList.toggle('hidden', !(pendingPostsWithMediaCount > 0));
+            if (postsAction) postsAction.onclick = () => this.switchView('approvals');
+        },
+
         renderClientCalendar: function(posts, monthRef) {
             const monthEl = document.getElementById('client-calendar-month');
             const gridEl = document.getElementById('client-calendar-grid');

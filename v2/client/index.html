@@ -107,6 +107,36 @@
                                 Ir para Aprovações
                             </button>
                         </div>
+                        <div class="mt-4 space-y-3">
+                            <div id="home-alert-editorial" class="hidden ui-card p-4 border border-amber-200 bg-amber-50/60">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                                            <i class="fas fa-calendar-check"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-semibold text-slate-900">Calendário editorial aguardando sua aprovação</p>
+                                            <p class="text-xs text-slate-600 mt-1"><span id="home-alert-editorial-count">0</span> calendário(s) pendente(s)</p>
+                                        </div>
+                                    </div>
+                                    <button id="home-alert-editorial-action" type="button" class="ui-btn ui-btn-secondary whitespace-nowrap">Abrir</button>
+                                </div>
+                            </div>
+                            <div id="home-alert-posts" class="hidden ui-card p-4 border border-indigo-200 bg-indigo-50/50">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                                            <i class="fas fa-circle-check"></i>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-semibold text-slate-900">Posts com mídia aguardando sua aprovação</p>
+                                            <p class="text-xs text-slate-600 mt-1"><span id="home-alert-posts-count">0</span> post(s) pendente(s)</p>
+                                        </div>
+                                    </div>
+                                    <button id="home-alert-posts-action" type="button" class="ui-btn ui-btn-secondary whitespace-nowrap">Ver</button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                             <div class="ui-card p-5 border border-amber-100 bg-amber-50/40">
                                 <p class="text-xs uppercase text-amber-700">Aguardando aprovação</p>
@@ -151,29 +181,6 @@
                 </section>
 
                 <section id="view-calendar" class="portal-view hidden space-y-6">
-                    <div class="ui-surface p-6 space-y-4">
-                        <div>
-                            <h2 class="text-lg font-semibold text-slate-900">Calendário editorial</h2>
-                            <p class="text-sm text-slate-500">Aprove o planejamento editorial enviado pela agência.</p>
-                        </div>
-                        <div id="calendar-error-state" class="hidden">
-                            <div class="bg-red-50 border border-red-100 text-red-600 rounded-xl p-4 text-sm">
-                                <div class="font-semibold" id="calendar-error-message">Erro ao carregar calendário. Tente novamente.</div>
-                                <div id="calendar-error-detail" class="hidden text-xs text-red-500 mt-1"></div>
-                            </div>
-                        </div>
-                        <div id="calendar-loading" class="text-sm text-slate-500">Carregando calendários...</div>
-                        <div id="calendar-empty-state" class="hidden min-h-[220px] flex items-center justify-center">
-                            <div class="bg-white border border-slate-200 rounded-2xl px-8 py-10 w-full max-w-lg text-center shadow-sm">
-                                <div class="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto">
-                                    <i class="fas fa-calendar-check text-xl"></i>
-                                </div>
-                                <p class="mt-5 text-base font-semibold text-slate-900">Nenhum calendário aguardando aprovação</p>
-                                <p class="mt-2 text-sm text-slate-500">Quando sua agência enviar um calendário, ele aparece aqui para você aprovar.</p>
-                            </div>
-                        </div>
-                        <div id="calendar-list" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-                    </div>
                     <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                         <div>
                             <h2 class="text-2xl font-bold text-slate-900">Calendário</h2>
