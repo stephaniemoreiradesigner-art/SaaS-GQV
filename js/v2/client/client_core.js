@@ -5,6 +5,8 @@
     const ClientCore = {
         currentClient: null,
         activeCalendarId: null,
+        activePostId: null,
+        calendarMonthRef: null,
         clientProfile: null,
 
         init: async function() {
@@ -73,16 +75,17 @@
         },
 
         onViewChanged: async function(viewName) {
-            if (viewName === 'approvals-calendar') {
-                await this.loadCalendars();
-            } else if (viewName === 'approvals-posts') {
+            if (viewName === 'approvals') {
+                global.ClientUI?.setApprovalsTab?.('posts');
                 await this.loadPendingPosts();
+            } else if (viewName === 'calendar') {
+                await this.loadCalendarMonth();
+            } else if (viewName === 'history') {
+                await this.loadHistory();
             } else if (viewName === 'home') {
                 await this.loadDashboardData();
             } else if (viewName === 'metrics') {
                 if (global.ClientUI?.initMetricsChart) global.ClientUI.initMetricsChart();
-            } else if (viewName === 'files') {
-                await this.loadFiles();
             }
         },
 
@@ -134,13 +137,50 @@
             if (!this.currentClient) return;
             const clientId = this.currentClient.client_id;
             
-            // Fetch Pending Calendars count
-            const calendars = await global.ClientRepo.getPendingCalendars(clientId);
             const pendingPosts = await global.ClientRepo.getPendingPosts(clientId);
+            const now = new Date();
+            const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+            const postsInMonth = await global.ClientRepo.getPostsByDateRange(clientId, monthStart.toISOString().slice(0, 10), monthEnd.toISOString().slice(0, 10));
+            const approvedCount = (postsInMonth || []).filter((p) => {
+                const s = String(p?.status || '').toLowerCase();
+                return ['approved', 'scheduled', 'aprovado', 'agendado'].includes(s);
+            }).length;
+            const publishedCount = (postsInMonth || []).filter((p) => {
+                const s = String(p?.status || '').toLowerCase();
+                return ['published', 'publicado'].includes(s);
+            }).length;
+
+            const nextPost = await global.ClientRepo.getNextPost(clientId, now.toISOString().slice(0, 10));
+            const nextTitle = nextPost?.tema || nextPost?.titulo || nextPost?.title || '-';
+            const nextDateRaw = nextPost?.data_agendada || nextPost?.data_postagem || '';
+            const nextDateLabel = nextDateRaw ? new Date(nextDateRaw).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
+            const nextPlatform = nextPost?.plataforma || nextPost?.platform || nextPost?.canal || '-';
+            const nextStatusRaw = String(nextPost?.status || '').toLowerCase();
+            const nextStatusLabelMap = {
+                draft: 'Rascunho',
+                ready_for_review: 'Revisão',
+                in_production: 'Revisão',
+                changes_requested: 'Ajustes',
+                ready_for_approval: 'Pendente',
+                awaiting_approval: 'Pendente',
+                approved: 'Aprovado',
+                scheduled: 'Agendado',
+                published: 'Publicado'
+            };
             
             if (global.ClientUI) {
                 global.ClientUI.setDashboardMetrics({ 
-                    approvals: calendars.length + pendingPosts.length 
+                    monthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+                    awaitingApproval: pendingPosts.length,
+                    approved: approvedCount,
+                    published: publishedCount,
+                    nextPost: {
+                        title: nextTitle,
+                        meta: `${nextPlatform} • ${nextDateLabel}`,
+                        statusLabel: nextStatusLabelMap[nextStatusRaw] || (nextStatusRaw ? nextStatusRaw.replace(/_/g, ' ') : '-')
+                    }
                 });
                 global.ClientUI.setDashboardHeader({
                     clientId: this.currentClient?.client_id || null,
@@ -174,26 +214,67 @@
             }
         },
 
+        loadCalendarMonth: async function() {
+            if (!this.currentClient) return;
+            if (!(this.calendarMonthRef instanceof Date)) this.calendarMonthRef = new Date();
+
+            const loading = document.getElementById('client-calendar-loading');
+            if (loading) loading.classList.remove('hidden');
+            const empty = document.getElementById('client-calendar-empty');
+            if (empty) empty.classList.add('hidden');
+
+            const clientId = this.currentClient.client_id;
+            const start = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth(), 1);
+            const end = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth() + 1, 1);
+            const posts = await global.ClientRepo.getPostsByDateRange(clientId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10));
+            global.ClientUI?.renderClientCalendar?.(posts, this.calendarMonthRef);
+        },
+
+        shiftCalendarMonth: async function(delta) {
+            if (!(this.calendarMonthRef instanceof Date)) this.calendarMonthRef = new Date();
+            const next = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth() + Number(delta || 0), 1);
+            this.calendarMonthRef = next;
+            await this.loadCalendarMonth();
+        },
+
+        loadHistory: async function() {
+            if (!this.currentClient) return;
+            const loading = document.getElementById('client-history-loading');
+            if (loading) loading.classList.remove('hidden');
+            const empty = document.getElementById('client-history-empty');
+            if (empty) empty.classList.add('hidden');
+            const list = document.getElementById('client-history-list');
+            if (list) list.innerHTML = '';
+
+            const clientId = this.currentClient.client_id;
+            const posts = await global.ClientRepo.getHistoryPosts(clientId, 60);
+            global.ClientUI?.renderHistoryList?.(posts);
+        },
+
         loadFiles: async function() {
             const loading = document.getElementById('files-loading');
             if (loading) loading.classList.remove('hidden');
             if (global.ClientUI?.renderFilesList) global.ClientUI.renderFilesList([]);
         },
 
-        openPostModal: function(post) {
+        openPostModal: function(post, options = null) {
             this.activePostId = post?.id;
             console.log('[ClientCore] openPostModal:', { postId: this.activePostId, status: post?.status });
             
             // Show UI
-            if(global.ClientUI) global.ClientUI.showPostModal(true, post);
+            if(global.ClientUI) global.ClientUI.showPostModal(true, post, options);
 
             // Bind Actions
             const approveBtn = document.getElementById('client-post-modal-approve');
             const rejectBtn = document.getElementById('client-post-modal-reject');
             const closeBtn = document.getElementById('client-post-modal-close');
 
-            if (approveBtn) approveBtn.onclick = () => this.handleApprovePostInModal();
-            if (rejectBtn) rejectBtn.onclick = () => this.handleRejectPostInModal();
+            const pendingStatuses = global.ClientRepo?.getPendingPostStatuses ? global.ClientRepo.getPendingPostStatuses() : [];
+            const rawStatus = String(post?.status || '').trim().toLowerCase();
+            const canApprove = !(options && options.readOnly) && pendingStatuses.includes(rawStatus);
+
+            if (approveBtn) approveBtn.onclick = canApprove ? () => this.handleApprovePostInModal() : null;
+            if (rejectBtn) rejectBtn.onclick = canApprove ? () => this.handleRejectPostInModal() : null;
             if (closeBtn) closeBtn.onclick = () => {
                 if(global.ClientUI) global.ClientUI.showPostModal(false);
             };

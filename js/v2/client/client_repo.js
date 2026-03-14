@@ -338,6 +338,115 @@
             return { ok: true, data: data[0] };
         },
 
+        getPostsByDateRange: async function(clientId, startDate, endDate) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+
+            const start = String(startDate || '').slice(0, 10);
+            const end = String(endDate || '').slice(0, 10);
+            if (!start || !end) return [];
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_agendada', start)
+                    .lt('data_agendada', end)
+                    .order('data_agendada', { ascending: true });
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar posts por período em social_posts:', error);
+                try {
+                    const { data, error: fallbackError } = await supabase
+                        .from('posts')
+                        .select('*')
+                        .eq('cliente_id', clientId)
+                        .gte('data_postagem', start)
+                        .lt('data_postagem', end)
+                        .order('data_postagem', { ascending: true });
+                    if (fallbackError) throw fallbackError;
+                    return data || [];
+                } catch (fallbackError) {
+                    console.error('[ClientRepo] Erro ao buscar posts por período em posts:', fallbackError);
+                    return [];
+                }
+            }
+        },
+
+        getNextPost: async function(clientId, fromDate) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return null;
+
+            const from = String(fromDate || '').slice(0, 10);
+            if (!from) return null;
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_agendada', from)
+                    .order('data_agendada', { ascending: true })
+                    .limit(1);
+                if (error) throw error;
+                return (data && data[0]) || null;
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar próximo post em social_posts:', error);
+                try {
+                    const { data, error: fallbackError } = await supabase
+                        .from('posts')
+                        .select('*')
+                        .eq('cliente_id', clientId)
+                        .gte('data_postagem', from)
+                        .order('data_postagem', { ascending: true })
+                        .limit(1);
+                    if (fallbackError) throw fallbackError;
+                    return (data && data[0]) || null;
+                } catch (fallbackError) {
+                    console.error('[ClientRepo] Erro ao buscar próximo post em posts:', fallbackError);
+                    return null;
+                }
+            }
+        },
+
+        getHistoryPosts: async function(clientId, limit = 60) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+
+            const statuses = ['approved', 'scheduled', 'published', 'aprovado', 'agendado', 'publicado'];
+            const safeLimit = Math.max(1, Math.min(200, Number(limit || 60)));
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .in('status', statuses)
+                    .order('data_agendada', { ascending: false })
+                    .limit(safeLimit);
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar histórico em social_posts:', error);
+                try {
+                    const { data, error: fallbackError } = await supabase
+                        .from('posts')
+                        .select('*')
+                        .eq('cliente_id', clientId)
+                        .in('status', statuses)
+                        .order('data_postagem', { ascending: false })
+                        .limit(safeLimit);
+                    if (fallbackError) throw fallbackError;
+                    return data || [];
+                } catch (fallbackError) {
+                    console.error('[ClientRepo] Erro ao buscar histórico em posts:', fallbackError);
+                    return [];
+                }
+            }
+        },
+
         /**
          * Busca métricas resumidas (Mock para MVP)
          */
