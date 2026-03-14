@@ -465,58 +465,41 @@
                 `;
                 const list = wrapper.querySelector('[data-col]');
                 (grouped[col.key] || []).forEach((post) => {
-                    const mediaUrl = this.getPostMediaUrl(post);
-                    const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
                     const title = this.getPostTitle(post);
                     const dateStr = this.getPostDate(post);
                     const dateLabel = dateStr ? new Date(`${dateStr}T00:00:00`).toLocaleDateString('pt-BR') : '-';
                     const channelRaw = this.getPostChannelLabel(post);
                     const channelLabel = String(channelRaw || '-').trim() || '-';
-                    const format = this.getFormatInfo(post);
                     const statusBadge = this.getStatusBadgeInfo(post?.status);
                     const normalizedStatus = this.normalizeStatus(post?.status);
                     const canSendForApproval = !!post?.id && ['draft', 'ready_for_review', 'changes_requested'].includes(normalizedStatus);
+                    const statusBadgeSmallClass = String(statusBadge.className || '')
+                        .replace(/\btext-xs\b/g, 'text-[10px]')
+                        .replace(/\bpx-3\b/g, 'px-2')
+                        .replace(/\bpy-1\b/g, 'py-0.5');
 
                     const card = document.createElement('div');
-                    card.className = 'ui-card text-left p-3 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow relative group min-h-[104px]';
+                    card.className = 'ui-card text-left p-4 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow relative min-h-[96px]';
                     card.setAttribute('role', 'button');
                     card.tabIndex = 0;
+                    const menuId = `social-card-menu-${String(post?.id || Math.random().toString(16).slice(2))}`;
                     card.innerHTML = `
-                        <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button type="button" data-card-action="edit" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
-                                <i class="fas fa-pen text-xs"></i>
-                            </button>
-                            <button type="button" data-card-action="duplicate" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
-                                <i class="far fa-copy text-xs"></i>
-                            </button>
-                            <button type="button" data-card-action="send" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300 ${canSendForApproval ? '' : 'opacity-40 cursor-not-allowed'}" ${canSendForApproval ? '' : 'disabled'}>
-                                <i class="far fa-paper-plane text-xs"></i>
-                            </button>
+                        <div class="flex items-start justify-between gap-3">
+                            <p class="text-sm font-semibold text-slate-900 min-w-0" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</p>
+                            <div class="relative shrink-0">
+                                <button type="button" data-card-action="menu" aria-haspopup="menu" aria-controls="${menuId}" class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
+                                    <i class="fas fa-ellipsis-h text-sm"></i>
+                                </button>
+                                <div id="${menuId}" data-card-menu class="hidden absolute right-0 mt-2 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-10" role="menu">
+                                    <button type="button" data-card-action="edit" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Editar</button>
+                                    <button type="button" data-card-action="duplicate" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Duplicar</button>
+                                    <button type="button" data-card-action="send" class="w-full text-left px-3 py-2 text-sm ${canSendForApproval ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 cursor-not-allowed'}" role="menuitem" ${canSendForApproval ? '' : 'disabled'}>Enviar para aprovação</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-start gap-3">
-                            <div class="w-16 h-16 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
-                                ${mediaUrl ? (isVideo ? `<video src="${mediaUrl}" class="w-full h-full object-cover" muted playsinline preload="metadata"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <div class="flex items-start justify-between gap-2">
-                                    <p class="text-sm font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</p>
-                                    <span class="${statusBadge.className} shrink-0">${statusBadge.label}</span>
-                                </div>
-                                <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                                    <span class="inline-flex items-center gap-1">
-                                        <i class="far fa-calendar"></i>
-                                        <span>${dateLabel}</span>
-                                    </span>
-                                    <span class="text-slate-300">•</span>
-                                    <span class="inline-flex items-center gap-1 min-w-0">
-                                        <i class="fas fa-bullseye"></i>
-                                        <span class="truncate">${channelLabel}</span>
-                                    </span>
-                                </div>
-                                <div class="mt-3 flex flex-wrap items-center gap-2">
-                                    <span class="ui-pill ${format.color}">${format.label}</span>
-                                </div>
-                            </div>
+                        <p class="mt-1 text-xs text-slate-500 truncate">${channelLabel} • ${dateLabel}</p>
+                        <div class="mt-3 flex items-center justify-between gap-3">
+                            <span class="${statusBadgeSmallClass}">${statusBadge.label}</span>
                         </div>
                     `;
                     const openEditor = () => {
@@ -533,11 +516,36 @@
                             openEditor();
                         }
                     });
+                    if (!this._boardMenuOutsideClickHandlerAttached) {
+                        this._boardMenuOutsideClickHandlerAttached = true;
+                        document.addEventListener('click', (event) => {
+                            const insideMenu = !!event.target?.closest?.('[data-card-menu]');
+                            const insideMenuBtn = !!event.target?.closest?.('[data-card-action="menu"]');
+                            if (insideMenu || insideMenuBtn) return;
+                            document.querySelectorAll('[data-card-menu]').forEach((menu) => menu.classList.add('hidden'));
+                        });
+                    }
+
+                    const closeAllMenus = () => {
+                        board.querySelectorAll('[data-card-menu]').forEach((menu) => menu.classList.add('hidden'));
+                    };
+                    const menuBtn = card.querySelector('[data-card-action="menu"]');
+                    const menuEl = card.querySelector('[data-card-menu]');
+                    if (menuBtn && menuEl) {
+                        menuBtn.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const wasOpen = !menuEl.classList.contains('hidden');
+                            closeAllMenus();
+                            menuEl.classList.toggle('hidden', wasOpen);
+                        });
+                    }
                     const editBtn = card.querySelector('[data-card-action="edit"]');
                     if (editBtn) {
                         editBtn.addEventListener('click', (event) => {
                             event.preventDefault();
                             event.stopPropagation();
+                            closeAllMenus();
                             openEditor();
                         });
                     }
@@ -546,6 +554,7 @@
                         duplicateBtn.addEventListener('click', (event) => {
                             event.preventDefault();
                             event.stopPropagation();
+                            closeAllMenus();
                             const duplicated = { ...post, status: 'draft' };
                             delete duplicated.id;
                             delete duplicated.post_id;
@@ -559,6 +568,7 @@
                             event.stopPropagation();
                             if (!canSendForApproval) return;
                             if (!global.SocialMediaRepo?.updatePostStatus) return;
+                            closeAllMenus();
                             const result = await global.SocialMediaRepo.updatePostStatus(post.id, 'ready_for_approval');
                             if (!result) {
                                 this.showFeedback('Não foi possível enviar para aprovação.', 'error');
