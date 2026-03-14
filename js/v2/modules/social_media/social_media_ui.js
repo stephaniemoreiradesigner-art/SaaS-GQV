@@ -479,7 +479,7 @@
                         .replace(/\bpy-1\b/g, 'py-0.5');
 
                     const card = document.createElement('div');
-                    card.className = 'ui-card text-left p-4 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow relative min-h-[96px]';
+                    card.className = 'ui-card text-left p-4 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow relative overflow-visible min-h-[96px]';
                     card.setAttribute('role', 'button');
                     card.tabIndex = 0;
                     const menuId = `social-card-menu-${String(post?.id || Math.random().toString(16).slice(2))}`;
@@ -490,7 +490,7 @@
                                 <button type="button" data-card-action="menu" aria-haspopup="menu" aria-controls="${menuId}" class="h-9 w-9 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
                                     <i class="fas fa-ellipsis-h text-sm"></i>
                                 </button>
-                                <div id="${menuId}" data-card-menu class="hidden absolute right-0 mt-2 w-52 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-10" role="menu">
+                                <div id="${menuId}" data-card-menu class="hidden absolute top-0 right-[-180px] w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-50" role="menu">
                                     <button type="button" data-card-action="edit" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Editar</button>
                                     <button type="button" data-card-action="duplicate" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Duplicar</button>
                                     <button type="button" data-card-action="send" class="w-full text-left px-3 py-2 text-sm ${canSendForApproval ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 cursor-not-allowed'}" role="menuitem" ${canSendForApproval ? '' : 'disabled'}>Enviar para aprovação</button>
