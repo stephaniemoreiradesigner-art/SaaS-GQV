@@ -93,15 +93,10 @@
         createPostCard: function(post) {
             const el = document.createElement('div');
             el.draggable = true;
-            el.className = 'text-xs p-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 cursor-grab active:cursor-grabbing transition-all select-none group/card';
+            el.className = 'text-xs p-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 cursor-grab active:cursor-grabbing transition-all select-none group/card relative min-h-[72px] flex flex-col justify-between';
             el.dataset.postId = post.id;
             
             const formatRaw = String(post.formato || post.content_type || post.tipo || '').toLowerCase();
-            const formatLabel = formatRaw.includes('carrossel') ? 'Carrossel' : (formatRaw.includes('reels') || formatRaw.includes('video') || formatRaw.includes('vídeo') ? 'Vídeo' : 'Imagem');
-            const formatStyle = formatLabel === 'Carrossel'
-                ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                : (formatLabel === 'Vídeo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-700 border-slate-100');
-
             const typeBorder = (() => {
                 if (formatRaw.includes('carrossel')) return 'border-l-4 border-l-violet-500';
                 if (formatRaw.includes('reels') || formatRaw.includes('video') || formatRaw.includes('vídeo')) return 'border-l-4 border-l-pink-500';
@@ -132,26 +127,28 @@
                 return map[key] || 'bg-slate-100 text-slate-600';
             })();
             const title = post.tema || post.titulo || post.title || post.legenda || 'Sem título';
-            const icon = this.getPlatformIcon(post);
-            const mediaUrl = post.imagem_url || post.media_url || post.imagemUrl || post.mediaUrl || post.image_url || post.url_midia;
-            const isVideo = !!(mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i));
+            const channel = String(post.plataforma || post.platform || post.canal || post.channel || '').trim() || (post.instagram ? 'instagram' : (post.facebook ? 'facebook' : (post.linkedin ? 'linkedin' : (post.tiktok ? 'tiktok' : '-'))));
+            const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;
             
             el.innerHTML = `
-                <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        ${icon}
-                        <span class="truncate font-semibold text-slate-700">${title}</span>
-                    </div>
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill}">${statusLabel}</span>
+                <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                    <button type="button" data-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                        <i class="fas fa-pen text-[10px]"></i>
+                    </button>
+                    <button type="button" data-action="duplicate" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                        <i class="far fa-copy text-[10px]"></i>
+                    </button>
+                    <button type="button" data-action="send" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                        <i class="far fa-paper-plane text-[10px]"></i>
+                    </button>
                 </div>
-                <div class="mt-1 flex items-center justify-between gap-2">
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-semibold ${formatStyle}">${formatLabel}</span>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</p>
                 </div>
-                ${mediaUrl ? (
-                    isVideo
-                        ? '<div class="mt-2 h-10 bg-slate-200 rounded-lg overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover" muted playsinline preload="metadata"></video></div>'
-                        : '<div class="mt-2 h-10 bg-slate-200 rounded-lg overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover" onerror="this.closest(\'.mt-2\').remove()"></div>'
-                ) : ''}
+                <div class="mt-2 flex items-center justify-between gap-2">
+                    <span class="text-[10px] text-slate-500 truncate">${channel}</span>
+                    <span id="${statusElId}" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill}">${statusLabel}</span>
+                </div>
             `;
 
             // Eventos de Drag
@@ -166,10 +163,63 @@
             });
             
             // Clique para editar
+            const openEditor = () => {
+                document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+            };
             el.addEventListener('click', (e) => {
                 e.stopPropagation(); // Evitar disparar o clique do dia (add post)
-                document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                const actionEl = e.target?.closest?.('[data-action]');
+                if (actionEl) return;
+                openEditor();
             });
+
+            const editBtn = el.querySelector('[data-action="edit"]');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openEditor();
+                });
+            }
+            const duplicateBtn = el.querySelector('[data-action="duplicate"]');
+            if (duplicateBtn) {
+                duplicateBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const duplicated = { ...post, status: 'draft' };
+                    delete duplicated.id;
+                    delete duplicated.post_id;
+                    if (global.SocialMediaUI?.renderCreateForm) {
+                        global.SocialMediaUI.renderCreateForm(duplicated);
+                    } else {
+                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post: duplicated } }));
+                    }
+                });
+            }
+            const sendBtn = el.querySelector('[data-action="send"]');
+            if (sendBtn) {
+                sendBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!post?.id) return;
+                    if (!global.SocialMediaRepo?.updatePostStatus) return;
+                    const normalized = global.SocialMediaUI?.normalizeStatus ? global.SocialMediaUI.normalizeStatus(post.status) : String(post.status || '').toLowerCase();
+                    const canSend = ['draft', 'ready_for_review', 'changes_requested'].includes(normalized);
+                    if (!canSend) return;
+                    const ok = await global.SocialMediaRepo.updatePostStatus(post.id, 'ready_for_approval');
+                    if (!ok) {
+                        global.SocialMediaUI?.showFeedback?.('Não foi possível enviar para aprovação.', 'error');
+                        return;
+                    }
+                    post.status = 'ready_for_approval';
+                    const statusEl = document.getElementById(statusElId);
+                    if (statusEl) {
+                        statusEl.textContent = 'READY_FOR_APPROVAL';
+                        statusEl.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700';
+                    }
+                    global.SocialMediaUI?.showFeedback?.('Enviado para aprovação.');
+                });
+            }
 
             return el;
         },
