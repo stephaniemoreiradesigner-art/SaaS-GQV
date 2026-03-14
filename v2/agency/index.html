@@ -609,8 +609,8 @@
             </div>
         </div>
     </div>
-    <div id="social-plan-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4 backdrop-blur-sm">
-        <div class="w-full max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-xl">
+    <div id="social-plan-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-end backdrop-blur-sm">
+        <div class="w-full max-w-3xl h-full ui-drawer shadow-xl flex flex-col">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                 <div>
                     <p class="text-xs uppercase tracking-widest text-slate-400">Calendário editorial</p>
@@ -620,7 +620,7 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-6 max-h-[75vh] overflow-y-auto bg-slate-50">
+            <div class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
                 <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
                     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div class="flex items-center justify-between gap-3 mb-4">
@@ -1871,6 +1871,16 @@
             if (socialPlanFeedback) socialPlanFeedback.classList.add('hidden');
         };
 
+        const fillPlanForm = (item) => {
+            if (!item) return;
+            if (socialPlanItemId) socialPlanItemId.value = String(item.id || '');
+            if (socialPlanDate) socialPlanDate.value = String(item.data || '').slice(0, 10);
+            if (socialPlanTheme) socialPlanTheme.value = item.tema || '';
+            if (socialPlanType) socialPlanType.value = item.tipo_conteudo || 'post_estatico';
+            if (socialPlanChannel) socialPlanChannel.value = item.canal || 'instagram';
+            if (socialPlanNotes) socialPlanNotes.value = item.observacoes || '';
+        };
+
         const closePlanModal = () => {
             if (!socialPlanModal) return;
             socialPlanModal.classList.add('hidden');
@@ -1878,7 +1888,7 @@
             clearPlanForm();
         };
 
-        const openPlanModal = async () => {
+        const openPlanModal = async (prefillItem = null) => {
             if (!socialPlanModal) return;
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente para acessar o planejamento.', 'error');
@@ -1889,8 +1899,20 @@
                 return;
             }
             await loadCalendarItems();
+            const editable = socialState.calendarStatus !== 'aguardando_aprovacao'
+                && (socialState.calendarStatus === 'rascunho' || socialState.calendarStatus === 'ajuste_solicitado');
+            [socialPlanDate, socialPlanTheme, socialPlanType, socialPlanChannel, socialPlanNotes, socialPlanSave].forEach((el) => {
+                if (el) el.disabled = !editable;
+            });
             socialPlanModal.classList.remove('hidden');
             socialPlanModal.classList.add('flex');
+            if (prefillItem?.id) {
+                const latest = (socialState.calendarItems || []).find((it) => Number(it.id) === Number(prefillItem.id)) || prefillItem;
+                clearPlanForm();
+                fillPlanForm(latest);
+                setPlanFeedback('Editando item.', 'success');
+                if (editable) socialPlanTheme?.focus?.();
+            }
         };
 
         const renderPlanItems = (items) => {
@@ -1931,13 +1953,9 @@
                     const id = Number(btn.dataset.planId);
                     const item = (socialState.calendarItems || []).find((it) => Number(it.id) === id);
                     if (!item) return;
-                    if (socialPlanItemId) socialPlanItemId.value = String(item.id);
-                    if (socialPlanDate) socialPlanDate.value = String(item.data || '').slice(0, 10);
-                    if (socialPlanTheme) socialPlanTheme.value = item.tema || '';
-                    if (socialPlanType) socialPlanType.value = item.tipo_conteudo || 'post_estatico';
-                    if (socialPlanChannel) socialPlanChannel.value = item.canal || 'instagram';
-                    if (socialPlanNotes) socialPlanNotes.value = item.observacoes || '';
+                    fillPlanForm(item);
                     setPlanFeedback('Editando item.', 'success');
+                    socialPlanTheme?.focus?.();
                 });
             });
             list.querySelectorAll('[data-plan-action="delete"]').forEach((btn) => {
@@ -2191,7 +2209,7 @@
             const isApprovalLocked = status === 'aguardando_aprovacao';
             const canEditPlan = status === 'rascunho' || status === 'ajuste_solicitado';
             const canProduce = status === 'aprovado' || status === 'em_producao' || status === 'publicado' || status === 'concluido';
-            if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !(status === 'rascunho' && hasItems);
+            if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !((status === 'rascunho' || status === 'ajuste_solicitado') && hasItems);
             if (socialGeneratePostsBtn) socialGeneratePostsBtn.disabled = !(status === 'aprovado' && hasItems);
             if (socialApprovalBanner) {
                 socialApprovalBanner.classList.toggle('hidden', status !== 'aguardando_aprovacao');
@@ -2201,9 +2219,8 @@
             });
             if (socialGenerateAiBtn) socialGenerateAiBtn.disabled = !socialState.clientId || isApprovalLocked || !canEditPlan;
             if (socialEditPlanBtn) socialEditPlanBtn.disabled = !socialState.clientId || !socialState.calendarId;
-            [socialNewPostBtn, socialSaveDraftBtn].forEach((btn) => {
-                if (btn) btn.disabled = !socialState.clientId || isApprovalLocked || !canProduce;
-            });
+            if (socialNewPostBtn) socialNewPostBtn.disabled = !socialState.clientId || isApprovalLocked || !(canEditPlan || canProduce);
+            if (socialSaveDraftBtn) socialSaveDraftBtn.disabled = !socialState.clientId || isApprovalLocked || !canProduce;
             [socialGoalInput, socialBriefingInput].forEach((el) => {
                 if (el) el.disabled = !socialState.clientId || isApprovalLocked || !canEditPlan;
             });
@@ -2233,8 +2250,20 @@
             if (!socialCalendarGrid) return;
             socialCalendarGrid.innerHTML = '';
             const cells = getCalendarCells(socialState.calendarMonth);
-            const postsByDate = socialState.posts.reduce((acc, post) => {
-                const dateKey = post.date ? post.date.slice(0, 10) : null;
+            const planningStatuses = new Set(['rascunho', 'aguardando_aprovacao', 'ajuste_solicitado']);
+            const isPlanning = planningStatuses.has(String(socialState.calendarStatus || '').trim());
+            const canEditPlanning = isPlanning && socialState.calendarStatus !== 'aguardando_aprovacao';
+
+            const itemsByDate = (socialState.calendarItems || []).reduce((acc, item) => {
+                const dateKey = item?.data ? String(item.data).slice(0, 10) : null;
+                if (dateKey) {
+                    acc[dateKey] = acc[dateKey] || [];
+                    acc[dateKey].push(item);
+                }
+                return acc;
+            }, {});
+            const postsByDate = (socialState.posts || []).reduce((acc, post) => {
+                const dateKey = post?.date ? String(post.date).slice(0, 10) : null;
                 if (dateKey) {
                     acc[dateKey] = acc[dateKey] || [];
                     acc[dateKey].push(post);
@@ -2244,6 +2273,7 @@
             cells.forEach((cell) => {
                 const day = cell.date.getDate();
                 const dateKey = cell.date.toISOString().slice(0, 10);
+                const dayItems = itemsByDate[dateKey] || [];
                 const dayPosts = postsByDate[dateKey] || [];
                 const wrapper = document.createElement('div');
                 wrapper.className = `border border-slate-200 rounded-xl p-2 min-h-[110px] flex flex-col gap-2 ${cell.inMonth ? 'bg-white' : 'bg-slate-50 text-slate-400'}`;
@@ -2254,113 +2284,195 @@
                 wrapper.appendChild(header);
                 const list = document.createElement('div');
                 list.className = 'flex flex-col gap-1';
-                dayPosts.forEach((post) => {
-                    const card = document.createElement('div');
-                    const statusStyle = SOCIAL_STATUS_STYLES[post.status] || 'bg-slate-100 text-slate-500';
-                    const typeKey = String(post.contentType || '').trim().toLowerCase();
-                    const typeBorder = (typeKey.includes('carrossel'))
-                        ? 'border-l-4 border-l-violet-500'
-                        : ((typeKey.includes('reels') || typeKey.includes('video') || typeKey.includes('vídeo'))
-                            ? 'border-l-4 border-l-pink-500'
-                            : ((typeKey.includes('story') || typeKey.includes('stories'))
-                                ? 'border-l-4 border-l-orange-500'
-                                : 'border-l-4 border-l-sky-500'));
-                    const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
-                    const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
-                    const canSendForApproval = !!post.id && ['draft', 'ready_for_review', 'in_production', 'changes_requested'].includes(dbStatus) && !blockedDbStatuses.has(dbStatus);
-                    card.className = `text-left px-2 py-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 transition ${typeBorder} relative group min-h-[72px]`;
-                    card.draggable = socialState.calendarStatus !== 'aguardando_aprovacao';
-                    card.innerHTML = `
-                        <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button type="button" data-cal-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
-                                <i class="fas fa-pen text-[10px]"></i>
-                            </button>
-                            <button type="button" data-cal-action="duplicate" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
-                                <i class="far fa-copy text-[10px]"></i>
-                            </button>
-                            <button type="button" data-cal-action="send" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300 ${canSendForApproval ? '' : 'opacity-40 cursor-not-allowed'}" ${canSendForApproval ? '' : 'disabled'} draggable="false">
-                                <i class="far fa-paper-plane text-[10px]"></i>
-                            </button>
-                        </div>
-                        <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${post.title}</p>
-                        <div class="mt-2 flex items-center justify-between gap-2">
-                            <span class="text-[10px] text-slate-500 truncate">${post.platform || '-'}</span>
-                            <span class="text-[10px] uppercase ${statusStyle} px-2 py-0.5 rounded-full">${SOCIAL_STATUS_LABELS[post.status] || post.status}</span>
-                        </div>
-                    `;
-                    card.addEventListener('dragstart', (event) => {
-                        if (socialState.calendarStatus === 'aguardando_aprovacao') return;
-                        const payload = { id: post.id || null, tempId: post.tempId || null };
-                        event.dataTransfer?.setData('text/plain', JSON.stringify(payload));
-                    });
-                    const openEditor = () => openPostDrawer(post);
-                    card.setAttribute('role', 'button');
-                    card.tabIndex = 0;
-                    card.addEventListener('click', (event) => {
-                        event.stopPropagation();
-                        const actionEl = event.target?.closest?.('[data-cal-action]');
-                        if (actionEl) return;
-                        openEditor();
-                    });
-                    card.addEventListener('keydown', (event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
+                if (isPlanning) {
+                    dayItems.forEach((item) => {
+                        const card = document.createElement('div');
+                        const tipoKey = String(item?.tipo_conteudo || 'post_estatico').trim().toLowerCase();
+                        const canal = String(item?.canal || 'instagram').trim() || 'instagram';
+                        const tema = String(item?.tema || 'Sem tema').trim() || 'Sem tema';
+                        const tipoLabel = tipoKey.includes('carrossel')
+                            ? 'Carrossel'
+                            : (tipoKey.includes('reels') || tipoKey.includes('video') || tipoKey.includes('vídeo'))
+                                ? 'Reels'
+                                : (tipoKey.includes('story') ? 'Story' : 'Imagem');
+                        const typeBorder = (tipoKey.includes('carrossel'))
+                            ? 'border-l-4 border-l-violet-500'
+                            : ((tipoKey.includes('reels') || tipoKey.includes('video') || tipoKey.includes('vídeo'))
+                                ? 'border-l-4 border-l-pink-500'
+                                : ((tipoKey.includes('story') || tipoKey.includes('stories'))
+                                    ? 'border-l-4 border-l-orange-500'
+                                    : 'border-l-4 border-l-sky-500'));
+
+                        card.className = `text-left px-2 py-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 transition ${typeBorder} relative group min-h-[72px]`;
+                        card.draggable = canEditPlanning;
+                        card.innerHTML = `
+                            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button type="button" data-item-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                                    <i class="fas fa-pen text-[10px]"></i>
+                                </button>
+                                <button type="button" data-item-action="delete" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 hover:text-rose-700 hover:border-rose-300" draggable="false">
+                                    <i class="fas fa-trash text-[10px]"></i>
+                                </button>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</p>
+                            <div class="mt-2 flex items-center justify-between gap-2">
+                                <span class="text-[10px] text-slate-500 truncate">${canal}</span>
+                                <span class="text-[10px] uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full border border-slate-200">${tipoLabel}</span>
+                            </div>
+                        `;
+                        card.addEventListener('dragstart', (event) => {
+                            if (!canEditPlanning) return;
+                            const payload = { kind: 'item', id: item.id };
+                            event.dataTransfer?.setData('text/plain', JSON.stringify(payload));
+                            event.dataTransfer.effectAllowed = 'move';
+                        });
+                        card.setAttribute('role', 'button');
+                        card.tabIndex = 0;
+                        const openEditor = async () => openPlanModal(item);
+                        card.addEventListener('click', (event) => {
                             event.stopPropagation();
-                            openEditor();
-                        }
-                    });
-                    const editBtn = card.querySelector('[data-cal-action="edit"]');
-                    if (editBtn) {
-                        editBtn.addEventListener('click', (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
+                            const actionEl = event.target?.closest?.('[data-item-action]');
+                            if (actionEl) return;
                             openEditor();
                         });
-                    }
-                    const duplicateBtn = card.querySelector('[data-cal-action="duplicate"]');
-                    if (duplicateBtn) {
-                        duplicateBtn.addEventListener('click', (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            const tempId = `tmp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-                            const duplicated = { ...post, id: null, tempId, status: 'rascunho' };
-                            socialState.posts = [...socialState.posts, duplicated];
-                            updateSocialOverview();
-                            renderCalendarGrid();
-                            openPostDrawer(duplicated);
-                        });
-                    }
-                    const sendBtn = card.querySelector('[data-cal-action="send"]');
-                    if (sendBtn) {
-                        sendBtn.addEventListener('click', async (event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            if (!canSendForApproval) return;
-                            if (!window.SocialMediaRepo?.updatePostStatus) return;
-                            const updated = await window.SocialMediaRepo.updatePostStatus(post.id, 'pendente_aprovacao');
-                            if (!updated) {
-                                setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
-                                return;
+                        card.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openEditor();
                             }
-                            socialState.posts = socialState.posts.map((item) => (item.id === post.id ? { ...item, status: 'aguardando_aprovacao' } : item));
-                            updateSocialOverview();
-                            renderCalendarGrid();
-                            setSocialFeedback('Enviado para aprovação.');
                         });
-                    }
-                    list.appendChild(card);
-                });
+                        const editBtn = card.querySelector('[data-item-action="edit"]');
+                        if (editBtn) {
+                            editBtn.addEventListener('click', (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openEditor();
+                            });
+                        }
+                        const deleteBtn = card.querySelector('[data-item-action="delete"]');
+                        if (deleteBtn) {
+                            deleteBtn.addEventListener('click', async (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!canEditPlanning) return;
+                                const ok = await window.SocialMediaRepo?.deleteCalendarItem?.(item.id);
+                                if (!ok) {
+                                    setSocialFeedback('Não foi possível excluir o item.', 'error');
+                                    return;
+                                }
+                                await loadCalendarItems();
+                                setSocialFeedback('Item removido.');
+                            });
+                        }
+                        list.appendChild(card);
+                    });
+                } else {
+                    dayPosts.forEach((post) => {
+                        const card = document.createElement('div');
+                        const statusStyle = SOCIAL_STATUS_STYLES[post.status] || 'bg-slate-100 text-slate-500';
+                        const typeKey = String(post.contentType || '').trim().toLowerCase();
+                        const typeBorder = (typeKey.includes('carrossel'))
+                            ? 'border-l-4 border-l-violet-500'
+                            : ((typeKey.includes('reels') || typeKey.includes('video') || typeKey.includes('vídeo'))
+                                ? 'border-l-4 border-l-pink-500'
+                                : ((typeKey.includes('story') || typeKey.includes('stories'))
+                                    ? 'border-l-4 border-l-orange-500'
+                                    : 'border-l-4 border-l-sky-500'));
+                        const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
+                        const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
+                        const canSendForApproval = !!post.id && ['draft', 'ready_for_review', 'in_production', 'changes_requested'].includes(dbStatus) && !blockedDbStatuses.has(dbStatus);
+                        card.className = `text-left px-2 py-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 transition ${typeBorder} relative group min-h-[72px]`;
+                        card.draggable = socialState.calendarStatus !== 'aguardando_aprovacao';
+                        card.innerHTML = `
+                            <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button type="button" data-cal-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                                    <i class="fas fa-pen text-[10px]"></i>
+                                </button>
+                                <button type="button" data-cal-action="duplicate" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                                    <i class="far fa-copy text-[10px]"></i>
+                                </button>
+                                <button type="button" data-cal-action="send" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300 ${canSendForApproval ? '' : 'opacity-40 cursor-not-allowed'}" ${canSendForApproval ? '' : 'disabled'} draggable="false">
+                                    <i class="far fa-paper-plane text-[10px]"></i>
+                                </button>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${post.title}</p>
+                            <div class="mt-2 flex items-center justify-between gap-2">
+                                <span class="text-[10px] text-slate-500 truncate">${post.platform || '-'}</span>
+                                <span class="text-[10px] uppercase ${statusStyle} px-2 py-0.5 rounded-full">${SOCIAL_STATUS_LABELS[post.status] || post.status}</span>
+                            </div>
+                        `;
+                        card.addEventListener('dragstart', (event) => {
+                            if (socialState.calendarStatus === 'aguardando_aprovacao') return;
+                            const payload = { kind: 'post', id: post.id || null, tempId: post.tempId || null };
+                            event.dataTransfer?.setData('text/plain', JSON.stringify(payload));
+                        });
+                        const openEditor = () => openPostDrawer(post);
+                        card.setAttribute('role', 'button');
+                        card.tabIndex = 0;
+                        card.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            const actionEl = event.target?.closest?.('[data-cal-action]');
+                            if (actionEl) return;
+                            openEditor();
+                        });
+                        card.addEventListener('keydown', (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openEditor();
+                            }
+                        });
+                        const editBtn = card.querySelector('[data-cal-action="edit"]');
+                        if (editBtn) {
+                            editBtn.addEventListener('click', (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                openEditor();
+                            });
+                        }
+                        const duplicateBtn = card.querySelector('[data-cal-action="duplicate"]');
+                        if (duplicateBtn) {
+                            duplicateBtn.addEventListener('click', (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                const tempId = `tmp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+                                const duplicated = { ...post, id: null, tempId, status: 'rascunho' };
+                                socialState.posts = [...socialState.posts, duplicated];
+                                updateSocialOverview();
+                                renderCalendarGrid();
+                                openPostDrawer(duplicated);
+                            });
+                        }
+                        const sendBtn = card.querySelector('[data-cal-action="send"]');
+                        if (sendBtn) {
+                            sendBtn.addEventListener('click', async (event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!canSendForApproval) return;
+                                if (!window.SocialMediaRepo?.updatePostStatus) return;
+                                const updated = await window.SocialMediaRepo.updatePostStatus(post.id, 'pendente_aprovacao');
+                                if (!updated) {
+                                    setSocialFeedback('Não foi possível enviar para aprovação.', 'error');
+                                    return;
+                                }
+                                socialState.posts = socialState.posts.map((item) => (item.id === post.id ? { ...item, status: 'aguardando_aprovacao' } : item));
+                                updateSocialOverview();
+                                renderCalendarGrid();
+                                setSocialFeedback('Enviado para aprovação.');
+                            });
+                        }
+                        list.appendChild(card);
+                    });
+                }
                 wrapper.appendChild(list);
                 wrapper.addEventListener('dragover', (event) => {
-                    if (socialState.calendarStatus === 'aguardando_aprovacao') return;
+                    if (isPlanning && !canEditPlanning) return;
+                    if (!isPlanning && socialState.calendarStatus === 'aguardando_aprovacao') return;
                     event.preventDefault();
                 });
                 wrapper.addEventListener('drop', async (event) => {
                     if (!cell.inMonth) return;
-                    if (socialState.calendarStatus === 'aguardando_aprovacao') {
-                        setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
-                        return;
-                    }
                     const raw = event.dataTransfer?.getData('text/plain');
                     if (!raw) return;
                     let payload;
@@ -2369,18 +2481,55 @@
                     } catch (err) {
                         return;
                     }
-                    const moved = socialState.posts.find((item) => (payload.id && item.id === payload.id) || (payload.tempId && item.tempId === payload.tempId));
-                    if (!moved) return;
-                    if (moved.date === dateKey) return;
-                    if (moved.id && window.SocialMediaRepo?.updatePostDate) {
-                        await window.SocialMediaRepo.updatePostDate(moved.id, dateKey);
+                    if (payload?.kind === 'item') {
+                        if (!canEditPlanning) return;
+                        const moved = (socialState.calendarItems || []).find((it) => Number(it.id) === Number(payload.id));
+                        if (!moved) return;
+                        if (String(moved.data || '').slice(0, 10) === dateKey) return;
+                        const repo = window.SocialMediaRepo;
+                        if (!repo?.upsertCalendarItem) return;
+                        const updated = await repo.upsertCalendarItem({
+                            id: moved.id,
+                            calendar_id: socialState.calendarId,
+                            data: dateKey,
+                            tema: moved.tema,
+                            tipo_conteudo: moved.tipo_conteudo,
+                            canal: moved.canal,
+                            observacoes: moved.observacoes
+                        });
+                        if (!updated) {
+                            setSocialFeedback('Não foi possível mover o item.', 'error');
+                            return;
+                        }
+                        await loadCalendarItems();
+                        return;
                     }
-                    socialState.posts = socialState.posts.map((item) => ((payload.id && item.id === payload.id) || (payload.tempId && item.tempId === payload.tempId) ? { ...item, date: dateKey, isDirty: true } : item));
-                    updateSocialOverview();
-                    renderCalendarGrid();
+                    if (payload?.kind === 'post') {
+                        if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                            setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                            return;
+                        }
+                        const moved = socialState.posts.find((item) => (payload.id && item.id === payload.id) || (payload.tempId && item.tempId === payload.tempId));
+                        if (!moved) return;
+                        if (moved.date === dateKey) return;
+                        if (moved.id && window.SocialMediaRepo?.updatePostDate) {
+                            await window.SocialMediaRepo.updatePostDate(moved.id, dateKey);
+                        }
+                        socialState.posts = socialState.posts.map((item) => ((payload.id && item.id === payload.id) || (payload.tempId && item.tempId === payload.tempId) ? { ...item, date: dateKey, isDirty: true } : item));
+                        updateSocialOverview();
+                        renderCalendarGrid();
+                    }
                 });
                 wrapper.addEventListener('click', () => {
                     if (!cell.inMonth) return;
+                    if (isPlanning) {
+                        if (!canEditPlanning) {
+                            setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                            return;
+                        }
+                        createManualPlanItem(dateKey);
+                        return;
+                    }
                     if (socialState.calendarStatus === 'aguardando_aprovacao') {
                         setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                         return;
@@ -2658,6 +2807,45 @@
             return { ...post, ...mediaMeta, isTemp: false, isDirty: false, mediaFile: null, mediaPreviewUrl: post.mediaPreviewUrl };
         };
 
+        const createManualPlanItem = async (date) => {
+            if (!socialState.clientId) {
+                setSocialFeedback('Selecione um cliente antes de criar itens.', 'error');
+                return;
+            }
+            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                return;
+            }
+            if (socialState.calendarStatus !== 'rascunho' && socialState.calendarStatus !== 'ajuste_solicitado') {
+                setSocialFeedback('Planejamento fechado: crie itens apenas em rascunho/ajustes solicitados.', 'error');
+                return;
+            }
+            const calendar = await ensureCalendarDraft();
+            if (!calendar?.id) {
+                setSocialFeedback('Não foi possível carregar o calendário do mês.', 'error');
+                return;
+            }
+            const repo = window.SocialMediaRepo;
+            if (!repo?.upsertCalendarItem) {
+                setSocialFeedback('Repositório Social Media não disponível.', 'error');
+                return;
+            }
+            const saved = await repo.upsertCalendarItem({
+                calendar_id: calendar.id,
+                data: String(date || '').slice(0, 10),
+                tema: 'Novo item',
+                tipo_conteudo: 'post_estatico',
+                canal: 'instagram',
+                observacoes: ''
+            });
+            if (!saved) {
+                setSocialFeedback('Não foi possível criar o item.', 'error');
+                return;
+            }
+            await loadCalendarItems();
+            openPlanModal(saved);
+        };
+
         const createManualPost = (date) => {
             if (!socialState.clientId) {
                 setSocialFeedback('Selecione um cliente antes de criar posts.', 'error');
@@ -2741,9 +2929,6 @@
             }
             await loadCalendarItems();
             setSocialFeedback('Sugestões adicionadas ao planejamento.');
-            if (socialPlanModal?.classList?.contains('hidden')) {
-                openPlanModal();
-            }
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar response:', { added: suggestions.length });
             }
@@ -2769,12 +2954,14 @@
             if (!repo?.getCalendarItems || !socialState.calendarId) {
                 socialState.calendarItems = [];
                 renderPlanItems(socialState.calendarItems);
+                renderCalendarGrid();
                 updateCalendarStatus(socialState.calendarStatus);
                 return;
             }
             const items = await repo.getCalendarItems(socialState.calendarId);
             socialState.calendarItems = Array.isArray(items) ? items : [];
             renderPlanItems(socialState.calendarItems);
+            renderCalendarGrid();
             updateCalendarStatus(socialState.calendarStatus);
         };
 
@@ -3330,6 +3517,12 @@
                 const monthBase = new Date(`${socialState.calendarMonth}-01T00:00:00`);
                 const inMonth = today.getFullYear() === monthBase.getFullYear() && today.getMonth() === monthBase.getMonth();
                 const date = inMonth ? today.toISOString().slice(0, 10) : monthBase.toISOString().slice(0, 10);
+                const planningStatuses = new Set(['rascunho', 'aguardando_aprovacao', 'ajuste_solicitado']);
+                const isPlanning = planningStatuses.has(String(socialState.calendarStatus || '').trim());
+                if (isPlanning) {
+                    createManualPlanItem(date);
+                    return;
+                }
                 createManualPost(date);
             });
         }
@@ -3523,6 +3716,11 @@
         if (socialPostDrawer) {
             socialPostDrawer.addEventListener('click', (event) => {
                 if (event.target === socialPostDrawer) closePostDrawer();
+            });
+        }
+        if (socialPlanModal) {
+            socialPlanModal.addEventListener('click', (event) => {
+                if (event.target === socialPlanModal) closePlanModal();
             });
         }
 
