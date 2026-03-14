@@ -2702,9 +2702,9 @@
             const map = {
                 rascunho: 'draft',
                 draft: 'draft',
-                aguardando_aprovacao: 'sent_for_approval',
-                awaiting_approval: 'sent_for_approval',
-                sent_for_approval: 'sent_for_approval',
+                aguardando_aprovacao: 'awaiting_approval',
+                awaiting_approval: 'awaiting_approval',
+                sent_for_approval: 'awaiting_approval',
                 aprovado: 'approved',
                 approved: 'approved',
                 ajuste_solicitado: 'needs_changes',
@@ -3104,9 +3104,16 @@
                     status: 'aguardando_aprovacao'
                 });
             }
+            const updatePayload = { status: normalizeSocialCalendarStatusToDb('aguardando_aprovacao') };
+            if (isDebug) {
+                console.log('[SocialMediaV2] social_calendars PATCH:', {
+                    payload: updatePayload,
+                    filter: { id: calendar.id, cliente_id: socialState.clientId }
+                });
+            }
             const { error } = await supabase
                 .from('social_calendars')
-                .update({ status: normalizeSocialCalendarStatusToDb('aguardando_aprovacao') })
+                .update(updatePayload)
                 .eq('id', calendar.id)
                 .eq('cliente_id', socialState.clientId);
             if (error) {

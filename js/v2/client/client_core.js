@@ -8,8 +8,11 @@
         activePostId: null,
         calendarMonthRef: null,
         clientProfile: null,
+        _initStarted: false,
 
         init: async function() {
+            if (this._initStarted) return;
+            this._initStarted = true;
             // 1. Check Auth & Init Supabase Isolated
             if (!global.ClientAuth) {
                 console.error('[ClientCore] Auth module missing');

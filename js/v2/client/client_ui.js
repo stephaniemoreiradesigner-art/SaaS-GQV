@@ -486,8 +486,8 @@
         setupCalendarNavigation: function() {
             const prevBtn = document.getElementById('client-calendar-prev');
             const nextBtn = document.getElementById('client-calendar-next');
-            if (prevBtn) prevBtn.addEventListener('click', () => global.ClientCore?.shiftCalendarMonth?.(-1));
-            if (nextBtn) nextBtn.addEventListener('click', () => global.ClientCore?.shiftCalendarMonth?.(1));
+            if (prevBtn) prevBtn.onclick = () => global.ClientCore?.shiftCalendarMonth?.(-1);
+            if (nextBtn) nextBtn.onclick = () => global.ClientCore?.shiftCalendarMonth?.(1);
         },
 
         setupHomeActions: function() {
