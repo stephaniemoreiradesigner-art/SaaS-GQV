@@ -357,6 +357,19 @@
             return post?.imagem_url || post?.media_url || post?.imagemUrl || post?.mediaUrl || post?.image_url || post?.url_midia || '';
         },
 
+        getPostChannelLabel: function(post) {
+            const value = (Array.isArray(post?.plataformas) && post.plataformas[0])
+                ? post.plataformas[0]
+                : (post?.plataforma || post?.platform || post?.channel || '');
+            const raw = String(value || '').trim();
+            if (raw) return raw;
+            if (post?.instagram) return 'instagram';
+            if (post?.facebook) return 'facebook';
+            if (post?.linkedin) return 'linkedin';
+            if (post?.tiktok) return 'tiktok';
+            return '-';
+        },
+
         renderPostsBoard: function(posts, monthRef) {
             const board = document.getElementById('social-posts-board');
             if (!board) return;
@@ -366,12 +379,10 @@
 
             const columns = [
                 { key: 'draft', label: 'Rascunhos' },
-                { key: 'ready_for_review', label: 'Pronto para revisão' },
-                { key: 'ready_for_approval', label: 'Enviado para aprovação' },
-                { key: 'changes_requested', label: 'Ajustes solicitados' },
-                { key: 'approved', label: 'Aprovado pelo cliente' },
-                { key: 'scheduled', label: 'Agendado' },
-                { key: 'published', label: 'Publicado' }
+                { key: 'internal_review', label: 'Revisão interna' },
+                { key: 'awaiting_approval', label: 'Aguardando aprovação' },
+                { key: 'approved', label: 'Aprovados' },
+                { key: 'published', label: 'Publicados' }
             ];
 
             const grouped = {};
@@ -380,11 +391,19 @@
             (posts || []).forEach((post) => {
                 const status = this.normalizeStatus(post?.status);
                 const dateStr = this.getPostDate(post);
-                if (status === 'approved' && dateStr && String(dateStr).slice(0, 7) !== monthKey) {
+                const bucket = (() => {
+                    if (status === 'draft') return 'draft';
+                    if (status === 'ready_for_review' || status === 'changes_requested') return 'internal_review';
+                    if (status === 'ready_for_approval') return 'awaiting_approval';
+                    if (status === 'approved' || status === 'scheduled') return 'approved';
+                    if (status === 'published') return 'published';
+                    return 'draft';
+                })();
+
+                if (bucket === 'approved' && dateStr && String(dateStr).slice(0, 7) !== monthKey) {
                     return;
                 }
-                if (!grouped[status]) grouped[status] = [];
-                grouped[status].push(post);
+                grouped[bucket].push(post);
             });
 
             if (this.isDebug()) {
@@ -401,7 +420,7 @@
                     buckets: groupedCounts
                 });
                 console.log('[SocialMediaPosts] drafts bucket:', (grouped.draft || []).map((p) => p?.id).filter(Boolean));
-                console.log('[SocialMediaPosts] approval bucket:', (grouped.ready_for_approval || []).map((p) => p?.id).filter(Boolean));
+                console.log('[SocialMediaPosts] approval bucket:', (grouped.awaiting_approval || []).map((p) => p?.id).filter(Boolean));
             }
 
             board.innerHTML = '';
@@ -423,22 +442,27 @@
                     const title = this.getPostTitle(post);
                     const dateStr = this.getPostDate(post);
                     const dateLabel = dateStr ? new Date(`${dateStr}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+                    const channelRaw = this.getPostChannelLabel(post);
+                    const channelLabel = String(channelRaw || '-').trim() || '-';
                     const format = this.getFormatInfo(post);
+                    const statusBadge = this.getStatusBadgeInfo(post?.status);
 
                     const card = document.createElement('button');
                     card.type = 'button';
                     card.className = 'ui-card text-left p-3';
                     card.innerHTML = `
                         <div class="flex items-start gap-3">
-                            <div class="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
+                            <div class="w-14 h-14 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
                                 ${mediaUrl ? (isVideo ? `<video src="${mediaUrl}" class="w-full h-full object-cover" muted playsinline preload="metadata"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
                             </div>
                             <div class="min-w-0 flex-1">
-                                <p class="text-sm font-semibold text-slate-900 truncate">${title}</p>
-                                <p class="text-xs text-slate-500 mt-1">${dateLabel}</p>
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="text-sm font-semibold text-slate-900 truncate">${title}</p>
+                                    <span class="${statusBadge.className}">${statusBadge.label}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-1">${dateLabel} • ${channelLabel}</p>
                                 <div class="mt-2 flex items-center gap-2">
                                     <span class="ui-pill ${format.color}">${format.label}</span>
-                                    <span class="ui-pill">${String(post?.status || '').toUpperCase() || '-'}</span>
                                 </div>
                             </div>
                         </div>
@@ -455,7 +479,7 @@
             const countPendingEl = document.getElementById('social-count-pending');
             const countApprovedEl = document.getElementById('social-count-approved');
             if (countDraftEl) countDraftEl.textContent = String(grouped.draft?.length || 0);
-            if (countPendingEl) countPendingEl.textContent = String(grouped.ready_for_approval?.length || 0);
+            if (countPendingEl) countPendingEl.textContent = String(grouped.awaiting_approval?.length || 0);
             if (countApprovedEl) countApprovedEl.textContent = String(grouped.approved?.length || 0);
         },
 
