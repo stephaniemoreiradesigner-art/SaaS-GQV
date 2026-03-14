@@ -79,9 +79,9 @@
 
         onViewChanged: async function(viewName) {
             if (viewName === 'approvals') {
-                global.ClientUI?.setApprovalsTab?.('posts');
                 await this.loadPendingPosts();
             } else if (viewName === 'calendar') {
+                await this.loadCalendars();
                 await this.loadCalendarMonth();
             } else if (viewName === 'history') {
                 await this.loadHistory();
@@ -360,7 +360,7 @@
             }
         },
 
-        openCalendarModal: async function(calendarId, monthName) {
+        openCalendarModal: async function(calendarId, monthName, status = null) {
             this.activeCalendarId = calendarId;
             
             // UI Setup
@@ -368,11 +368,24 @@
             const statusEl = document.getElementById('client-calendar-modal-status');
             const periodEl = document.getElementById('client-calendar-modal-period');
             
-            if (titleEl) titleEl.textContent = 'Aprovação de Calendário';
+            if (titleEl) titleEl.textContent = 'Calendário editorial';
             if (periodEl) periodEl.textContent = monthName;
             if (statusEl) {
-                statusEl.textContent = 'Aguardando Aprovação';
-                statusEl.className = 'inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700';
+                const raw = String(status || '').trim().toLowerCase();
+                const map = {
+                    awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
+                    aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
+                    draft: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700' },
+                    rascunho: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700' }
+                };
+                const info = map[raw] || { label: raw || 'Status', cls: 'bg-slate-100 text-slate-700' };
+                statusEl.textContent = info.label;
+                statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${info.cls}`;
             }
 
             // Show Modal

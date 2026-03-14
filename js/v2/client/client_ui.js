@@ -171,33 +171,50 @@
                 const date = new Date(cal.mes_referencia);
                 const monthName = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }); // Force UTC to avoid timezone shifts
                 const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+                const rawStatus = String(cal.status || '').trim().toLowerCase();
+                const statusMap = {
+                    draft: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
+                    rascunho: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
+                    awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                    aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                    sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                    ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                    approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                    aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                    in_production: { label: 'Em produção', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+                    em_producao: { label: 'Em produção', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+                    published: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' },
+                    publicado: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' },
+                    archived: { label: 'Concluído', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
+                    concluido: { label: 'Concluído', cls: 'bg-slate-100 text-slate-700 border border-slate-200' }
+                };
+                const statusInfo = statusMap[rawStatus] || { label: rawStatus || 'Status', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
 
                 const card = document.createElement('div');
-                card.className = 'bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow';
+                card.className = 'bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer';
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
                         <div>
                             <p class="text-xs uppercase text-slate-400 tracking-wider">Mês de referência</p>
                             <h3 class="text-lg font-semibold text-slate-900 capitalize">${capitalizedMonth}</h3>
                         </div>
-                        <span class="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full uppercase font-bold">Pendente</span>
-                    </div>
-                    <div class="flex gap-2 mt-4">
-                        <button class="flex-1 bg-slate-900 text-white text-sm py-2 rounded-lg hover:bg-slate-800 transition btn-view-calendar" data-id="${cal.id}" data-month="${capitalizedMonth}">
-                            Visualizar e Aprovar
-                        </button>
+                        <span class="text-xs px-2 py-1 rounded-full uppercase font-bold ${statusInfo.cls}">${statusInfo.label}</span>
                     </div>
                 `;
-                container.appendChild(card);
-            });
-
-            // Bind click events
-            document.querySelectorAll('.btn-view-calendar').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const id = btn.dataset.id;
-                    const month = btn.dataset.month;
-                    if (global.ClientCore) global.ClientCore.openCalendarModal(id, month);
+                card.setAttribute('role', 'button');
+                card.tabIndex = 0;
+                const open = () => {
+                    if (global.ClientCore) global.ClientCore.openCalendarModal(cal.id, capitalizedMonth, rawStatus);
+                };
+                card.addEventListener('click', open);
+                card.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        open();
+                    }
                 });
+                container.appendChild(card);
             });
         },
 
@@ -205,6 +222,7 @@
             const container = document.getElementById('client-calendar-posts-list');
             const loading = document.getElementById('client-calendar-posts-loading');
             const empty = document.getElementById('client-calendar-posts-empty');
+            const commentEl = document.getElementById('client-calendar-approval-comment');
 
             if (loading) loading.classList.add('hidden');
             if (!container) return;
@@ -223,7 +241,11 @@
                 const tema = item.tema || item.titulo || item.title || 'Sem título';
                 const tipo = item.tipo_conteudo || item.formato || 'post_estatico';
                 const canal = item.canal || item.plataforma || item.platform || '-';
-                const obs = item.observacoes || item.legenda || '';
+                const copy = item.copy || item.copy_text || item.copywriting || '';
+                const obs = item.observacoes || '';
+                const notes = item.notes || item.legenda || '';
+                const detailText = String(copy || obs || notes || '').trim();
+                const detailId = `cal-item-detail-${String(item.id || Math.random()).replace(/[^\w-]/g, '')}`;
 
                 const el = document.createElement('div');
                 el.className = 'bg-white border border-slate-200 rounded-xl p-4';
@@ -235,8 +257,53 @@
                         </div>
                         <span class="text-[10px] uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">${tipo}</span>
                     </div>
-                    ${obs ? `<p class="mt-3 text-xs text-slate-600" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${obs}</p>` : ''}
+                    <div class="mt-3 flex items-center justify-end gap-2">
+                        <button type="button" data-cal-item-action="request-changes" class="ui-btn ui-btn-secondary">Solicitar ajuste deste item</button>
+                        <button type="button" data-cal-item-action="toggle" class="ui-btn ui-btn-secondary">Detalhes</button>
+                    </div>
+                    <div id="${detailId}" class="hidden mt-4 ui-surface-2 p-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <p class="text-[11px] uppercase tracking-widest text-slate-400">Tema</p>
+                                <p class="text-sm text-slate-800">${tema}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] uppercase tracking-widest text-slate-400">Data</p>
+                                <p class="text-sm text-slate-800">${date}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] uppercase tracking-widest text-slate-400">Canal</p>
+                                <p class="text-sm text-slate-800">${canal}</p>
+                            </div>
+                            <div>
+                                <p class="text-[11px] uppercase tracking-widest text-slate-400">Tipo</p>
+                                <p class="text-sm text-slate-800">${tipo}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <p class="text-[11px] uppercase tracking-widest text-slate-400">Copy/Observações</p>
+                            <p class="text-sm text-slate-700 whitespace-pre-wrap">${detailText || '-'}</p>
+                        </div>
+                    </div>
                 `;
+                const toggleBtn = el.querySelector('[data-cal-item-action="toggle"]');
+                const detailEl = el.querySelector(`#${detailId}`);
+                if (toggleBtn && detailEl) {
+                    toggleBtn.addEventListener('click', () => {
+                        detailEl.classList.toggle('hidden');
+                    });
+                }
+                const requestBtn = el.querySelector('[data-cal-item-action="request-changes"]');
+                if (requestBtn) {
+                    requestBtn.addEventListener('click', () => {
+                        if (!commentEl) return;
+                        const prefix = `Solicitar ajuste no item: "${tema}" (${date} • ${canal} • ${tipo})`;
+                        const extra = detailText ? `\n\n${detailText}` : '';
+                        commentEl.value = `${prefix}${extra}`.trim();
+                        commentEl.focus();
+                        commentEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    });
+                }
                 container.appendChild(el);
             });
         },
