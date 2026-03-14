@@ -1899,6 +1899,62 @@
                 return;
             }
             await loadCalendarItems();
+Módulo: Client Portal / Aprovação de Calendário
+
+Problema atual:
+Ao clicar "Aprovar Calendário", o console retorna:
+
+[ClientRepo] Aprovação de calendário não afetou nenhuma linha (possível RLS/filtro)
+
+Isso indica que o update em social_calendars está sendo bloqueado ou filtrado incorretamente.
+
+Também o modal de aprovação não está carregando os itens de planejamento (social_calendar_items).
+
+Arquivos:
+js/v2/client/client_repo.js
+js/v2/client/client_core.js
+js/v2/client/client_ui.js
+supabase/migrations/*
+
+Tarefas:
+
+1) Corrigir a função de aprovação de calendário no client_repo:
+   - garantir update em social_calendars
+   - filtro correto por calendar_id
+   - retorno validando rows afetadas.
+
+2) Verificar políticas RLS de social_calendars:
+   garantir que client_portal_users possam atualizar status do calendário.
+
+3) Ajustar o carregamento do calendário no portal do cliente:
+   - substituir dependência de social_posts
+   - carregar social_calendar_items por calendar_id.
+
+4) Atualizar o modal de aprovação:
+   - remover campos briefing/objetivo se não forem mais usados
+   - renderizar cards de planejamento (tema + data + canal + tipo).
+
+5) Garantir que aprovação altere status do calendário para approved.
+
+Validação:
+
+- cliente abre calendário
+- itens aparecem corretamente
+- cliente clica aprovar
+- status muda no banco
+- agência recebe atualização corretamente
+
+Responder com:
+- causa do erro
+- arquivos alterados
+- políticas RLS ajustadas
+- confirmação de funcionamento
+
+No final executar:
+
+git add -A
+git commit -m "fix(client): corrigir aprovação de calendário e carregar social_calendar_items"
+git push origin main
             const editable = socialState.calendarStatus !== 'aguardando_aprovacao'
                 && (socialState.calendarStatus === 'rascunho' || socialState.calendarStatus === 'ajuste_solicitado');
             [socialPlanDate, socialPlanTheme, socialPlanType, socialPlanChannel, socialPlanNotes, socialPlanSave].forEach((el) => {
