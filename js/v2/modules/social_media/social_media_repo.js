@@ -85,6 +85,145 @@
             }
         },
 
+        getCalendarItems: async function(calendarId) {
+            if (!global.supabaseClient || !calendarId) return [];
+
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .select('*')
+                    .eq('calendar_id', calendarId)
+                    .order('data', { ascending: true });
+
+                if (error) throw error;
+                return data || [];
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao buscar itens do calendário:', err);
+                return [];
+            }
+        },
+
+        upsertCalendarItem: async function(input) {
+            if (!global.supabaseClient || !input) return null;
+            const calendarId = input.calendar_id || input.calendarId || null;
+            const date = (input.data || input.date || '').slice(0, 10);
+            const tema = String(input.tema || input.title || '').trim();
+            const tipoConteudo = String(input.tipo_conteudo || input.content_type || input.formato || 'post_estatico').trim() || 'post_estatico';
+            const canal = String(input.canal || input.platform || 'instagram').trim() || 'instagram';
+            const observacoes = input.observacoes ?? input.notes ?? null;
+
+            if (!calendarId || !date || !tema) return null;
+
+            const payload = {
+                calendar_id: calendarId,
+                data: date,
+                tema,
+                tipo_conteudo: tipoConteudo,
+                canal,
+                observacoes,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                if (input.id) {
+                    const { data, error } = await global.supabaseClient
+                        .from('social_calendar_items')
+                        .update(payload)
+                        .eq('id', input.id)
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    return data || null;
+                }
+
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .insert(payload)
+                    .select()
+                    .single();
+                if (error) throw error;
+                return data || null;
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao salvar item do calendário:', err);
+                return null;
+            }
+        },
+
+        deleteCalendarItem: async function(itemId) {
+            if (!global.supabaseClient || !itemId) return false;
+            try {
+                const { error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .delete()
+                    .eq('id', itemId);
+                if (error) throw error;
+                return true;
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao excluir item do calendário:', err);
+                return false;
+            }
+        },
+
+        generatePostsFromCalendarItems: async function(calendarId) {
+            if (!global.supabaseClient || !calendarId) return { ok: false, error: 'missing_params' };
+            try {
+                const { data: calendar, error: calError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .select('id,cliente_id,status')
+                    .eq('id', calendarId)
+                    .maybeSingle();
+                if (calError) throw calError;
+                if (!calendar) return { ok: false, error: 'calendar_not_found' };
+
+                const calStatus = String(calendar.status || '').trim().toLowerCase();
+                const approvedStatuses = new Set(['approved', 'aprovado']);
+                if (!approvedStatuses.has(calStatus)) {
+                    return { ok: false, error: 'calendar_not_approved' };
+                }
+
+                const items = await this.getCalendarItems(calendarId);
+                if (!items.length) return { ok: true, created: 0, skipped: 0 };
+
+                const itemIds = items.map((it) => it.id).filter(Boolean);
+                const { data: existing, error: existingErr } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('id,calendar_item_id')
+                    .eq('calendar_id', calendarId)
+                    .in('calendar_item_id', itemIds);
+                if (existingErr) throw existingErr;
+                const existingSet = new Set((existing || []).map((p) => String(p.calendar_item_id)).filter(Boolean));
+
+                const toInsert = items
+                    .filter((it) => it?.id && !existingSet.has(String(it.id)))
+                    .map((it) => ({
+                        calendar_id: calendarId,
+                        calendar_item_id: it.id,
+                        cliente_id: calendar.cliente_id,
+                        data_agendada: String(it.data || '').slice(0, 10),
+                        tema: it.tema,
+                        formato: it.tipo_conteudo || 'post_estatico',
+                        plataforma: it.canal || 'instagram',
+                        legenda: '',
+                        detailed_content: '',
+                        status: 'draft',
+                        updated_at: new Date().toISOString()
+                    }));
+
+                if (!toInsert.length) return { ok: true, created: 0, skipped: items.length };
+
+                const { data: inserted, error: insertErr } = await global.supabaseClient
+                    .from('social_posts')
+                    .insert(toInsert)
+                    .select('id,calendar_item_id');
+                if (insertErr) throw insertErr;
+
+                return { ok: true, created: (inserted || []).length, skipped: items.length - (inserted || []).length };
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao gerar posts a partir dos itens:', err);
+                return { ok: false, error: err };
+            }
+        },
+
         /**
          * Cria um novo post manual
          * @param {Object} input - Dados do post
@@ -188,7 +327,8 @@
                     status,
                     cta: input.cta || null,
                     hashtags: input.hashtags || null,
-                    imagem_url: input.imagem_url || input.media_url || null
+                    imagem_url: input.imagem_url || input.media_url || null,
+                    plataforma: input.plataforma || input.platform || null
                 };
                 console.log('[SocialCalendar] insert post payload', dbPayload);
                 const { data, error } = await global.supabaseClient
@@ -253,6 +393,9 @@
             if (input.hashtags !== undefined) dbPayload.hashtags = input.hashtags;
             if (input.imagem_url !== undefined || input.media_url !== undefined) {
                 dbPayload.imagem_url = input.imagem_url || input.media_url;
+            }
+            if (input.plataforma !== undefined || input.platform !== undefined) {
+                dbPayload.plataforma = input.plataforma || input.platform;
             }
 
             try {

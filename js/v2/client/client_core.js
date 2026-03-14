@@ -375,10 +375,12 @@
             // Show Modal
             if (global.ClientUI) global.ClientUI.showCalendarModal(true);
 
-            // Load Posts
+            // Load Itens do calendário (planejamento editorial)
             const clientId = this.currentClient?.client_id || null;
-            const posts = await global.ClientRepo.getCalendarPosts(calendarId, clientId);
-            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(posts);
+            const items = global.ClientRepo.getCalendarItems
+                ? await global.ClientRepo.getCalendarItems(calendarId, clientId)
+                : [];
+            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(items);
 
             // Bind Actions
             this.setupModalActions();

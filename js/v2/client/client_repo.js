@@ -19,6 +19,7 @@
 
         getPendingCalendarStatuses: function() {
             const base = [
+                'sent_for_approval',
                 'awaiting_approval',
                 'aguardando_aprovacao',
                 'ready_for_approval',
@@ -104,6 +105,23 @@
             return data || [];
         },
 
+        getCalendarItems: async function(calendarId, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return [];
+
+            let query = supabase
+                .from('social_calendar_items')
+                .select('*')
+                .eq('calendar_id', calendarId);
+            const { data, error } = await query.order('data', { ascending: true });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar itens do calendário:', error);
+                return [];
+            }
+            return data || [];
+        },
+
         /**
          * Busca todos os posts pendentes de aprovação (independente do calendário)
          * @param {string} clientId
@@ -149,7 +167,9 @@
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return false;
 
-            const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
+            const approvedStatus = global.GQV_CONSTANTS?.SOCIAL_CALENDAR_STATUS?.APPROVED
+                ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.APPROVED
+                : (global.GQV_CONSTANTS?.SOCIAL_STATUS?.APPROVED || 'approved');
             const trimmedComment = String(comment || '').trim();
 
             // 1. Aprova calendário
@@ -173,18 +193,6 @@
                 return false;
             }
 
-            // 2. Aprova todos os posts associados (Opcional, mas boa prática para consistência)
-            let postsQuery = supabase
-                .from('social_posts')
-                .update({ status: approvedStatus })
-                .eq('calendar_id', calendarId);
-            if (clientId) postsQuery = postsQuery.eq('cliente_id', clientId);
-            const { data: postData, error: postError } = await postsQuery.select('id,status');
-            if (postError) console.warn('[ClientRepo] Erro ao aprovar posts em lote:', postError);
-            if (!postError && (!postData || postData.length === 0)) {
-                console.warn('[ClientRepo] Aprovação em lote não atualizou posts (pode não haver posts no calendário).', calendarId);
-            }
-
             return true;
         },
 
@@ -197,7 +205,9 @@
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return false;
 
-            const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
+            const changesStatus = global.GQV_CONSTANTS?.SOCIAL_CALENDAR_STATUS?.NEEDS_CHANGES
+                ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.NEEDS_CHANGES
+                : 'needs_changes';
 
             let query = supabase
                 .from('social_calendars')

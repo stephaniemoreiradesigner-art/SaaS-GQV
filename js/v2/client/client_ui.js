@@ -201,7 +201,7 @@
             });
         },
 
-        renderCalendarPostsInModal: function(posts) {
+        renderCalendarPostsInModal: function(items) {
             const container = document.getElementById('client-calendar-posts-list');
             const loading = document.getElementById('client-calendar-posts-loading');
             const empty = document.getElementById('client-calendar-posts-empty');
@@ -211,29 +211,31 @@
             
             container.innerHTML = '';
 
-            if (!posts || posts.length === 0) {
+            if (!items || items.length === 0) {
                 if (empty) empty.classList.remove('hidden');
                 return;
             }
             if (empty) empty.classList.add('hidden');
 
-            posts.forEach(post => {
-                const date = post.data_agendada ? new Date(post.data_agendada).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
-                const el = document.createElement('div');
-                el.className = 'bg-white border border-slate-200 rounded-lg p-3 flex gap-3';
-                
-                let mediaHtml = this.getMediaHtml(post);
+            items.forEach(item => {
+                const dateRaw = item.data || item.data_agendada || item.data_postagem || '';
+                const date = dateRaw ? new Date(String(dateRaw).slice(0, 10)).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
+                const tema = item.tema || item.titulo || item.title || 'Sem título';
+                const tipo = item.tipo_conteudo || item.formato || 'post_estatico';
+                const canal = item.canal || item.plataforma || item.platform || '-';
+                const obs = item.observacoes || item.legenda || '';
 
+                const el = document.createElement('div');
+                el.className = 'bg-white border border-slate-200 rounded-xl p-4';
                 el.innerHTML = `
-                    ${mediaHtml}
-                    <div class="flex-1 min-w-0">
-                        <div class="flex justify-between">
-                            <p class="text-xs text-slate-500">${date}</p>
-                            <span class="text-[10px] uppercase px-1.5 py-0.5 bg-slate-100 rounded text-slate-500">${post.formato || 'Post'}</span>
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-xs text-slate-500">${date} • ${canal}</p>
+                            <p class="mt-1 text-sm font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</p>
                         </div>
-                        <h4 class="font-medium text-slate-900 truncate text-sm">${post.tema || post.titulo || 'Sem título'}</h4>
-                        <p class="text-xs text-slate-500 truncate">${post.legenda || ''}</p>
+                        <span class="text-[10px] uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">${tipo}</span>
                     </div>
+                    ${obs ? `<p class="mt-3 text-xs text-slate-600" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${obs}</p>` : ''}
                 `;
                 container.appendChild(el);
             });
