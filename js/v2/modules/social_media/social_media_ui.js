@@ -212,15 +212,14 @@
             return { label: normalized ? normalized.replace(/_/g, ' ') : '-', className: base };
         },
 
-        getAuditActionLabel: function(actionType) {
-            const key = String(actionType || '').trim().toLowerCase();
-            if (key === 'submit_for_approval') return 'Enviado para aprovação';
-            if (key === 'approve') return 'Aprovado';
-            if (key === 'request_changes') return 'Solicitou ajustes';
-            if (key === 'reject') return 'Reprovado';
-            if (key === 'return_to_review') return 'Retornou para revisão';
-            if (key === 'status_change') return 'Status alterado';
-            return key || 'Evento';
+        getDecisionLabel: function(decision) {
+            const key = String(decision || '').trim().toLowerCase();
+            if (key === 'approved') return 'Aprovado';
+            if (key === 'changes_requested') return 'Ajustes solicitados';
+            if (key === 'needs_revision') return 'Ajustes solicitados';
+            if (key === 'rejected') return 'Ajustes solicitados';
+            if (key === 'resubmitted') return 'Reenviado para aprovação';
+            return key || 'Decisão';
         },
 
         renderPostAuditPanel: function(post, events) {
@@ -242,9 +241,7 @@
             }
 
             const list = Array.isArray(events) ? events : [];
-            const lastDecisionEvent = list.find((e) =>
-                ['approve', 'request_changes', 'reject'].includes(String(e?.action_type || '').trim().toLowerCase())
-            );
+            const lastDecisionEvent = list[0] || null;
             const fallbackComment = String(post?.comentario_cliente || '').trim();
             const lastComment = String(lastDecisionEvent?.comment || '').trim() || fallbackComment;
 
@@ -270,23 +267,27 @@
             }
 
             list.slice(0, 12).forEach((item) => {
-                const wrap = document.createElement('div');
-                wrap.className = 'rounded-lg border border-slate-200 bg-white p-3';
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-3';
 
-                const createdAt = item?.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : '';
-                const actor = String(item?.actor_user_id || '').trim();
+                const rail = document.createElement('div');
+                rail.className = 'flex flex-col items-center';
+                rail.innerHTML = `
+                    <div class="w-2.5 h-2.5 rounded-full bg-slate-400 mt-1"></div>
+                    <div class="w-px flex-1 bg-slate-200 mt-2"></div>
+                `;
+
+                const wrap = document.createElement('div');
+                wrap.className = 'flex-1 rounded-lg border border-slate-200 bg-white p-3';
+
+                const decidedAt = item?.decided_at ? new Date(item.decided_at).toLocaleString('pt-BR') : '';
+                const actor = String(item?.decided_by || '').trim();
                 const actorShort = actor ? actor.slice(0, 8) : '';
-                const actionLabel = this.getAuditActionLabel(item?.action_type);
+                const decisionLabel = this.getDecisionLabel(item?.decision);
 
                 const meta = document.createElement('div');
                 meta.className = 'text-xs text-slate-400';
-                meta.textContent = `${actionLabel}${createdAt ? ` • ${createdAt}` : ''}${actorShort ? ` • ${actorShort}` : ''}`;
-
-                const change = document.createElement('div');
-                change.className = 'text-sm text-slate-700 mt-1';
-                const from = String(item?.status_anterior || '').trim();
-                const to = String(item?.status_novo || '').trim();
-                change.textContent = from || to ? `${from || '-'} → ${to || '-'}` : '-';
+                meta.textContent = `${decisionLabel}${decidedAt ? ` • ${decidedAt}` : ''}${actorShort ? ` • ${actorShort}` : ''}`;
 
                 const comment = String(item?.comment || '').trim();
                 const commentEl = document.createElement('div');
@@ -295,9 +296,11 @@
                 if (!comment) commentEl.classList.add('hidden');
 
                 wrap.appendChild(meta);
-                wrap.appendChild(change);
                 wrap.appendChild(commentEl);
-                historyEl.appendChild(wrap);
+
+                row.appendChild(rail);
+                row.appendChild(wrap);
+                historyEl.appendChild(row);
             });
         },
 
