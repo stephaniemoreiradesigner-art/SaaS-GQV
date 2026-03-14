@@ -99,11 +99,13 @@
             // Status color
             const statusColors = {
                 'draft': 'border-l-2 border-l-gray-300',
+                'ready_for_review': 'border-l-2 border-l-indigo-400',
                 'in_production': 'border-l-2 border-l-blue-300',
                 'awaiting_approval': 'border-l-2 border-l-yellow-400',
                 'ready_for_approval': 'border-l-2 border-l-yellow-400',
                 'approved': 'border-l-2 border-l-green-400',
                 'changes_requested': 'border-l-2 border-l-red-400',
+                'scheduled': 'border-l-2 border-l-indigo-400',
                 'published': 'border-l-2 border-l-purple-500',
                 'archived': 'border-l-2 border-l-gray-500',
                 // Fallbacks para compatibilidade

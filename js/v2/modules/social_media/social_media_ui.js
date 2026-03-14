@@ -179,11 +179,12 @@
             const rawStatus = String(raw || '').trim().toLowerCase();
             const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
             if (['rascunho', 'draft'].includes(normalized)) return 'draft';
-            if (['producing', 'in_production', 'em_producao', 'em_produção', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'producing';
-            if (['pending_approval', 'ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao', 'pendente_aprovação'].includes(normalized)) return 'pending_approval';
-            if (['changes_requested', 'needs_revision', 'ajuste_solicitado', 'rejected', 'rejeitado'].includes(normalized)) return 'needs_revision';
+            if (['ready_for_review', 'in_production', 'em_producao', 'em_produção', 'producing', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'ready_for_review';
+            if (['ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao', 'pendente_aprovação', 'pending_approval'].includes(normalized)) return 'ready_for_approval';
+            if (['changes_requested', 'needs_revision', 'ajuste_solicitado', 'rejected', 'rejeitado'].includes(normalized)) return 'changes_requested';
             if (['approved', 'aprovado'].includes(normalized)) return 'approved';
             if (['scheduled', 'agendado'].includes(normalized)) return 'scheduled';
+            if (['published', 'publicado'].includes(normalized)) return 'published';
             return 'draft';
         },
 
@@ -198,6 +199,7 @@
                 design_in_progress: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
                 in_production: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
                 producing: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                ready_for_review: { label: 'Pronto para revisão', className: `${base} bg-indigo-100 text-indigo-700` },
                 ready_for_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
                 awaiting_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
                 approved: { label: 'Aprovado', className: `${base} bg-green-100 text-green-700` },
@@ -359,11 +361,12 @@
 
             const columns = [
                 { key: 'draft', label: 'Rascunhos' },
-                { key: 'producing', label: 'Em andamento' },
-                { key: 'pending_approval', label: 'Enviado para aprovação' },
-                { key: 'needs_revision', label: 'Ajustes solicitados' },
+                { key: 'ready_for_review', label: 'Pronto para revisão' },
+                { key: 'ready_for_approval', label: 'Enviado para aprovação' },
+                { key: 'changes_requested', label: 'Ajustes solicitados' },
                 { key: 'approved', label: 'Aprovado pelo cliente' },
-                { key: 'scheduled', label: 'Agendado' }
+                { key: 'scheduled', label: 'Agendado' },
+                { key: 'published', label: 'Publicado' }
             ];
 
             const grouped = {};
@@ -393,7 +396,7 @@
                     buckets: groupedCounts
                 });
                 console.log('[SocialMediaPosts] drafts bucket:', (grouped.draft || []).map((p) => p?.id).filter(Boolean));
-                console.log('[SocialMediaPosts] approval bucket:', (grouped.pending_approval || []).map((p) => p?.id).filter(Boolean));
+                console.log('[SocialMediaPosts] approval bucket:', (grouped.ready_for_approval || []).map((p) => p?.id).filter(Boolean));
             }
 
             board.innerHTML = '';
@@ -447,7 +450,7 @@
             const countPendingEl = document.getElementById('social-count-pending');
             const countApprovedEl = document.getElementById('social-count-approved');
             if (countDraftEl) countDraftEl.textContent = String(grouped.draft?.length || 0);
-            if (countPendingEl) countPendingEl.textContent = String(grouped.pending_approval?.length || 0);
+            if (countPendingEl) countPendingEl.textContent = String(grouped.ready_for_approval?.length || 0);
             if (countApprovedEl) countApprovedEl.textContent = String(grouped.approved?.length || 0);
         },
 

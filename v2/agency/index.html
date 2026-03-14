@@ -326,7 +326,7 @@
                                         <span class="ui-pill">Cards por estágio</span>
                                     </div>
                                 </div>
-                                <div id="social-posts-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
+                                <div id="social-posts-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-4"></div>
                             </div>
                         </div>
 
@@ -528,8 +528,12 @@
                     <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
                     <select id="social-post-status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
                         <option value="draft">Rascunho</option>
-                        <option value="awaiting_approval">Aguardando aprovação</option>
+                        <option value="ready_for_review">Pronto para revisão</option>
+                        <option value="ready_for_approval">Pronto para aprovação</option>
+                        <option value="changes_requested">Ajustes solicitados</option>
                         <option value="approved">Aprovado</option>
+                        <option value="scheduled">Agendado</option>
+                        <option value="published">Publicado</option>
                     </select>
                 </div>
                 <div>
@@ -1564,13 +1568,37 @@
             rascunho: 'Rascunho',
             aguardando_aprovacao: 'Aguardando aprovação',
             aprovado: 'Aprovado',
-            rejeitado: 'Rejeitado'
+            rejeitado: 'Rejeitado',
+            em_producao: 'Em produção',
+            ajuste_solicitado: 'Ajustes solicitados',
+            agendado: 'Agendado',
+            publicado: 'Publicado',
+            concluido: 'Concluído',
+            draft: 'Rascunho',
+            ready_for_review: 'Pronto para revisão',
+            ready_for_approval: 'Pronto para aprovação',
+            changes_requested: 'Ajustes solicitados',
+            approved: 'Aprovado',
+            scheduled: 'Agendado',
+            published: 'Publicado'
         };
         const SOCIAL_STATUS_STYLES = {
             rascunho: 'bg-amber-100 text-amber-700',
             aguardando_aprovacao: 'bg-blue-100 text-blue-700',
             aprovado: 'bg-emerald-100 text-emerald-700',
-            rejeitado: 'bg-rose-100 text-rose-700'
+            rejeitado: 'bg-rose-100 text-rose-700',
+            em_producao: 'bg-indigo-100 text-indigo-700',
+            ajuste_solicitado: 'bg-rose-100 text-rose-700',
+            agendado: 'bg-indigo-100 text-indigo-700',
+            publicado: 'bg-emerald-100 text-emerald-700',
+            concluido: 'bg-slate-200 text-slate-700',
+            draft: 'bg-amber-100 text-amber-700',
+            ready_for_review: 'bg-indigo-100 text-indigo-700',
+            ready_for_approval: 'bg-blue-100 text-blue-700',
+            changes_requested: 'bg-rose-100 text-rose-700',
+            approved: 'bg-emerald-100 text-emerald-700',
+            scheduled: 'bg-indigo-100 text-indigo-700',
+            published: 'bg-emerald-100 text-emerald-700'
         };
 
         const getClientStatusLabel = (client) => {
@@ -1795,9 +1823,11 @@
                 const key = raw.toLowerCase();
                 const map = {
                     draft: 'rascunho',
+                    ready_for_review: 'em_producao',
                     ready_for_approval: 'aguardando_aprovacao',
                     awaiting_approval: 'aguardando_aprovacao',
                     approved: 'aprovado',
+                    changes_requested: 'ajuste_solicitado',
                     rejected: 'ajuste_solicitado',
                     scheduled: 'agendado',
                     published: 'publicado',
@@ -2169,9 +2199,24 @@
             const raw = String(status || '').trim();
             const key = raw.toLowerCase();
             const map = {
+                rascunho: 'draft',
+                draft: 'draft',
+                em_producao: 'in_production',
+                em_produção: 'in_production',
+                in_production: 'in_production',
+                ready_for_review: 'ready_for_review',
                 aguardando_aprovacao: 'ready_for_approval',
                 awaiting_approval: 'ready_for_approval',
-                pendente_aprovacao: 'ready_for_approval'
+                pendente_aprovacao: 'ready_for_approval',
+                ready_for_approval: 'ready_for_approval',
+                ajuste_solicitado: 'changes_requested',
+                changes_requested: 'changes_requested',
+                aprovado: 'approved',
+                approved: 'approved',
+                agendado: 'scheduled',
+                scheduled: 'scheduled',
+                publicado: 'published',
+                published: 'published'
             };
             const constantsMap = window.GQV_CONSTANTS?.SOCIAL_STATUS_MAP || null;
             return (constantsMap && constantsMap[key]) || map[key] || raw || 'draft';
