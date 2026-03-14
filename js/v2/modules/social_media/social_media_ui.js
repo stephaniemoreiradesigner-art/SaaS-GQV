@@ -91,49 +91,85 @@
             if (uploadInput) {
                 uploadInput.addEventListener('change', async (e) => {
                     const file = e.target.files[0];
-                    if (file) {
-                        // Show loading state on preview
-                        const container = document.getElementById('social-post-media-preview');
-                        container.classList.remove('hidden');
-                        container.innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-slate-400 text-2xl"></i></div>';
+                    const container = document.getElementById('social-post-media-preview');
+                    if (!container) return;
 
-                        // Upload real
-                        const clientId = global.SocialMediaCore ? global.SocialMediaCore.currentClientId : null;
-                        let url = null;
-                        
-                        if (global.SocialMediaUpload && clientId) {
-                            url = await global.SocialMediaUpload.uploadFile(file, clientId);
-                        } else {
-                            // Fallback local se upload falhar ou não tiver módulo
-                            console.warn('[UI] Usando preview local (sem persistência real)');
-                            url = URL.createObjectURL(file);
-                        }
+                    const img = document.getElementById('social-post-media-image');
+                    const video = document.getElementById('social-post-media-video');
+                    const meta = document.getElementById('social-post-media-meta');
 
-                        if (url) {
-                            // Restore preview structure
-                            container.innerHTML = `
-                                <img id="social-post-media-image" src="" class="w-full h-full object-cover hidden">
-                                <video id="social-post-media-video" src="" class="w-full h-full object-cover hidden" controls></video>
-                                <button type="button" class="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full hover:bg-black/70 transition" onclick="document.getElementById('social-post-media-preview').classList.add('hidden'); document.getElementById('social-post-media-image').src=''; document.getElementById('social-post-media-video').src='';">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            `;
-                            
-                            const img = document.getElementById('social-post-media-image');
-                            const video = document.getElementById('social-post-media-video');
-                            
-                            if (file.type.startsWith('video/')) {
-                                video.src = url;
-                                video.classList.remove('hidden');
-                            } else {
-                                img.src = url;
-                                img.classList.remove('hidden');
-                            }
-                            
-                            // Store URL in a hidden way or just rely on src
-                            container.dataset.mediaUrl = url;
-                        }
+                    let placeholder = document.getElementById('social-post-media-placeholder');
+                    if (!placeholder) {
+                        placeholder = document.createElement('div');
+                        placeholder.id = 'social-post-media-placeholder';
+                        placeholder.className = 'hidden text-slate-400 flex flex-col items-center justify-center min-h-[180px]';
+                        placeholder.innerHTML = '<i class="fas fa-image text-3xl mb-2"></i><span class="text-sm">Sem mídia</span>';
+                        container.prepend(placeholder);
                     }
+
+                    const clearPreview = () => {
+                        if (img) {
+                            img.src = '';
+                            img.classList.add('hidden');
+                        }
+                        if (video) {
+                            video.pause?.();
+                            video.src = '';
+                            video.classList.add('hidden');
+                        }
+                        if (meta) meta.textContent = '';
+                        placeholder.classList.remove('hidden');
+                        container.dataset.mediaUrl = '';
+                        const objectUrl = String(container.dataset.mediaObjectUrl || '').trim();
+                        if (objectUrl) {
+                            URL.revokeObjectURL(objectUrl);
+                            container.dataset.mediaObjectUrl = '';
+                        }
+                    };
+
+                    if (!file) {
+                        container.classList.remove('hidden');
+                        clearPreview();
+                        return;
+                    }
+
+                    container.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    if (meta) meta.textContent = `${file.name || 'Arquivo'}${file.size ? ` • ${Math.ceil(file.size / 1024)} KB` : ''}`;
+
+                    const localUrl = URL.createObjectURL(file);
+                    container.dataset.mediaUrl = localUrl;
+                    container.dataset.mediaObjectUrl = localUrl;
+
+                    if (file.type && file.type.startsWith('video/')) {
+                        if (video) {
+                            video.src = localUrl;
+                            video.classList.remove('hidden');
+                        }
+                        if (img) img.classList.add('hidden');
+                    } else {
+                        if (img) {
+                            img.src = localUrl;
+                            img.classList.remove('hidden');
+                        }
+                        if (video) video.classList.add('hidden');
+                    }
+
+                    const clientId = global.SocialMediaCore ? global.SocialMediaCore.currentClientId : null;
+                    if (!global.SocialMediaUpload || !clientId) return;
+
+                    const uploadedUrl = await global.SocialMediaUpload.uploadFile(file, clientId);
+                    if (!uploadedUrl) return;
+
+                    container.dataset.mediaUrl = uploadedUrl;
+                    const objectUrl = String(container.dataset.mediaObjectUrl || '').trim();
+                    if (objectUrl) {
+                        URL.revokeObjectURL(objectUrl);
+                        container.dataset.mediaObjectUrl = '';
+                    }
+
+                    if (video && !video.classList.contains('hidden')) video.src = uploadedUrl;
+                    if (img && !img.classList.contains('hidden')) img.src = uploadedUrl;
                 });
             }
 
@@ -678,29 +714,46 @@
             // Limpar estado anterior
             if (uploadInput) uploadInput.value = ''; // Limpar input file por segurança
             
-            if (post?.imagem_url) {
-                if (mediaContainer) {
-                    mediaContainer.classList.remove('hidden');
-                    mediaContainer.dataset.mediaUrl = post.imagem_url; // [FIX] Hidratar dataset com URL persistida
+            if (mediaContainer) {
+                const mediaUrl = this.getPostMediaUrl(post);
+                mediaContainer.classList.remove('hidden');
+                mediaContainer.dataset.mediaUrl = mediaUrl || '';
+                mediaContainer.dataset.mediaObjectUrl = '';
+
+                let placeholder = document.getElementById('social-post-media-placeholder');
+                if (!placeholder) {
+                    placeholder = document.createElement('div');
+                    placeholder.id = 'social-post-media-placeholder';
+                    placeholder.className = 'hidden text-slate-400 flex flex-col items-center justify-center min-h-[180px]';
+                    placeholder.innerHTML = '<i class="fas fa-image text-3xl mb-2"></i><span class="text-sm">Sem mídia</span>';
+                    mediaContainer.prepend(placeholder);
                 }
-                // Detectar se é vídeo (extensão básica)
-                if (post.imagem_url.match(/\.(mp4|webm)$/i)) {
-                    if (videoPreview) {
-                        videoPreview.src = post.imagem_url;
-                        videoPreview.classList.remove('hidden');
-                        if (imgPreview) imgPreview.classList.add('hidden');
-                    }
-                } else {
+
+                if (!mediaUrl) {
                     if (imgPreview) {
-                        imgPreview.src = post.imagem_url;
-                        imgPreview.classList.remove('hidden');
-                        if (videoPreview) videoPreview.classList.add('hidden');
+                        imgPreview.src = '';
+                        imgPreview.classList.add('hidden');
                     }
-                }
-            } else {
-                if (mediaContainer) {
-                    mediaContainer.classList.add('hidden');
-                    mediaContainer.dataset.mediaUrl = ''; // Limpar dataset se não houver mídia
+                    if (videoPreview) {
+                        videoPreview.pause?.();
+                        videoPreview.src = '';
+                        videoPreview.classList.add('hidden');
+                    }
+                    placeholder.classList.remove('hidden');
+                } else if (mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+                    placeholder.classList.add('hidden');
+                    if (videoPreview) {
+                        videoPreview.src = mediaUrl;
+                        videoPreview.classList.remove('hidden');
+                    }
+                    if (imgPreview) imgPreview.classList.add('hidden');
+                } else {
+                    placeholder.classList.add('hidden');
+                    if (imgPreview) {
+                        imgPreview.src = mediaUrl;
+                        imgPreview.classList.remove('hidden');
+                    }
+                    if (videoPreview) videoPreview.classList.add('hidden');
                 }
             }
 
