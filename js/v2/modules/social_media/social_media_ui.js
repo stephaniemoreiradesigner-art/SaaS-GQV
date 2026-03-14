@@ -188,6 +188,11 @@
             return 'draft';
         },
 
+        isPostEditable: function(rawStatus) {
+            const normalized = this.normalizeStatus(rawStatus);
+            return !['ready_for_approval', 'approved', 'scheduled', 'published'].includes(normalized);
+        },
+
         getStatusBadgeInfo: function(raw) {
             const rawStatus = String(raw || '').trim().toLowerCase();
             const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
@@ -554,6 +559,31 @@
                     mediaContainer.dataset.mediaUrl = ''; // Limpar dataset se não houver mídia
                 }
             }
+
+            const editable = !isEdit || this.isPostEditable(post?.status);
+            [
+                document.getElementById('social-post-date'),
+                document.getElementById('social-post-content-type'),
+                document.getElementById('social-post-title-input'),
+                document.getElementById('social-post-caption-full'),
+                document.getElementById('social-post-cta'),
+                document.getElementById('social-post-channel'),
+                document.getElementById('social-post-hashtags'),
+                document.getElementById('social-post-creative'),
+                document.getElementById('social-post-status'),
+                document.getElementById('social-post-notes'),
+                document.getElementById('social-post-slide-1'),
+                document.getElementById('social-post-slide-2'),
+                document.getElementById('social-post-slide-3'),
+                document.getElementById('social-post-slide-4'),
+                document.getElementById('social-post-hook'),
+                document.getElementById('social-post-script'),
+                document.getElementById('social-post-media-upload'),
+                document.getElementById('social-post-save'),
+                document.getElementById('social-post-delete')
+            ].forEach((el) => {
+                if (el) el.disabled = !editable;
+            });
 
             // Exibir drawer
             drawer.classList.remove('hidden');

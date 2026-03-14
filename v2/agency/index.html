@@ -2060,7 +2060,9 @@
             if (socialPostHook) socialPostHook.value = post.hook || '';
             if (socialPostScript) socialPostScript.value = post.script || '';
             updateContentTypeFields(post.contentType || 'post_estatico');
-            const editable = socialState.calendarStatus !== 'aguardando_aprovacao';
+            const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
+            const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
+            const editable = socialState.calendarStatus !== 'aguardando_aprovacao' && !blockedDbStatuses.has(dbStatus);
             [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave, socialPostDelete].forEach((el) => {
                 if (el) el.disabled = !editable;
             });
@@ -2087,7 +2089,11 @@
                 });
             }
             if (!editable) {
-                setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                    setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                } else if (blockedDbStatuses.has(dbStatus)) {
+                    setPostFeedback('Edição bloqueada para este status.', 'error');
+                }
             }
             socialPostDrawer.classList.remove('hidden');
             socialPostDrawer.classList.add('flex');
@@ -2107,6 +2113,12 @@
             if (!socialState.activePost) return null;
             if (socialState.calendarStatus === 'aguardando_aprovacao') {
                 setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                return null;
+            }
+            const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
+            const activeDbStatus = normalizeSocialPostStatusToDb(socialState.activePost.status || 'rascunho');
+            if (blockedDbStatuses.has(activeDbStatus)) {
+                setPostFeedback('Edição bloqueada para este status.', 'error');
                 return null;
             }
             const updated = {
