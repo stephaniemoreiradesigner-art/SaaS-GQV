@@ -405,14 +405,17 @@
             const clientId = this.currentClient?.client_id || null;
             const commentInput = document.getElementById('client-calendar-approval-comment');
             const comment = commentInput ? commentInput.value.trim() : '';
-            const success = await global.ClientRepo.approveCalendar(this.activeCalendarId, clientId, comment);
-            if (success) {
+            const result = await global.ClientRepo.approveCalendar(this.activeCalendarId, clientId, comment);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Calendário aprovado com sucesso!');
                 if (global.ClientUI) global.ClientUI.showCalendarModal(false);
                 await this.loadCalendars(); // Refresh list
                 await this.loadDashboardData();
             } else {
-                alert('Erro ao aprovar. Tente novamente.');
+                console.error('[ClientCore] approveCalendar falhou:', result);
+                const errMsg = result?.error?.message || '';
+                alert(`Erro ao aprovar.${errMsg ? `\n${errMsg}` : ''}`);
             }
         },
 
@@ -427,14 +430,17 @@
             }
 
             const clientId = this.currentClient?.client_id || null;
-            const success = await global.ClientRepo.rejectCalendar(this.activeCalendarId, clientId, comment);
-            if (success) {
+            const result = await global.ClientRepo.rejectCalendar(this.activeCalendarId, clientId, comment);
+            const ok = result === true || result?.ok === true;
+            if (ok) {
                 alert('Solicitação de ajuste enviada!');
                 if (global.ClientUI) global.ClientUI.showCalendarModal(false);
                 await this.loadCalendars(); // Refresh list
                 await this.loadDashboardData();
             } else {
-                alert('Erro ao enviar solicitação.');
+                console.error('[ClientCore] rejectCalendar falhou:', result);
+                const errMsg = result?.error?.message || '';
+                alert(`Erro ao enviar solicitação.${errMsg ? `\n${errMsg}` : ''}`);
             }
         }
     };

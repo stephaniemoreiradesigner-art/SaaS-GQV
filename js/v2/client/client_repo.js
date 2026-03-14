@@ -68,11 +68,12 @@
             const supabase = await this.getClient();
             if (!supabase || !clientId) return [];
             const pendingStatuses = this.getPendingCalendarStatuses();
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
 
             const { data, error } = await supabase
                 .from('social_calendars')
                 .select('*')
-                .eq('cliente_id', clientId)
+                .eq('cliente_id', normalizedClientId)
                 .in('status', pendingStatuses)
                 .order('mes_referencia', { ascending: false });
 
@@ -90,12 +91,14 @@
         getCalendarPosts: async function(calendarId, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return [];
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
 
             let query = supabase
                 .from('social_posts')
                 .select('*')
-                .eq('calendar_id', calendarId);
-            if (clientId) query = query.eq('cliente_id', clientId);
+                .eq('calendar_id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
             const { data, error } = await query.order('data_agendada', { ascending: true });
 
             if (error) {
@@ -108,11 +111,12 @@
         getCalendarItems: async function(calendarId, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return [];
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
 
             let query = supabase
                 .from('social_calendar_items')
                 .select('*')
-                .eq('calendar_id', calendarId);
+                .eq('calendar_id', normalizedCalendarId);
             const { data, error } = await query.order('data', { ascending: true });
 
             if (error) {
@@ -171,29 +175,51 @@
                 ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.APPROVED
                 : (global.GQV_CONSTANTS?.SOCIAL_STATUS?.APPROVED || 'approved');
             const trimmedComment = String(comment || '').trim();
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
+            const payload = {
+                status: approvedStatus,
+                comentario_cliente: trimmedComment || null
+            };
+
+            if (this.isDebug()) {
+                console.log('[ClientRepo] approveCalendar update:', {
+                    table: 'social_calendars',
+                    payload,
+                    filter: {
+                        id: normalizedCalendarId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
 
             // 1. Aprova calendário
             let calendarQuery = supabase
                 .from('social_calendars')
-                .update({
-                    status: approvedStatus,
-                    comentario_cliente: trimmedComment || null
-                })
-                .eq('id', calendarId);
-            if (clientId) calendarQuery = calendarQuery.eq('cliente_id', clientId);
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) calendarQuery = calendarQuery.eq('cliente_id', normalizedClientId);
 
-            const { data: calData, error: calError } = await calendarQuery.select('id,status');
+            const { data: calData, error: calError } = await calendarQuery.select('id,status,cliente_id');
 
             if (calError) {
                 console.error('[ClientRepo] Erro ao aprovar calendário:', calError);
-                return false;
+                return { ok: false, error: calError };
             }
             if (!calData || calData.length === 0) {
-                console.error('[ClientRepo] Aprovação de calendário não afetou nenhuma linha (possível RLS/filtro).', calendarId);
-                return false;
+                console.error('[ClientRepo] Aprovação de calendário não afetou nenhuma linha (possível RLS/filtro).', {
+                    calendarId: normalizedCalendarId,
+                    clientId: normalizedClientId,
+                    authEmail: email,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, calendarId: normalizedCalendarId, clientId: normalizedClientId };
             }
 
-            return true;
+            return { ok: true, data: calData[0] };
         },
 
         /**
@@ -208,22 +234,33 @@
             const changesStatus = global.GQV_CONSTANTS?.SOCIAL_CALENDAR_STATUS?.NEEDS_CHANGES
                 ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.NEEDS_CHANGES
                 : 'needs_changes';
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const payload = {
+                status: changesStatus,
+                comentario_cliente: comment
+            };
 
             let query = supabase
                 .from('social_calendars')
-                .update({ 
-                    status: changesStatus,
-                    comentario_cliente: comment 
-                })
-                .eq('id', calendarId);
-            if (clientId) query = query.eq('cliente_id', clientId);
-            const { error } = await query;
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.select('id,status,cliente_id');
 
             if (error) {
                 console.error('[ClientRepo] Erro ao rejeitar calendário:', error);
-                return false;
+                return { ok: false, error };
             }
-            return true;
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Rejeição de calendário não afetou nenhuma linha (possível RLS/filtro).', {
+                    calendarId: normalizedCalendarId,
+                    clientId: normalizedClientId,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' } };
+            }
+            return { ok: true, data: data[0] };
         },
 
         /**
