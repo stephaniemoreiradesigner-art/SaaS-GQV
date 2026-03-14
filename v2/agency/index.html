@@ -2893,7 +2893,7 @@
             }
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
-                console.log('[SocialMediaV2] generate calendar payload:', { client_id: socialState.clientId, month: socialState.calendarMonth, goal, briefing });
+                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, month: socialState.calendarMonth, goal, briefing });
             }
             const suggestions = [
                 `Dica prática: ${goal || 'conteúdo educativo'}`,
@@ -2981,7 +2981,7 @@
                 setSocialFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
-            if (isDebug) console.log('[SocialMediaV2] list/render filter by client_id:', { clientId: socialState.clientId, startDate, endDate });
+            if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, startDate, endDate });
             const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDate);
             socialState.posts = (Array.isArray(data) ? data : []).map(normalizePost);
             updateSocialOverview();
@@ -3016,7 +3016,7 @@
             if (!repo?.getCalendarByMonth) return null;
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
-                console.log('[SocialMediaV2] generate calendar payload:', { client_id: socialState.clientId, month_ref: monthRef });
+                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, mes_referencia: monthRef });
             }
             const calendar = await repo.getCalendarByMonth(socialState.clientId, monthRef);
             socialState.calendarId = calendar?.id || null;
