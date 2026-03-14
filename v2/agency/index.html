@@ -2215,7 +2215,7 @@
                 socialApprovalBanner.classList.toggle('hidden', status !== 'aguardando_aprovacao');
             }
             [socialMonthPrev, socialMonthNext].forEach((btn) => {
-                if (btn) btn.disabled = isApprovalLocked || !socialState.clientId;
+                if (btn) btn.disabled = !socialState.clientId;
             });
             if (socialGenerateAiBtn) socialGenerateAiBtn.disabled = !socialState.clientId || isApprovalLocked || !canEditPlan;
             if (socialEditPlanBtn) socialEditPlanBtn.disabled = !socialState.clientId || !socialState.calendarId;
@@ -2997,10 +2997,6 @@
         };
 
         const shiftMonth = (delta) => {
-            if (socialState.calendarStatus === 'aguardando_aprovacao') {
-                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
-                return;
-            }
             const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
             base.setMonth(base.getMonth() + delta);
             socialState.calendarMonth = base.toISOString().slice(0, 7);

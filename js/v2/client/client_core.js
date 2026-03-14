@@ -260,7 +260,13 @@
             const clientId = this.currentClient.client_id;
             const start = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth(), 1);
             const end = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth() + 1, 1);
-            const posts = await global.ClientRepo.getPostsByDateRange(clientId, start.toISOString().slice(0, 10), end.toISOString().slice(0, 10));
+            const formatLocalDate = (d) => {
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
+            };
+            const posts = await global.ClientRepo.getPostsByDateRange(clientId, formatLocalDate(start), formatLocalDate(end));
             global.ClientUI?.renderClientCalendar?.(posts, this.calendarMonthRef);
         },
 

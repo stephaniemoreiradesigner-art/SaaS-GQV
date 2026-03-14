@@ -593,7 +593,7 @@
             const monthLabel = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             if (monthEl) monthEl.textContent = monthLabel;
 
-            const monthKey = ref.toISOString().slice(0, 7);
+            const monthKey = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}`;
             const items = (posts || []).filter((p) => {
                 const raw = p?.data_agendada || p?.data_postagem || p?.post_date || p?.date || '';
                 const dateStr = String(raw).slice(0, 10);
