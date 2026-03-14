@@ -326,6 +326,7 @@
                                         <span class="ui-pill">Cards por estágio</span>
                                     </div>
                                 </div>
+                                <div id="social-posts-summary" class="mb-4"></div>
                                 <div id="social-posts-board" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4"></div>
                             </div>
                         </div>
@@ -422,142 +423,164 @@
     </div>
     <div id="social-post-drawer" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-end backdrop-blur-sm">
         <div class="w-full max-w-xl h-full ui-drawer shadow-xl flex flex-col">
-            <div class="flex items-center justify-between px-6 py-5 border-b border-slate-200 bg-white">
-                <div>
-                    <p class="text-xs uppercase tracking-widest text-slate-400">Post do calendário</p>
-                    <h3 id="social-post-title" class="text-xl font-semibold text-slate-900">Novo post</h3>
+            <div class="border-b border-slate-200 bg-white">
+                <div class="flex items-start justify-between px-6 py-4">
+                    <div class="min-w-0">
+                        <p class="text-xs uppercase tracking-widest text-slate-400">Post do calendário</p>
+                        <div class="mt-1 flex items-center gap-3 min-w-0">
+                            <h3 id="social-post-title" class="text-xl font-semibold text-slate-900 truncate">Novo post</h3>
+                            <span id="social-post-status-badge-top" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">-</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="social-post-cancel-top" type="button" class="px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                        <button id="social-post-save-top" type="button" class="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar</button>
+                        <button id="social-post-close" type="button" class="h-10 w-10 inline-flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
-                <button id="social-post-close" class="text-slate-400 hover:text-slate-600">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="px-6 pb-4">
+                    <div class="flex items-center gap-2 rounded-xl bg-slate-100 p-1">
+                        <button type="button" class="social-post-tab-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm" data-post-tab="content">Conteúdo</button>
+                        <button type="button" class="social-post-tab-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-post-tab="settings">Configurações</button>
+                        <button type="button" class="social-post-tab-btn flex-1 px-3 py-2 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900" data-post-tab="history">Histórico</button>
+                    </div>
+                </div>
             </div>
             <div class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
-                <div id="social-post-audit-panel" class="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                    <div class="flex items-center justify-between gap-3">
-                        <div>
-                            <p class="text-xs uppercase tracking-widest text-slate-400">Histórico</p>
-                            <p class="text-sm font-semibold text-slate-900">Status e decisões</p>
-                        </div>
-                        <span id="social-post-status-badge" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">-</span>
-                    </div>
-                    <div id="social-post-last-decision" class="hidden text-sm text-slate-700"></div>
-                    <div class="space-y-2">
-                        <div id="social-post-history" class="space-y-2"></div>
-                    </div>
-                </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Configurações</p>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
-                            <input id="social-post-date" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                            <select id="social-post-status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                <option value="draft">Rascunho</option>
-                                <option value="ready_for_review">Pronto para revisão</option>
-                                <option value="ready_for_approval">Pronto para aprovação</option>
-                                <option value="changes_requested">Ajustes solicitados</option>
-                                <option value="approved">Aprovado</option>
-                                <option value="scheduled">Agendado</option>
-                                <option value="published">Publicado</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de conteúdo</label>
-                            <select id="social-post-content-type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                <option value="post_estatico">Post estático</option>
-                                <option value="carrossel">Carrossel</option>
-                                <option value="reels">Reels</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Canal</label>
-                            <select id="social-post-channel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                                <option value="instagram">Instagram</option>
-                                <option value="facebook">Facebook</option>
-                                <option value="linkedin">LinkedIn</option>
-                                <option value="tiktok">TikTok</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">CTA</label>
-                            <input id="social-post-cta" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Saiba mais">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Hashtags</label>
-                            <input id="social-post-hashtags" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="#hashtag1 #hashtag2">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Observações</label>
-                        <textarea id="social-post-notes" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
-                    </div>
-                </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Conteúdo</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
-                        <input id="social-post-title-input" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Título do post">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Legenda completa</label>
-                        <textarea id="social-post-caption-full" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
-                    </div>
-                    <div id="social-post-slides" class="hidden space-y-3">
-                        <label class="block text-sm font-medium text-slate-700">Slides do carrossel</label>
-                        <input id="social-post-slide-1" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 1">
-                        <input id="social-post-slide-2" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 2">
-                        <input id="social-post-slide-3" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 3">
-                        <input id="social-post-slide-4" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 4">
-                    </div>
-                    <div id="social-post-reels" class="hidden space-y-3">
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Hook</label>
-                            <input id="social-post-hook" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Abertura do vídeo">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Roteiro</label>
-                            <textarea id="social-post-script" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
-                        </div>
-                    </div>
-                    <div class="space-y-3">
-                        <label class="block text-sm font-medium text-slate-700">Upload de mídia</label>
-                        <input id="social-post-media-upload" type="file" accept="image/jpeg,image/png,video/mp4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                        <div id="social-post-media-preview" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                            <img id="social-post-media-image" class="hidden w-full rounded-xl" alt="Preview de mídia">
-                            <video id="social-post-media-video" class="hidden w-full rounded-xl" controls></video>
-                            <p id="social-post-media-meta" class="text-xs text-slate-500 mt-2"></p>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Sugestão de criativo</label>
-                        <input id="social-post-creative" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: carrossel com dicas">
-                    </div>
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
-                        <p class="text-xs uppercase tracking-widest text-slate-400">Preview para aprovação</p>
-                        <p id="social-post-preview-title" class="text-sm font-semibold text-slate-800">Sem título</p>
-                        <p id="social-post-preview-caption" class="text-sm text-slate-600">Sem legenda</p>
-                        <div class="text-sm text-slate-600">
-                            <span class="font-medium">CTA:</span> <span id="social-post-preview-cta">-</span>
-                        </div>
-                        <div class="text-sm text-slate-600">
-                            <span class="font-medium">Hashtags:</span> <span id="social-post-preview-hashtags">-</span>
-                        </div>
-                        <div id="social-post-preview-structure" class="text-sm text-slate-600"></div>
-                    </div>
-                </div>
-
                 <div id="social-post-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+
+                <div id="social-post-tab-content" class="space-y-6" data-social-post-tab-panel="content">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs uppercase tracking-widest text-slate-400">Conteúdo</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Título</label>
+                            <input id="social-post-title-input" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Título do post">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Legenda completa</label>
+                            <textarea id="social-post-caption-full" rows="4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                        </div>
+                        <div id="social-post-slides" class="hidden space-y-3">
+                            <label class="block text-sm font-medium text-slate-700">Slides do carrossel</label>
+                            <input id="social-post-slide-1" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 1">
+                            <input id="social-post-slide-2" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 2">
+                            <input id="social-post-slide-3" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 3">
+                            <input id="social-post-slide-4" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Slide 4">
+                        </div>
+                        <div id="social-post-reels" class="hidden space-y-3">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Hook</label>
+                                <input id="social-post-hook" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Abertura do vídeo">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Roteiro</label>
+                                <textarea id="social-post-script" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            <label class="block text-sm font-medium text-slate-700">Upload de mídia</label>
+                            <input id="social-post-media-upload" type="file" accept="image/jpeg,image/png,video/mp4" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            <div id="social-post-media-preview" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <img id="social-post-media-image" class="hidden w-full rounded-xl" alt="Preview de mídia">
+                                <video id="social-post-media-video" class="hidden w-full rounded-xl" controls></video>
+                                <p id="social-post-media-meta" class="text-xs text-slate-500 mt-2"></p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Sugestão de criativo</label>
+                            <input id="social-post-creative" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: carrossel com dicas">
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+                            <p class="text-xs uppercase tracking-widest text-slate-400">Preview para aprovação</p>
+                            <p id="social-post-preview-title" class="text-sm font-semibold text-slate-800">Sem título</p>
+                            <p id="social-post-preview-caption" class="text-sm text-slate-600">Sem legenda</p>
+                            <div class="text-sm text-slate-600">
+                                <span class="font-medium">CTA:</span> <span id="social-post-preview-cta">-</span>
+                            </div>
+                            <div class="text-sm text-slate-600">
+                                <span class="font-medium">Hashtags:</span> <span id="social-post-preview-hashtags">-</span>
+                            </div>
+                            <div id="social-post-preview-structure" class="text-sm text-slate-600"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="social-post-tab-settings" class="space-y-6 hidden" data-social-post-tab-panel="settings">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-xs uppercase tracking-widest text-slate-400">Configurações</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                                <input id="social-post-date" type="date" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                                <select id="social-post-status" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="draft">Rascunho</option>
+                                    <option value="ready_for_review">Pronto para revisão</option>
+                                    <option value="ready_for_approval">Pronto para aprovação</option>
+                                    <option value="changes_requested">Ajustes solicitados</option>
+                                    <option value="approved">Aprovado</option>
+                                    <option value="scheduled">Agendado</option>
+                                    <option value="published">Publicado</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de conteúdo</label>
+                                <select id="social-post-content-type" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="post_estatico">Post estático</option>
+                                    <option value="carrossel">Carrossel</option>
+                                    <option value="reels">Reels</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Canal</label>
+                                <select id="social-post-channel" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                                    <option value="instagram">Instagram</option>
+                                    <option value="facebook">Facebook</option>
+                                    <option value="linkedin">LinkedIn</option>
+                                    <option value="tiktok">TikTok</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">CTA</label>
+                                <input id="social-post-cta" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: Saiba mais">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Hashtags</label>
+                                <input id="social-post-hashtags" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="#hashtag1 #hashtag2">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Observações</label>
+                            <textarea id="social-post-notes" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="social-post-tab-history" class="space-y-6 hidden" data-social-post-tab-panel="history">
+                    <div id="social-post-audit-panel" class="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <p class="text-xs uppercase tracking-widest text-slate-400">Histórico</p>
+                                <p class="text-sm font-semibold text-slate-900">Status e decisões</p>
+                            </div>
+                            <span id="social-post-status-badge" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">-</span>
+                        </div>
+                        <div id="social-post-last-decision" class="hidden text-sm text-slate-700"></div>
+                        <div class="space-y-2">
+                            <div id="social-post-history" class="space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div class="px-6 py-4 border-t border-slate-200 bg-white flex items-center justify-end gap-3">
                 <button id="social-post-delete" class="px-4 py-2 rounded-lg border border-rose-200 text-sm text-rose-600 hover:text-rose-700">Excluir rascunho</button>
                 <button id="social-post-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
                 <button id="social-post-save" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar</button>
@@ -897,6 +920,11 @@
         const socialPostClose = document.getElementById('social-post-close');
         const socialPostCancel = document.getElementById('social-post-cancel');
         const socialPostSave = document.getElementById('social-post-save');
+        const socialPostCancelTop = document.getElementById('social-post-cancel-top');
+        const socialPostSaveTop = document.getElementById('social-post-save-top');
+        const socialPostStatusBadgeTop = document.getElementById('social-post-status-badge-top');
+        const socialPostTabButtonsInternal = document.querySelectorAll('.social-post-tab-btn');
+        const socialPostTabPanelsInternal = document.querySelectorAll('[data-social-post-tab-panel]');
         const socialPostTitle = document.getElementById('social-post-title');
         const socialPostDate = document.getElementById('social-post-date');
         const socialPostContentType = document.getElementById('social-post-content-type');
@@ -1616,6 +1644,34 @@
             published: 'bg-emerald-100 text-emerald-700'
         };
 
+        window.setSocialPostDrawerTab = (tabKey) => {
+            const key = String(tabKey || 'content').trim().toLowerCase();
+            socialPostTabPanelsInternal.forEach((panel) => {
+                const panelKey = String(panel?.dataset?.socialPostTabPanel || '').trim().toLowerCase();
+                panel.classList.toggle('hidden', panelKey !== key);
+            });
+            socialPostTabButtonsInternal.forEach((btn) => {
+                const btnKey = String(btn?.dataset?.postTab || '').trim().toLowerCase();
+                const active = btnKey === key;
+                btn.classList.toggle('bg-white', active);
+                btn.classList.toggle('shadow-sm', active);
+                btn.classList.toggle('text-slate-900', active);
+                btn.classList.toggle('text-slate-600', !active);
+            });
+        };
+
+        window.applySocialPostDrawerStatusBadge = (rawStatus) => {
+            const key = String(rawStatus || '').trim().toLowerCase();
+            const label = SOCIAL_STATUS_LABELS[key] || rawStatus || '-';
+            const style = SOCIAL_STATUS_STYLES[key] || 'bg-slate-100 text-slate-500';
+            const className = `text-xs uppercase ${style} px-3 py-1 rounded-full`;
+            [socialPostStatusBadgeTop, document.getElementById('social-post-status-badge')].forEach((el) => {
+                if (!el) return;
+                el.textContent = label;
+                el.className = className;
+            });
+        };
+
         const getClientStatusLabel = (client) => {
             if (!client) return 'Não definido';
             return client.status || client.status_cliente || client.situacao || 'Não definido';
@@ -2001,7 +2057,7 @@
                             : ((typeKey.includes('story') || typeKey.includes('stories'))
                                 ? 'border-l-4 border-l-orange-500'
                                 : 'border-l-4 border-l-sky-500'));
-                    card.className = `text-left px-2 py-1 rounded-lg border border-slate-100 bg-slate-50 hover:bg-slate-100 transition ${typeBorder}`;
+                    card.className = `text-left px-2 py-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 transition ${typeBorder}`;
                     card.draggable = socialState.calendarStatus !== 'aguardando_aprovacao';
                     card.innerHTML = `
                         <p class="text-xs font-semibold text-slate-700 truncate">${post.title}</p>
@@ -2089,9 +2145,16 @@
             [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave, socialPostDelete].forEach((el) => {
                 if (el) el.disabled = !editable;
             });
+            if (socialPostSaveTop) socialPostSaveTop.disabled = !editable;
             if (socialPostFeedback) {
                 socialPostFeedback.classList.add('hidden');
                 socialPostFeedback.textContent = '';
+            }
+            if (window.setSocialPostDrawerTab) {
+                window.setSocialPostDrawerTab('content');
+            }
+            if (window.applySocialPostDrawerStatusBadge) {
+                window.applySocialPostDrawerStatusBadge(socialPostStatus?.value || post.status || 'rascunho');
             }
             const previewPost = getPostFromForm();
             if (previewPost) updatePreview(previewPost);
@@ -2947,6 +3010,21 @@
 
         if (socialPostClose) socialPostClose.addEventListener('click', closePostDrawer);
         if (socialPostCancel) socialPostCancel.addEventListener('click', closePostDrawer);
+        if (socialPostCancelTop) socialPostCancelTop.addEventListener('click', () => socialPostCancel?.click());
+        if (socialPostSaveTop) socialPostSaveTop.addEventListener('click', () => socialPostSave?.click());
+        if (socialPostTabButtonsInternal.length) {
+            socialPostTabButtonsInternal.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    window.setSocialPostDrawerTab?.(btn.dataset.postTab || 'content');
+                });
+            });
+            window.setSocialPostDrawerTab?.('content');
+        }
+        if (socialPostStatus) {
+            socialPostStatus.addEventListener('change', () => {
+                window.applySocialPostDrawerStatusBadge?.(socialPostStatus.value);
+            });
+        }
         if (socialPostContentType) {
             socialPostContentType.addEventListener('change', () => {
                 updateContentTypeFields(socialPostContentType.value);

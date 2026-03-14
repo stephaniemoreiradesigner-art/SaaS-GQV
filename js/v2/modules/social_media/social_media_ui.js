@@ -234,6 +234,7 @@
             if (!panel) return;
 
             const badgeEl = document.getElementById('social-post-status-badge');
+            const badgeTopEl = document.getElementById('social-post-status-badge-top');
             const historyEl = document.getElementById('social-post-history');
             const lastDecisionEl = document.getElementById('social-post-last-decision');
 
@@ -245,6 +246,10 @@
             if (badgeEl) {
                 badgeEl.textContent = badge.label;
                 badgeEl.className = badge.className;
+            }
+            if (badgeTopEl) {
+                badgeTopEl.textContent = badge.label;
+                badgeTopEl.className = badge.className;
             }
 
             const list = Array.isArray(events) ? events : [];
@@ -423,6 +428,26 @@
                 console.log('[SocialMediaPosts] approval bucket:', (grouped.awaiting_approval || []).map((p) => p?.id).filter(Boolean));
             }
 
+            const summaryEl = document.getElementById('social-posts-summary');
+            if (summaryEl) {
+                const visibleTotal = Object.keys(grouped).reduce((acc, key) => acc + (grouped[key]?.length || 0), 0);
+                const changesRequestedCount = (posts || []).filter((p) => this.normalizeStatus(p?.status) === 'changes_requested').length;
+                const monthLabel = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                summaryEl.innerHTML = `
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div class="min-w-0">
+                            <p class="text-[11px] uppercase tracking-widest text-slate-400">Resumo</p>
+                            <p class="text-sm font-semibold text-slate-900 truncate">${monthLabel}</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="ui-pill bg-slate-900 text-white border border-slate-900">Total: ${visibleTotal}</span>
+                            <span class="ui-pill bg-amber-100 text-amber-700 border border-amber-100">Aguardando aprovação: ${grouped.awaiting_approval?.length || 0}</span>
+                            <span class="ui-pill bg-rose-100 text-rose-700 border border-rose-100">Ajustes solicitados: ${changesRequestedCount}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
             board.innerHTML = '';
             columns.forEach((col) => {
                 const wrapper = document.createElement('div');
@@ -449,11 +474,25 @@
                     const channelLabel = String(channelRaw || '-').trim() || '-';
                     const format = this.getFormatInfo(post);
                     const statusBadge = this.getStatusBadgeInfo(post?.status);
+                    const normalizedStatus = this.normalizeStatus(post?.status);
+                    const canSendForApproval = !!post?.id && ['draft', 'ready_for_review', 'changes_requested'].includes(normalizedStatus);
 
-                    const card = document.createElement('button');
-                    card.type = 'button';
-                    card.className = 'ui-card text-left p-3 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow';
+                    const card = document.createElement('div');
+                    card.className = 'ui-card text-left p-3 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow relative group min-h-[104px]';
+                    card.setAttribute('role', 'button');
+                    card.tabIndex = 0;
                     card.innerHTML = `
+                        <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" data-card-action="edit" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
+                                <i class="fas fa-pen text-xs"></i>
+                            </button>
+                            <button type="button" data-card-action="duplicate" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300">
+                                <i class="far fa-copy text-xs"></i>
+                            </button>
+                            <button type="button" data-card-action="send" class="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300 ${canSendForApproval ? '' : 'opacity-40 cursor-not-allowed'}" ${canSendForApproval ? '' : 'disabled'}>
+                                <i class="far fa-paper-plane text-xs"></i>
+                            </button>
+                        </div>
                         <div class="flex items-start gap-3">
                             <div class="w-16 h-16 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
                                 ${mediaUrl ? (isVideo ? `<video src="${mediaUrl}" class="w-full h-full object-cover" muted playsinline preload="metadata"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
@@ -480,9 +519,57 @@
                             </div>
                         </div>
                     `;
-                    card.addEventListener('click', () => {
+                    const openEditor = () => {
                         document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                    };
+                    card.addEventListener('click', (event) => {
+                        const actionEl = event.target?.closest?.('[data-card-action]');
+                        if (actionEl) return;
+                        openEditor();
                     });
+                    card.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openEditor();
+                        }
+                    });
+                    const editBtn = card.querySelector('[data-card-action="edit"]');
+                    if (editBtn) {
+                        editBtn.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openEditor();
+                        });
+                    }
+                    const duplicateBtn = card.querySelector('[data-card-action="duplicate"]');
+                    if (duplicateBtn) {
+                        duplicateBtn.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const duplicated = { ...post, status: 'draft' };
+                            delete duplicated.id;
+                            delete duplicated.post_id;
+                            this.renderCreateForm(duplicated);
+                        });
+                    }
+                    const sendBtn = card.querySelector('[data-card-action="send"]');
+                    if (sendBtn) {
+                        sendBtn.addEventListener('click', async (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (!canSendForApproval) return;
+                            if (!global.SocialMediaRepo?.updatePostStatus) return;
+                            const result = await global.SocialMediaRepo.updatePostStatus(post.id, 'ready_for_approval');
+                            if (!result) {
+                                this.showFeedback('Não foi possível enviar para aprovação.', 'error');
+                                return;
+                            }
+                            this.showFeedback('Enviado para aprovação.');
+                            if (this.refreshPostsBoardFromRepo) {
+                                await this.refreshPostsBoardFromRepo();
+                            }
+                        });
+                    }
                     list.appendChild(card);
                 });
                 board.appendChild(wrapper);
@@ -541,8 +628,18 @@
             const titleEl = document.getElementById('social-post-title');
             if (titleEl) titleEl.textContent = isEdit ? 'Editar Post' : 'Novo Post';
 
+            const badgeTopEl = document.getElementById('social-post-status-badge-top');
+            if (badgeTopEl) {
+                const badge = this.getStatusBadgeInfo(post?.status || 'draft');
+                badgeTopEl.textContent = badge.label;
+                badgeTopEl.className = badge.className;
+            }
+
             this.renderPostAuditPanel(post, []);
             if (isEdit) this.refreshPostAuditPanel(post);
+            if (typeof global.setSocialPostDrawerTab === 'function') {
+                global.setSocialPostDrawerTab('content');
+            }
 
             // Preencher campos
             this.setFieldValue('social-post-title-input', post?.titulo || post?.tema || ''); // DB field: legenda/tema
@@ -617,6 +714,7 @@
                 document.getElementById('social-post-script'),
                 document.getElementById('social-post-media-upload'),
                 document.getElementById('social-post-save'),
+                document.getElementById('social-post-save-top'),
                 document.getElementById('social-post-delete')
             ].forEach((el) => {
                 if (el) el.disabled = !editable;
