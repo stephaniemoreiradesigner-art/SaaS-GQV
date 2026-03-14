@@ -93,36 +93,44 @@
         createPostCard: function(post) {
             const el = document.createElement('div');
             el.draggable = true;
-            el.className = 'text-xs p-1.5 rounded border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-sm cursor-grab active:cursor-grabbing transition-all select-none group/card';
+            el.className = 'text-xs p-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 cursor-grab active:cursor-grabbing transition-all select-none group/card';
             el.dataset.postId = post.id;
             
-            // Status color
-            const statusColors = {
-                'draft': 'border-l-2 border-l-gray-300',
-                'ready_for_review': 'border-l-2 border-l-indigo-400',
-                'in_production': 'border-l-2 border-l-blue-300',
-                'awaiting_approval': 'border-l-2 border-l-yellow-400',
-                'ready_for_approval': 'border-l-2 border-l-yellow-400',
-                'approved': 'border-l-2 border-l-green-400',
-                'changes_requested': 'border-l-2 border-l-red-400',
-                'scheduled': 'border-l-2 border-l-indigo-400',
-                'published': 'border-l-2 border-l-purple-500',
-                'archived': 'border-l-2 border-l-gray-500',
-                // Fallbacks para compatibilidade
-                'rascunho': 'border-l-2 border-l-gray-300',
-                'pendente_aprovacao': 'border-l-2 border-l-yellow-400',
-                'aprovado': 'border-l-2 border-l-green-400'
-            };
-            const borderClass = statusColors[post.status] || statusColors['draft'];
-            el.classList.add(...borderClass.split(' '));
-
             const formatRaw = String(post.formato || post.content_type || post.tipo || '').toLowerCase();
             const formatLabel = formatRaw.includes('carrossel') ? 'Carrossel' : (formatRaw.includes('reels') || formatRaw.includes('video') || formatRaw.includes('vídeo') ? 'Vídeo' : 'Imagem');
             const formatStyle = formatLabel === 'Carrossel'
                 ? 'bg-indigo-50 text-indigo-700 border-indigo-100'
                 : (formatLabel === 'Vídeo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-700 border-slate-100');
 
+            const typeBorder = (() => {
+                if (formatRaw.includes('carrossel')) return 'border-l-4 border-l-violet-500';
+                if (formatRaw.includes('reels') || formatRaw.includes('video') || formatRaw.includes('vídeo')) return 'border-l-4 border-l-pink-500';
+                if (formatRaw.includes('story') || formatRaw.includes('stories')) return 'border-l-4 border-l-orange-500';
+                return 'border-l-4 border-l-sky-500';
+            })();
+            el.classList.add(...typeBorder.split(' '));
+
             const statusLabel = String(post.status || '').toUpperCase() || '-';
+            const statusPill = (() => {
+                const key = String(post.status || '').trim().toLowerCase();
+                const map = {
+                    draft: 'bg-slate-100 text-slate-600',
+                    ready_for_review: 'bg-indigo-100 text-indigo-700',
+                    in_production: 'bg-indigo-100 text-indigo-700',
+                    ready_for_approval: 'bg-amber-100 text-amber-700',
+                    awaiting_approval: 'bg-amber-100 text-amber-700',
+                    approved: 'bg-emerald-100 text-emerald-700',
+                    scheduled: 'bg-emerald-100 text-emerald-700',
+                    changes_requested: 'bg-rose-100 text-rose-700',
+                    published: 'bg-emerald-100 text-emerald-700',
+                    archived: 'bg-slate-200 text-slate-700',
+                    rascunho: 'bg-slate-100 text-slate-600',
+                    pendente_aprovacao: 'bg-amber-100 text-amber-700',
+                    aprovado: 'bg-emerald-100 text-emerald-700',
+                    ajuste_solicitado: 'bg-rose-100 text-rose-700'
+                };
+                return map[key] || 'bg-slate-100 text-slate-600';
+            })();
             const title = post.tema || post.titulo || post.title || post.legenda || 'Sem título';
             const icon = this.getPlatformIcon(post);
             const mediaUrl = post.imagem_url || post.media_url || post.imagemUrl || post.mediaUrl || post.image_url || post.url_midia;
@@ -130,17 +138,19 @@
             
             el.innerHTML = `
                 <div class="flex items-start justify-between gap-2">
-                    <div class="flex items-center gap-1 min-w-0">
+                    <div class="flex items-center gap-2 min-w-0">
                         ${icon}
                         <span class="truncate font-semibold text-slate-700">${title}</span>
                     </div>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill}">${statusLabel}</span>
+                </div>
+                <div class="mt-1 flex items-center justify-between gap-2">
                     <span class="inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-semibold ${formatStyle}">${formatLabel}</span>
                 </div>
-                <div class="mt-1 text-[10px] text-slate-400">${statusLabel}</div>
                 ${mediaUrl ? (
                     isVideo
-                        ? '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover" muted playsinline preload="metadata"></video></div>'
-                        : '<div class="mt-1 h-8 bg-slate-200 rounded overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover" onerror="this.closest(\'.mt-1\').remove()"></div>'
+                        ? '<div class="mt-2 h-10 bg-slate-200 rounded-lg overflow-hidden"><video src="'+mediaUrl+'" class="w-full h-full object-cover" muted playsinline preload="metadata"></video></div>'
+                        : '<div class="mt-2 h-10 bg-slate-200 rounded-lg overflow-hidden"><img src="'+mediaUrl+'" class="w-full h-full object-cover" onerror="this.closest(\'.mt-2\').remove()"></div>'
                 ) : ''}
             `;
 

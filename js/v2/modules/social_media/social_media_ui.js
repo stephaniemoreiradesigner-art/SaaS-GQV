@@ -426,14 +426,17 @@
             board.innerHTML = '';
             columns.forEach((col) => {
                 const wrapper = document.createElement('div');
-                wrapper.className = 'ui-surface-2 p-4 flex flex-col gap-3 min-h-[240px]';
+                wrapper.className = 'ui-surface-2 p-4 flex flex-col gap-3 min-h-[260px] border border-slate-200 bg-white shadow-sm';
                 const count = grouped[col.key]?.length || 0;
                 wrapper.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-slate-900">${col.label}</p>
-                        <span class="ui-pill">${count}</span>
+                    <div class="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                        <div class="min-w-0">
+                            <p class="text-[11px] uppercase tracking-widest text-slate-400">Pipeline</p>
+                            <p class="text-sm font-semibold text-slate-900 truncate">${col.label}</p>
+                        </div>
+                        <span class="ui-pill bg-slate-900 text-white border border-slate-900">${count}</span>
                     </div>
-                    <div class="flex flex-col gap-2" data-col="${col.key}"></div>
+                    <div class="flex flex-col gap-3" data-col="${col.key}"></div>
                 `;
                 const list = wrapper.querySelector('[data-col]');
                 (grouped[col.key] || []).forEach((post) => {
@@ -449,19 +452,29 @@
 
                     const card = document.createElement('button');
                     card.type = 'button';
-                    card.className = 'ui-card text-left p-3';
+                    card.className = 'ui-card text-left p-3 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition-shadow';
                     card.innerHTML = `
                         <div class="flex items-start gap-3">
-                            <div class="w-14 h-14 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
+                            <div class="w-16 h-16 rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center text-slate-300 shrink-0">
                                 ${mediaUrl ? (isVideo ? `<video src="${mediaUrl}" class="w-full h-full object-cover" muted playsinline preload="metadata"></video>` : `<img src="${mediaUrl}" class="w-full h-full object-cover">`) : '<i class="fas fa-image"></i>'}
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="flex items-start justify-between gap-2">
-                                    <p class="text-sm font-semibold text-slate-900 truncate">${title}</p>
-                                    <span class="${statusBadge.className}">${statusBadge.label}</span>
+                                    <p class="text-sm font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</p>
+                                    <span class="${statusBadge.className} shrink-0">${statusBadge.label}</span>
                                 </div>
-                                <p class="text-xs text-slate-500 mt-1">${dateLabel} • ${channelLabel}</p>
-                                <div class="mt-2 flex items-center gap-2">
+                                <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                                    <span class="inline-flex items-center gap-1">
+                                        <i class="far fa-calendar"></i>
+                                        <span>${dateLabel}</span>
+                                    </span>
+                                    <span class="text-slate-300">•</span>
+                                    <span class="inline-flex items-center gap-1 min-w-0">
+                                        <i class="fas fa-bullseye"></i>
+                                        <span class="truncate">${channelLabel}</span>
+                                    </span>
+                                </div>
+                                <div class="mt-3 flex flex-wrap items-center gap-2">
                                     <span class="ui-pill ${format.color}">${format.label}</span>
                                 </div>
                             </div>
