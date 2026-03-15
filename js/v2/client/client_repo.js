@@ -17,6 +17,14 @@
             return intVal;
         },
 
+        normalizeIdForFilter: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            if (/^\d+$/.test(raw)) return raw;
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) return raw;
+            return null;
+        },
+
         getPendingCalendarStatuses: function() {
             return ['awaiting_approval'];
         },
@@ -180,8 +188,8 @@
 
             const approvedStatus = 'approved';
             const trimmedComment = String(comment || '').trim();
-            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
-            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId ?? '').trim();
+            const normalizedClientId = this.normalizeIdForFilter(clientId);
             const { data: userData } = await supabase.auth.getUser();
             const email = userData?.user?.email || null;
             const payload = {
@@ -237,8 +245,8 @@
             if (!supabase || !calendarId) return false;
 
             const changesStatus = 'draft';
-            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
-            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId ?? '').trim();
+            const normalizedClientId = this.normalizeIdForFilter(clientId);
             const payload = {
                 status: changesStatus,
                 comentario_cliente: comment
