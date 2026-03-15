@@ -1699,6 +1699,10 @@
             calendarId: null,
             calendarStatus: null,
             monthLoadSeq: 0,
+            calendarIdByMonth: {},
+            calendarStatusByMonth: {},
+            calendarItemsByMonth: {},
+            postsByMonth: {},
             posts: [],
             calendarItems: [],
             activePost: null
@@ -2946,61 +2950,86 @@
         const loadCalendarMeta = async () => {
             const supabase = await getSupabaseClient();
             if (!supabase || !socialState.clientId) return;
-            const monthRef = `${socialState.calendarMonth}-01`;
+            const monthKey = socialState.calendarMonth;
+            const monthRef = `${monthKey}-01`;
             const { data } = await supabase
                 .from('social_calendars')
                 .select('id, status')
                 .eq('cliente_id', socialState.clientId)
                 .eq('mes_referencia', monthRef)
                 .maybeSingle();
-            socialState.calendarId = data?.id || null;
-            socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(data?.status || null);
-            updateCalendarStatus(socialState.calendarStatus);
+            const calendarId = data?.id || null;
+            const calendarStatus = normalizeSocialCalendarStatusFromDb(data?.status || null);
+            socialState.calendarIdByMonth[monthKey] = calendarId;
+            socialState.calendarStatusByMonth[monthKey] = calendarStatus;
+            if (monthKey === socialState.calendarMonth) {
+                socialState.calendarId = calendarId;
+                socialState.calendarStatus = calendarStatus;
+            }
         };
 
-        const loadCalendarItems = async ({ suppressRender = false } = {}) => {
+        const loadCalendarItems = async ({ monthKey = null, suppressRender = false } = {}) => {
             const repo = window.SocialMediaRepo;
-            if (!repo?.getCalendarItems || !socialState.calendarId) {
-                socialState.calendarItems = [];
+            const effectiveMonthKey = monthKey || socialState.calendarMonth;
+            const calendarId = socialState.calendarIdByMonth[effectiveMonthKey] || (effectiveMonthKey === socialState.calendarMonth ? socialState.calendarId : null);
+            if (!repo?.getCalendarItems || !calendarId) {
+                socialState.calendarItemsByMonth[effectiveMonthKey] = [];
+                if (effectiveMonthKey === socialState.calendarMonth) {
+                    socialState.calendarItems = [];
+                    renderPlanItems(socialState.calendarItems);
+                    if (!suppressRender) renderCalendarGrid();
+                    updateCalendarStatus(socialState.calendarStatus);
+                }
+                return;
+            }
+            const items = await repo.getCalendarItems(calendarId);
+            const normalized = Array.isArray(items) ? items : [];
+            socialState.calendarItemsByMonth[effectiveMonthKey] = normalized;
+            if (effectiveMonthKey === socialState.calendarMonth) {
+                socialState.calendarItems = normalized;
                 renderPlanItems(socialState.calendarItems);
                 if (!suppressRender) renderCalendarGrid();
                 updateCalendarStatus(socialState.calendarStatus);
-                return;
             }
-            const items = await repo.getCalendarItems(socialState.calendarId);
-            socialState.calendarItems = Array.isArray(items) ? items : [];
-            renderPlanItems(socialState.calendarItems);
-            if (!suppressRender) renderCalendarGrid();
-            updateCalendarStatus(socialState.calendarStatus);
         };
 
-        const loadSocialPosts = async () => {
+        const loadSocialPosts = async ({ monthKey = null, suppressRender = false } = {}) => {
             const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
+            const effectiveMonthKey = monthKey || socialState.calendarMonth;
             if (!socialState.clientId) {
-                socialState.posts = [];
-                updateSocialOverview();
-                renderCalendarGrid();
-                renderSocialApprovals();
-                updateCalendarStatus(null);
+                socialState.postsByMonth[effectiveMonthKey] = [];
+                if (effectiveMonthKey === socialState.calendarMonth) {
+                    socialState.posts = [];
+                    updateSocialOverview();
+                    renderCalendarGrid();
+                    renderSocialApprovals();
+                    updateCalendarStatus(null);
+                }
                 return;
             }
-            const { startDate, endDateExclusive } = getMonthStartEnd(socialState.calendarMonth);
+            const { startDate, endDateExclusive } = getMonthStartEnd(effectiveMonthKey);
             const repo = window.SocialMediaRepo;
             if (!repo?.getPostsByDateRange) {
                 setSocialFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
-            if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, monthKey: socialState.calendarMonth, startDate, endDateExclusive });
+            if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, monthKey: effectiveMonthKey, startDate, endDateExclusive });
             const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDateExclusive);
-            socialState.posts = (Array.isArray(data) ? data : []).map(normalizePost);
-            if (isDebug) {
-                const first = socialState.posts[0]?.date || null;
-                const last = socialState.posts.slice(-1)[0]?.date || null;
-                console.log('[SocialMediaV2] list/render result:', { count: socialState.posts.length, first, last });
+            const posts = (Array.isArray(data) ? data : []).map(normalizePost);
+            socialState.postsByMonth[effectiveMonthKey] = posts;
+            if (effectiveMonthKey === socialState.calendarMonth) {
+                socialState.posts = posts;
+                if (isDebug) {
+                    const first = socialState.posts[0]?.date || null;
+                    const last = socialState.posts.slice(-1)[0]?.date || null;
+                    console.log('[SocialMediaV2] list/render result:', { count: socialState.posts.length, first, last });
+                }
+                if (!suppressRender) {
+                    updateSocialOverview();
+                    renderCalendarGrid();
+                    renderSocialApprovals();
+                }
             }
-            updateSocialOverview();
-            renderCalendarGrid();
-            renderSocialApprovals();
         };
 
         const refreshSocialMonth = async () => {
@@ -3010,9 +3039,19 @@
             if (socialMonthLabel) socialMonthLabel.textContent = formatMonthLabel(socialState.calendarMonth);
             await loadCalendarMeta();
             if (seq !== socialState.monthLoadSeq || monthKey !== socialState.calendarMonth) return;
-            await loadCalendarItems({ suppressRender: true });
+            await loadCalendarItems({ monthKey, suppressRender: true });
             if (seq !== socialState.monthLoadSeq || monthKey !== socialState.calendarMonth) return;
-            await loadSocialPosts();
+            await loadSocialPosts({ monthKey, suppressRender: true });
+            if (seq !== socialState.monthLoadSeq || monthKey !== socialState.calendarMonth) return;
+            socialState.calendarId = socialState.calendarIdByMonth[monthKey] || null;
+            socialState.calendarStatus = socialState.calendarStatusByMonth[monthKey] || null;
+            socialState.calendarItems = socialState.calendarItemsByMonth[monthKey] || [];
+            socialState.posts = socialState.postsByMonth[monthKey] || [];
+            updateCalendarStatus(socialState.calendarStatus);
+            renderPlanItems(socialState.calendarItems);
+            updateSocialOverview();
+            renderCalendarGrid();
+            renderSocialApprovals();
         };
 
         const shiftMonth = async (delta) => {
@@ -3038,6 +3077,8 @@
             const calendar = await repo.getCalendarByMonth(socialState.clientId, monthRef);
             socialState.calendarId = calendar?.id || null;
             socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(calendar?.status || null) || 'rascunho';
+            socialState.calendarIdByMonth[socialState.calendarMonth] = socialState.calendarId;
+            socialState.calendarStatusByMonth[socialState.calendarMonth] = socialState.calendarStatus;
             updateCalendarStatus(socialState.calendarStatus);
             await loadCalendarItems();
             if (isDebug) {
@@ -3297,6 +3338,10 @@
                 const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
                 currentClient = allClients.find(client => String(client.id) === String(clientId)) || currentClient;
                 socialState.clientId = clientId;
+                socialState.calendarIdByMonth = {};
+                socialState.calendarStatusByMonth = {};
+                socialState.calendarItemsByMonth = {};
+                socialState.postsByMonth = {};
                 const savedMonth = loadSavedMonth(clientId);
                 if (savedMonth) {
                     socialState.calendarMonth = savedMonth;

@@ -10,6 +10,8 @@
         clientProfile: null,
         _initStarted: false,
         _pendingEditorialCalendars: [],
+        editorialPendingCalendar: null,
+        activeEditorialMonthKey: null,
         _calendarLoadSeq: 0,
 
         init: async function() {
@@ -143,6 +145,7 @@
             
             const pendingCalendars = await global.ClientRepo.getPendingCalendars(clientId);
             this._pendingEditorialCalendars = Array.isArray(pendingCalendars) ? pendingCalendars : [];
+            this.editorialPendingCalendar = this._pendingEditorialCalendars[0] || null;
 
             const pendingPosts = await global.ClientRepo.getPendingPosts(clientId);
             const pendingPostsWithMedia = (pendingPosts || []).filter((p) => {
@@ -238,17 +241,13 @@
         },
 
         openPendingEditorialCalendar: async function() {
-            const list = Array.isArray(this._pendingEditorialCalendars) ? this._pendingEditorialCalendars : [];
-            const first = list[0] || null;
+            const first = this.editorialPendingCalendar || (Array.isArray(this._pendingEditorialCalendars) ? this._pendingEditorialCalendars[0] : null);
             if (!first?.id) {
                 alert('Nenhum calendário editorial pendente.');
                 return;
             }
-            const rawMonth = first.mes_referencia ? String(first.mes_referencia).slice(0, 7) : '';
-            const label = global.MonthUtils?.formatMonthLabel
-                ? global.MonthUtils.formatMonthLabel(rawMonth)
-                : 'Calendário';
-            await this.openCalendarModal(first.id, label, first.status || null);
+            const monthKey = first.mes_referencia ? String(first.mes_referencia).slice(0, 7) : '';
+            await this.openCalendarModal(first.id, monthKey, first.status || null);
         },
 
         loadCalendarMonth: async function() {
@@ -417,8 +416,9 @@
             }
         },
 
-        openCalendarModal: async function(calendarId, monthName, status = null) {
+        openCalendarModal: async function(calendarId, monthKey, status = null) {
             this.activeCalendarId = calendarId;
+            this.activeEditorialMonthKey = global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : null;
             
             // UI Setup
             const titleEl = document.getElementById('client-calendar-modal-title');
@@ -426,7 +426,6 @@
             const periodEl = document.getElementById('client-calendar-modal-period');
             
             if (titleEl) titleEl.textContent = 'Calendário editorial';
-            if (periodEl) periodEl.textContent = monthName;
             if (statusEl) {
                 const raw = String(status || '').trim().toLowerCase();
                 const map = {
@@ -450,6 +449,34 @@
 
             // Load Itens do calendário (planejamento editorial)
             const clientId = this.currentClient?.client_id || null;
+            const meta = global.ClientRepo?.getCalendarMeta ? await global.ClientRepo.getCalendarMeta(calendarId, clientId) : null;
+            const metaMonthKey = meta?.mes_referencia ? String(meta.mes_referencia).slice(0, 7) : '';
+            const effectiveMonthKey = global.MonthUtils?.isValidMonthKey?.(metaMonthKey)
+                ? metaMonthKey
+                : (global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : '');
+            this.activeEditorialMonthKey = effectiveMonthKey || null;
+            if (periodEl) {
+                periodEl.textContent = global.MonthUtils?.formatMonthLabel && effectiveMonthKey
+                    ? global.MonthUtils.formatMonthLabel(effectiveMonthKey)
+                    : (effectiveMonthKey || 'Calendário');
+            }
+            if (statusEl && meta?.status) {
+                const raw = String(meta.status || '').trim().toLowerCase();
+                const map = {
+                    awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
+                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
+                    aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
+                    draft: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700' },
+                    rascunho: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700' }
+                };
+                const info = map[raw] || { label: raw || 'Status', cls: 'bg-slate-100 text-slate-700' };
+                statusEl.textContent = info.label;
+                statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${info.cls}`;
+            }
             const items = global.ClientRepo.getCalendarItems
                 ? await global.ClientRepo.getCalendarItems(calendarId, clientId)
                 : [];

@@ -205,7 +205,8 @@
                 card.setAttribute('role', 'button');
                 card.tabIndex = 0;
                 const open = () => {
-                    if (global.ClientCore) global.ClientCore.openCalendarModal(cal.id, capitalizedMonth, rawStatus);
+                    const monthKey = cal.mes_referencia ? String(cal.mes_referencia).slice(0, 7) : '';
+                    if (global.ClientCore) global.ClientCore.openCalendarModal(cal.id, monthKey, rawStatus);
                 };
                 card.addEventListener('click', open);
                 card.addEventListener('keydown', (event) => {

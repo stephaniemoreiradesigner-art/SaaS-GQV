@@ -84,6 +84,25 @@
             return data || [];
         },
 
+        getCalendarMeta: async function(calendarId, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return null;
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+
+            let query = supabase
+                .from('social_calendars')
+                .select('id,status,mes_referencia,cliente_id')
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.maybeSingle();
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar meta do calendário:', error);
+                return null;
+            }
+            return data || null;
+        },
+
         /**
          * Busca posts de um calendário
          * @param {string} calendarId 
