@@ -239,6 +239,15 @@
             if (empty) empty.classList.add('hidden');
 
             items.forEach(item => {
+                const review = global.ClientCore?.getEditorialItemReview
+                    ? global.ClientCore.getEditorialItemReview(item.id)
+                    : null;
+                const reviewKey = String(review?.status || '').trim().toLowerCase();
+                const reviewBadge = (() => {
+                    if (reviewKey === 'approved' || reviewKey === 'aprovado') return { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' };
+                    if (reviewKey === 'changes_requested' || reviewKey === 'ajuste_solicitado') return { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' };
+                    return { label: 'Pendente', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
+                })();
                 const dateRaw = item.data || item.data_agendada || item.data_postagem || '';
                 const date = dateRaw ? new Date(String(dateRaw).slice(0, 10)).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
                 const tema = item.tema || item.titulo || item.title || 'Sem título';
@@ -258,10 +267,14 @@
                             <p class="text-xs text-slate-500">${date} • ${canal}</p>
                             <p class="mt-1 text-sm font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</p>
                         </div>
-                        <span class="text-[10px] uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">${tipo}</span>
+                        <div class="flex flex-col items-end gap-2">
+                            <span class="text-[10px] uppercase px-2 py-0.5 rounded-full ${reviewBadge.cls}">${reviewBadge.label}</span>
+                            <span class="text-[10px] uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">${tipo}</span>
+                        </div>
                     </div>
                     <div class="mt-3 flex items-center justify-end gap-2">
-                        <button type="button" data-cal-item-action="request-changes" class="ui-btn ui-btn-secondary">Solicitar ajuste deste item</button>
+                        <button type="button" data-cal-item-action="approve-item" class="ui-btn ui-btn-secondary">Aprovar item</button>
+                        <button type="button" data-cal-item-action="request-changes" class="ui-btn ui-btn-secondary">Solicitar ajuste</button>
                         <button type="button" data-cal-item-action="toggle" class="ui-btn ui-btn-secondary">Detalhes</button>
                     </div>
                     <div id="${detailId}" class="hidden mt-4 ui-surface-2 p-4">
@@ -299,12 +312,15 @@
                 const requestBtn = el.querySelector('[data-cal-item-action="request-changes"]');
                 if (requestBtn) {
                     requestBtn.addEventListener('click', () => {
-                        if (!commentEl) return;
-                        const prefix = `Solicitar ajuste no item: "${tema}" (${date} • ${canal} • ${tipo})`;
-                        const extra = detailText ? `\n\n${detailText}` : '';
-                        commentEl.value = `${prefix}${extra}`.trim();
-                        commentEl.focus();
-                        commentEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        const comment = commentEl ? String(commentEl.value || '').trim() : '';
+                        global.ClientCore?.requestCalendarItemAdjustment?.(item.id, comment);
+                    });
+                }
+                const approveItemBtn = el.querySelector('[data-cal-item-action="approve-item"]');
+                if (approveItemBtn) {
+                    approveItemBtn.addEventListener('click', () => {
+                        const comment = commentEl ? String(commentEl.value || '').trim() : '';
+                        global.ClientCore?.approveCalendarItem?.(item.id, comment);
                     });
                 }
                 container.appendChild(el);

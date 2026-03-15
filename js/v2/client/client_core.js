@@ -12,6 +12,7 @@
         editorialPendingCalendar: null,
         activeEditorialMonthKey: null,
         _calendarManagerUnsub: null,
+        _editorialReviewByCalendarId: {},
 
         init: async function() {
             if (this._initStarted) return;
@@ -440,6 +441,7 @@
         openCalendarModal: async function(calendarId, monthKey, status = null) {
             this.activeCalendarId = calendarId;
             this.activeEditorialMonthKey = global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : null;
+            this.ensureEditorialReviewLoaded(calendarId);
             
             // UI Setup
             const titleEl = document.getElementById('client-calendar-modal-title');
@@ -509,16 +511,118 @@
             this.setupModalActions();
         },
 
-        setupModalActions: function() {
-            const approveBtn = document.getElementById('client-calendar-modal-approve');
-            const adjustBtn = document.getElementById('client-calendar-modal-adjust');
-            const closeBtn = document.getElementById('client-calendar-modal-close');
-            const commentInput = document.getElementById('client-calendar-approval-comment');
+        getEditorialReviewStorageKey: function(calendarId) {
+            const raw = String(calendarId || '').trim();
+            return raw ? `GQV_CLIENT_EDITORIAL_REVIEW_${raw}` : '';
+        },
 
-            // Remove old listeners (simple clone hack or just ensure single binding in init - using simple onclick here for MVP clarity)
-            if (approveBtn) approveBtn.onclick = () => this.handleApproveCalendar();
-            if (adjustBtn) adjustBtn.onclick = () => this.handleRejectCalendar();
+        ensureEditorialReviewLoaded: function(calendarId) {
+            const raw = String(calendarId || '').trim();
+            if (!raw) return;
+            if (this._editorialReviewByCalendarId[raw]) return;
+            const key = this.getEditorialReviewStorageKey(raw);
+            if (!key) return;
+            try {
+                const stored = localStorage.getItem(key);
+                const parsed = stored ? JSON.parse(stored) : null;
+                const items = parsed?.items && typeof parsed.items === 'object' ? parsed.items : {};
+                this._editorialReviewByCalendarId[raw] = { items };
+            } catch {
+                this._editorialReviewByCalendarId[raw] = { items: {} };
+            }
+        },
+
+        persistEditorialReview: function(calendarId) {
+            const raw = String(calendarId || '').trim();
+            if (!raw) return;
+            const key = this.getEditorialReviewStorageKey(raw);
+            if (!key) return;
+            try {
+                localStorage.setItem(key, JSON.stringify(this._editorialReviewByCalendarId[raw] || { items: {} }));
+            } catch {}
+        },
+
+        getEditorialItemReview: function(itemId) {
+            const calendarId = String(this.activeCalendarId || '').trim();
+            if (!calendarId) return null;
+            this.ensureEditorialReviewLoaded(calendarId);
+            const review = this._editorialReviewByCalendarId[calendarId]?.items?.[String(itemId || '').trim()] || null;
+            return review && typeof review === 'object' ? review : null;
+        },
+
+        setEditorialItemReview: function(itemId, status, comment) {
+            const calendarId = String(this.activeCalendarId || '').trim();
+            if (!calendarId) return;
+            this.ensureEditorialReviewLoaded(calendarId);
+            const key = String(itemId || '').trim();
+            if (!key) return;
+            const safeStatus = String(status || '').trim();
+            const safeComment = String(comment || '').trim();
+            const current = this._editorialReviewByCalendarId[calendarId] || { items: {} };
+            current.items = current.items || {};
+            current.items[key] = { status: safeStatus, comment: safeComment, updatedAt: Date.now() };
+            this._editorialReviewByCalendarId[calendarId] = current;
+            this.persistEditorialReview(calendarId);
+        },
+
+        approveCalendarItem: async function(itemId, comment) {
+            const calendarId = this.activeCalendarId;
+            if (!calendarId || !itemId) return;
+            this.setEditorialItemReview(itemId, 'approved', comment);
+            const clientId = this.currentClient?.client_id || null;
+            if (global.ClientRepo?.updateCalendarItemReview) {
+                await global.ClientRepo.updateCalendarItemReview(itemId, clientId, { status: 'approved', comment: String(comment || '').trim() });
+            }
+            const items = global.ClientRepo.getCalendarItems
+                ? await global.ClientRepo.getCalendarItems(calendarId, clientId)
+                : [];
+            global.ClientUI?.renderCalendarPostsInModal?.(items);
+        },
+
+        requestCalendarItemAdjustment: async function(itemId, comment) {
+            const calendarId = this.activeCalendarId;
+            if (!calendarId || !itemId) return;
+            this.setEditorialItemReview(itemId, 'changes_requested', comment);
+            const clientId = this.currentClient?.client_id || null;
+            if (global.ClientRepo?.updateCalendarItemReview) {
+                await global.ClientRepo.updateCalendarItemReview(itemId, clientId, { status: 'changes_requested', comment: String(comment || '').trim() });
+            }
+            const items = global.ClientRepo.getCalendarItems
+                ? await global.ClientRepo.getCalendarItems(calendarId, clientId)
+                : [];
+            global.ClientUI?.renderCalendarPostsInModal?.(items);
+        },
+
+        sendEditorialFeedbackToAgency: async function() {
+            const calendarId = String(this.activeCalendarId || '').trim();
+            if (!calendarId) return;
+            const clientId = this.currentClient?.client_id || null;
+            this.ensureEditorialReviewLoaded(calendarId);
+            const review = this._editorialReviewByCalendarId[calendarId]?.items || {};
+            const commentInput = document.getElementById('client-calendar-approval-comment');
+            const freeText = commentInput ? String(commentInput.value || '').trim() : '';
+            const lines = Object.keys(review).sort().map((itemKey) => {
+                const entry = review[itemKey] || {};
+                const s = String(entry.status || '').trim() || 'pending';
+                const c = String(entry.comment || '').trim();
+                return c ? `item:${itemKey} status:${s} comment:${c}` : `item:${itemKey} status:${s}`;
+            });
+            const payload = [freeText, lines.length ? lines.join('\n') : ''].filter(Boolean).join('\n\n');
+            if (global.ClientRepo?.updateCalendarFeedback) {
+                await global.ClientRepo.updateCalendarFeedback(calendarId, clientId, payload);
+            }
+        },
+
+        setupModalActions: function() {
+            const closeBtn = document.getElementById('client-calendar-modal-close');
+            const closeFooterBtn = document.getElementById('client-calendar-modal-close-footer');
+            const sendBtn = document.getElementById('client-calendar-modal-send-feedback');
+
             if (closeBtn) closeBtn.onclick = () => global.ClientUI.showCalendarModal(false);
+            if (closeFooterBtn) closeFooterBtn.onclick = () => global.ClientUI.showCalendarModal(false);
+            if (sendBtn) sendBtn.onclick = async () => {
+                await this.sendEditorialFeedbackToAgency();
+            };
         },
 
         handleApproveCalendar: async function() {

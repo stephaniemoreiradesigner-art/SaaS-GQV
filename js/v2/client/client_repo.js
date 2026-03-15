@@ -141,6 +141,60 @@
             return data || [];
         },
 
+        updateCalendarItemReview: async function(itemId, clientId, review) {
+            const supabase = await this.getClient();
+            if (!supabase || !itemId) return { ok: false, error: { message: 'missing_params' } };
+
+            const normalizedItemId = this.normalizeIdForFilter ? this.normalizeIdForFilter(itemId) : String(itemId || '').trim();
+            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const status = String(review?.status || '').trim();
+            const comment = String(review?.comment || '').trim();
+
+            const attempts = [
+                { statusKey: 'client_review_status', commentKey: 'client_review_comment' },
+                { statusKey: 'review_status', commentKey: 'review_comment' },
+                { statusKey: 'status_cliente', commentKey: 'comentario_cliente' },
+                { statusKey: 'status', commentKey: 'comentario_cliente' },
+                { statusKey: 'status', commentKey: 'comentario' }
+            ];
+
+            for (let i = 0; i < attempts.length; i += 1) {
+                const a = attempts[i];
+                const payload = {};
+                if (status) payload[a.statusKey] = status;
+                if (comment) payload[a.commentKey] = comment;
+                if (!Object.keys(payload).length) continue;
+
+                let query = supabase
+                    .from('social_calendar_items')
+                    .update(payload)
+                    .eq('id', normalizedItemId);
+                if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+
+                const { data, error } = await query.select('id');
+                if (!error) return { ok: true, data: (data && data[0]) || null };
+            }
+
+            return { ok: true, data: null };
+        },
+
+        updateCalendarFeedback: async function(calendarId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
+            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
+            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const payload = { comentario_cliente: String(comment || '').trim() || null };
+
+            let query = supabase
+                .from('social_calendars')
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.select('id,status,cliente_id');
+            if (error) return { ok: false, error };
+            return { ok: true, data: (data && data[0]) || null };
+        },
+
         /**
          * Busca todos os posts pendentes de aprovação (independente do calendário)
          * @param {string} clientId
