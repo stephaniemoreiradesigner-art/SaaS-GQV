@@ -152,7 +152,13 @@
             const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
             const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            const postsInMonth = await global.ClientRepo.getPostsByDateRange(clientId, monthStart.toISOString().slice(0, 10), monthEnd.toISOString().slice(0, 10));
+            const formatLocalDate = (d) => {
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
+            };
+            const postsInMonth = await global.ClientRepo.getPostsByDateRange(clientId, formatLocalDate(monthStart), formatLocalDate(monthEnd));
             const approvedCount = (postsInMonth || []).filter((p) => {
                 const s = String(p?.status || '').toLowerCase();
                 return ['approved', 'scheduled', 'aprovado', 'agendado'].includes(s);

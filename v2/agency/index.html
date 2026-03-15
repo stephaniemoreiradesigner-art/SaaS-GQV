@@ -2156,8 +2156,14 @@
         const getMonthStartEnd = (month) => {
             const start = new Date(`${month}-01T00:00:00`);
             const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-            const startDate = start.toISOString().slice(0, 10);
-            const endDate = end.toISOString().slice(0, 10);
+            const formatLocalDate = (d) => {
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
+            };
+            const startDate = formatLocalDate(start);
+            const endDate = formatLocalDate(end);
             return { start, end, startDate, endDate };
         };
 
@@ -2999,7 +3005,7 @@
         const shiftMonth = (delta) => {
             const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
             base.setMonth(base.getMonth() + delta);
-            socialState.calendarMonth = base.toISOString().slice(0, 7);
+            socialState.calendarMonth = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
             saveMonth(socialState.clientId, socialState.calendarMonth);
             refreshSocialMonth();
         };
@@ -3509,8 +3515,8 @@
             });
         }
 
-        if (socialMonthPrev) socialMonthPrev.addEventListener('click', () => shiftMonth(-1));
-        if (socialMonthNext) socialMonthNext.addEventListener('click', () => shiftMonth(1));
+        if (socialMonthPrev) socialMonthPrev.onclick = () => shiftMonth(-1);
+        if (socialMonthNext) socialMonthNext.onclick = () => shiftMonth(1);
         if (socialGenerateAiBtn) socialGenerateAiBtn.addEventListener('click', generateAiSuggestions);
         if (socialEditPlanBtn) socialEditPlanBtn.addEventListener('click', openPlanModal);
         if (socialGeneratePostsBtn) socialGeneratePostsBtn.addEventListener('click', generatePostsFromPlan);
