@@ -18,19 +18,7 @@
         },
 
         getPendingCalendarStatuses: function() {
-            const base = [
-                'sent_for_approval',
-                'awaiting_approval',
-                'aguardando_aprovacao',
-                'ready_for_approval',
-                'pendente_aprovacao',
-                'pendente_aprovação',
-                'em_aprovacao'
-            ];
-            const fromConstants = global.GQV_CONSTANTS?.SOCIAL_STATUS?.READY_FOR_APPROVAL
-                ? [global.GQV_CONSTANTS.SOCIAL_STATUS.READY_FOR_APPROVAL]
-                : [];
-            return Array.from(new Set([...fromConstants, ...base].filter(Boolean)));
+            return ['awaiting_approval'];
         },
 
         getPendingPostStatuses: function() {
@@ -190,9 +178,7 @@
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return false;
 
-            const approvedStatus = global.GQV_CONSTANTS?.SOCIAL_CALENDAR_STATUS?.APPROVED
-                ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.APPROVED
-                : (global.GQV_CONSTANTS?.SOCIAL_STATUS?.APPROVED || 'approved');
+            const approvedStatus = 'approved';
             const trimmedComment = String(comment || '').trim();
             const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
             const normalizedClientId = this.normalizeBigIntId(clientId);
@@ -250,9 +236,7 @@
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return false;
 
-            const changesStatus = global.GQV_CONSTANTS?.SOCIAL_CALENDAR_STATUS?.NEEDS_CHANGES
-                ? global.GQV_CONSTANTS.SOCIAL_CALENDAR_STATUS.NEEDS_CHANGES
-                : 'needs_changes';
+            const changesStatus = 'draft';
             const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
             const normalizedClientId = this.normalizeBigIntId(clientId);
             const payload = {
