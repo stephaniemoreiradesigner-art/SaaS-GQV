@@ -5,6 +5,7 @@
 (function(global) {
     const SocialMediaCalendar = {
         currentMonth: new Date(),
+        currentMonthKey: '',
         posts: [],
         containerId: 'social-calendar-grid',
 
@@ -53,7 +54,8 @@
             // Dias do mês
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isToday = new Date().toISOString().slice(0, 10) === dateStr;
+                const todayStr = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
+                const isToday = todayStr === dateStr;
                 
                 const cell = document.createElement('div');
                 cell.className = `h-32 bg-white rounded-lg border ${isToday ? 'border-purple-300 ring-1 ring-purple-100' : 'border-slate-200'} p-2 flex flex-col relative group transition-colors hover:border-purple-200`;
@@ -88,6 +90,13 @@
             }
 
             this.updateMonthLabel();
+        },
+
+        renderFromState: function(state) {
+            const monthStart = state?.monthStart instanceof Date ? state.monthStart : new Date();
+            const monthKey = String(state?.monthKey || '').trim();
+            this.currentMonthKey = monthKey;
+            this.render(state?.monthPosts || [], monthStart);
         },
 
         createPostCard: function(post) {
@@ -275,6 +284,14 @@
         updateMonthLabel: function() {
             const label = document.getElementById('social-month-label');
             if (label) {
+                const monthKey = String(this.currentMonthKey || '').trim();
+                const formatted = global.CalendarStateSelectors?.formatMonthLabel
+                    ? global.CalendarStateSelectors.formatMonthLabel(monthKey)
+                    : '';
+                if (formatted) {
+                    label.textContent = formatted;
+                    return;
+                }
                 const monthName = this.currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
                 label.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
             }

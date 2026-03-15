@@ -6,13 +6,12 @@
         currentClient: null,
         activeCalendarId: null,
         activePostId: null,
-        calendarMonthKey: null,
         clientProfile: null,
         _initStarted: false,
         _pendingEditorialCalendars: [],
         editorialPendingCalendar: null,
         activeEditorialMonthKey: null,
-        _calendarLoadSeq: 0,
+        _calendarManagerUnsub: null,
 
         init: async function() {
             if (this._initStarted) return;
@@ -77,8 +76,47 @@
                 global.ClientUI.switchView('home'); // Default view
             }
 
+            this.initCalendarStateManager();
+
             // 3. Load Initial Data
             await this.loadDashboardData();
+        },
+
+        initCalendarStateManager: function() {
+            const manager = global.CalendarStateManager;
+            if (!manager?.init || !global.ClientRepo?.getPostsByDateRange) return;
+
+            const clientId = this.currentClient?.client_id || null;
+            const tenantId = this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null;
+            if (!clientId) return;
+
+            manager.init({
+                clientId,
+                tenantId,
+                loadInitialMonthKey: ({ clientId: id }) => {
+                    const stored = localStorage.getItem(`GQV_CLIENT_MONTH_${String(id || '').trim()}`);
+                    const key = String(stored || '').trim();
+                    return global.MonthUtils?.isValidMonthKey?.(key) ? key : '';
+                },
+                persistMonthKey: ({ clientId: id, monthKey }) => {
+                    if (!id || !monthKey) return;
+                    localStorage.setItem(`GQV_CLIENT_MONTH_${String(id).trim()}`, String(monthKey).trim());
+                },
+                fetchMonthPosts: async ({ clientId: id, startDate, endDateExclusive }) => {
+                    return await global.ClientRepo.getPostsByDateRange(id, startDate, endDateExclusive);
+                }
+            });
+
+            if (!this._calendarManagerUnsub && manager.subscribe) {
+                this._calendarManagerUnsub = manager.subscribe((snap) => {
+                    const view = document.getElementById('view-calendar');
+                    const shouldRender = view && !view.classList.contains('hidden');
+                    if (!shouldRender) return;
+                    if (global.ClientUI?.renderClientCalendar) {
+                        global.ClientUI.renderClientCalendar(snap.monthPosts || [], snap.monthKey || '');
+                    }
+                });
+            }
         },
 
         onViewChanged: async function(viewName) {
@@ -154,12 +192,13 @@
             });
             const now = new Date();
             const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            const monthUtils = global.MonthUtils;
-            const monthKey = monthUtils?.formatMonthKeyFromDate ? monthUtils.formatMonthKeyFromDate(now) : '';
-            const monthRange = monthUtils?.getMonthRange ? monthUtils.getMonthRange(monthKey) : null;
-            const postsInMonth = monthRange
-                ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive)
-                : [];
+            if (global.CalendarStateManager?.getState && global.CalendarStateManager?.refreshMonthData) {
+                this.initCalendarStateManager();
+            }
+            const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+            const monthKey = String(snap?.monthKey || '').trim();
+            const monthRange = global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
+            const postsInMonth = monthRange ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive) : [];
             const approvedCount = (postsInMonth || []).filter((p) => {
                 const s = String(p?.status || '').toLowerCase();
                 return ['approved', 'scheduled', 'aprovado', 'agendado'].includes(s);
@@ -169,7 +208,7 @@
                 return ['published', 'publicado'].includes(s);
             }).length;
 
-            const fromDate = monthUtils?.formatLocalDate ? monthUtils.formatLocalDate(now) : '';
+            const fromDate = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
             const nextPost = await global.ClientRepo.getNextPost(clientId, fromDate);
             const nextTitle = nextPost?.tema || nextPost?.titulo || nextPost?.title || '-';
             const nextDateRaw = nextPost?.data_agendada || nextPost?.data_postagem || '';
@@ -246,53 +285,35 @@
                 alert('Nenhum calendário editorial pendente.');
                 return;
             }
-            const monthKey = first.mes_referencia ? String(first.mes_referencia).slice(0, 7) : '';
+            const monthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
+                ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(first.mes_referencia)
+                : '';
             await this.openCalendarModal(first.id, monthKey, first.status || null);
         },
 
         loadCalendarMonth: async function() {
             if (!this.currentClient) return;
-            const monthUtils = global.MonthUtils;
-            if (!monthUtils?.isValidMonthKey || !monthUtils?.formatMonthKeyFromDate || !monthUtils?.getMonthRange) return;
-            if (!monthUtils.isValidMonthKey(this.calendarMonthKey)) {
-                this.calendarMonthKey = monthUtils.formatMonthKeyFromDate(new Date());
-            }
-            const seq = (this._calendarLoadSeq || 0) + 1;
-            this._calendarLoadSeq = seq;
-            const monthKey = this.calendarMonthKey;
-
             const loading = document.getElementById('client-calendar-loading');
             if (loading) loading.classList.remove('hidden');
             const empty = document.getElementById('client-calendar-empty');
             if (empty) empty.classList.add('hidden');
-
-            const clientId = this.currentClient.client_id;
-            const range = monthUtils.getMonthRange(monthKey);
-            if (!range) return;
-            if (global.__GQV_DEBUG_CONTEXT__ === true) {
-                console.log('[ClientCore] loadCalendarMonth:', {
-                    monthKey,
-                    startDate: range.startDate,
-                    endDateExclusive: range.endDateExclusive
-                });
+            if (global.CalendarStateManager?.refreshMonthData) {
+                await global.CalendarStateManager.refreshMonthData();
+                const snap = global.CalendarStateManager.getState();
+                global.ClientUI?.renderClientCalendar?.(snap.monthPosts || [], snap.monthKey || '');
+                return;
             }
-            const posts = await global.ClientRepo.getPostsByDateRange(clientId, range.startDate, range.endDateExclusive);
-            if (seq !== this._calendarLoadSeq || monthKey !== this.calendarMonthKey) return;
-            if (global.__GQV_DEBUG_CONTEXT__ === true) {
-                const first = (posts || [])[0]?.data_agendada || null;
-                const last = (posts || []).slice(-1)[0]?.data_agendada || null;
-                console.log('[ClientCore] loadCalendarMonth result:', { count: (posts || []).length, first, last });
-            }
-            global.ClientUI?.renderClientCalendar?.(posts, monthKey);
         },
 
         shiftCalendarMonth: async function(delta) {
-            const monthUtils = global.MonthUtils;
-            if (!monthUtils?.addMonths || !monthUtils?.formatMonthKeyFromDate) return;
-            if (!monthUtils.isValidMonthKey?.(this.calendarMonthKey)) {
-                this.calendarMonthKey = monthUtils.formatMonthKeyFromDate(new Date());
+            if (delta < 0 && global.CalendarStateManager?.prevMonth) {
+                await global.CalendarStateManager.prevMonth();
+                return;
             }
-            this.calendarMonthKey = monthUtils.addMonths(this.calendarMonthKey, Number(delta || 0));
+            if (delta > 0 && global.CalendarStateManager?.nextMonth) {
+                await global.CalendarStateManager.nextMonth();
+                return;
+            }
             await this.loadCalendarMonth();
         },
 
@@ -450,7 +471,9 @@
             // Load Itens do calendário (planejamento editorial)
             const clientId = this.currentClient?.client_id || null;
             const meta = global.ClientRepo?.getCalendarMeta ? await global.ClientRepo.getCalendarMeta(calendarId, clientId) : null;
-            const metaMonthKey = meta?.mes_referencia ? String(meta.mes_referencia).slice(0, 7) : '';
+            const metaMonthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
+                ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(meta?.mes_referencia)
+                : '';
             const effectiveMonthKey = global.MonthUtils?.isValidMonthKey?.(metaMonthKey)
                 ? metaMonthKey
                 : (global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : '');

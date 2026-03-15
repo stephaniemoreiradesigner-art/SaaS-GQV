@@ -18,29 +18,27 @@
         },
 
         getSelectedMonthKey: function(clientId) {
+            const managerKey = global.CalendarStateManager?.getState ? String(global.CalendarStateManager.getState()?.monthKey || '').trim() : '';
+            if (global.MonthUtils?.isValidMonthKey?.(managerKey)) return managerKey;
             const safeClientId = clientId ? String(clientId) : '';
             if (!safeClientId) {
-                return new Date().toISOString().slice(0, 7);
+                return global.CalendarStateSelectors?.getCurrentMonthKey ? global.CalendarStateSelectors.getCurrentMonthKey() : '';
             }
             const stored = localStorage.getItem(`GQV_SOCIAL_MONTH_${safeClientId}`);
             const monthKey = String(stored || '').trim();
-            if (/^\d{4}-\d{2}$/.test(monthKey)) {
+            if (global.MonthUtils?.isValidMonthKey?.(monthKey)) {
                 return monthKey;
             }
-            return new Date().toISOString().slice(0, 7);
+            return global.CalendarStateSelectors?.getCurrentMonthKey ? global.CalendarStateSelectors.getCurrentMonthKey() : '';
         },
 
         getMonthStartEnd: function(monthKey) {
-            const base = new Date(`${monthKey}-01T00:00:00`);
-            if (Number.isNaN(base.getTime())) {
-                const fallback = new Date();
-                const fallbackKey = fallback.toISOString().slice(0, 7);
-                return this.getMonthStartEnd(fallbackKey);
+            const range = global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
+            if (!range) {
+                const fallbackKey = global.CalendarStateSelectors?.getCurrentMonthKey ? global.CalendarStateSelectors.getCurrentMonthKey() : '';
+                return fallbackKey ? this.getMonthStartEnd(fallbackKey) : { startDate: '', endDateExclusive: '', dateRef: new Date() };
             }
-            const startDate = `${monthKey}-01`;
-            const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
-            const endDate = end.toISOString().slice(0, 10);
-            return { startDate, endDate, dateRef: base };
+            return { startDate: range.startDate, endDateExclusive: range.endDateExclusive, dateRef: range.start };
         },
 
         isTabActive: function(tabName) {
@@ -51,34 +49,22 @@
         refreshPostsBoardFromRepo: async function() {
             const clientId = global.ClientContext?.getActiveClient?.() || global.SocialMediaCore?.currentClientId || null;
             if (!clientId) {
-                this.renderPostsBoard([], new Date());
+                this.renderPostsBoard([], '');
+                return;
+            }
+
+            if (global.CalendarStateManager?.refreshMonthData) {
+                await global.CalendarStateManager.refreshMonthData();
+                const snap = global.CalendarStateManager.getState();
+                this.renderPostsBoard(snap.monthPosts || [], snap.monthKey || '');
                 return;
             }
 
             const monthKey = this.getSelectedMonthKey(clientId);
-            const { startDate, endDate, dateRef } = this.getMonthStartEnd(monthKey);
-            const posts = await global.SocialMediaRepo?.getPostsByDateRange?.(clientId, startDate, endDate);
+            const { startDate, endDateExclusive } = this.getMonthStartEnd(monthKey);
+            const posts = await global.SocialMediaRepo?.getPostsByDateRange?.(clientId, startDate, endDateExclusive);
             const safePosts = Array.isArray(posts) ? posts : [];
-
-            if (this.isDebug()) {
-                const statuses = safePosts.map((p) => String(p?.status ?? '')).filter(Boolean);
-                const uniqueStatuses = Array.from(new Set(statuses)).sort();
-                console.log('[SocialMediaPosts] fetched posts:', {
-                    clientId,
-                    monthKey,
-                    startDate,
-                    endDate,
-                    total: safePosts.length
-                });
-                console.log('[SocialMediaPosts] fetched statuses:', uniqueStatuses);
-            }
-
-            if (global.SocialMediaCore) {
-                global.SocialMediaCore.currentPosts = safePosts;
-                global.SocialMediaCore.currentMonthRef = dateRef;
-            }
-
-            this.renderPostsBoard(safePosts, dateRef);
+            this.renderPostsBoard(safePosts, monthKey);
         },
 
         setupDrawer: function() {
@@ -411,12 +397,10 @@
             return '-';
         },
 
-        renderPostsBoard: function(posts, monthRef) {
+        renderPostsBoard: function(posts, monthKey) {
             const board = document.getElementById('social-posts-board');
             if (!board) return;
-
-            const ref = monthRef instanceof Date ? monthRef : new Date();
-            const monthKey = ref.toISOString().slice(0, 7);
+            const safeMonthKey = String(monthKey || '').trim();
 
             const columns = [
                 { key: 'draft', label: 'Rascunhos' },
@@ -441,7 +425,7 @@
                     return 'draft';
                 })();
 
-                if (bucket === 'approved' && dateStr && String(dateStr).slice(0, 7) !== monthKey) {
+                if (bucket === 'approved' && safeMonthKey && dateStr && String(dateStr).slice(0, 7) !== safeMonthKey) {
                     return;
                 }
                 grouped[bucket].push(post);
@@ -455,7 +439,7 @@
                     return acc;
                 }, {});
                 console.log('[SocialMediaPosts] grouped by status:', {
-                    monthKey,
+                    monthKey: safeMonthKey,
                     total: (posts || []).length,
                     rawStatuses: uniqueRawStatuses,
                     buckets: groupedCounts
@@ -633,10 +617,10 @@
             const fab = document.getElementById('social-calendar-fab');
             if (!fab) return;
             fab.addEventListener('click', () => {
-                const ref = global.SocialMediaCore?.currentMonthRef instanceof Date ? global.SocialMediaCore.currentMonthRef : new Date();
-                const todayStr = new Date().toISOString().slice(0, 10);
-                const monthKey = ref.toISOString().slice(0, 7);
-                const dateStr = todayStr.slice(0, 7) === monthKey ? todayStr : `${monthKey}-01`;
+                const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+                const monthKey = String(snap?.monthKey || '').trim();
+                const todayStr = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
+                const dateStr = todayStr && monthKey && todayStr.slice(0, 7) === monthKey ? todayStr : (monthKey ? `${monthKey}-01` : todayStr);
                 if (global.SocialMediaCore?.startCreate) {
                     global.SocialMediaCore.startCreate(dateStr);
                     return;

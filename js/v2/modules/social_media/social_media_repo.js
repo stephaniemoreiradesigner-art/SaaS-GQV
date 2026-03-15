@@ -242,7 +242,8 @@
 
             try {
                 const clientId = input.cliente_id || input.client_id;
-                const postDate = input.data_postagem || input.post_date || new Date().toISOString().slice(0, 10);
+                const localToday = global.MonthUtils?.formatLocalDate ? global.MonthUtils.formatLocalDate(new Date()) : '';
+                const postDate = input.data_postagem || input.post_date || localToday;
                 const title = input.titulo || input.tema || input.title || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
                 
@@ -268,7 +269,8 @@
                 if (postDate && postDate.length >= 7) {
                     monthRef = `${postDate.slice(0, 7)}-01`;
                 } else {
-                    monthRef = new Date().toISOString().slice(0, 7) + '-01';
+                    const monthKey = global.CalendarStateSelectors?.getCurrentMonthKey ? global.CalendarStateSelectors.getCurrentMonthKey() : '';
+                    monthRef = monthKey ? `${monthKey}-01` : '';
                 }
 
                 // Busca calendário existente com tratamento de erro

@@ -205,7 +205,9 @@
                 card.setAttribute('role', 'button');
                 card.tabIndex = 0;
                 const open = () => {
-                    const monthKey = cal.mes_referencia ? String(cal.mes_referencia).slice(0, 7) : '';
+                    const monthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
+                        ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(cal.mes_referencia)
+                        : '';
                     if (global.ClientCore) global.ClientCore.openCalendarModal(cal.id, monthKey, rawStatus);
                 };
                 card.addEventListener('click', open);
@@ -554,8 +556,20 @@
         setupCalendarNavigation: function() {
             const prevBtn = document.getElementById('client-calendar-prev');
             const nextBtn = document.getElementById('client-calendar-next');
-            if (prevBtn) prevBtn.onclick = () => global.ClientCore?.shiftCalendarMonth?.(-1);
-            if (nextBtn) nextBtn.onclick = () => global.ClientCore?.shiftCalendarMonth?.(1);
+            if (prevBtn) prevBtn.onclick = async () => {
+                if (global.CalendarStateManager?.prevMonth) {
+                    await global.CalendarStateManager.prevMonth();
+                    return;
+                }
+                await global.ClientCore?.shiftCalendarMonth?.(-1);
+            };
+            if (nextBtn) nextBtn.onclick = async () => {
+                if (global.CalendarStateManager?.nextMonth) {
+                    await global.CalendarStateManager.nextMonth();
+                    return;
+                }
+                await global.ClientCore?.shiftCalendarMonth?.(1);
+            };
         },
 
         setupHomeActions: function() {

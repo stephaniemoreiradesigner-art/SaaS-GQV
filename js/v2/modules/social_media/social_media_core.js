@@ -10,6 +10,7 @@
         currentCalendarId: null,
         currentMonthRef: new Date(),
         currentPosts: [],
+        _calendarStateUnsub: null,
         // Helper de debug
         isDebug: function() {
             return window.__GQV_DEBUG_CONTEXT__ === true;
@@ -91,16 +92,29 @@
             // Ouvir botão Novo Post
             const newPostBtn = document.getElementById('social-new-post');
             if (newPostBtn) {
-                newPostBtn.addEventListener('click', () => {
-                    this.startCreate(new Date().toISOString().slice(0, 10));
-                });
+                newPostBtn.onclick = () => {
+                    const todayStr = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
+                    this.startCreate(todayStr);
+                };
             }
 
             // Navegação de mês
             const prevBtn = document.getElementById('social-month-prev');
             const nextBtn = document.getElementById('social-month-next');
-            if (prevBtn) prevBtn.addEventListener('click', () => this.changeMonth(-1));
-            if (nextBtn) nextBtn.addEventListener('click', () => this.changeMonth(1));
+            if (prevBtn) prevBtn.onclick = async () => {
+                if (global.CalendarStateManager?.prevMonth) {
+                    await global.CalendarStateManager.prevMonth();
+                    return;
+                }
+                await this.changeMonth(-1);
+            };
+            if (nextBtn) nextBtn.onclick = async () => {
+                if (global.CalendarStateManager?.nextMonth) {
+                    await global.CalendarStateManager.nextMonth();
+                    return;
+                }
+                await this.changeMonth(1);
+            };
 
             // Estado inicial
             if (global.ClientContext) {
@@ -140,8 +154,78 @@
                 if (global.SocialMediaUI && global.SocialMediaUI.showContent) {
                     global.SocialMediaUI.showContent();
                 }
-                
-                // Carrega calendário do mês atual
+
+                const tenantId = global.TenantContext?.getTenantId ? global.TenantContext.getTenantId() : null;
+                const manager = global.CalendarStateManager;
+                if (manager?.init) {
+                    manager.init({
+                        clientId,
+                        tenantId,
+                        loadInitialMonthKey: ({ clientId: id }) => {
+                            const stored = localStorage.getItem(`GQV_SOCIAL_MONTH_${String(id || '').trim()}`);
+                            const key = String(stored || '').trim();
+                            return global.MonthUtils?.isValidMonthKey?.(key) ? key : '';
+                        },
+                        persistMonthKey: ({ clientId: id, monthKey }) => {
+                            if (!id || !monthKey) return;
+                            localStorage.setItem(`GQV_SOCIAL_MONTH_${String(id).trim()}`, String(monthKey).trim());
+                        },
+                        fetchCalendarMeta: async ({ clientId: id, monthRef }) => {
+                            return global.SocialMediaRepo?.getCalendarByMonth ? await global.SocialMediaRepo.getCalendarByMonth(id, monthRef) : null;
+                        },
+                        fetchEditorialItems: async ({ activeCalendarId }) => {
+                            return global.SocialMediaRepo?.getCalendarItems ? await global.SocialMediaRepo.getCalendarItems(activeCalendarId) : [];
+                        },
+                        fetchMonthPosts: async ({ clientId: id, startDate, endDateExclusive }) => {
+                            return global.SocialMediaRepo?.getPostsByDateRange ? await global.SocialMediaRepo.getPostsByDateRange(id, startDate, endDateExclusive) : [];
+                        }
+                    });
+
+                    if (!this._calendarStateUnsub && manager.subscribe) {
+                        this._calendarStateUnsub = manager.subscribe((snap) => {
+                            if (!snap || String(snap.clientId || '') !== String(this.currentClientId || '')) return;
+
+                            this.currentCalendarId = snap.activeCalendarId || null;
+                            this.currentMonthRef = snap.monthStart instanceof Date ? snap.monthStart : new Date();
+                            this.currentPosts = Array.isArray(snap.monthPosts) ? snap.monthPosts : [];
+
+                            if (global.SocialMediaCalendar?.renderFromState) {
+                                global.SocialMediaCalendar.renderFromState(snap);
+                            } else if (global.SocialMediaCalendar?.render) {
+                                global.SocialMediaCalendar.render(this.currentPosts, this.currentMonthRef);
+                            }
+
+                            if (global.SocialMediaUI?.renderPostsBoard) {
+                                global.SocialMediaUI.renderPostsBoard(this.currentPosts, snap.monthKey || '');
+                            }
+
+                            const statusEl = document.getElementById('social-calendar-status');
+                            if (statusEl) {
+                                const statusMap = {
+                                    draft: 'Rascunho',
+                                    in_production: 'Em produção',
+                                    awaiting_approval: 'Aguardando Aprovação',
+                                    ready_for_approval: 'Aguardando Aprovação',
+                                    approved: 'Aprovado',
+                                    published: 'Publicado',
+                                    archived: 'Arquivado',
+                                    changes_requested: 'Ajustes Solicitados'
+                                };
+                                const status = String(snap.calendarStatus || 'draft');
+                                statusEl.textContent = statusMap[status] || status;
+                                statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
+                                if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
+                                if (status === 'awaiting_approval' || status === 'ready_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+                                if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
+                                if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
+                            }
+                        });
+                    }
+
+                    await manager.refreshMonthData();
+                    return;
+                }
+
                 await this.loadCalendarForMonth(new Date());
             } else if (resolvedName && resolvedName !== this.currentClientName) {
                 this.currentClientName = resolvedName;
@@ -151,19 +235,31 @@
         },
 
         changeMonth: async function(delta) {
+            if (delta < 0 && global.CalendarStateManager?.prevMonth) {
+                await global.CalendarStateManager.prevMonth();
+                return;
+            }
+            if (delta > 0 && global.CalendarStateManager?.nextMonth) {
+                await global.CalendarStateManager.nextMonth();
+                return;
+            }
             if (!this.currentMonthRef) this.currentMonthRef = new Date();
-            
             const newDate = new Date(this.currentMonthRef);
             newDate.setMonth(newDate.getMonth() + delta);
-            
             await this.loadCalendarForMonth(newDate);
         },
 
         loadCalendarForMonth: async function(dateRef) {
             if (!this.currentClientId) return;
 
+            if (global.CalendarStateManager?.goToMonth && dateRef instanceof Date && !Number.isNaN(dateRef.getTime())) {
+                await global.CalendarStateManager.goToMonth(dateRef.getFullYear(), dateRef.getMonth() + 1);
+                return;
+            }
+
             this.currentMonthRef = dateRef;
-            const monthStr = dateRef.toISOString().slice(0, 7) + '-01'; // YYYY-MM-01
+            const monthKey = global.CalendarStateSelectors?.formatMonthKeyFromDate ? global.CalendarStateSelectors.formatMonthKeyFromDate(dateRef) : '';
+            const monthStr = monthKey ? `${monthKey}-01` : '';
             if (this.isDebug()) console.log('[SocialMediaV2] loadCalendarForMonth:', { clientId: this.currentClientId, monthRef: monthStr });
 
             if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
@@ -186,7 +282,7 @@
                         global.SocialMediaCalendar.render(this.currentPosts, dateRef);
                     }
                     if (global.SocialMediaUI && typeof global.SocialMediaUI.renderPostsBoard === 'function') {
-                        global.SocialMediaUI.renderPostsBoard(this.currentPosts, dateRef);
+                        global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
                     }
                     
                     // Atualiza status na UI
@@ -236,10 +332,18 @@
             const success = await global.SocialMediaRepo.updatePostDate(postId, newDate);
             
             if (success) {
-                await this.loadCalendarForMonth(this.currentMonthRef);
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                } else {
+                    await this.loadCalendarForMonth(this.currentMonthRef);
+                }
             } else {
                 alert('Erro ao mover o post. Tente novamente.');
-                await this.loadCalendarForMonth(this.currentMonthRef);
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                } else {
+                    await this.loadCalendarForMonth(this.currentMonthRef);
+                }
             }
         },
 
@@ -319,7 +423,11 @@
                 }
 
                 // Recarregar calendário
-                await this.loadCalendarForMonth(this.currentMonthRef);
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                } else {
+                    await this.loadCalendarForMonth(this.currentMonthRef);
+                }
                 
             } catch (err) {
                 console.error('[SOCIAL] Erro crítico ao salvar:', err);
@@ -344,7 +452,11 @@
                         global.SocialMediaUI.closeDrawer();
                     }
                     // Recarregar calendário
-                    await this.loadCalendarForMonth(this.currentMonthRef);
+                    if (global.CalendarStateManager?.refreshMonthData) {
+                        await global.CalendarStateManager.refreshMonthData();
+                    } else {
+                        await this.loadCalendarForMonth(this.currentMonthRef);
+                    }
                     if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Excluído!', 'success');
                 } else {
                     alert('Erro ao excluir post.');
