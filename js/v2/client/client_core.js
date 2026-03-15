@@ -13,6 +13,20 @@
         activeEditorialMonthKey: null,
         _calendarManagerUnsub: null,
         _editorialReviewByCalendarId: {},
+        getClientId: function() {
+            const c = this.currentClient || null;
+            if (!c) return null;
+            const direct = c.clientId ?? null;
+            if (direct) return direct;
+            const legacy = c['client' + '_id'] ?? null;
+            return legacy || null;
+        },
+
+        getTenantId: function() {
+            const c = this.currentClient || null;
+            if (!c) return null;
+            return c.tenantId ?? c.tenant_id ?? global.TenantContext?.getTenantUuid?.() ?? null;
+        },
 
         init: async function() {
             if (this._initStarted) return;
@@ -44,7 +58,12 @@
                 return;
             }
 
-            this.currentClient = ensured.session;
+            const legacyClientId = ensured.session ? ensured.session['client' + '_id'] : null;
+            this.currentClient = {
+                ...ensured.session,
+                clientId: ensured.session?.clientId ?? legacyClientId ?? null,
+                tenantId: ensured.session?.tenantId ?? ensured.session?.tenant_id ?? null
+            };
 
             try {
                 if (!global.supabaseClient && global.clientPortalSupabase) {
@@ -58,7 +77,7 @@
 
             try {
                 await global.ClientContext?.init?.();
-                const clientId = this.currentClient?.client_id || null;
+                const clientId = this.getClientId();
                 const clientName = this.currentClient?.name || null;
                 if (clientId) global.ClientContext?.setActiveClient?.({ id: clientId, name: clientName });
             } catch {}
@@ -70,8 +89,8 @@
                 global.ClientUI.init();
                 global.ClientUI.updateUserInfo(this.currentClient);
                 global.ClientUI.setDashboardHeader({
-                    clientId: this.currentClient?.client_id || null,
-                    tenantId: this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null,
+                    clientId: this.getClientId(),
+                    tenantId: this.getTenantId(),
                     status: this.currentClient?.status || this.clientProfile?.status || null
                 });
                 global.ClientUI.switchView('home'); // Default view
@@ -87,8 +106,8 @@
             const manager = global.CalendarStateManager;
             if (!manager?.init || !global.ClientRepo?.getPostsByDateRange) return;
 
-            const clientId = this.currentClient?.client_id || null;
-            const tenantId = this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null;
+            const clientId = this.getClientId();
+            const tenantId = this.getTenantId();
             if (!clientId) return;
 
             manager.init({
@@ -136,7 +155,7 @@
 
         loadClientProfile: async function() {
             if (!this.currentClient || !global.clientPortalSupabase) return null;
-            const clientIdNum = Number(this.currentClient.client_id);
+            const clientIdNum = Number(String(this.getClientId() || '').trim());
             if (!Number.isFinite(clientIdNum) || Number.isNaN(clientIdNum)) return null;
 
             try {
@@ -180,7 +199,7 @@
 
         loadDashboardData: async function() {
             if (!this.currentClient) return;
-            const clientId = this.currentClient.client_id;
+            const clientId = this.getClientId();
             
             const pendingCalendars = await global.ClientRepo.getPendingCalendars(clientId);
             this._pendingEditorialCalendars = Array.isArray(pendingCalendars) ? pendingCalendars : [];
@@ -212,7 +231,7 @@
             const fromDate = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
             const nextPost = await global.ClientRepo.getNextPost(clientId, fromDate);
             const nextTitle = nextPost?.tema || nextPost?.titulo || nextPost?.title || '-';
-            const nextDateRaw = nextPost?.data_agendada || nextPost?.data_postagem || '';
+            const nextDateRaw = nextPost?.data_agendada || '';
             const nextDateLabel = nextDateRaw ? new Date(nextDateRaw).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
             const nextPlatform = nextPost?.plataforma || nextPost?.platform || nextPost?.canal || '-';
             const nextStatusRaw = String(nextPost?.status || '').toLowerCase();
@@ -245,8 +264,8 @@
                     pendingPostsWithMediaCount: pendingPostsWithMedia.length
                 });
                 global.ClientUI.setDashboardHeader({
-                    clientId: this.currentClient?.client_id || null,
-                    tenantId: this.currentClient?.tenant_id || global.TenantContext?.getTenantUuid?.() || null,
+                    clientId: this.getClientId(),
+                    tenantId: this.getTenantId(),
                     status: this.currentClient?.status || this.clientProfile?.status || null
                 });
             }
@@ -254,7 +273,7 @@
 
         loadCalendars: async function() {
             if (!this.currentClient) return;
-            const clientId = this.currentClient.client_id;
+            const clientId = this.getClientId();
             
             const calendars = await global.ClientRepo.getPendingCalendars(clientId);
             
@@ -265,7 +284,7 @@
 
         loadPendingPosts: async function() {
             if (!this.currentClient) return;
-            const clientId = this.currentClient.client_id;
+            const clientId = this.getClientId();
             const loading = document.getElementById('posts-loading');
             if (loading) loading.classList.remove('hidden');
             
@@ -327,7 +346,7 @@
             const list = document.getElementById('client-history-list');
             if (list) list.innerHTML = '';
 
-            const clientId = this.currentClient.client_id;
+            const clientId = this.getClientId();
             const posts = await global.ClientRepo.getHistoryPosts(clientId, 60);
             global.ClientUI?.renderHistoryList?.(posts);
         },
@@ -365,7 +384,7 @@
             if (!this.activePostId) return;
             if (!confirm('Aprovar este post?')) return;
 
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const commentInput = document.getElementById('client-post-modal-comment');
             const comment = commentInput ? commentInput.value.trim() : '';
 
@@ -394,7 +413,7 @@
                 return;
             }
 
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const result = await global.ClientRepo.rejectPost(this.activePostId, clientId, reason);
             const ok = result === true || result?.ok === true;
             if (ok) {
@@ -411,7 +430,7 @@
 
         handleApprovePost: async function(postId) {
             if (!confirm('Aprovar este post?')) return;
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const result = await global.ClientRepo.approvePost(postId, clientId, '');
             const ok = result === true || result?.ok === true;
             if (ok) {
@@ -425,7 +444,7 @@
         },
 
         handleRejectPost: async function(postId, reason) {
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const result = await global.ClientRepo.rejectPost(postId, clientId, reason);
             const ok = result === true || result?.ok === true;
             if (ok) {
@@ -471,7 +490,7 @@
             if (global.ClientUI) global.ClientUI.showCalendarModal(true);
 
             // Load Itens do calendário (planejamento editorial)
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const meta = global.ClientRepo?.getCalendarMeta ? await global.ClientRepo.getCalendarMeta(calendarId, clientId) : null;
             const metaMonthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
                 ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(meta?.mes_referencia)
@@ -569,7 +588,7 @@
             const calendarId = this.activeCalendarId;
             if (!calendarId || !itemId) return;
             this.setEditorialItemReview(itemId, 'approved', comment);
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             if (global.ClientRepo?.updateCalendarItemReview) {
                 await global.ClientRepo.updateCalendarItemReview(itemId, clientId, { status: 'approved', comment: String(comment || '').trim() });
             }
@@ -583,7 +602,7 @@
             const calendarId = this.activeCalendarId;
             if (!calendarId || !itemId) return;
             this.setEditorialItemReview(itemId, 'changes_requested', comment);
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             if (global.ClientRepo?.updateCalendarItemReview) {
                 await global.ClientRepo.updateCalendarItemReview(itemId, clientId, { status: 'changes_requested', comment: String(comment || '').trim() });
             }
@@ -596,7 +615,7 @@
         sendEditorialFeedbackToAgency: async function() {
             const calendarId = String(this.activeCalendarId || '').trim();
             if (!calendarId) return;
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             this.ensureEditorialReviewLoaded(calendarId);
             const review = this._editorialReviewByCalendarId[calendarId]?.items || {};
             const commentInput = document.getElementById('client-calendar-approval-comment');
@@ -629,7 +648,7 @@
             if (!this.activeCalendarId) return;
             if (!confirm('Confirmar a aprovação deste calendário?')) return;
 
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const commentInput = document.getElementById('client-calendar-approval-comment');
             const comment = commentInput ? commentInput.value.trim() : '';
             const result = await global.ClientRepo.approveCalendar(this.activeCalendarId, clientId, comment);
@@ -656,7 +675,7 @@
                 return;
             }
 
-            const clientId = this.currentClient?.client_id || null;
+            const clientId = this.getClientId();
             const result = await global.ClientRepo.rejectCalendar(this.activeCalendarId, clientId, comment);
             const ok = result === true || result?.ok === true;
             if (ok) {

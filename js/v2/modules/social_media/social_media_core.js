@@ -170,8 +170,8 @@
                             if (!id || !monthKey) return;
                             localStorage.setItem(`GQV_SOCIAL_MONTH_${String(id).trim()}`, String(monthKey).trim());
                         },
-                        fetchCalendarMeta: async ({ clientId: id, monthRef }) => {
-                            return global.SocialMediaRepo?.getCalendarByMonth ? await global.SocialMediaRepo.getCalendarByMonth(id, monthRef) : null;
+                        fetchCalendarMeta: async ({ clientId: id, monthKey }) => {
+                            return global.SocialMediaRepo?.getCalendarByMonth ? await global.SocialMediaRepo.getCalendarByMonth(id, monthKey) : null;
                         },
                         fetchEditorialItems: async ({ activeCalendarId }) => {
                             return global.SocialMediaRepo?.getCalendarItems ? await global.SocialMediaRepo.getCalendarItems(activeCalendarId) : [];
@@ -259,8 +259,7 @@
 
             this.currentMonthRef = dateRef;
             const monthKey = global.CalendarStateSelectors?.formatMonthKeyFromDate ? global.CalendarStateSelectors.formatMonthKeyFromDate(dateRef) : '';
-            const monthStr = monthKey ? `${monthKey}-01` : '';
-            if (this.isDebug()) console.log('[SocialMediaV2] loadCalendarForMonth:', { clientId: this.currentClientId, monthRef: monthStr });
+            if (this.isDebug()) console.log('[SocialMediaV2] loadCalendarForMonth:', { clientId: this.currentClientId, monthKey });
 
             if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
                 global.SocialMediaUI.showLoading();
@@ -268,13 +267,16 @@
 
             try {
                 // 1. Busca/Cria Calendário
-                const calendar = await global.SocialMediaRepo.getCalendarByMonth(this.currentClientId, monthStr);
+                const calendar = await global.SocialMediaRepo.getCalendarByMonth(this.currentClientId, monthKey);
                 
                 if (calendar) {
                     this.currentCalendarId = calendar.id;
                     
-                    // 2. Busca Posts
-                    const posts = await global.SocialMediaRepo.getPostsByCalendar(calendar.id);
+                    // 2. Busca Posts do mês por range
+                    const range = global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
+                    const posts = range && global.SocialMediaRepo?.getPostsByDateRange
+                        ? await global.SocialMediaRepo.getPostsByDateRange(this.currentClientId, range.startDate, range.endDateExclusive)
+                        : [];
                     this.currentPosts = Array.isArray(posts) ? posts : [];
                     
                     // 3. Renderiza

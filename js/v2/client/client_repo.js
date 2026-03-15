@@ -216,19 +216,7 @@
                 return data || [];
             } catch (error) {
                 console.error('[ClientRepo] Erro ao buscar posts pendentes em social_posts:', error);
-                try {
-                    const { data, error: fallbackError } = await supabase
-                        .from('posts')
-                        .select('*')
-                        .eq('cliente_id', clientId)
-                        .in('status', pendingStatuses)
-                        .order('data_postagem', { ascending: true });
-                    if (fallbackError) throw fallbackError;
-                    return data || [];
-                } catch (fallbackError) {
-                    console.error('[ClientRepo] Erro ao buscar posts pendentes em posts:', fallbackError);
-                    return [];
-                }
+                return [];
             }
         },
 
@@ -470,20 +458,7 @@
                 return data || [];
             } catch (error) {
                 console.error('[ClientRepo] Erro ao buscar posts por período em social_posts:', error);
-                try {
-                    const { data, error: fallbackError } = await supabase
-                        .from('posts')
-                        .select('*')
-                        .eq('cliente_id', clientId)
-                        .gte('data_postagem', start)
-                        .lt('data_postagem', end)
-                        .order('data_postagem', { ascending: true });
-                    if (fallbackError) throw fallbackError;
-                    return data || [];
-                } catch (fallbackError) {
-                    console.error('[ClientRepo] Erro ao buscar posts por período em posts:', fallbackError);
-                    return [];
-                }
+                return [];
             }
         },
 
@@ -506,20 +481,7 @@
                 return (data && data[0]) || null;
             } catch (error) {
                 console.error('[ClientRepo] Erro ao buscar próximo post em social_posts:', error);
-                try {
-                    const { data, error: fallbackError } = await supabase
-                        .from('posts')
-                        .select('*')
-                        .eq('cliente_id', clientId)
-                        .gte('data_postagem', from)
-                        .order('data_postagem', { ascending: true })
-                        .limit(1);
-                    if (fallbackError) throw fallbackError;
-                    return (data && data[0]) || null;
-                } catch (fallbackError) {
-                    console.error('[ClientRepo] Erro ao buscar próximo post em posts:', fallbackError);
-                    return null;
-                }
+                return null;
             }
         },
 
@@ -542,20 +504,7 @@
                 return data || [];
             } catch (error) {
                 console.error('[ClientRepo] Erro ao buscar histórico em social_posts:', error);
-                try {
-                    const { data, error: fallbackError } = await supabase
-                        .from('posts')
-                        .select('*')
-                        .eq('cliente_id', clientId)
-                        .in('status', statuses)
-                        .order('data_postagem', { ascending: false })
-                        .limit(safeLimit);
-                    if (fallbackError) throw fallbackError;
-                    return data || [];
-                } catch (fallbackError) {
-                    console.error('[ClientRepo] Erro ao buscar histórico em posts:', fallbackError);
-                    return [];
-                }
+                return [];
             }
         },
 

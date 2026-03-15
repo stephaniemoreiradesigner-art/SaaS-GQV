@@ -248,7 +248,7 @@
                     if (reviewKey === 'changes_requested' || reviewKey === 'ajuste_solicitado') return { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' };
                     return { label: 'Pendente', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
                 })();
-                const dateRaw = item.data || item.data_agendada || item.data_postagem || '';
+                const dateRaw = item.data || '';
                 const date = dateRaw ? new Date(String(dateRaw).slice(0, 10)).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
                 const tema = item.tema || item.titulo || item.title || 'Sem título';
                 const tipo = item.tipo_conteudo || item.formato || 'post_estatico';
@@ -410,7 +410,7 @@
             if (empty) empty.classList.add('hidden');
 
             posts.forEach(post => {
-                const dateRaw = post.data_agendada || post.data_postagem || null;
+                const dateRaw = post.data_agendada || null;
                 const date = dateRaw ? new Date(dateRaw).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
                 const el = document.createElement('div');
                 el.className = 'ui-card p-5 border border-slate-200 bg-white hover:shadow-md hover:border-slate-300 transition';
@@ -627,7 +627,7 @@
             const parsed = global.MonthUtils?.parseMonthKey ? global.MonthUtils.parseMonthKey(monthKey) : null;
             const ref = parsed ? new Date(parsed.year, parsed.monthIndex, 1) : new Date();
             const items = (posts || []).filter((p) => {
-                const raw = p?.data_agendada || p?.data_postagem || p?.post_date || p?.date || '';
+                const raw = p?.data_agendada || '';
                 const dateStr = String(raw).slice(0, 10);
                 return dateStr && dateStr.slice(0, 7) === monthKey;
             });
@@ -664,7 +664,7 @@
                     ? global.MonthUtils.formatLocalDate(date)
                     : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                 const dayPosts = items.filter((p) => {
-                    const raw = p?.data_agendada || p?.data_postagem || p?.post_date || p?.date || '';
+                    const raw = p?.data_agendada || '';
                     return String(raw).slice(0, 10) === dateKey;
                 });
 
@@ -721,7 +721,7 @@
             listEl.innerHTML = '';
             posts.forEach((p) => {
                 const title = p.tema || p.titulo || p.title || 'Post';
-                const dateRaw = p.data_agendada || p.data_postagem || '';
+                const dateRaw = p.data_agendada || '';
                 const dateLabel = dateRaw ? new Date(dateRaw).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : '-';
                 const status = String(p.status || '').toLowerCase();
                 const statusLabel = status ? status.replace(/_/g, ' ') : '-';

@@ -9,13 +9,13 @@
         /**
          * Busca ou cria o calendário para um mês específico
          * @param {string} clientId 
-         * @param {string} monthRef - Formato YYYY-MM-01
+         * @param {string} monthKey - Formato YYYY-MM
          * @returns {Promise<Object>} Dados do calendário (id, status)
          */
-        getCalendarByMonth: async function(clientId, monthRef) {
-            if (!global.supabaseClient || !clientId || !monthRef) return null;
+        getCalendarByMonth: async function(clientId, monthKey) {
+            if (!global.supabaseClient || !clientId || !monthKey) return null;
 
-            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthRef });
+            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthKey });
 
             try {
                 // Tenta buscar existente
@@ -23,18 +23,18 @@
                     .from('social_calendars')
                     .select('*')
                     .eq('cliente_id', clientId)
-                    .eq('mes_referencia', monthRef)
+                    .eq('mes_referencia', monthKey)
                     .maybeSingle();
 
                 if (calendarData) return calendarData;
 
                 // Se não existir, cria
-                console.log('[SOCIAL] Criando calendário para:', monthRef);
+                console.log('[SOCIAL] Criando calendário para:', monthKey);
                 const { data: createdCalendar, error: createError } = await global.supabaseClient
                     .from('social_calendars')
                     .insert({
                         cliente_id: clientId,
-                        mes_referencia: monthRef,
+                        mes_referencia: monthKey,
                         status: 'draft',
                         updated_at: new Date().toISOString()
                     })
@@ -48,7 +48,7 @@
                             .from('social_calendars')
                             .select('*')
                             .eq('cliente_id', clientId)
-                            .eq('mes_referencia', monthRef)
+                            .eq('mes_referencia', monthKey)
                             .maybeSingle();
                         return retryData;
                      }
@@ -236,14 +236,14 @@
                 throw new Error('Banco de dados não conectado');
             }
 
-            if (!input.cliente_id && !input.client_id) {
+            if (!input.cliente_id) {
                 throw new Error('Cliente não identificado');
             }
 
             try {
-                const clientId = input.cliente_id || input.client_id;
+                const clientId = input.cliente_id;
                 const localToday = global.MonthUtils?.formatLocalDate ? global.MonthUtils.formatLocalDate(new Date()) : '';
-                const postDate = input.data_postagem || input.post_date || localToday;
+                const postDate = input.data_agendada || input.data || localToday;
                 const title = input.titulo || input.tema || input.title || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
                 
@@ -264,33 +264,27 @@
                 // Normalização de formato
                 let formato = input.formato || input.tipo_conteudo || 'post_estatico';
 
-                // Correção do mês de referência para sempre ser YYYY-MM-01
-                let monthRef;
-                if (postDate && postDate.length >= 7) {
-                    monthRef = `${postDate.slice(0, 7)}-01`;
-                } else {
-                    const monthKey = global.CalendarStateSelectors?.getCurrentMonthKey ? global.CalendarStateSelectors.getCurrentMonthKey() : '';
-                    monthRef = monthKey ? `${monthKey}-01` : '';
-                }
+                // Mês de referência: YYYY-MM
+                const monthKey = postDate && String(postDate).length >= 7 ? String(postDate).slice(0, 7) : '';
 
                 // Busca calendário existente com tratamento de erro
                 const { data: calendarData, error: calendarError } = await global.supabaseClient
                     .from('social_calendars')
                     .select('id')
                     .eq('cliente_id', clientId)
-                    .eq('mes_referencia', monthRef)
+                    .eq('mes_referencia', monthKey)
                     .maybeSingle();
 
                 let calendarId = calendarData?.id || null;
 
                 // Se não encontrou ou deu erro, tenta criar
                 if (!calendarId) {
-                    console.log('[SOCIAL] Calendário não encontrado, criando novo para:', monthRef);
+                    console.log('[SOCIAL] Calendário não encontrado, criando novo para:', monthKey);
                     const { data: createdCalendar, error: createError } = await global.supabaseClient
                         .from('social_calendars')
                         .insert({
                             cliente_id: clientId,
-                            mes_referencia: monthRef,
+                            mes_referencia: monthKey,
                             status: 'draft',
                             updated_at: new Date().toISOString()
                         })
@@ -304,7 +298,7 @@
                             .from('social_calendars')
                             .select('id')
                             .eq('cliente_id', clientId)
-                            .eq('mes_referencia', monthRef)
+                            .eq('mes_referencia', monthKey)
                             .maybeSingle();
                         
                         if (retryData?.id) {
@@ -374,8 +368,8 @@
             if (input.detailed_content !== undefined) {
                 dbPayload.detailed_content = input.detailed_content;
             }
-            if (input.data_postagem !== undefined || input.post_date !== undefined) {
-                dbPayload.data_agendada = input.data_postagem || input.post_date;
+            if (input.data_agendada !== undefined || input.data !== undefined) {
+                dbPayload.data_agendada = input.data_agendada || input.data;
             }
             if (input.status !== undefined) {
                 let status = input.status;
@@ -567,18 +561,8 @@
                     .eq('cliente_id', clientId)
                     .order('data_agendada', { ascending: false });
 
-                if (!error) return data;
-
-                // Fallback para 'posts'
-                console.warn('[SOCIAL] Tabela social_posts falhou, tentando posts...');
-                const { data: data2, error: error2 } = await global.supabaseClient
-                    .from('posts')
-                    .select('*')
-                    .eq('cliente_id', clientId)
-                    .order('data_postagem', { ascending: false });
-
-                if (error2) throw error2;
-                return data2 || [];
+                if (error) throw error;
+                return data || [];
             } catch (error) {
                 console.error('[SOCIAL] Erro ao buscar posts:', error);
                 return [];
