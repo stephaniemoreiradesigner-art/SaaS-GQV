@@ -6,10 +6,11 @@
         currentClient: null,
         activeCalendarId: null,
         activePostId: null,
-        calendarMonthRef: null,
+        calendarMonthKey: null,
         clientProfile: null,
         _initStarted: false,
         _pendingEditorialCalendars: [],
+        _calendarLoadSeq: 0,
 
         init: async function() {
             if (this._initStarted) return;
@@ -150,15 +151,12 @@
             });
             const now = new Date();
             const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-            const formatLocalDate = (d) => {
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
-                const dd = String(d.getDate()).padStart(2, '0');
-                return `${yyyy}-${mm}-${dd}`;
-            };
-            const postsInMonth = await global.ClientRepo.getPostsByDateRange(clientId, formatLocalDate(monthStart), formatLocalDate(monthEnd));
+            const monthUtils = global.MonthUtils;
+            const monthKey = monthUtils?.formatMonthKeyFromDate ? monthUtils.formatMonthKeyFromDate(now) : '';
+            const monthRange = monthUtils?.getMonthRange ? monthUtils.getMonthRange(monthKey) : null;
+            const postsInMonth = monthRange
+                ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive)
+                : [];
             const approvedCount = (postsInMonth || []).filter((p) => {
                 const s = String(p?.status || '').toLowerCase();
                 return ['approved', 'scheduled', 'aprovado', 'agendado'].includes(s);
@@ -168,7 +166,8 @@
                 return ['published', 'publicado'].includes(s);
             }).length;
 
-            const nextPost = await global.ClientRepo.getNextPost(clientId, now.toISOString().slice(0, 10));
+            const fromDate = monthUtils?.formatLocalDate ? monthUtils.formatLocalDate(now) : '';
+            const nextPost = await global.ClientRepo.getNextPost(clientId, fromDate);
             const nextTitle = nextPost?.tema || nextPost?.titulo || nextPost?.title || '-';
             const nextDateRaw = nextPost?.data_agendada || nextPost?.data_postagem || '';
             const nextDateLabel = nextDateRaw ? new Date(nextDateRaw).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-';
@@ -245,18 +244,23 @@
                 alert('Nenhum calendário editorial pendente.');
                 return;
             }
-            const raw = first.mes_referencia ? String(first.mes_referencia).slice(0, 10) : '';
-            const date = raw ? new Date(`${raw}T00:00:00`) : null;
-            const monthName = date
-                ? date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+            const rawMonth = first.mes_referencia ? String(first.mes_referencia).slice(0, 7) : '';
+            const label = global.MonthUtils?.formatMonthLabel
+                ? global.MonthUtils.formatMonthLabel(rawMonth)
                 : 'Calendário';
-            const label = monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : 'Calendário';
             await this.openCalendarModal(first.id, label, first.status || null);
         },
 
         loadCalendarMonth: async function() {
             if (!this.currentClient) return;
-            if (!(this.calendarMonthRef instanceof Date)) this.calendarMonthRef = new Date();
+            const monthUtils = global.MonthUtils;
+            if (!monthUtils?.isValidMonthKey || !monthUtils?.formatMonthKeyFromDate || !monthUtils?.getMonthRange) return;
+            if (!monthUtils.isValidMonthKey(this.calendarMonthKey)) {
+                this.calendarMonthKey = monthUtils.formatMonthKeyFromDate(new Date());
+            }
+            const seq = (this._calendarLoadSeq || 0) + 1;
+            this._calendarLoadSeq = seq;
+            const monthKey = this.calendarMonthKey;
 
             const loading = document.getElementById('client-calendar-loading');
             if (loading) loading.classList.remove('hidden');
@@ -264,22 +268,32 @@
             if (empty) empty.classList.add('hidden');
 
             const clientId = this.currentClient.client_id;
-            const start = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth(), 1);
-            const end = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth() + 1, 1);
-            const formatLocalDate = (d) => {
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
-                const dd = String(d.getDate()).padStart(2, '0');
-                return `${yyyy}-${mm}-${dd}`;
-            };
-            const posts = await global.ClientRepo.getPostsByDateRange(clientId, formatLocalDate(start), formatLocalDate(end));
-            global.ClientUI?.renderClientCalendar?.(posts, this.calendarMonthRef);
+            const range = monthUtils.getMonthRange(monthKey);
+            if (!range) return;
+            if (global.__GQV_DEBUG_CONTEXT__ === true) {
+                console.log('[ClientCore] loadCalendarMonth:', {
+                    monthKey,
+                    startDate: range.startDate,
+                    endDateExclusive: range.endDateExclusive
+                });
+            }
+            const posts = await global.ClientRepo.getPostsByDateRange(clientId, range.startDate, range.endDateExclusive);
+            if (seq !== this._calendarLoadSeq || monthKey !== this.calendarMonthKey) return;
+            if (global.__GQV_DEBUG_CONTEXT__ === true) {
+                const first = (posts || [])[0]?.data_agendada || null;
+                const last = (posts || []).slice(-1)[0]?.data_agendada || null;
+                console.log('[ClientCore] loadCalendarMonth result:', { count: (posts || []).length, first, last });
+            }
+            global.ClientUI?.renderClientCalendar?.(posts, monthKey);
         },
 
         shiftCalendarMonth: async function(delta) {
-            if (!(this.calendarMonthRef instanceof Date)) this.calendarMonthRef = new Date();
-            const next = new Date(this.calendarMonthRef.getFullYear(), this.calendarMonthRef.getMonth() + Number(delta || 0), 1);
-            this.calendarMonthRef = next;
+            const monthUtils = global.MonthUtils;
+            if (!monthUtils?.addMonths || !monthUtils?.formatMonthKeyFromDate) return;
+            if (!monthUtils.isValidMonthKey?.(this.calendarMonthKey)) {
+                this.calendarMonthKey = monthUtils.formatMonthKeyFromDate(new Date());
+            }
+            this.calendarMonthKey = monthUtils.addMonths(this.calendarMonthKey, Number(delta || 0));
             await this.loadCalendarMonth();
         },
 

@@ -525,10 +525,10 @@
          * Busca posts de um cliente em um intervalo de datas
          * @param {string} clientId
          * @param {string} startDate (YYYY-MM-DD)
-         * @param {string} endDate (YYYY-MM-DD)
+         * @param {string} endDateExclusive (YYYY-MM-DD)
          * @returns {Promise<Array>} Lista de posts
          */
-        getPostsByDateRange: async function(clientId, startDate, endDate) {
+        getPostsByDateRange: async function(clientId, startDate, endDateExclusive) {
             if (!global.supabaseClient || !clientId) return [];
 
             try {
@@ -538,7 +538,7 @@
                     .select('*')
                     .eq('cliente_id', clientId)
                     .gte('data_agendada', startDate)
-                    .lte('data_agendada', endDate)
+                    .lt('data_agendada', endDateExclusive)
                     .order('data_agendada', { ascending: true });
 
                 if (error) throw error;

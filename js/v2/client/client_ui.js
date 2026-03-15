@@ -580,7 +580,7 @@
             if (postsAction) postsAction.onclick = () => this.switchView('approvals');
         },
 
-        renderClientCalendar: function(posts, monthRef) {
+        renderClientCalendar: function(posts, monthKey) {
             const monthEl = document.getElementById('client-calendar-month');
             const gridEl = document.getElementById('client-calendar-grid');
             const loadingEl = document.getElementById('client-calendar-loading');
@@ -589,11 +589,12 @@
 
             if (loadingEl) loadingEl.classList.add('hidden');
 
-            const ref = monthRef instanceof Date ? monthRef : new Date();
-            const monthLabel = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+            const monthLabel = global.MonthUtils?.formatMonthLabel
+                ? global.MonthUtils.formatMonthLabel(monthKey)
+                : String(monthKey || '');
             if (monthEl) monthEl.textContent = monthLabel;
-
-            const monthKey = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}`;
+            const parsed = global.MonthUtils?.parseMonthKey ? global.MonthUtils.parseMonthKey(monthKey) : null;
+            const ref = parsed ? new Date(parsed.year, parsed.monthIndex, 1) : new Date();
             const items = (posts || []).filter((p) => {
                 const raw = p?.data_agendada || p?.data_postagem || p?.post_date || p?.date || '';
                 const dateStr = String(raw).slice(0, 10);
@@ -628,7 +629,9 @@
 
             for (let day = 1; day <= daysInMonth; day += 1) {
                 const date = new Date(ref.getFullYear(), ref.getMonth(), day);
-                const dateKey = date.toISOString().slice(0, 10);
+                const dateKey = global.MonthUtils?.formatLocalDate
+                    ? global.MonthUtils.formatLocalDate(date)
+                    : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                 const dayPosts = items.filter((p) => {
                     const raw = p?.data_agendada || p?.data_postagem || p?.post_date || p?.date || '';
                     return String(raw).slice(0, 10) === dateKey;

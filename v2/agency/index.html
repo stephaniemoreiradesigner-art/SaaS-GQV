@@ -944,6 +944,7 @@
     <script src="/js/v2/shared/auth_guard.js"></script>
     <script src="/js/v2/shared/tenantContext.js?v=20260313_3"></script>
     <script src="/js/v2/shared/clientContext.js"></script>
+    <script src="/js/v2/shared/month_utils.js"></script>
     <script src="/js/v2/shared/workspaceState.js"></script>
     <script src="/js/v2/modules/clientes/clientes_repo.js"></script>
     <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
@@ -1694,9 +1695,10 @@
         };
         let socialState = {
             clientId: null,
-            calendarMonth: new Date().toISOString().slice(0, 7),
+            calendarMonth: window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
             calendarId: null,
             calendarStatus: null,
+            monthLoadSeq: 0,
             posts: [],
             calendarItems: [],
             activePost: null
@@ -2081,10 +2083,12 @@
 
         const formatPeriodLabel = (value) => {
             if (!value) return '';
-            const parsed = new Date(`${value}-01T00:00:00`);
-            if (Number.isNaN(parsed.getTime())) return value;
-            const label = parsed.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-            return label.charAt(0).toUpperCase() + label.slice(1);
+            const raw = String(value || '').trim();
+            const utils = window.MonthUtils;
+            if (utils?.isValidMonthKey?.(raw) && utils?.formatMonthLabel) {
+                return utils.formatMonthLabel(raw);
+            }
+            return raw;
         };
 
         const formatMonthLabel = (month) => formatPeriodLabel(month);
@@ -2154,17 +2158,15 @@
         };
 
         const getMonthStartEnd = (month) => {
-            const start = new Date(`${month}-01T00:00:00`);
-            const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-            const formatLocalDate = (d) => {
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
-                const dd = String(d.getDate()).padStart(2, '0');
-                return `${yyyy}-${mm}-${dd}`;
-            };
-            const startDate = formatLocalDate(start);
-            const endDate = formatLocalDate(end);
-            return { start, end, startDate, endDate };
+            const utils = window.MonthUtils;
+            const parsed = utils?.parseMonthKey ? utils.parseMonthKey(month) : null;
+            const safe = parsed || { year: new Date().getFullYear(), monthIndex: new Date().getMonth() };
+            const start = new Date(safe.year, safe.monthIndex, 1);
+            const end = new Date(safe.year, safe.monthIndex + 1, 0);
+            const range = utils?.getMonthRange ? utils.getMonthRange(month) : null;
+            const startDate = range?.startDate || (utils?.formatLocalDate ? utils.formatLocalDate(start) : '');
+            const endDateExclusive = range?.endDateExclusive || (utils?.formatLocalDate ? utils.formatLocalDate(new Date(safe.year, safe.monthIndex + 1, 1)) : '');
+            return { start, end, startDate, endDateExclusive };
         };
 
         const getCalendarCells = (month) => {
@@ -2278,7 +2280,7 @@
             }, {});
             cells.forEach((cell) => {
                 const day = cell.date.getDate();
-                const dateKey = cell.date.toISOString().slice(0, 10);
+                const dateKey = window.MonthUtils?.formatLocalDate ? window.MonthUtils.formatLocalDate(cell.date) : `${cell.date.getFullYear()}-${String(cell.date.getMonth() + 1).padStart(2, '0')}-${String(cell.date.getDate()).padStart(2, '0')}`;
                 const dayItems = itemsByDate[dateKey] || [];
                 const dayPosts = postsByDate[dateKey] || [];
                 const wrapper = document.createElement('div');
@@ -2923,7 +2925,8 @@
             for (let index = 0; index < suggestions.length; index += 1) {
                 const title = suggestions[index];
                 const day = Math.min(1 + index * 4, new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate());
-                const date = new Date(start.getFullYear(), start.getMonth(), day).toISOString().slice(0, 10);
+                const dateObj = new Date(start.getFullYear(), start.getMonth(), day);
+                const date = window.MonthUtils?.formatLocalDate ? window.MonthUtils.formatLocalDate(dateObj) : `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
                 await repo.upsertCalendarItem({
                     calendar_id: calendar.id,
                     data: date,
@@ -2955,19 +2958,19 @@
             updateCalendarStatus(socialState.calendarStatus);
         };
 
-        const loadCalendarItems = async () => {
+        const loadCalendarItems = async ({ suppressRender = false } = {}) => {
             const repo = window.SocialMediaRepo;
             if (!repo?.getCalendarItems || !socialState.calendarId) {
                 socialState.calendarItems = [];
                 renderPlanItems(socialState.calendarItems);
-                renderCalendarGrid();
+                if (!suppressRender) renderCalendarGrid();
                 updateCalendarStatus(socialState.calendarStatus);
                 return;
             }
             const items = await repo.getCalendarItems(socialState.calendarId);
             socialState.calendarItems = Array.isArray(items) ? items : [];
             renderPlanItems(socialState.calendarItems);
-            renderCalendarGrid();
+            if (!suppressRender) renderCalendarGrid();
             updateCalendarStatus(socialState.calendarStatus);
         };
 
@@ -2981,33 +2984,45 @@
                 updateCalendarStatus(null);
                 return;
             }
-            const { startDate, endDate } = getMonthStartEnd(socialState.calendarMonth);
+            const { startDate, endDateExclusive } = getMonthStartEnd(socialState.calendarMonth);
             const repo = window.SocialMediaRepo;
             if (!repo?.getPostsByDateRange) {
                 setSocialFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
-            if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, startDate, endDate });
-            const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDate);
+            if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, monthKey: socialState.calendarMonth, startDate, endDateExclusive });
+            const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDateExclusive);
             socialState.posts = (Array.isArray(data) ? data : []).map(normalizePost);
+            if (isDebug) {
+                const first = socialState.posts[0]?.date || null;
+                const last = socialState.posts.slice(-1)[0]?.date || null;
+                console.log('[SocialMediaV2] list/render result:', { count: socialState.posts.length, first, last });
+            }
             updateSocialOverview();
             renderCalendarGrid();
             renderSocialApprovals();
         };
 
         const refreshSocialMonth = async () => {
+            const seq = (socialState.monthLoadSeq || 0) + 1;
+            socialState.monthLoadSeq = seq;
+            const monthKey = socialState.calendarMonth;
             if (socialMonthLabel) socialMonthLabel.textContent = formatMonthLabel(socialState.calendarMonth);
             await loadCalendarMeta();
-            await loadCalendarItems();
+            if (seq !== socialState.monthLoadSeq || monthKey !== socialState.calendarMonth) return;
+            await loadCalendarItems({ suppressRender: true });
+            if (seq !== socialState.monthLoadSeq || monthKey !== socialState.calendarMonth) return;
             await loadSocialPosts();
         };
 
-        const shiftMonth = (delta) => {
-            const base = new Date(`${socialState.calendarMonth}-01T00:00:00`);
-            base.setMonth(base.getMonth() + delta);
-            socialState.calendarMonth = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`;
+        const shiftMonth = async (delta) => {
+            const utils = window.MonthUtils;
+            if (!utils?.addMonths) return;
+            const next = utils.addMonths(socialState.calendarMonth, delta);
+            if (!next) return;
+            socialState.calendarMonth = next;
             saveMonth(socialState.clientId, socialState.calendarMonth);
-            refreshSocialMonth();
+            await refreshSocialMonth();
         };
 
         const ensureCalendarDraft = async () => {
@@ -3286,7 +3301,7 @@
                 if (savedMonth) {
                     socialState.calendarMonth = savedMonth;
                 } else {
-                    socialState.calendarMonth = new Date().toISOString().slice(0, 7);
+                    socialState.calendarMonth = window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
                 }
                 updateClientUI(clientId, name);
                 refreshSocialMonth();
@@ -3523,9 +3538,13 @@
         if (socialNewPostBtn) {
             socialNewPostBtn.addEventListener('click', () => {
                 const today = new Date();
-                const monthBase = new Date(`${socialState.calendarMonth}-01T00:00:00`);
+                const parsed = window.MonthUtils?.parseMonthKey ? window.MonthUtils.parseMonthKey(socialState.calendarMonth) : null;
+                const monthBase = parsed ? new Date(parsed.year, parsed.monthIndex, 1) : new Date(today.getFullYear(), today.getMonth(), 1);
                 const inMonth = today.getFullYear() === monthBase.getFullYear() && today.getMonth() === monthBase.getMonth();
-                const date = inMonth ? today.toISOString().slice(0, 10) : monthBase.toISOString().slice(0, 10);
+                const formatLocal = window.MonthUtils?.formatLocalDate
+                    ? window.MonthUtils.formatLocalDate
+                    : (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                const date = inMonth ? formatLocal(today) : formatLocal(monthBase);
                 const planningStatuses = new Set(['rascunho', 'aguardando_aprovacao', 'ajuste_solicitado']);
                 const isPlanning = planningStatuses.has(String(socialState.calendarStatus || '').trim());
                 if (isPlanning) {
