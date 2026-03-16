@@ -5,6 +5,7 @@
 (function(global) {
     const SocialMediaUI = {
         drawerId: 'social-post-drawer',
+        _activePost: null,
 
         isDebug: function() {
             return global.__GQV_DEBUG_CONTEXT__ === true;
@@ -70,6 +71,7 @@
             const closeBtn = document.getElementById('social-post-close');
             const cancelBtn = document.getElementById('social-post-cancel');
             const drawer = document.getElementById(this.drawerId);
+            const postTabBtns = document.querySelectorAll('.social-post-tab-btn');
             
             // Upload Input Listener
             const uploadInput = document.getElementById('social-post-media-upload');
@@ -165,6 +167,14 @@
 
             if (closeBtn) closeBtn.addEventListener('click', closeHandler);
             if (cancelBtn) cancelBtn.addEventListener('click', closeHandler);
+            postTabBtns.forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const key = String(btn?.dataset?.postTab || '').trim().toLowerCase();
+                    if (key !== 'history') return;
+                    if (!this._activePost?.id) return;
+                    await this.refreshPostAuditPanel(this._activePost);
+                });
+            });
         },
 
         setupTabs: function() {
@@ -250,6 +260,15 @@
             return key || 'Decisão';
         },
 
+        resolveAdjustmentFromPost: function(post) {
+            const feedbackAjuste = String(post?.feedback_ajuste || post?.feedbackAjuste || '').trim();
+            const feedbackCliente = String(post?.feedback_cliente || post?.feedbackCliente || '').trim();
+            const text = feedbackAjuste || feedbackCliente;
+            const source = feedbackAjuste ? 'feedback_ajuste' : (feedbackCliente ? 'feedback_cliente' : '');
+            const at = post?.updated_at || post?.updatedAt || null;
+            return { text, source, at };
+        },
+
         renderPostAuditPanel: function(post, events) {
             const panel = document.getElementById('social-post-audit-panel');
             if (!panel) return;
@@ -274,9 +293,9 @@
             }
 
             const list = Array.isArray(events) ? events : [];
-            const lastDecisionEvent = list[0] || null;
+            const lastDecisionEvent = list.find((e) => String(e?.kind || '').trim() === 'approval') || null;
             const fallbackComment = String(post?.comentario_cliente || '').trim();
-            const lastComment = String(lastDecisionEvent?.comment || '').trim() || fallbackComment;
+            const lastComment = String(lastDecisionEvent?.description || '').trim() || fallbackComment;
 
             if (lastDecisionEl) {
                 if (lastDecisionEvent && lastComment) {
@@ -294,7 +313,7 @@
             if (!list.length) {
                 const empty = document.createElement('div');
                 empty.className = 'text-sm text-slate-400';
-                empty.textContent = 'Nenhum evento ainda.';
+                empty.textContent = 'Nenhum histórico disponível.';
                 historyEl.appendChild(empty);
                 return;
             }
@@ -313,23 +332,22 @@
                 const wrap = document.createElement('div');
                 wrap.className = 'flex-1 rounded-lg border border-slate-200 bg-white p-3';
 
-                const decidedAt = item?.decided_at ? new Date(item.decided_at).toLocaleString('pt-BR') : '';
-                const actor = String(item?.decided_by || '').trim();
-                const actorShort = actor ? actor.slice(0, 8) : '';
-                const decisionLabel = this.getDecisionLabel(item?.decision);
-
+                const at = String(item?.at || '').trim();
+                const atLabel = at ? new Date(at).toLocaleString('pt-BR') : '';
+                const origin = String(item?.origin || '').trim();
+                const action = String(item?.action || '').trim();
                 const meta = document.createElement('div');
                 meta.className = 'text-xs text-slate-400';
-                meta.textContent = `${decisionLabel}${decidedAt ? ` • ${decidedAt}` : ''}${actorShort ? ` • ${actorShort}` : ''}`;
+                meta.textContent = `${origin || '-'}${action ? ` • ${action}` : ''}${atLabel ? ` • ${atLabel}` : ''}`;
 
-                const comment = String(item?.comment || '').trim();
-                const commentEl = document.createElement('div');
-                commentEl.className = 'text-sm text-slate-600 mt-2';
-                commentEl.textContent = comment;
-                if (!comment) commentEl.classList.add('hidden');
+                const desc = String(item?.description || '').trim();
+                const descEl = document.createElement('div');
+                descEl.className = 'text-sm text-slate-600 mt-2 whitespace-pre-wrap';
+                descEl.textContent = desc;
+                if (!desc) descEl.classList.add('hidden');
 
                 wrap.appendChild(meta);
-                wrap.appendChild(commentEl);
+                wrap.appendChild(descEl);
 
                 row.appendChild(rail);
                 row.appendChild(wrap);
@@ -339,6 +357,7 @@
 
         refreshPostAuditPanel: async function(post) {
             if (!post || !post.id) return;
+            console.log('[EditorialHistory] load requested:', { postId: String(post.id), status: String(post?.status || '').trim() || null });
             const historyEl = document.getElementById('social-post-history');
             if (historyEl) {
                 historyEl.innerHTML = '';
@@ -349,8 +368,40 @@
             }
 
             try {
-                const events = await global.SocialMediaRepo?.getPostAuditEvents?.(String(post.id));
-                this.renderPostAuditPanel(post, events);
+                const adjustment = this.resolveAdjustmentFromPost(post);
+                console.log('[EditorialHistory] source resolved:', { postId: String(post.id), source: adjustment.source || null, hasText: !!adjustment.text });
+
+                const audit = await global.SocialMediaRepo?.getPostAuditEvents?.(String(post.id));
+                const auditArr = Array.isArray(audit) ? audit : [];
+
+                const normalized = [];
+                if (adjustment.text) {
+                    normalized.push({
+                        kind: 'client_adjustment',
+                        at: String(adjustment.at || new Date().toISOString()),
+                        origin: 'Cliente',
+                        action: 'Solicitou ajustes',
+                        description: adjustment.text
+                    });
+                }
+                auditArr.forEach((ev) => {
+                    const at = ev?.decided_at ? String(ev.decided_at) : '';
+                    normalized.push({
+                        kind: 'approval',
+                        at: at || new Date().toISOString(),
+                        origin: String(ev?.decided_by || '').trim() ? `Aprovação (${String(ev.decided_by).slice(0, 8)})` : 'Aprovação',
+                        action: this.getDecisionLabel(ev?.decision),
+                        description: String(ev?.comment || '').trim()
+                    });
+                });
+
+                const sorted = normalized
+                    .filter((e) => e && e.at)
+                    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+
+                console.log('[EditorialHistory] events normalized:', { postId: String(post.id), count: sorted.length });
+                console.log('[EditorialHistory] render count:', { postId: String(post.id), count: sorted.length });
+                this.renderPostAuditPanel(post, sorted);
             } catch (err) {
                 if (historyEl) {
                     historyEl.innerHTML = '';
@@ -656,6 +707,7 @@
             const drawer = document.getElementById(this.drawerId);
             if (!drawer) return;
 
+            this._activePost = post || null;
             const isEdit = !!(post && post.id);
             // [FIX] Garantir que o ID do post seja sempre string ou vazio, nunca undefined
             const postId = isEdit ? String(post.id) : '';
