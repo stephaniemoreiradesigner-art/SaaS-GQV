@@ -19,6 +19,7 @@
         visibleMonth: null,
         monthKey: '',
         monthStart: null,
+        pendingMonthKey: null,
         activeCalendarId: null,
         calendarStatus: null,
         editorialItems: [],
@@ -77,6 +78,21 @@
         };
     };
 
+    const computeMonthInfo = (monthKey) => {
+        const mu = monthUtils();
+        if (!mu?.isValidMonthKey?.(monthKey) || !mu?.parseMonthKey || !mu?.getMonthRange) return null;
+        const parsed = mu.parseMonthKey(monthKey);
+        const range = mu.getMonthRange(monthKey);
+        if (!parsed || !range) return null;
+        return {
+            monthKey,
+            monthStart: range.start,
+            visibleYear: parsed.year,
+            visibleMonth: parsed.monthIndex + 1,
+            range
+        };
+    };
+
     const init = (input) => {
         const mu = monthUtils();
         if (!mu?.formatMonthKeyFromDate) return;
@@ -110,23 +126,30 @@
         return CalendarStateManager.getState();
     };
 
-    const refreshMonthData = async () => {
+    const refreshMonthData = async (input) => {
         const mu = monthUtils();
         const sel = selectors();
         if (!mu?.isValidMonthKey || !mu?.getMonthRange || !sel?.getMonthRefFromMonthKey) return state;
-        if (!state.clientId || !mu.isValidMonthKey(state.monthKey)) return CalendarStateManager.getState();
+        if (!state.clientId) return CalendarStateManager.getState();
 
-        const range = mu.getMonthRange(state.monthKey);
-        if (!range) return CalendarStateManager.getState();
+        const requestedMonthKeyRaw = String(input?.monthKey || '').trim();
+        const requestedMonthKey = mu.isValidMonthKey(requestedMonthKeyRaw) ? requestedMonthKeyRaw : state.monthKey;
+        if (!mu.isValidMonthKey(requestedMonthKey)) return CalendarStateManager.getState();
+
+        const monthInfo = computeMonthInfo(requestedMonthKey);
+        if (!monthInfo?.range) return CalendarStateManager.getState();
+
+        const isMonthChange = requestedMonthKey !== state.monthKey;
 
         const requestVersion = (state.version || 0) + 1;
-        const requestKey = `${String(state.clientId)}:${String(state.tenantId || '')}:${state.monthKey}:${requestVersion}`;
+        const requestKey = `${String(state.clientId)}:${String(state.tenantId || '')}:${requestedMonthKey}:${requestVersion}`;
 
         state = {
             ...state,
             version: requestVersion,
             lastRequestKey: requestKey,
             error: null,
+            pendingMonthKey: isMonthChange ? requestedMonthKey : null,
             loading: { monthData: true, calendarMeta: true, editorialItems: true, monthPosts: true }
         };
         notify();
@@ -134,7 +157,7 @@
         const currentKey = () => state.lastRequestKey;
         const sameRequest = () => currentKey() === requestKey;
 
-        const monthRef = sel.getMonthRefFromMonthKey(state.monthKey);
+        const monthRef = sel.getMonthRefFromMonthKey(requestedMonthKey);
 
         try {
             let calendarMeta = null;
@@ -142,7 +165,7 @@
                 calendarMeta = await adapters.fetchCalendarMeta({
                     clientId: state.clientId,
                     tenantId: state.tenantId,
-                    monthKey: state.monthKey,
+                    monthKey: requestedMonthKey,
                     monthRef
                 });
             }
@@ -156,7 +179,7 @@
                 const items = await adapters.fetchEditorialItems({
                     clientId: state.clientId,
                     tenantId: state.tenantId,
-                    monthKey: state.monthKey,
+                    monthKey: requestedMonthKey,
                     activeCalendarId
                 });
                 editorialItems = Array.isArray(items) ? items : [];
@@ -168,9 +191,9 @@
                 const posts = await adapters.fetchMonthPosts({
                     clientId: state.clientId,
                     tenantId: state.tenantId,
-                    monthKey: state.monthKey,
-                    startDate: range.startDate,
-                    endDateExclusive: range.endDateExclusive
+                    monthKey: requestedMonthKey,
+                    startDate: monthInfo.range.startDate,
+                    endDateExclusive: monthInfo.range.endDateExclusive
                 });
                 monthPosts = Array.isArray(posts) ? posts : [];
             }
@@ -178,17 +201,24 @@
 
             state = {
                 ...state,
+                ...(isMonthChange ? {
+                    monthKey: monthInfo.monthKey,
+                    monthStart: monthInfo.monthStart,
+                    visibleYear: monthInfo.visibleYear,
+                    visibleMonth: monthInfo.visibleMonth
+                } : {}),
                 activeCalendarId,
                 calendarStatus,
                 editorialItems,
                 monthPosts,
+                pendingMonthKey: null,
                 loading: { monthData: false, calendarMeta: false, editorialItems: false, monthPosts: false }
             };
             notify();
 
             if (typeof adapters.persistMonthKey === 'function') {
                 try {
-                    adapters.persistMonthKey({ clientId: state.clientId, tenantId: state.tenantId, monthKey: state.monthKey });
+                    adapters.persistMonthKey({ clientId: state.clientId, tenantId: state.tenantId, monthKey: requestedMonthKey });
                 } catch {}
             }
         } catch (err) {
@@ -196,6 +226,7 @@
             state = {
                 ...state,
                 error: err,
+                pendingMonthKey: null,
                 loading: { monthData: false, calendarMeta: false, editorialItems: false, monthPosts: false }
             };
             notify();
@@ -211,31 +242,27 @@
         const m = Number(month);
         if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return CalendarStateManager.getState();
         const key = mu.formatMonthKeyFromDate(new Date(y, m - 1, 1));
-        setMonthKey(key);
-        notify();
-        await refreshMonthData();
+        await refreshMonthData({ monthKey: key, source: 'goToMonth' });
         return CalendarStateManager.getState();
     };
 
     const nextMonth = async () => {
         const mu = monthUtils();
         if (!mu?.addMonths) return CalendarStateManager.getState();
-        const next = mu.addMonths(state.monthKey, 1);
+        const base = state.pendingMonthKey || state.monthKey;
+        const next = mu.addMonths(base, 1);
         if (!next) return CalendarStateManager.getState();
-        setMonthKey(next);
-        notify();
-        await refreshMonthData();
+        await refreshMonthData({ monthKey: next, source: 'nextMonth' });
         return CalendarStateManager.getState();
     };
 
     const prevMonth = async () => {
         const mu = monthUtils();
         if (!mu?.addMonths) return CalendarStateManager.getState();
-        const prev = mu.addMonths(state.monthKey, -1);
+        const base = state.pendingMonthKey || state.monthKey;
+        const prev = mu.addMonths(base, -1);
         if (!prev) return CalendarStateManager.getState();
-        setMonthKey(prev);
-        notify();
-        await refreshMonthData();
+        await refreshMonthData({ monthKey: prev, source: 'prevMonth' });
         return CalendarStateManager.getState();
     };
 

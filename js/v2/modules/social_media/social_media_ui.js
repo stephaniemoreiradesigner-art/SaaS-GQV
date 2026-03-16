@@ -53,8 +53,7 @@
                 return;
             }
 
-            if (global.CalendarStateManager?.refreshMonthData) {
-                await global.CalendarStateManager.refreshMonthData();
+            if (global.CalendarStateManager?.getState) {
                 const snap = global.CalendarStateManager.getState();
                 this.renderPostsBoard(snap.monthPosts || [], snap.monthKey || '');
                 return;

@@ -5,6 +5,18 @@
 (function(global) {
     const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
 
+    const logQueryError = (name, table, filters, error) => {
+        try {
+            console.error('[SocialMediaRepo][QUERY_ERROR]', {
+                name,
+                table,
+                filters,
+                code: error?.code || null,
+                message: error?.message || String(error || '')
+            });
+        } catch {}
+    };
+
     const SocialMediaRepo = {
         /**
          * Busca ou cria o calendário para um mês específico
@@ -40,7 +52,10 @@
                         .maybeSingle());
                 }
 
-                if (calendarError) throw calendarError;
+                if (calendarError) {
+                    logQueryError('getCalendarByMonth', 'social_calendars', { cliente_id: clientId, mes_referencia: mesReferenciaValue }, calendarError);
+                    throw calendarError;
+                }
                 if (calendarData) return calendarData;
 
                 // Se não existir, cria
@@ -81,6 +96,7 @@
                             .maybeSingle();
                         return retryData;
                      }
+                     logQueryError('getCalendarByMonth:create', 'social_calendars', { cliente_id: clientId, mes_referencia: mesReferenciaValue }, createError);
                      throw createError;
                 }
 
@@ -127,6 +143,7 @@
                 if (error) throw error;
                 return data || [];
             } catch (err) {
+                logQueryError('getCalendarItems', 'social_calendar_items', { calendar_id: calendarId }, err);
                 console.error('[SOCIAL] Erro ao buscar itens do calendário:', err);
                 return [];
             }
@@ -569,6 +586,7 @@
                 if (error) throw error;
                 return data;
             } catch (err) {
+                logQueryError('getPostsByDateRange', 'social_posts', { cliente_id: clientId, data_agendada_gte: startDate, data_agendada_lt: endDateExclusive }, err);
                 console.error('[SOCIAL] Falha ao buscar posts por range:', err);
                 return [];
             }
