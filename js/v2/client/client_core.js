@@ -122,6 +122,14 @@
                     if (!id || !monthKey) return;
                     localStorage.setItem(`GQV_CLIENT_MONTH_${String(id).trim()}`, String(monthKey).trim());
                 },
+                fetchCalendarMeta: async ({ clientId: id, monthKey }) => {
+                    if (!global.ClientRepo?.getCalendarByMonthKey) return null;
+                    return await global.ClientRepo.getCalendarByMonthKey(id, monthKey);
+                },
+                fetchEditorialItems: async ({ clientId: id, activeCalendarId }) => {
+                    if (!global.ClientRepo?.getCalendarItems) return [];
+                    return await global.ClientRepo.getCalendarItems(activeCalendarId, id);
+                },
                 fetchMonthPosts: async ({ clientId: id, startDate, endDateExclusive }) => {
                     return await global.ClientRepo.getPostsByDateRange(id, startDate, endDateExclusive);
                 }
@@ -133,7 +141,25 @@
                     const shouldRender = view && !view.classList.contains('hidden');
                     if (!shouldRender) return;
                     if (global.ClientUI?.renderClientCalendar) {
-                        global.ClientUI.renderClientCalendar(snap.monthPosts || [], snap.monthKey || '');
+                        const monthKey = String(snap.monthKey || '').trim();
+                        const monthPosts = Array.isArray(snap.monthPosts) ? snap.monthPosts : [];
+                        const editorialItems = Array.isArray(snap.editorialItems) ? snap.editorialItems : [];
+                        const calendarStatus = String(snap.calendarStatus || '').trim() || 'draft';
+                        if (!monthPosts.length && editorialItems.length) {
+                            console.log('[ClientCalendar] fallback render from items:', { monthKey, calendarStatus, itemsCount: editorialItems.length });
+                            const mapped = editorialItems.map((it) => ({
+                                id: `item_${String(it?.id || Math.random()).replace(/[^\w-]/g, '')}`,
+                                __fromCalendarItem: true,
+                                data_agendada: String(it?.data || it?.data_agendada || it?.post_date || '').slice(0, 10),
+                                tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
+                                formato: it?.tipo_conteudo || it?.formato || 'post_estatico',
+                                plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
+                                status: calendarStatus
+                            })).filter((p) => !!p.data_agendada);
+                            global.ClientUI.renderClientCalendar(mapped, monthKey);
+                            return;
+                        }
+                        global.ClientUI.renderClientCalendar(monthPosts, monthKey);
                     }
                 });
             }
@@ -325,7 +351,25 @@
             if (global.CalendarStateManager?.refreshMonthData) {
                 await global.CalendarStateManager.refreshMonthData();
                 const snap = global.CalendarStateManager.getState();
-                global.ClientUI?.renderClientCalendar?.(snap.monthPosts || [], snap.monthKey || '');
+                const monthKey = String(snap?.monthKey || '').trim();
+                const monthPosts = Array.isArray(snap?.monthPosts) ? snap.monthPosts : [];
+                const editorialItems = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+                const calendarStatus = String(snap?.calendarStatus || '').trim() || 'draft';
+                if (!monthPosts.length && editorialItems.length) {
+                    console.log('[ClientCalendar] fallback render from items:', { monthKey, calendarStatus, itemsCount: editorialItems.length });
+                    const mapped = editorialItems.map((it) => ({
+                        id: `item_${String(it?.id || Math.random()).replace(/[^\w-]/g, '')}`,
+                        __fromCalendarItem: true,
+                        data_agendada: String(it?.data || it?.data_agendada || it?.post_date || '').slice(0, 10),
+                        tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
+                        formato: it?.tipo_conteudo || it?.formato || 'post_estatico',
+                        plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
+                        status: calendarStatus
+                    })).filter((p) => !!p.data_agendada);
+                    global.ClientUI?.renderClientCalendar?.(mapped, monthKey);
+                    return;
+                }
+                global.ClientUI?.renderClientCalendar?.(monthPosts, monthKey);
                 return;
             }
         },
@@ -716,16 +760,18 @@
             await this.requestCalendarEntryAdjustment({ itemId: itemId }, comment);
         },
 
-        requestCalendarEntryAdjustment: async function(entry, comment) {
+        requestCalendarEntryAdjustment: async function(entry, comment, patch = null) {
             const calendarId = this.activeCalendarId;
             if (!calendarId || !entry) return;
             const clientId = this.getClientId();
             const trimmedComment = String(comment || '').trim();
             const postId = String(entry?.postId || '').trim();
             const itemId = String(entry?.itemId || '').trim();
+            const tema = String(patch?.tema || '').trim();
+            const copy = String(patch?.copy || patch?.legenda || '').trim();
 
             if (postId && global.ClientRepo?.updatePostEditorialStatus) {
-                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'changes_requested', trimmedComment);
+                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'changes_requested', trimmedComment, { tema, legenda: copy });
                 if (result?.ok === true) {
                     console.log('[ClientCalendar] item com ajuste:', { calendarId, postId, clientId });
                 } else {
@@ -739,7 +785,9 @@
                     clientId,
                     scheduledDate,
                     status: 'changes_requested',
-                    comment: trimmedComment
+                    comment: trimmedComment,
+                    tema,
+                    legenda: copy
                 });
                 if (result?.ok === true) {
                     this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
@@ -750,6 +798,20 @@
             }
 
             await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
+        },
+
+        submitEditorialAdjustment: async function(entry, payload) {
+            const calendarId = this.activeCalendarId;
+            if (!calendarId || !entry) return;
+            const adjustmentText = String(payload?.adjustmentText || '').trim();
+            if (!adjustmentText) {
+                console.log('[EditorialReview] missing adjustment text:', { calendarId, entryKey: entry?.key || null });
+                global.ClientUI?.setEditorialAdjustFeedback?.('Descreva o ajuste solicitado para continuar.', 'error');
+                return;
+            }
+            await this.requestCalendarEntryAdjustment(entry, adjustmentText, { tema: payload?.tema, copy: payload?.copy });
+            console.log('[EditorialReview] adjustment text saved:', { calendarId, entryKey: entry?.key || null });
+            global.ClientUI?.showEditorialAdjustModal?.(false);
         },
 
         sendEditorialFeedbackToAgency: async function() {

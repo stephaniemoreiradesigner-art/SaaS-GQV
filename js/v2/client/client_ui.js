@@ -5,6 +5,7 @@
     const ClientUI = {
         views: ['home', 'calendar', 'approvals', 'history', 'metrics'],
         metricsChart: null,
+        _activeEditorialAdjustmentEntry: null,
 
         getStatusDisplay: function(rawStatus) {
             const key = String(rawStatus || '').trim().toLowerCase();
@@ -32,14 +33,83 @@
             return { label: fallbackLabel, cls: base.cls };
         },
 
+        setEditorialAdjustFeedback: function(message, type = 'success') {
+            const el = document.getElementById('client-editorial-adjust-feedback');
+            if (!el) return;
+            el.textContent = String(message || '');
+            el.className = `text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            el.classList.remove('hidden');
+        },
+
+        showEditorialAdjustModal: function(show, entry = null) {
+            const modal = document.getElementById('client-editorial-adjust-modal');
+            if (!modal) return;
+            if (!show) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                this._activeEditorialAdjustmentEntry = null;
+                return;
+            }
+
+            this._activeEditorialAdjustmentEntry = entry || null;
+            const metaEl = document.getElementById('client-editorial-adjust-meta');
+            const themeEl = document.getElementById('client-editorial-adjust-theme');
+            const copyEl = document.getElementById('client-editorial-adjust-copy');
+            const textEl = document.getElementById('client-editorial-adjust-text');
+            const feedbackEl = document.getElementById('client-editorial-adjust-feedback');
+            if (feedbackEl) feedbackEl.classList.add('hidden');
+
+            const date = String(entry?.scheduledDate || '').slice(0, 10);
+            const meta = [date, entry?.canal || null, entry?.tipo || null].filter(Boolean).join(' • ');
+            if (metaEl) metaEl.textContent = meta;
+            if (themeEl) themeEl.value = String(entry?.tema || '').trim();
+            if (copyEl) copyEl.value = String(entry?.copy || '').trim();
+            if (textEl) textEl.value = '';
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        },
+
         init: function() {
             this.setupNavigation();
             this.setupMobileMenu();
             this.setupLogout();
             this.setupApprovalsTabs();
             this.setupCalendarNavigation();
+            this.setupEditorialAdjustModal();
             this.setupHomeActions();
             this.switchView('home');
+        },
+
+        setupEditorialAdjustModal: function() {
+            const closeBtn = document.getElementById('client-editorial-adjust-close');
+            const cancelBtn = document.getElementById('client-editorial-adjust-cancel');
+            const confirmBtn = document.getElementById('client-editorial-adjust-confirm');
+            const modal = document.getElementById('client-editorial-adjust-modal');
+            if (closeBtn) closeBtn.addEventListener('click', () => this.showEditorialAdjustModal(false));
+            if (cancelBtn) cancelBtn.addEventListener('click', () => this.showEditorialAdjustModal(false));
+            if (modal) {
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) this.showEditorialAdjustModal(false);
+                });
+            }
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', async () => {
+                    const entry = this._activeEditorialAdjustmentEntry;
+                    const themeEl = document.getElementById('client-editorial-adjust-theme');
+                    const copyEl = document.getElementById('client-editorial-adjust-copy');
+                    const textEl = document.getElementById('client-editorial-adjust-text');
+                    const tema = themeEl ? String(themeEl.value || '').trim() : '';
+                    const copy = copyEl ? String(copyEl.value || '').trim() : '';
+                    const adjustmentText = textEl ? String(textEl.value || '').trim() : '';
+                    if (!adjustmentText) {
+                        console.log('[EditorialReview] missing adjustment text:', { entryKey: entry?.key || null });
+                        this.setEditorialAdjustFeedback('Descreva o ajuste solicitado para continuar.', 'error');
+                        return;
+                    }
+                    await global.ClientCore?.submitEditorialAdjustment?.(entry, { tema, copy, adjustmentText });
+                });
+            }
         },
 
         setupNavigation: function() {
@@ -254,6 +324,7 @@
             }
             if (empty) empty.classList.add('hidden');
 
+            const ui = this;
             list.forEach((entry) => {
                 const statusInfo = this.getStatusDisplay(entry?.status);
                 const dateRaw = entry?.scheduledDate || '';
@@ -323,8 +394,7 @@
                 const requestBtn = el.querySelector('[data-cal-item-action="request-changes"]');
                 if (requestBtn) {
                     requestBtn.addEventListener('click', () => {
-                        const comment = commentEl ? String(commentEl.value || '').trim() : '';
-                        global.ClientCore?.requestCalendarEntryAdjustment?.(entry, comment);
+                        ui.showEditorialAdjustModal(true, entry);
                     });
                 }
                 const approveItemBtn = el.querySelector('[data-cal-item-action="approve-item"]');
@@ -708,7 +778,10 @@
                             <span class="text-[10px] uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">${statusLabel}</span>
                         </div>
                     `;
-                    card.addEventListener('click', () => global.ClientCore?.openPostModal?.(p, { readOnly: true }));
+                    card.addEventListener('click', () => {
+                        if (p && p.__fromCalendarItem) return;
+                        global.ClientCore?.openPostModal?.(p, { readOnly: true });
+                    });
                     list.appendChild(card);
                 });
 

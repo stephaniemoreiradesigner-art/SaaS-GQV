@@ -2006,7 +2006,8 @@
             }
             socialPlanEmptyEl?.classList?.add('hidden');
             list.innerHTML = rows.map((item) => {
-                const dateLabel = item?.data ? new Date(`${String(item.data).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : '-';
+                const rawDate = item?.data || item?.data_agendada || item?.post_date || item?.data_sugerida || null;
+                const dateLabel = rawDate ? new Date(`${String(rawDate).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : '-';
                 const tema = String(item?.tema || '').trim() || '-';
                 const tipo = String(item?.tipo_conteudo || 'post_estatico');
                 const canal = String(item?.canal || 'instagram');
@@ -2338,9 +2339,13 @@
             const useItemsFallback = !isPlanning && !hasPosts && hasItems;
             const renderAsPlanning = isPlanning || useItemsFallback;
             console.log('[AgencyCalendar] posts loaded:', { monthKey: socialState.calendarMonth, calendarStatus: socialState.calendarStatus, postsCount: hasPosts ? socialState.posts.length : 0, itemsCount: hasItems ? socialState.calendarItems.length : 0, fallbackToItems: useItemsFallback });
+            if (useItemsFallback) {
+                console.log('[AgencyCalendar] fallback render from items:', { monthKey: socialState.calendarMonth, calendarStatus: socialState.calendarStatus, itemsCount: socialState.calendarItems.length });
+            }
 
             const itemsByDate = (socialState.calendarItems || []).reduce((acc, item) => {
-                const dateKey = item?.data ? String(item.data).slice(0, 10) : null;
+                const rawDate = item?.data || item?.data_agendada || item?.post_date || item?.data_sugerida || null;
+                const dateKey = rawDate ? String(rawDate).slice(0, 10) : null;
                 if (dateKey) {
                     acc[dateKey] = acc[dateKey] || [];
                     acc[dateKey].push(item);

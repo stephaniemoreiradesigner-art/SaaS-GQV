@@ -108,6 +108,43 @@
             return rows.filter((c) => !excluded.has(String(c?.status || '').trim().toLowerCase()));
         },
 
+        getCalendarByMonthKey: async function(clientId, monthKey) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return null;
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const key = String(monthKey || '').trim().slice(0, 7);
+            if (!global.MonthUtils?.isValidMonthKey?.(key)) return null;
+
+            const monthRef = global.MonthUtils?.buildMonthReferenceFromMonthKey
+                ? global.MonthUtils.buildMonthReferenceFromMonthKey(key)
+                : `${key}-01`;
+
+            const tryFetch = async (mesReferencia) => {
+                const { data, error } = await supabase
+                    .from('social_calendars')
+                    .select('id,status,mes_referencia,cliente_id')
+                    .eq('cliente_id', normalizedClientId)
+                    .eq('mes_referencia', mesReferencia)
+                    .maybeSingle();
+                if (error) return { data: null, error };
+                return { data: data || null, error: null };
+            };
+
+            const first = await tryFetch(monthRef);
+            if (first.data) return first.data;
+            const second = await tryFetch(key);
+            if (second.error) {
+                console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
+                    clientId: normalizedClientId,
+                    monthKey: key,
+                    monthRef,
+                    code: second.error.code,
+                    message: second.error.message
+                });
+            }
+            return second.data || null;
+        },
+
         getCalendarMeta: async function(calendarId, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return null;
@@ -179,6 +216,8 @@
             const scheduledDate = String(params?.scheduledDate || '').trim();
             const status = String(params?.status || '').trim();
             const comment = String(params?.comment || '').trim();
+            const tema = String(params?.tema || '').trim();
+            const legenda = String(params?.legenda || params?.copy || '').trim();
 
             if (!calendarId || !itemId || !clientId || !scheduledDate || !status) {
                 return { ok: false, error: { message: 'missing_params' } };
@@ -196,6 +235,8 @@
                 status: status,
                 feedback_cliente: comment || null,
                 feedback_ajuste: status === 'changes_requested' ? (comment || null) : null,
+                tema: tema || null,
+                legenda: legenda || null,
                 updated_at: new Date().toISOString()
             };
 
@@ -565,6 +606,11 @@
                 feedback_ajuste: nextStatus === 'changes_requested' ? (trimmedComment || null) : null,
                 updated_at: new Date().toISOString()
             };
+            const patch = arguments.length >= 5 ? arguments[4] : null;
+            const tema = String(patch?.tema || '').trim();
+            const legenda = String(patch?.legenda || patch?.copy || '').trim();
+            if (tema) payload.tema = tema;
+            if (legenda) payload.legenda = legenda;
 
             let query = supabase
                 .from('social_posts')

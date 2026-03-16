@@ -290,6 +290,43 @@
         </div>
     </div>
 
+    <div id="client-editorial-adjust-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4">
+        <div class="ui-surface w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Solicitar ajuste</h2>
+                    <p id="client-editorial-adjust-meta" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <button id="client-editorial-adjust-close" class="ui-btn ui-btn-secondary w-10 h-10 p-0 text-slate-500">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 overflow-y-auto">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Tema</label>
+                    <input id="client-editorial-adjust-theme" class="ui-input w-full" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Copy/Legenda</label>
+                    <textarea id="client-editorial-adjust-copy" rows="4" class="ui-input w-full"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Descreva o ajuste solicitado</label>
+                    <textarea id="client-editorial-adjust-text" rows="4" class="ui-input w-full" placeholder="Campo obrigatório"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Upload de mídia (desabilitado)</label>
+                    <input id="client-editorial-adjust-media" type="file" class="ui-input w-full" disabled />
+                </div>
+                <div id="client-editorial-adjust-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button id="client-editorial-adjust-cancel" class="ui-btn ui-btn-secondary">Cancelar</button>
+                <button id="client-editorial-adjust-confirm" class="ui-btn ui-btn-primary">Confirmar ajuste</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: Post Preview & Approval -->
     <div id="client-post-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div class="ui-surface w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
