@@ -349,29 +349,24 @@
 
                             const statusEl = document.getElementById('social-calendar-status');
                             if (statusEl) {
-                                const statusMap = {
-                                    draft: 'Rascunho',
-                                    in_production: 'Em produção',
-                                    awaiting_approval: 'Aguardando Aprovação',
-                                    ready_for_approval: 'Aguardando Aprovação',
-                                    approved: 'Aprovado',
-                                    published: 'Publicado',
-                                    archived: 'Arquivado',
-                                    changes_requested: 'Ajustes Solicitados'
-                                };
-                                const status = String(snap.calendarStatus || 'draft');
+                                const rawStatus = String(snap.calendarStatus || 'draft');
+                                const normalized = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                                    ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(rawStatus)
+                                    : String(rawStatus || '').trim().toLowerCase();
                                 const prevStatus = String(this._lastCalendarStatus || '').trim();
-                                const nextStatus = String(status || '').trim();
+                                const nextStatus = String(normalized || '').trim();
                                 if (nextStatus === 'approved' && prevStatus && prevStatus !== nextStatus) {
                                     console.log('[AgencyCalendar] unlocked after calendar approval:', { calendarId: snap.activeCalendarId || null, monthKey: snap.monthKey || null, from: prevStatus, to: nextStatus });
                                 }
                                 this._lastCalendarStatus = nextStatus;
-                                statusEl.textContent = statusMap[status] || status;
+                                const label = global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt
+                                    ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(rawStatus)
+                                    : (nextStatus ? nextStatus.replace(/_/g, ' ') : '-');
+                                statusEl.textContent = label;
                                 statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
-                                if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
-                                if (status === 'awaiting_approval' || status === 'ready_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
-                                if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
-                                if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
+                                if (normalized === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
+                                if (normalized === 'sent_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+                                if (normalized === 'needs_changes') statusEl.classList.add('bg-red-100', 'text-red-700');
                             }
 
                             this.updateCalendarActionButtons(snap);
@@ -446,24 +441,19 @@
                     // Atualiza status na UI
                     const statusEl = document.getElementById('social-calendar-status');
                     if (statusEl) {
-                        const statusMap = {
-                            'draft': 'Rascunho',
-                            'in_production': 'Em produção',
-                            'awaiting_approval': 'Aguardando Aprovação',
-                            'ready_for_approval': 'Aguardando Aprovação',
-                            'approved': 'Aprovado',
-                            'published': 'Publicado',
-                            'archived': 'Arquivado',
-                            'changes_requested': 'Ajustes Solicitados'
-                        };
-                        const status = calendar.status || 'draft';
-                        statusEl.textContent = statusMap[status] || status;
+                        const rawStatus = String(calendar.status || 'draft');
+                        const normalized = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                            ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(rawStatus)
+                            : String(rawStatus || '').trim().toLowerCase();
+                        const label = global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt
+                            ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(rawStatus)
+                            : (normalized ? normalized.replace(/_/g, ' ') : '-');
+                        statusEl.textContent = label;
                         statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full'; // Reset classes
                         
-                        if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
-                        if (status === 'awaiting_approval' || status === 'ready_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
-                        if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
-                        if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
+                        if (normalized === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
+                        if (normalized === 'sent_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
+                        if (normalized === 'needs_changes') statusEl.classList.add('bg-red-100', 'text-red-700');
                     }
                     
                     // Exibir feedback do cliente se houver ajustes solicitados

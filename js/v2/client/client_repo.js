@@ -25,6 +25,39 @@
             return null;
         },
 
+        _mesReferenciaFormatByClient: {},
+        _mesReferenciaFormatInflight: {},
+
+        resolveMesReferenciaFormat: async function(clientId) {
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const key = String(normalizedClientId || '').trim();
+            if (!key) return null;
+            if (this._mesReferenciaFormatByClient[key]) return this._mesReferenciaFormatByClient[key];
+            if (this._mesReferenciaFormatInflight[key]) return await this._mesReferenciaFormatInflight[key];
+
+            this._mesReferenciaFormatInflight[key] = (async () => {
+                const supabase = await this.getClient();
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('social_calendars')
+                    .select('mes_referencia')
+                    .eq('cliente_id', normalizedClientId)
+                    .order('mes_referencia', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (error || !data) return null;
+                const raw = String(data?.mes_referencia || '').trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return 'date';
+                if (/^\d{4}-\d{2}$/.test(raw)) return 'month';
+                return null;
+            })();
+
+            const resolved = await this._mesReferenciaFormatInflight[key];
+            delete this._mesReferenciaFormatInflight[key];
+            if (resolved) this._mesReferenciaFormatByClient[key] = resolved;
+            return resolved || null;
+        },
+
         getPendingCalendarStatuses: function() {
             const base = [
                 'awaiting_approval',
@@ -130,16 +163,37 @@
                 return { data: data || null, error: null };
             };
 
-            const first = await tryFetch(monthRef);
+            const format = await this.resolveMesReferenciaFormat(normalizedClientId);
+            const preferred = format === 'month' ? key : monthRef;
+
+            const first = await tryFetch(preferred);
             if (first.data) return first.data;
             if (first.error) {
                 console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
                     clientId: normalizedClientId,
                     monthKey: key,
-                    monthRef,
+                    monthRef: preferred,
                     code: first.error.code,
                     message: first.error.message
                 });
+                if (String(first.error.code || '') === '22007') this._mesReferenciaFormatByClient[String(normalizedClientId)] = 'date';
+                return null;
+            }
+            if (!format) {
+                const second = await tryFetch(key);
+                if (second.data) {
+                    this._mesReferenciaFormatByClient[String(normalizedClientId)] = 'month';
+                    return second.data;
+                }
+                if (second.error && String(second.error.code || '') !== '22007') {
+                    console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
+                        clientId: normalizedClientId,
+                        monthKey: key,
+                        monthRef: key,
+                        code: second.error.code,
+                        message: second.error.message
+                    });
+                }
             }
             return null;
         },

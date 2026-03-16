@@ -56,6 +56,44 @@
             'archived': 'archived',
             'in_production': 'in_production',
             'producing': 'in_production'
+        },
+        getSocialStatusKey: function(raw) {
+            const value = String(raw || '').trim().toLowerCase();
+            if (!value) return '';
+            return this.SOCIAL_STATUS_MAP?.[value] || value;
+        },
+        getSocialStatusLabelPt: function(raw) {
+            const key = this.getSocialStatusKey(raw);
+            const map = {
+                draft: 'Rascunho',
+                ready_for_review: 'Revisão interna',
+                in_production: 'Em produção',
+                ready_for_approval: 'Pronto para aprovação',
+                awaiting_approval: 'Aguardando aprovação',
+                approved: 'Aprovado',
+                changes_requested: 'Ajustes solicitados',
+                rejected: 'Ajustes solicitados',
+                needs_changes: 'Precisa de ajustes',
+                scheduled: 'Agendado',
+                published: 'Publicado',
+                archived: 'Arquivado'
+            };
+            return map[key] || (key ? key.replace(/_/g, ' ') : '-');
+        },
+        getSocialCalendarStatusKey: function(raw) {
+            const value = String(raw || '').trim().toLowerCase();
+            if (!value) return '';
+            return this.SOCIAL_CALENDAR_STATUS_MAP?.[value] || value;
+        },
+        getSocialCalendarStatusLabelPt: function(raw) {
+            const key = this.getSocialCalendarStatusKey(raw);
+            const map = {
+                draft: 'Rascunho',
+                sent_for_approval: 'Aguardando aprovação',
+                approved: 'Aprovado',
+                needs_changes: 'Precisa de ajustes'
+            };
+            return map[key] || (key ? key.replace(/_/g, ' ') : '-');
         }
     };
 

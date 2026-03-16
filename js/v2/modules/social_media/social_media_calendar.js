@@ -142,9 +142,13 @@
             })();
             el.classList.add(...typeBorder.split(' '));
 
-            const statusLabel = String(post.status || '').toUpperCase() || '-';
+            const statusLabel = global.GQV_CONSTANTS?.getSocialStatusLabelPt
+                ? global.GQV_CONSTANTS.getSocialStatusLabelPt(post.status)
+                : (String(post.status || '').trim() || '-');
             const statusPill = (() => {
-                const key = String(post.status || '').trim().toLowerCase();
+                const key = global.GQV_CONSTANTS?.getSocialStatusKey
+                    ? global.GQV_CONSTANTS.getSocialStatusKey(post.status)
+                    : String(post.status || '').trim().toLowerCase();
                 const map = {
                     draft: 'bg-slate-100 text-slate-600',
                     ready_for_review: 'bg-indigo-100 text-indigo-700',
@@ -256,7 +260,10 @@
                     post.status = 'ready_for_approval';
                     const statusEl = document.getElementById(statusElId);
                     if (statusEl) {
-                        statusEl.textContent = 'READY_FOR_APPROVAL';
+                        const label = global.GQV_CONSTANTS?.getSocialStatusLabelPt
+                            ? global.GQV_CONSTANTS.getSocialStatusLabelPt('ready_for_approval')
+                            : 'Pronto para aprovação';
+                        statusEl.textContent = label;
                         statusEl.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700';
                     }
                     global.SocialMediaUI?.showFeedback?.('Enviado para aprovação.');

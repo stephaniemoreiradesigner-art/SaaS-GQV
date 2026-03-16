@@ -8,29 +8,32 @@
         _activeEditorialAdjustmentEntry: null,
 
         getStatusDisplay: function(rawStatus) {
-            const key = String(rawStatus || '').trim().toLowerCase();
+            const key = global.GQV_CONSTANTS?.getSocialStatusKey
+                ? global.GQV_CONSTANTS.getSocialStatusKey(rawStatus)
+                : String(rawStatus || '').trim().toLowerCase();
             const base = {
                 cls: 'bg-slate-100 text-slate-700 border border-slate-200'
             };
             const map = {
-                ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
-                awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                draft: { label: 'Rascunho', cls: base.cls },
-                rascunho: { label: 'Rascunho', cls: base.cls },
-                changes_requested: { label: 'Ajustes solicitados', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                needs_changes: { label: 'Precisa de ajustes', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                ready_for_review: { label: 'Revisão interna', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
-                approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                scheduled: { label: 'Agendado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                published: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' }
+                ready_for_approval: { cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
+                awaiting_approval: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                aguardando_aprovacao: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                sent_for_approval: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                draft: { cls: base.cls },
+                rascunho: { cls: base.cls },
+                changes_requested: { cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                needs_changes: { cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                ready_for_review: { cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+                approved: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                aprovado: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                scheduled: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                published: { cls: 'bg-slate-900 text-white border border-slate-900' }
             };
-            const found = map[key] || null;
-            if (found) return found;
-            const fallbackLabel = key ? key.replace(/_/g, ' ') : '-';
-            return { label: fallbackLabel, cls: base.cls };
+            const cls = map[key]?.cls || base.cls;
+            const label = global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt && (key === 'sent_for_approval' || key === 'needs_changes')
+                ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(key)
+                : (global.GQV_CONSTANTS?.getSocialStatusLabelPt ? global.GQV_CONSTANTS.getSocialStatusLabelPt(key) : (key ? key.replace(/_/g, ' ') : '-'));
+            return { label, cls };
         },
 
         setEditorialAdjustFeedback: function(message, type = 'success') {
@@ -207,7 +210,7 @@
             if (tenantIdEl) tenantIdEl.textContent = tenantId ? String(tenantId) : '-';
 
             if (statusBadge) {
-                const value = String(status || '').trim();
+                const value = this.getStatusDisplay(status).label;
                 statusBadge.innerHTML = `
                     <span class="w-2 h-2 rounded-full bg-slate-400"></span>
                     Status: ${value || '-'}
