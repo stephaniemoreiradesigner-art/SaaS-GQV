@@ -16,7 +16,7 @@
     };
 
     const detectSchema = async function() {
-        if (schemaCache && !schemaCache.empty) return schemaCache;
+        if (schemaCache) return schemaCache;
         if (schemaInFlight) return await schemaInFlight;
         if (!global.supabaseClient) return null;
 
@@ -60,70 +60,91 @@
             'tenant_id'
         ];
 
-        const buildSchemaFromColumns = (existingColumnsSet, meta = {}) => {
+        schemaInFlight = (async () => {
+            const { data, error } = await global.supabaseClient
+                .from('clientes')
+                .select('*')
+                .limit(1);
+
+            if (error) {
+                console.error('[ClientRepo] schema detection error:', error);
+                return null;
+            }
+
+            const row = Array.isArray(data) ? data[0] : null;
+            const rawColumns = row && typeof row === 'object' ? Object.keys(row) : [];
+            const columnsSet = new Set(rawColumns);
             const columns = {};
             for (const column of candidates) {
-                columns[column] = existingColumnsSet.has(column);
+                columns[column] = columnsSet.has(column);
             }
 
             const nameColumn =
-                (columns.nome_fantasia && 'nome_fantasia') ||
-                (columns.nome_empresa && 'nome_empresa') ||
-                (columns.nome && 'nome') ||
-                (columns.empresa && 'empresa') ||
+                (rawColumns.includes('nome_fantasia') && 'nome_fantasia') ||
+                (rawColumns.includes('nome_empresa') && 'nome_empresa') ||
+                (rawColumns.includes('nome') && 'nome') ||
+                (rawColumns.includes('empresa') && 'empresa') ||
                 null;
 
             const statusColumn =
-                (columns.status && 'status') ||
-                (columns.status_cliente && 'status_cliente') ||
-                (columns.situacao && 'situacao') ||
+                (rawColumns.includes('status') && 'status') ||
+                (rawColumns.includes('status_cliente') && 'status_cliente') ||
+                (rawColumns.includes('situacao') && 'situacao') ||
                 null;
 
             const logoColumn =
-                (columns.logo_url && 'logo_url') ||
-                (columns.brand_logo_url && 'brand_logo_url') ||
-                (columns.imagem_logo && 'imagem_logo') ||
-                (columns.logo && 'logo') ||
+                (rawColumns.includes('logo_url') && 'logo_url') ||
+                (rawColumns.includes('brand_logo_url') && 'brand_logo_url') ||
+                (rawColumns.includes('imagem_logo') && 'imagem_logo') ||
+                (rawColumns.includes('logo') && 'logo') ||
                 null;
 
             const contactColumn =
-                (columns.responsavel_nome && 'responsavel_nome') ||
-                (columns.responsavel && 'responsavel') ||
-                (columns.contato_nome && 'contato_nome') ||
-                (columns.contato && 'contato') ||
+                (rawColumns.includes('responsavel_nome') && 'responsavel_nome') ||
+                (rawColumns.includes('responsavel') && 'responsavel') ||
+                (rawColumns.includes('contato_nome') && 'contato_nome') ||
+                (rawColumns.includes('contato') && 'contato') ||
                 null;
 
             const phoneColumn =
-                (columns.telefone && 'telefone') ||
-                (columns.celular && 'celular') ||
-                (columns.telefone_contato && 'telefone_contato') ||
-                (columns.contato_telefone && 'contato_telefone') ||
-                (columns.phone && 'phone') ||
+                (rawColumns.includes('telefone') && 'telefone') ||
+                (rawColumns.includes('celular') && 'celular') ||
+                (rawColumns.includes('telefone_contato') && 'telefone_contato') ||
+                (rawColumns.includes('contato_telefone') && 'contato_telefone') ||
+                (rawColumns.includes('phone') && 'phone') ||
                 null;
 
             const whatsappColumn =
-                (columns.responsavel_whatsapp && 'responsavel_whatsapp') ||
-                (columns.telefone_whatsapp && 'telefone_whatsapp') ||
-                (columns.whatsapp && 'whatsapp') ||
-                (columns.whatsapp_numero && 'whatsapp_numero') ||
-                (columns.whats && 'whats') ||
+                (rawColumns.includes('responsavel_whatsapp') && 'responsavel_whatsapp') ||
+                (rawColumns.includes('telefone_whatsapp') && 'telefone_whatsapp') ||
+                (rawColumns.includes('whatsapp') && 'whatsapp') ||
+                (rawColumns.includes('whatsapp_numero') && 'whatsapp_numero') ||
+                (rawColumns.includes('whats') && 'whats') ||
                 null;
 
             const servicesColumn =
-                (columns.servicos && 'servicos') ||
-                (columns.servicos_contratados && 'servicos_contratados') ||
-                (columns.servicos_ativos && 'servicos_ativos') ||
-                (columns.planos && 'planos') ||
-                (columns.produtos && 'produtos') ||
+                (rawColumns.includes('servicos') && 'servicos') ||
+                (rawColumns.includes('servicos_contratados') && 'servicos_contratados') ||
+                (rawColumns.includes('servicos_ativos') && 'servicos_ativos') ||
+                (rawColumns.includes('planos') && 'planos') ||
+                (rawColumns.includes('produtos') && 'produtos') ||
                 null;
 
             const docColumn =
-                (columns.documento && 'documento') ||
-                (columns.cnpj && 'cnpj') ||
-                (columns.cpf && 'cpf') ||
+                (rawColumns.includes('documento') && 'documento') ||
+                (rawColumns.includes('cnpj') && 'cnpj') ||
+                (rawColumns.includes('cpf') && 'cpf') ||
                 null;
 
-            return {
+            const tenantSample = row?.tenant_id;
+            const tenantIdValueType = (() => {
+                if (typeof tenantSample === 'number') return 'number';
+                if (typeof tenantSample === 'string' && UUID_RE.test(tenantSample)) return 'uuid';
+                if (typeof tenantSample === 'string' && /^-?\d+$/.test(tenantSample)) return 'number_string';
+                return tenantSample === null || tenantSample === undefined ? null : typeof tenantSample;
+            })();
+
+            schemaCache = {
                 columns,
                 nameColumn,
                 statusColumn,
@@ -133,58 +154,15 @@
                 whatsappColumn,
                 servicesColumn,
                 docColumn,
-                hasTenantId: !!columns.tenant_id,
-                hasAtivo: !!columns.ativo,
-                tenantIdValueType: meta.tenantIdValueType || null,
-                empty: !!meta.empty,
-                assumed: !!meta.assumed
+                hasTenantId: rawColumns.includes('tenant_id'),
+                hasAtivo: rawColumns.includes('ativo'),
+                tenantIdValueType,
+                empty: !rawColumns.length,
+                assumed: false
             };
-        };
 
-        schemaInFlight = (async () => {
-            const { data, error } = await global.supabaseClient
-                .from('clientes')
-                .select('*')
-                .limit(1);
-
-            if (error) {
-                console.error('[ClientRepo] Erro ao detectar schema de clientes:', error);
-                return schemaCache || schemaAssumed || buildSchemaFromColumns(new Set(), { empty: true, assumed: true });
-            }
-
-            const row = Array.isArray(data) ? data[0] : null;
-            if (row && typeof row === 'object') {
-                const existing = new Set(Object.keys(row));
-                const tenantSample = row.tenant_id;
-                const tenantIdValueType = (() => {
-                    if (typeof tenantSample === 'number') return 'number';
-                    if (typeof tenantSample === 'string' && UUID_RE.test(tenantSample)) return 'uuid';
-                    if (typeof tenantSample === 'string' && /^-?\d+$/.test(tenantSample)) return 'number_string';
-                    return tenantSample === null || tenantSample === undefined ? null : typeof tenantSample;
-                })();
-                schemaCache = buildSchemaFromColumns(existing, { empty: false, assumed: false, tenantIdValueType });
-                console.log('[ClientRepo] Schema clientes detectado:', schemaCache);
-                return schemaCache;
-            }
-
-            const assumedColumns = new Set([
-                'id',
-                'nome_empresa',
-                'nome_fantasia',
-                'email',
-                'status',
-                'ativo',
-                'tenant_id',
-                'responsavel_nome',
-                'responsavel_whatsapp',
-                'telefone',
-                'whatsapp',
-                'servicos',
-                'logo_url',
-                'created_at'
-            ]);
-            schemaAssumed = buildSchemaFromColumns(assumedColumns, { empty: true, assumed: true });
-            return schemaAssumed;
+            console.log('[ClientRepo] schema detectado:', schemaCache);
+            return schemaCache;
         })();
 
         try {

@@ -16,7 +16,15 @@
             if (this.initialized) return;
             
             // 1. Detectar Contexto
-            const path = window.location.pathname;
+            const page = window.location.pathname;
+            if (
+                page.includes('/login.html') ||
+                page.includes('/register.html')
+            ) {
+                return;
+            }
+
+            const path = page;
             if (path.includes('/v2/client/')) {
                 this.context = 'client';
             } else if (path.includes('/v2/agency/')) {
