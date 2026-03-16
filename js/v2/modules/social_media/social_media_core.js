@@ -131,7 +131,13 @@
         },
 
         onClientChange: async function(clientId, clientName) {
-            if (!clientId) {
+            const normalizedClientId = String(clientId ?? '').trim();
+            if (!normalizedClientId) {
+                console.warn('[SocialMediaV2][STARTUP_TRACE] invalid clientId received:', {
+                    clientIdRaw: clientId,
+                    clientIdNormalized: normalizedClientId,
+                    activeModule: global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null
+                });
                 this.currentClientId = null;
                 this.currentClientName = null;
                 this.showEmptyState();
@@ -139,13 +145,13 @@
             }
 
             const resolvedName = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || 'Cliente';
-            if (this.isDebug()) console.log('[SocialMediaV2] render for client:', { clientId, clientName: resolvedName });
+            if (this.isDebug()) console.log('[SocialMediaV2] render for client:', { clientId: normalizedClientId, clientName: resolvedName });
 
             // Se mudou o cliente, reseta o estado
-            if (clientId !== this.currentClientId) {
-                this.currentClientId = clientId;
+            if (normalizedClientId !== this.currentClientId) {
+                this.currentClientId = normalizedClientId;
                 this.currentClientName = resolvedName;
-                console.log(`[SOCIAL] Cliente alterado: ${clientId}`);
+                console.log(`[SOCIAL] Cliente alterado: ${normalizedClientId}`);
                 
                 // Atualiza UI básica
                 const nameEl = document.getElementById('social-client-name');
@@ -159,7 +165,7 @@
                 const manager = global.CalendarStateManager;
                 if (manager?.init) {
                     manager.init({
-                        clientId,
+                        clientId: normalizedClientId,
                         tenantId,
                         loadInitialMonthKey: ({ clientId: id }) => {
                             const stored = localStorage.getItem(`GQV_SOCIAL_MONTH_${String(id || '').trim()}`);

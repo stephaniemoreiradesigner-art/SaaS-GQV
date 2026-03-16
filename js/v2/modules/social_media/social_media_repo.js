@@ -25,20 +25,30 @@
          * @returns {Promise<Object>} Dados do calendário (id, status)
          */
         getCalendarByMonth: async function(clientId, monthKey) {
-            if (!global.supabaseClient || !clientId || !monthKey) return null;
+            if (!global.supabaseClient || !monthKey) return null;
+
+            const normalizedClientId = String(clientId ?? '').trim();
+            if (!normalizedClientId) {
+                console.warn('[SocialMediaRepo][STARTUP_TRACE] skip getCalendarByMonth (invalid clientId):', {
+                    clientIdRaw: clientId,
+                    clientIdNormalized: normalizedClientId,
+                    monthKeyRaw: monthKey
+                });
+                return null;
+            }
 
             const normalizedMonthKey = String(monthKey || '').trim().slice(0, 7);
             const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey) ? `${normalizedMonthKey}-01` : '';
             let mesReferenciaValue = normalizedMonthKey;
 
-            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthKey: normalizedMonthKey });
+            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId: normalizedClientId, monthKey: normalizedMonthKey });
 
             try {
                 // Tenta buscar existente
                 let { data: calendarData, error: calendarError } = await global.supabaseClient
                     .from('social_calendars')
                     .select('*')
-                    .eq('cliente_id', clientId)
+                    .eq('cliente_id', normalizedClientId)
                     .eq('mes_referencia', mesReferenciaValue)
                     .maybeSingle();
 
@@ -47,13 +57,13 @@
                     ({ data: calendarData, error: calendarError } = await global.supabaseClient
                         .from('social_calendars')
                         .select('*')
-                        .eq('cliente_id', clientId)
+                        .eq('cliente_id', normalizedClientId)
                         .eq('mes_referencia', mesReferenciaValue)
                         .maybeSingle());
                 }
 
                 if (calendarError) {
-                    logQueryError('getCalendarByMonth', 'social_calendars', { cliente_id: clientId, mes_referencia: mesReferenciaValue }, calendarError);
+                    logQueryError('getCalendarByMonth', 'social_calendars', { cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue }, calendarError);
                     throw calendarError;
                 }
                 if (calendarData) return calendarData;
@@ -63,7 +73,7 @@
                 let { data: createdCalendar, error: createError } = await global.supabaseClient
                     .from('social_calendars')
                     .insert({
-                        cliente_id: clientId,
+                        cliente_id: normalizedClientId,
                         mes_referencia: mesReferenciaValue,
                         status: 'draft',
                         updated_at: new Date().toISOString()
@@ -76,7 +86,7 @@
                     ({ data: createdCalendar, error: createError } = await global.supabaseClient
                         .from('social_calendars')
                         .insert({
-                            cliente_id: clientId,
+                            cliente_id: normalizedClientId,
                             mes_referencia: mesReferenciaValue,
                             status: 'draft',
                             updated_at: new Date().toISOString()
@@ -91,12 +101,12 @@
                         const { data: retryData } = await global.supabaseClient
                             .from('social_calendars')
                             .select('*')
-                            .eq('cliente_id', clientId)
+                            .eq('cliente_id', normalizedClientId)
                             .eq('mes_referencia', mesReferenciaValue)
                             .maybeSingle();
                         return retryData;
                      }
-                     logQueryError('getCalendarByMonth:create', 'social_calendars', { cliente_id: clientId, mes_referencia: mesReferenciaValue }, createError);
+                     logQueryError('getCalendarByMonth:create', 'social_calendars', { cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue }, createError);
                      throw createError;
                 }
 
@@ -282,12 +292,13 @@
                 throw new Error('Banco de dados não conectado');
             }
 
-            if (!input.cliente_id) {
+            const normalizedClientId = String(input?.cliente_id ?? '').trim();
+            if (!normalizedClientId) {
                 throw new Error('Cliente não identificado');
             }
 
             try {
-                const clientId = input.cliente_id;
+                const clientId = normalizedClientId;
                 const localToday = global.MonthUtils?.formatLocalDate ? global.MonthUtils.formatLocalDate(new Date()) : '';
                 const postDate = input.data_agendada || input.data || localToday;
                 const title = input.titulo || input.tema || input.title || 'Post';
