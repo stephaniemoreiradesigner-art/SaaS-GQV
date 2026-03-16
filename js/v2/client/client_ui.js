@@ -168,8 +168,14 @@
             if (empty) empty.classList.add('hidden');
 
             calendars.forEach(cal => {
-                const date = new Date(cal.mes_referencia);
-                const monthName = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }); // Force UTC to avoid timezone shifts
+                const monthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
+                    ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(cal.mes_referencia)
+                    : '';
+                const parsed = global.MonthUtils?.parseMonthKey ? global.MonthUtils.parseMonthKey(monthKey) : null;
+                const date = parsed ? new Date(parsed.year, parsed.monthIndex, 1) : new Date(String(cal.mes_referencia || ''));
+                const monthName = date instanceof Date && !Number.isNaN(date.getTime())
+                    ? date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+                    : (global.MonthUtils?.formatMonthLabel && monthKey ? global.MonthUtils.formatMonthLabel(monthKey) : (monthKey || 'Mês'));
                 const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
                 const rawStatus = String(cal.status || '').trim().toLowerCase();
                 const statusMap = {
@@ -205,9 +211,6 @@
                 card.setAttribute('role', 'button');
                 card.tabIndex = 0;
                 const open = () => {
-                    const monthKey = global.CalendarStateSelectors?.getMonthKeyFromMonthRef
-                        ? global.CalendarStateSelectors.getMonthKeyFromMonthRef(cal.mes_referencia)
-                        : '';
                     if (global.ClientCore) global.ClientCore.openCalendarModal(cal.id, monthKey, rawStatus);
                 };
                 card.addEventListener('click', open);
@@ -221,11 +224,12 @@
             });
         },
 
-        renderCalendarPostsInModal: function(items) {
+        renderCalendarPostsInModal: function(items, options = null) {
             const container = document.getElementById('client-calendar-posts-list');
             const loading = document.getElementById('client-calendar-posts-loading');
             const empty = document.getElementById('client-calendar-posts-empty');
             const commentEl = document.getElementById('client-calendar-approval-comment');
+            const postsByItemId = options?.postsByItemId && typeof options.postsByItemId === 'object' ? options.postsByItemId : {};
 
             if (loading) loading.classList.add('hidden');
             if (!container) return;
@@ -239,13 +243,14 @@
             if (empty) empty.classList.add('hidden');
 
             items.forEach(item => {
+                const post = postsByItemId[String(item?.id || '').trim()] || null;
                 const review = global.ClientCore?.getEditorialItemReview
                     ? global.ClientCore.getEditorialItemReview(item.id)
                     : null;
-                const reviewKey = String(review?.status || '').trim().toLowerCase();
+                const reviewKey = String(post?.status || review?.status || '').trim().toLowerCase();
                 const reviewBadge = (() => {
-                    if (reviewKey === 'approved' || reviewKey === 'aprovado') return { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' };
-                    if (reviewKey === 'changes_requested' || reviewKey === 'ajuste_solicitado') return { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' };
+                    if (reviewKey === 'draft' || reviewKey === 'approved' || reviewKey === 'aprovado') return { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' };
+                    if (reviewKey === 'changes_requested' || reviewKey === 'needs_changes' || reviewKey === 'ajuste_solicitado' || reviewKey === 'ready_for_review') return { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' };
                     return { label: 'Pendente', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
                 })();
                 const dateRaw = item.data || '';
@@ -255,7 +260,7 @@
                 const canal = item.canal || item.plataforma || item.platform || '-';
                 const copy = item.copy || item.copy_text || item.copywriting || '';
                 const obs = item.observacoes || '';
-                const notes = item.notes || item.legenda || '';
+                const notes = item.notes || item.legenda || post?.legenda || post?.caption || '';
                 const detailText = String(copy || obs || notes || '').trim();
                 const detailId = `cal-item-detail-${String(item.id || Math.random()).replace(/[^\w-]/g, '')}`;
 
@@ -309,6 +314,12 @@
                         detailEl.classList.toggle('hidden');
                     });
                 }
+                el.addEventListener('click', (event) => {
+                    const target = event?.target;
+                    const tag = target && target.tagName ? String(target.tagName).toUpperCase() : '';
+                    if (tag === 'BUTTON') return;
+                    if (detailEl) detailEl.classList.toggle('hidden');
+                });
                 const requestBtn = el.querySelector('[data-cal-item-action="request-changes"]');
                 if (requestBtn) {
                     requestBtn.addEventListener('click', () => {

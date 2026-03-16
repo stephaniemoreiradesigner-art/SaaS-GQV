@@ -26,7 +26,14 @@
         },
 
         getPendingCalendarStatuses: function() {
-            return ['awaiting_approval'];
+            const base = [
+                'awaiting_approval',
+                'aguardando_aprovacao',
+                'sent_for_approval',
+                'needs_changes',
+                'ajuste_solicitado'
+            ];
+            return Array.from(new Set(base.filter(Boolean)));
         },
 
         getPendingPostStatuses: function() {
@@ -78,6 +85,27 @@
                 return [];
             }
             return data || [];
+        },
+
+        getClientCalendars: async function(clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+
+            const { data, error } = await supabase
+                .from('social_calendars')
+                .select('*')
+                .eq('cliente_id', normalizedClientId)
+                .order('mes_referencia', { ascending: false });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar calendários do cliente:', error);
+                return [];
+            }
+
+            const excluded = new Set(['published', 'publicado', 'archived', 'concluido', 'concluído']);
+            const rows = Array.isArray(data) ? data : [];
+            return rows.filter((c) => !excluded.has(String(c?.status || '').trim().toLowerCase()));
         },
 
         getCalendarMeta: async function(calendarId, clientId) {
@@ -141,6 +169,73 @@
             return data || [];
         },
 
+        upsertCalendarItemEditorialDecision: async function(params) {
+            const supabase = await this.getClient();
+            if (!supabase) return { ok: false, error: { message: 'missing_supabase' } };
+
+            const calendarId = params?.calendarId;
+            const itemId = params?.itemId;
+            const clientId = params?.clientId;
+            const scheduledDate = String(params?.scheduledDate || '').trim();
+            const status = String(params?.status || '').trim();
+            const comment = String(params?.comment || '').trim();
+
+            if (!calendarId || !itemId || !clientId || !scheduledDate || !status) {
+                return { ok: false, error: { message: 'missing_params' } };
+            }
+
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const normalizedItemId = this.normalizeBigIntId(itemId) ?? itemId;
+
+            const basePayload = {
+                cliente_id: normalizedClientId,
+                calendar_id: normalizedCalendarId,
+                calendar_item_id: normalizedItemId,
+                data_agendada: scheduledDate,
+                status: status,
+                feedback_cliente: comment || null,
+                feedback_ajuste: status === 'changes_requested' ? (comment || null) : null,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                const { data: existing, error: findError } = await supabase
+                    .from('social_posts')
+                    .select('id,calendar_item_id')
+                    .eq('calendar_id', normalizedCalendarId)
+                    .eq('calendar_item_id', normalizedItemId)
+                    .maybeSingle();
+
+                if (findError) {
+                    console.error('[ClientRepo] Erro ao localizar post por calendar_item_id:', findError);
+                    return { ok: false, error: findError };
+                }
+
+                if (existing?.id) {
+                    const { data, error } = await supabase
+                        .from('social_posts')
+                        .update(basePayload)
+                        .eq('id', existing.id)
+                        .select('*')
+                        .maybeSingle();
+                    if (error) return { ok: false, error };
+                    return { ok: true, data: data || null };
+                }
+
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .insert(basePayload)
+                    .select('*')
+                    .maybeSingle();
+                if (error) return { ok: false, error };
+                return { ok: true, data: data || null };
+            } catch (error) {
+                console.error('[ClientRepo] Falha em upsertCalendarItemEditorialDecision:', error);
+                return { ok: false, error };
+            }
+        },
+
         updateCalendarItemReview: async function(itemId, clientId, review) {
             const supabase = await this.getClient();
             if (!supabase || !itemId) return { ok: false, error: { message: 'missing_params' } };
@@ -184,6 +279,23 @@
             const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
             const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
             const payload = { comentario_cliente: String(comment || '').trim() || null };
+
+            let query = supabase
+                .from('social_calendars')
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.select('id,status,cliente_id');
+            if (error) return { ok: false, error };
+            return { ok: true, data: (data && data[0]) || null };
+        },
+
+        updateCalendarStatus: async function(calendarId, clientId, status) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
+            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
+            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const payload = { status: String(status || '').trim() || null };
 
             let query = supabase
                 .from('social_calendars')
