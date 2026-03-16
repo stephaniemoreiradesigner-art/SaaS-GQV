@@ -15,31 +15,60 @@
         getCalendarByMonth: async function(clientId, monthKey) {
             if (!global.supabaseClient || !clientId || !monthKey) return null;
 
-            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthKey });
+            const normalizedMonthKey = String(monthKey || '').trim().slice(0, 7);
+            const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey) ? `${normalizedMonthKey}-01` : '';
+            let mesReferenciaValue = normalizedMonthKey;
+
+            if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId, monthKey: normalizedMonthKey });
 
             try {
                 // Tenta buscar existente
-                const { data: calendarData, error: calendarError } = await global.supabaseClient
+                let { data: calendarData, error: calendarError } = await global.supabaseClient
                     .from('social_calendars')
                     .select('*')
                     .eq('cliente_id', clientId)
-                    .eq('mes_referencia', monthKey)
+                    .eq('mes_referencia', mesReferenciaValue)
                     .maybeSingle();
 
+                if (calendarError && calendarError.code === '22007' && monthStart) {
+                    mesReferenciaValue = monthStart;
+                    ({ data: calendarData, error: calendarError } = await global.supabaseClient
+                        .from('social_calendars')
+                        .select('*')
+                        .eq('cliente_id', clientId)
+                        .eq('mes_referencia', mesReferenciaValue)
+                        .maybeSingle());
+                }
+
+                if (calendarError) throw calendarError;
                 if (calendarData) return calendarData;
 
                 // Se não existir, cria
-                console.log('[SOCIAL] Criando calendário para:', monthKey);
-                const { data: createdCalendar, error: createError } = await global.supabaseClient
+                console.log('[SOCIAL] Criando calendário para:', mesReferenciaValue);
+                let { data: createdCalendar, error: createError } = await global.supabaseClient
                     .from('social_calendars')
                     .insert({
                         cliente_id: clientId,
-                        mes_referencia: monthKey,
+                        mes_referencia: mesReferenciaValue,
                         status: 'draft',
                         updated_at: new Date().toISOString()
                     })
                     .select()
                     .single();
+
+                if (createError && createError.code === '22007' && monthStart && mesReferenciaValue !== monthStart) {
+                    mesReferenciaValue = monthStart;
+                    ({ data: createdCalendar, error: createError } = await global.supabaseClient
+                        .from('social_calendars')
+                        .insert({
+                            cliente_id: clientId,
+                            mes_referencia: mesReferenciaValue,
+                            status: 'draft',
+                            updated_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single());
+                }
                 
                 if (createError) {
                      // Tratamento de concorrência (pode ter sido criado nesse milissegundo)
@@ -48,7 +77,7 @@
                             .from('social_calendars')
                             .select('*')
                             .eq('cliente_id', clientId)
-                            .eq('mes_referencia', monthKey)
+                            .eq('mes_referencia', mesReferenciaValue)
                             .maybeSingle();
                         return retryData;
                      }

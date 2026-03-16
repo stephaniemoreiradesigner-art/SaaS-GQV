@@ -452,7 +452,19 @@
             if (summaryEl) {
                 const visibleTotal = Object.keys(grouped).reduce((acc, key) => acc + (grouped[key]?.length || 0), 0);
                 const changesRequestedCount = (posts || []).filter((p) => this.normalizeStatus(p?.status) === 'changes_requested').length;
-                const monthLabel = ref.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const monthLabel = (() => {
+                    if (safeMonthKey && global.CalendarStateSelectors?.formatMonthLabel) {
+                        const formatted = global.CalendarStateSelectors.formatMonthLabel(safeMonthKey);
+                        if (formatted) return formatted;
+                    }
+                    const parsed = global.MonthUtils?.parseMonthKey ? global.MonthUtils.parseMonthKey(safeMonthKey) : null;
+                    if (parsed) {
+                        const d = new Date(parsed.year, parsed.monthIndex, 1);
+                        const label = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                        return label ? (label.charAt(0).toUpperCase() + label.slice(1)) : safeMonthKey;
+                    }
+                    return safeMonthKey;
+                })();
                 summaryEl.innerHTML = `
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                         <div class="min-w-0">
