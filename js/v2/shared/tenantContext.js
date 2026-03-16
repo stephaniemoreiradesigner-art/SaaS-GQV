@@ -24,18 +24,42 @@
             let uuid = String(tenantUuid || '').trim();
             uuid = uuid.replace(/^urn:uuid:/i, '').replace(/[{}]/g, '').trim();
             if (!UUID_RE.test(uuid)) return { tenantId: null, tenantUuid: null };
-            if (!supabase) return { tenantId: uuid, tenantUuid: uuid };
+            if (!supabase) return { tenantId: null, tenantUuid: uuid };
             try {
-                const { data, error } = await supabase
-                    .from('tenants')
-                    .select('id')
-                    .eq('id', uuid)
-                    .maybeSingle();
-                if (error) return { tenantId: uuid, tenantUuid: uuid };
-                const row = data || null;
-                return { tenantId: row?.id ? String(row.id) : uuid, tenantUuid: uuid };
+                const candidates = ['uuid', 'tenant_uuid', 'external_uuid'];
+                for (let i = 0; i < candidates.length; i += 1) {
+                    const column = candidates[i];
+                    const { data, error } = await supabase
+                        .from('tenants')
+                        .select('id')
+                        .eq(column, uuid)
+                        .maybeSingle();
+
+                    if (!error) {
+                        const row = data || null;
+                        const tenantIdRaw = row?.id ?? null;
+                        const tenantId = tenantIdRaw !== null && tenantIdRaw !== undefined ? Number(tenantIdRaw) : null;
+                        const resolved = { tenantId: Number.isFinite(tenantId) ? tenantId : null, tenantUuid: uuid };
+                        console.log('[TenantContext] tenant resolved', resolved);
+                        return resolved;
+                    }
+
+                    const msg = String(error?.message || '');
+                    const retryable =
+                        error?.code === '42703' ||
+                        msg.includes('does not exist') ||
+                        msg.includes(`'${column}'`) ||
+                        msg.includes(`.${column}`) ||
+                        msg.includes('schema cache');
+                    if (!retryable) {
+                        console.error('[TenantContext] Falha ao resolver tenant por uuid:', { column, uuid, errorCode: error?.code || null, errorMessage: error?.message || null });
+                        return { tenantId: null, tenantUuid: uuid };
+                    }
+                }
+                console.warn('[TenantContext] Nenhuma coluna UUID compatível encontrada em tenants.', { uuid });
+                return { tenantId: null, tenantUuid: uuid };
             } catch {
-                return { tenantId: uuid, tenantUuid: uuid };
+                return { tenantId: null, tenantUuid: uuid };
             }
         },
 
