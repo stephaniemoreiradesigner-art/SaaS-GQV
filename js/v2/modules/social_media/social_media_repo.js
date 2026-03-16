@@ -220,6 +220,51 @@
             }
         },
 
+        deleteCalendarDraft: async function(calendarId) {
+            if (!global.supabaseClient || !calendarId) return { ok: false, error: 'missing_params' };
+            const id = String(calendarId || '').trim();
+            if (!id) return { ok: false, error: 'missing_params' };
+
+            try {
+                const { data: calendar, error: calError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .select('id,status')
+                    .eq('id', id)
+                    .maybeSingle();
+                if (calError) throw calError;
+                if (!calendar?.id) return { ok: false, error: 'calendar_not_found' };
+
+                const status = String(calendar.status || '').trim().toLowerCase();
+                const deletable = new Set(['draft', 'rascunho']);
+                if (!deletable.has(status)) {
+                    return { ok: false, error: { message: 'calendar_not_deletable', status } };
+                }
+
+                const { error: itemsError } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .delete()
+                    .eq('calendar_id', id);
+                if (itemsError) throw itemsError;
+
+                const { error: postsError } = await global.supabaseClient
+                    .from('social_posts')
+                    .delete()
+                    .eq('calendar_id', id);
+                if (postsError) throw postsError;
+
+                const { error: deleteError } = await global.supabaseClient
+                    .from('social_calendars')
+                    .delete()
+                    .eq('id', id);
+                if (deleteError) throw deleteError;
+
+                return { ok: true };
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao excluir calendário:', err);
+                return { ok: false, error: err };
+            }
+        },
+
         generatePostsFromCalendarItems: async function(calendarId) {
             if (!global.supabaseClient || !calendarId) return { ok: false, error: 'missing_params' };
             try {

@@ -285,22 +285,16 @@
                                         </button>
                                     </div>
                                     <div class="flex flex-wrap gap-2">
-                                        <button id="social-generate-ai" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Gerar sugestões com IA</button>
-                                        <button id="social-edit-plan" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Planejamento editorial</button>
-                                        <button id="social-generate-posts" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50" disabled>Gerar posts</button>
+                                        <button id="social-generate-ai" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Gerar calendário com IA</button>
                                         <button id="social-new-post" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">Novo post manual</button>
                                         <button id="social-save-draft" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Salvar rascunho</button>
                                         <button id="social-send-approval" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800" disabled>Enviar para aprovação</button>
+                                        <button id="social-delete-calendar" class="px-4 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm font-medium hover:bg-rose-50">Excluir calendário</button>
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-4">
+                                <div class="grid grid-cols-1 gap-4">
                                     <div>
                                         <p class="text-sm text-slate-500">Planeje os itens do calendário e envie para aprovação antes de produzir posts.</p>
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs uppercase tracking-widest text-slate-400 mb-1">Briefing/Objetivo</label>
-                                        <input id="social-goal" type="text" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary mb-2" placeholder="Objetivo do mês">
-                                        <textarea id="social-briefing" rows="2" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Briefing curto para sugestões"></textarea>
                                     </div>
                                 </div>
                                 <div id="social-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
@@ -684,6 +678,71 @@
             </div>
         </div>
     </div>
+
+    <div id="social-ai-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4 backdrop-blur-sm">
+        <div class="w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Calendário editorial</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Gerar calendário com IA</h3>
+                </div>
+                <button id="social-ai-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Quantidade de posts</label>
+                        <input id="social-ai-count" type="number" min="1" max="40" value="8" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Upload de briefing</label>
+                        <input id="social-ai-briefing-file" type="file" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Datas sazonais / importantes</label>
+                    <textarea id="social-ai-seasonal" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Ex: 12/05 Dia das Mães&#10;25/05 Campanha X"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Observações adicionais</label>
+                    <textarea id="social-ai-notes" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="Opcional"></textarea>
+                </div>
+                <div id="social-ai-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+                <button id="social-ai-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                <button id="social-ai-generate" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Gerar calendário</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="social-calendar-delete-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4 backdrop-blur-sm">
+        <div class="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div>
+                    <p class="text-xs uppercase tracking-widest text-slate-400">Calendário</p>
+                    <h3 class="text-lg font-semibold text-slate-900">Excluir calendário</h3>
+                </div>
+                <button id="social-calendar-delete-close" class="text-slate-400 hover:text-slate-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-600">Esta ação remove o calendário e seus itens editoriais do mês.</p>
+                <div class="ui-surface-2 p-4">
+                    <p class="text-xs uppercase text-slate-400">Mês</p>
+                    <p id="social-calendar-delete-month" class="text-sm font-semibold text-slate-900 mt-1">-</p>
+                </div>
+                <div id="social-calendar-delete-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
+                <button id="social-calendar-delete-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>
+                <button id="social-calendar-delete-confirm" class="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700">Excluir</button>
+            </div>
+        </div>
+    </div>
     <div id="client-modal" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center px-4">
         <div class="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -982,8 +1041,6 @@
         const socialCountDraft = document.getElementById('social-count-draft');
         const socialCountPending = document.getElementById('social-count-pending');
         const socialCountApproved = document.getElementById('social-count-approved');
-        const socialGoalInput = document.getElementById('social-goal');
-        const socialBriefingInput = document.getElementById('social-briefing');
         const socialFeedback = document.getElementById('social-feedback');
         const socialSendApprovalBtn = document.getElementById('social-send-approval');
         const socialApprovalsList = document.getElementById('social-approvals-list');
@@ -993,11 +1050,10 @@
         const socialMonthPrev = document.getElementById('social-month-prev');
         const socialMonthNext = document.getElementById('social-month-next');
         const socialGenerateAiBtn = document.getElementById('social-generate-ai');
-        const socialEditPlanBtn = document.getElementById('social-edit-plan');
-        const socialGeneratePostsBtn = document.getElementById('social-generate-posts');
         const socialNewPostBtn = document.getElementById('social-new-post');
         const socialSaveDraftBtn = document.getElementById('social-save-draft');
         const socialApprovalBanner = document.getElementById('social-approval-banner');
+        const socialDeleteCalendarBtn = document.getElementById('social-delete-calendar');
         const socialPlanModal = document.getElementById('social-plan-modal');
         const socialPlanCloseBtn = document.getElementById('social-plan-close');
         const socialPlanCloseBottomBtn = document.getElementById('social-plan-close-bottom');
@@ -1037,6 +1093,21 @@
         const socialPostSlide3 = document.getElementById('social-post-slide-3');
         const socialPostSlide4 = document.getElementById('social-post-slide-4');
         const socialPostReels = document.getElementById('social-post-reels');
+        const socialAiModal = document.getElementById('social-ai-modal');
+        const socialAiCloseBtn = document.getElementById('social-ai-close');
+        const socialAiCancelBtn = document.getElementById('social-ai-cancel');
+        const socialAiGenerateBtn = document.getElementById('social-ai-generate');
+        const socialAiCountInput = document.getElementById('social-ai-count');
+        const socialAiSeasonalInput = document.getElementById('social-ai-seasonal');
+        const socialAiNotesInput = document.getElementById('social-ai-notes');
+        const socialAiFileInput = document.getElementById('social-ai-briefing-file');
+        const socialAiFeedback = document.getElementById('social-ai-feedback');
+        const socialCalendarDeleteModal = document.getElementById('social-calendar-delete-modal');
+        const socialCalendarDeleteMonth = document.getElementById('social-calendar-delete-month');
+        const socialCalendarDeleteFeedback = document.getElementById('social-calendar-delete-feedback');
+        const socialCalendarDeleteClose = document.getElementById('social-calendar-delete-close');
+        const socialCalendarDeleteCancel = document.getElementById('social-calendar-delete-cancel');
+        const socialCalendarDeleteConfirm = document.getElementById('social-calendar-delete-confirm');
         const socialPostHook = document.getElementById('social-post-hook');
         const socialPostScript = document.getElementById('social-post-script');
         const socialPostMediaUpload = document.getElementById('social-post-media-upload');
@@ -2205,13 +2276,9 @@
                 socialCalendarStatus.textContent = 'Sem calendário';
                 socialCalendarStatus.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
                 if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = true;
-                if (socialGeneratePostsBtn) socialGeneratePostsBtn.disabled = true;
                 if (socialApprovalBanner) socialApprovalBanner.classList.add('hidden');
-                [socialMonthPrev, socialMonthNext, socialGenerateAiBtn, socialEditPlanBtn, socialNewPostBtn, socialSaveDraftBtn].forEach((btn) => {
+                [socialMonthPrev, socialMonthNext, socialGenerateAiBtn, socialNewPostBtn, socialSaveDraftBtn, socialDeleteCalendarBtn].forEach((btn) => {
                     if (btn) btn.disabled = !socialState.clientId;
-                });
-                [socialGoalInput, socialBriefingInput].forEach((el) => {
-                    if (el) el.disabled = !socialState.clientId;
                 });
                 return;
             }
@@ -2224,7 +2291,6 @@
             const canEditPlan = status === 'rascunho' || status === 'ajuste_solicitado';
             const canProduce = status === 'aprovado' || status === 'em_producao' || status === 'publicado' || status === 'concluido';
             if (socialSendApprovalBtn) socialSendApprovalBtn.disabled = !((status === 'rascunho' || status === 'ajuste_solicitado') && hasItems);
-            if (socialGeneratePostsBtn) socialGeneratePostsBtn.disabled = !(status === 'aprovado' && hasItems);
             if (socialApprovalBanner) {
                 socialApprovalBanner.classList.toggle('hidden', status !== 'aguardando_aprovacao');
             }
@@ -2232,12 +2298,12 @@
                 if (btn) btn.disabled = !socialState.clientId;
             });
             if (socialGenerateAiBtn) socialGenerateAiBtn.disabled = !socialState.clientId || isApprovalLocked || !canEditPlan;
-            if (socialEditPlanBtn) socialEditPlanBtn.disabled = !socialState.clientId || !socialState.calendarId;
             if (socialNewPostBtn) socialNewPostBtn.disabled = !socialState.clientId || isApprovalLocked || !(canEditPlan || canProduce);
             if (socialSaveDraftBtn) socialSaveDraftBtn.disabled = !socialState.clientId || isApprovalLocked || !canProduce;
-            [socialGoalInput, socialBriefingInput].forEach((el) => {
-                if (el) el.disabled = !socialState.clientId || isApprovalLocked || !canEditPlan;
-            });
+            if (socialDeleteCalendarBtn) {
+                const canDelete = !!socialState.clientId && !!socialState.calendarId && String(status || '').trim() === 'rascunho';
+                socialDeleteCalendarBtn.disabled = !canDelete;
+            }
         };
 
         const renderSocialApprovals = () => {
@@ -2885,52 +2951,93 @@
             openPostDrawer(post);
         };
 
-        const generateAiSuggestions = async () => {
+        const setAiFeedback = (message, type = 'success') => {
+            if (!socialAiFeedback) return;
+            socialAiFeedback.textContent = message;
+            socialAiFeedback.className = `text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            socialAiFeedback.classList.remove('hidden');
+        };
+
+        const openAiModal = () => {
+            if (!socialAiModal) return;
+            socialAiModal.classList.remove('hidden');
+            socialAiModal.classList.add('flex');
+            if (socialAiFeedback) socialAiFeedback.classList.add('hidden');
+            if (socialAiCountInput && !String(socialAiCountInput.value || '').trim()) socialAiCountInput.value = '8';
+        };
+
+        const closeAiModal = () => {
+            if (!socialAiModal) return;
+            socialAiModal.classList.add('hidden');
+            socialAiModal.classList.remove('flex');
+        };
+
+        const readBriefingFileText = async (file) => {
+            if (!file) return '';
+            const size = Number(file.size || 0);
+            if (!(size > 0) || size > 200_000) return '';
+            const name = String(file.name || '').toLowerCase();
+            const isText = (String(file.type || '').startsWith('text/')) || name.endsWith('.txt') || name.endsWith('.md') || name.endsWith('.csv') || name.endsWith('.json');
+            if (!isText) return '';
+            return await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || '').slice(0, 5000));
+                reader.onerror = () => resolve('');
+                reader.readAsText(file);
+            });
+        };
+
+        const generateAiSuggestions = async (params) => {
             const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) {
-                setSocialFeedback('Selecione um cliente antes de gerar.', 'error');
+                setAiFeedback('Selecione um cliente antes de gerar.', 'error');
                 return;
             }
             if (socialState.calendarStatus === 'aguardando_aprovacao') {
-                setSocialFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
+                setAiFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 return;
             }
             if (socialState.calendarStatus !== 'rascunho' && socialState.calendarStatus !== 'ajuste_solicitado') {
-                setSocialFeedback('Planejamento fechado: gere itens apenas em rascunho/ajustes solicitados.', 'error');
+                setAiFeedback('Planejamento fechado: gere itens apenas em rascunho/ajustes solicitados.', 'error');
                 return;
             }
-            const goal = socialGoalInput?.value.trim() || '';
-            const briefing = socialBriefingInput?.value.trim() || '';
-            if (!goal && !briefing) {
-                setSocialFeedback('Informe objetivo ou briefing para gerar sugestões.', 'error');
-                return;
-            }
+            const desiredCountRaw = Number(params?.count);
+            const desiredCount = Number.isFinite(desiredCountRaw) ? Math.max(1, Math.min(40, Math.trunc(desiredCountRaw))) : 8;
+            const seasonalText = String(params?.seasonal || '').trim();
+            const notesText = String(params?.notes || '').trim();
+            const briefingFile = params?.briefingFile || null;
+            const briefingFileName = briefingFile ? String(briefingFile.name || '').trim() : '';
+            const briefingText = await readBriefingFileText(briefingFile);
+            const mergedNotes = [seasonalText, notesText, briefingFileName ? `briefing_file:${briefingFileName}` : '', briefingText ? `briefing_excerpt:${briefingText}` : '']
+                .filter(Boolean)
+                .join('\n\n')
+                .trim();
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
-                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, month: socialState.calendarMonth, goal, briefing });
+                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, month: socialState.calendarMonth, count: desiredCount, seasonalText, notesText, briefingFileName });
             }
-            const suggestions = [
-                `Dica prática: ${goal || 'conteúdo educativo'}`,
-                `Bastidores do cliente`,
-                `Prova social do mês`,
-                `Oferta especial`,
-                `Checklist rápido`,
-                `Pergunta interativa`
-            ];
+            const seasonalLines = seasonalText
+                ? seasonalText.split('\n').map((l) => String(l || '').trim()).filter(Boolean).slice(0, desiredCount)
+                : [];
+            const suggestions = Array.from({ length: desiredCount }).map((_, idx) => {
+                const seasonal = seasonalLines[idx] || '';
+                return seasonal ? `Sazonal: ${seasonal}` : `Sugestão IA ${idx + 1}`;
+            });
             const { start } = getMonthStartEnd(socialState.calendarMonth);
             const calendar = await ensureCalendarDraft();
             if (!calendar?.id) {
-                setSocialFeedback('Não foi possível carregar o calendário do mês.', 'error');
+                setAiFeedback('Não foi possível carregar o calendário do mês.', 'error');
                 return;
             }
             const repo = window.SocialMediaRepo;
             if (!repo?.upsertCalendarItem) {
-                setSocialFeedback('Repositório Social Media não disponível.', 'error');
+                setAiFeedback('Repositório Social Media não disponível.', 'error');
                 return;
             }
+            const daysInMonth = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
             for (let index = 0; index < suggestions.length; index += 1) {
                 const title = suggestions[index];
-                const day = Math.min(1 + index * 4, new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate());
+                const day = Math.max(1, Math.min(daysInMonth, Math.floor(((index + 1) * (daysInMonth + 1)) / (suggestions.length + 1))));
                 const dateObj = new Date(start.getFullYear(), start.getMonth(), day);
                 const date = window.MonthUtils?.formatLocalDate ? window.MonthUtils.formatLocalDate(dateObj) : `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
                 await repo.upsertCalendarItem({
@@ -2939,13 +3046,79 @@
                     tema: title,
                     tipo_conteudo: 'post_estatico',
                     canal: 'instagram',
-                    observacoes: briefing
+                    observacoes: mergedNotes
                 });
             }
             await loadCalendarItems();
-            setSocialFeedback('Sugestões adicionadas ao planejamento.');
+            setSocialFeedback(`Itens gerados: ${suggestions.length}.`);
+            closeAiModal();
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar response:', { added: suggestions.length });
+            }
+        };
+
+        const setCalendarDeleteFeedback = (message, type = 'success') => {
+            if (!socialCalendarDeleteFeedback) return;
+            socialCalendarDeleteFeedback.textContent = message;
+            socialCalendarDeleteFeedback.className = `text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            socialCalendarDeleteFeedback.classList.remove('hidden');
+        };
+
+        const openCalendarDeleteModal = () => {
+            const status = String(socialState.calendarStatus || '').trim();
+            if (status !== 'rascunho') {
+                setSocialFeedback('Este calendário já foi enviado para aprovação e não pode mais ser excluído.', 'error');
+                return;
+            }
+            if (!socialState.calendarId) {
+                setSocialFeedback('Calendário do mês não encontrado.', 'error');
+                return;
+            }
+            if (!socialCalendarDeleteModal) return;
+            if (socialCalendarDeleteFeedback) socialCalendarDeleteFeedback.classList.add('hidden');
+            if (socialCalendarDeleteMonth) socialCalendarDeleteMonth.textContent = formatMonthLabel(socialState.calendarMonth);
+            socialCalendarDeleteModal.classList.remove('hidden');
+            socialCalendarDeleteModal.classList.add('flex');
+        };
+
+        const closeCalendarDeleteModal = () => {
+            if (!socialCalendarDeleteModal) return;
+            socialCalendarDeleteModal.classList.add('hidden');
+            socialCalendarDeleteModal.classList.remove('flex');
+        };
+
+        const confirmDeleteCalendar = async () => {
+            const calendarId = socialState.calendarId;
+            const clientId = socialState.clientId;
+            const status = String(socialState.calendarStatus || '').trim();
+            if (!calendarId || !clientId) return;
+            if (status !== 'rascunho') {
+                setCalendarDeleteFeedback('Este calendário já foi enviado para aprovação e não pode mais ser excluído.', 'error');
+                return;
+            }
+            const repo = window.SocialMediaRepo;
+            if (!repo?.deleteCalendarDraft) {
+                setCalendarDeleteFeedback('Repositório Social Media não disponível.', 'error');
+                return;
+            }
+            if (socialCalendarDeleteConfirm) socialCalendarDeleteConfirm.disabled = true;
+            try {
+                const result = await repo.deleteCalendarDraft(calendarId);
+                if (!result?.ok) {
+                    setCalendarDeleteFeedback(result?.error?.message || result?.error || 'Não foi possível excluir o calendário.', 'error');
+                    return;
+                }
+                closeCalendarDeleteModal();
+                socialState.calendarIdByMonth[socialState.calendarMonth] = null;
+                socialState.calendarStatusByMonth[socialState.calendarMonth] = null;
+                socialState.calendarItemsByMonth[socialState.calendarMonth] = [];
+                socialState.calendarId = null;
+                socialState.calendarStatus = null;
+                socialState.calendarItems = [];
+                await refreshSocialMonth();
+                setSocialFeedback('Calendário excluído com sucesso.', 'success');
+            } finally {
+                if (socialCalendarDeleteConfirm) socialCalendarDeleteConfirm.disabled = false;
             }
         };
 
@@ -3579,9 +3752,32 @@
 
         if (socialMonthPrev) socialMonthPrev.onclick = () => shiftMonth(-1);
         if (socialMonthNext) socialMonthNext.onclick = () => shiftMonth(1);
-        if (socialGenerateAiBtn) socialGenerateAiBtn.addEventListener('click', generateAiSuggestions);
-        if (socialEditPlanBtn) socialEditPlanBtn.addEventListener('click', openPlanModal);
-        if (socialGeneratePostsBtn) socialGeneratePostsBtn.addEventListener('click', generatePostsFromPlan);
+        if (socialGenerateAiBtn) socialGenerateAiBtn.addEventListener('click', openAiModal);
+        if (socialAiCloseBtn) socialAiCloseBtn.addEventListener('click', closeAiModal);
+        if (socialAiCancelBtn) socialAiCancelBtn.addEventListener('click', closeAiModal);
+        if (socialAiModal) {
+            socialAiModal.addEventListener('click', (event) => {
+                if (event.target === socialAiModal) closeAiModal();
+            });
+        }
+        if (socialAiGenerateBtn) {
+            socialAiGenerateBtn.addEventListener('click', async () => {
+                const count = Number(socialAiCountInput?.value || 8);
+                const seasonal = String(socialAiSeasonalInput?.value || '').trim();
+                const notes = String(socialAiNotesInput?.value || '').trim();
+                const file = socialAiFileInput?.files && socialAiFileInput.files[0] ? socialAiFileInput.files[0] : null;
+                await generateAiSuggestions({ count, seasonal, notes, briefingFile: file });
+            });
+        }
+        if (socialDeleteCalendarBtn) socialDeleteCalendarBtn.addEventListener('click', openCalendarDeleteModal);
+        if (socialCalendarDeleteClose) socialCalendarDeleteClose.addEventListener('click', closeCalendarDeleteModal);
+        if (socialCalendarDeleteCancel) socialCalendarDeleteCancel.addEventListener('click', closeCalendarDeleteModal);
+        if (socialCalendarDeleteModal) {
+            socialCalendarDeleteModal.addEventListener('click', (event) => {
+                if (event.target === socialCalendarDeleteModal) closeCalendarDeleteModal();
+            });
+        }
+        if (socialCalendarDeleteConfirm) socialCalendarDeleteConfirm.addEventListener('click', confirmDeleteCalendar);
         if (socialNewPostBtn) {
             socialNewPostBtn.addEventListener('click', () => {
                 const today = new Date();
