@@ -27,6 +27,15 @@
                 global.PerformanceConnectionsUI.renderMetrics({ lastSyncAt: null });
             }
 
+            if (global.WorkspaceState?.subscribe) {
+                global.WorkspaceState.subscribe(() => {
+                    const moduleName = global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null;
+                    if (moduleName === 'performance' && this.currentClientId) {
+                        this.onClientChange(this.currentClientId, this.currentClientName);
+                    }
+                });
+            }
+
             this.initialized = true;
         },
 
@@ -41,7 +50,13 @@
                 return;
             }
 
-            if (isDebug()) console.log('[PerformanceV2] filter by client_id:', { clientId });
+            const activeModule = global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null;
+            if (activeModule !== 'performance') {
+                console.log('[PerformanceV2][STARTUP_TRACE] skip fetch (inactive module):', { activeModule, clientId });
+                return;
+            }
+
+            if (isDebug()) console.log('[PerformanceV2] filter by client:', { clientId });
             const connections = await global.PerformanceConnectionsRepo.getConnections(clientId);
             const lastSyncAt = connections.reduce((acc, c) => {
                 const ts = c.last_sync_at || null;

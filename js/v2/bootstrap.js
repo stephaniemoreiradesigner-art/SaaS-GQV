@@ -91,6 +91,7 @@
 
         // 4. Sinalizar Prontidão
         console.log('[V2 Bootstrap] Boot completo. Disparando v2:ready');
+        console.log('[V2 Bootstrap][STARTUP_TRACE] active module before ready:', global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null);
         window.dispatchEvent(new CustomEvent('v2:ready'));
         window.dispatchEvent(new CustomEvent('gqv:v2:ready'));
         document.body.classList.add('v2-ready');

@@ -47,12 +47,12 @@
 
     const buildClientColumnCandidates = (clienteId) => {
         if (isUuid(clienteId)) return ['cliente_id', 'client_id_uuid', 'client_uuid', 'client_id'];
-        if (isNumeric(clienteId)) return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
-        return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
+        if (isNumeric(clienteId)) return ['cliente_id', 'client_id', 'client_id_uuid', 'client_uuid'];
+        return ['cliente_id', 'client_id', 'client_id_uuid', 'client_uuid'];
     };
 
     const resolveClientValue = (column, raw) => {
-        if (column === 'client_id') {
+        if (column === 'client_id' || column === 'cliente_id') {
             return isNumeric(raw) ? Number(raw) : raw;
         }
         return String(raw).trim();
@@ -76,7 +76,12 @@
             const candidates = schema.clientColumn ? [schema.clientColumn] : buildClientColumnCandidates(clienteId);
             for (const column of candidates) {
                 const value = resolveClientValue(column, clienteId);
-                console.log('[PerformanceConnectionsRepo] getConnections filter:', { column, value, raw: clienteId });
+                console.log('[PerformanceConnectionsRepo] getConnections filter:', {
+                    column,
+                    value,
+                    raw: clienteId,
+                    activeModule: global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null
+                });
                 const { data, error } = await global.supabaseClient
                     .from('client_platform_connections')
                     .select('*')
@@ -98,6 +103,13 @@
                     console.error('[PerformanceConnectionsRepo] getConnections error:', error);
                     return [];
                 }
+                console.warn('[PerformanceConnectionsRepo] getConnections retryable error:', {
+                    column,
+                    value,
+                    raw: clienteId,
+                    errorCode: error?.code || null,
+                    errorMessage: error?.message || null
+                });
             }
 
             return [];
