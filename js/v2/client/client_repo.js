@@ -331,7 +331,7 @@
             return { ok: true, data: (data && data[0]) || null };
         },
 
-        updateCalendarStatus: async function(calendarId, clientId, status) {
+        updateCalendarStatus: async function(calendarId, status) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
             const id = String(calendarId || '').trim();
@@ -341,19 +341,9 @@
             const { data, error } = await supabase
                 .from('social_calendars')
                 .update(payload)
-                .eq('id', id)
-                .select('id,status');
-            if (error) {
-                console.error('[ClientRepo] Erro ao atualizar status do calendário:', {
-                    calendarId: id,
-                    clientId: String(clientId || '').trim() || null,
-                    payload,
-                    code: error.code,
-                    message: error.message
-                });
-                return { ok: false, error };
-            }
-            return { ok: true, data: (data && data[0]) || null };
+                .eq('id', id);
+
+            return { data, error };
         },
 
         /**
