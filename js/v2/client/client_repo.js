@@ -132,17 +132,16 @@
 
             const first = await tryFetch(monthRef);
             if (first.data) return first.data;
-            const second = await tryFetch(key);
-            if (second.error) {
+            if (first.error) {
                 console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
                     clientId: normalizedClientId,
                     monthKey: key,
                     monthRef,
-                    code: second.error.code,
-                    message: second.error.message
+                    code: first.error.code,
+                    message: first.error.message
                 });
             }
-            return second.data || null;
+            return null;
         },
 
         getCalendarMeta: async function(calendarId, clientId) {
