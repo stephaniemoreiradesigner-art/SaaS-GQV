@@ -67,7 +67,9 @@
             }
 
             const normalizedMonthKey = String(monthKey || '').trim().slice(0, 7);
-            const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey) ? `${normalizedMonthKey}-01` : '';
+            const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey)
+                ? (global.MonthUtils?.buildMonthReferenceFromMonthKey ? global.MonthUtils.buildMonthReferenceFromMonthKey(normalizedMonthKey) : `${normalizedMonthKey}-01`)
+                : '';
             const fmt = await resolveMesReferenciaFormat();
             let mesReferenciaValue = (fmt === 'date' && monthStart) ? monthStart : normalizedMonthKey;
 
@@ -403,25 +405,31 @@
 
                 // Mês de referência: YYYY-MM
                 const monthKey = postDate && String(postDate).length >= 7 ? String(postDate).slice(0, 7) : '';
+                const monthRef = global.MonthUtils?.buildMonthReferenceFromMonthKey
+                    ? global.MonthUtils.buildMonthReferenceFromMonthKey(monthKey)
+                    : (monthKey ? `${monthKey}-01` : '');
+                const fmt = typeof resolveMesReferenciaFormat === 'function' ? await resolveMesReferenciaFormat() : null;
+                const mesReferenciaValue = fmt === 'month' ? monthKey : monthRef;
+                if (!mesReferenciaValue) throw new Error('mes_referencia_invalid');
 
                 // Busca calendário existente com tratamento de erro
                 const { data: calendarData, error: calendarError } = await global.supabaseClient
                     .from('social_calendars')
                     .select('id')
                     .eq('cliente_id', clientId)
-                    .eq('mes_referencia', monthKey)
+                    .eq('mes_referencia', mesReferenciaValue)
                     .maybeSingle();
 
                 let calendarId = calendarData?.id || null;
 
                 // Se não encontrou ou deu erro, tenta criar
                 if (!calendarId) {
-                    console.log('[SOCIAL] Calendário não encontrado, criando novo para:', monthKey);
+                    console.log('[SOCIAL] Calendário não encontrado, criando novo para:', mesReferenciaValue);
                     const { data: createdCalendar, error: createError } = await global.supabaseClient
                         .from('social_calendars')
                         .insert({
                             cliente_id: clientId,
-                            mes_referencia: monthKey,
+                            mes_referencia: mesReferenciaValue,
                             status: 'draft',
                             updated_at: new Date().toISOString()
                         })
@@ -435,7 +443,7 @@
                             .from('social_calendars')
                             .select('id')
                             .eq('cliente_id', clientId)
-                            .eq('mes_referencia', monthKey)
+                            .eq('mes_referencia', mesReferenciaValue)
                             .maybeSingle();
                         
                         if (retryData?.id) {

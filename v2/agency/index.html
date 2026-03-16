@@ -3146,7 +3146,9 @@
                 ? socialState.calendarMonth
                 : (String(socialState.calendarMonth || '').trim().slice(0, 7));
             if (!window.MonthUtils?.isValidMonthKey?.(monthKey)) return;
-            const monthRef = `${monthKey}-01`;
+            const monthRef = window.MonthUtils?.buildMonthReferenceFromMonthKey
+                ? window.MonthUtils.buildMonthReferenceFromMonthKey(monthKey)
+                : `${monthKey}-01`;
             console.log('[AgencyCalendar] query payload:', { table: 'social_calendars', cliente_id: socialState.clientId, mes_referencia: monthRef, monthKey });
             const { data, error } = await supabase
                 .from('social_calendars')
@@ -3272,13 +3274,12 @@
             const isDebug = window.__GQV_DEBUG_CONTEXT__ === true;
             if (!socialState.clientId) return null;
             const repo = window.SocialMediaRepo;
-            const monthRef = `${socialState.calendarMonth}-01`;
             if (!repo?.getCalendarByMonth) return null;
             if (isDebug) {
                 console.log('[SocialMediaV2] generate calendar start:', { clientId: socialState.clientId, month: socialState.calendarMonth });
-                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, mes_referencia: monthRef });
+                console.log('[SocialMediaV2] generate calendar payload:', { cliente_id: socialState.clientId, monthKey: socialState.calendarMonth });
             }
-            const calendar = await repo.getCalendarByMonth(socialState.clientId, monthRef);
+            const calendar = await repo.getCalendarByMonth(socialState.clientId, socialState.calendarMonth);
             socialState.calendarId = calendar?.id || null;
             socialState.calendarStatus = normalizeSocialCalendarStatusFromDb(calendar?.status || null) || 'rascunho';
             socialState.calendarIdByMonth[socialState.calendarMonth] = socialState.calendarId;

@@ -3,6 +3,13 @@
 
     const pad2 = (n) => String(n).padStart(2, '0');
 
+    const buildMonthReference = (year, month) => {
+        const y = Number(year);
+        const m = Number(month);
+        if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return '';
+        return `${y}-${pad2(m)}-01`;
+    };
+
     const isValidMonthKey = (value) => {
         const raw = String(value || '').trim();
         if (!/^\d{4}-\d{2}$/.test(raw)) return false;
@@ -18,6 +25,12 @@
         const monthIndex = month - 1;
         if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
         return { year, monthIndex };
+    };
+
+    const buildMonthReferenceFromMonthKey = (monthKey) => {
+        const parsed = parseMonthKey(monthKey);
+        if (!parsed) return '';
+        return buildMonthReference(parsed.year, parsed.monthIndex + 1);
     };
 
     const formatMonthKeyFromDate = (date) => {
@@ -59,6 +72,8 @@
     };
 
     global.MonthUtils = {
+        buildMonthReference,
+        buildMonthReferenceFromMonthKey,
         isValidMonthKey,
         parseMonthKey,
         formatMonthKeyFromDate,

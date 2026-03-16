@@ -18,7 +18,9 @@
             const supabase = window.supabaseClient;
             if (!supabase) throw new Error('Supabase não inicializado');
 
-            const referenceDate = `${month}-01`;
+            const referenceDate = window.MonthUtils?.buildMonthReferenceFromMonthKey
+                ? window.MonthUtils.buildMonthReferenceFromMonthKey(month)
+                : `${month}-01`;
 
             // Verifica se já existe
             const { data: existing } = await supabase
@@ -57,7 +59,9 @@
          */
         async getCalendar(clientId, month) {
             const supabase = window.supabaseClient;
-            const referenceDate = `${month}-01`;
+            const referenceDate = window.MonthUtils?.buildMonthReferenceFromMonthKey
+                ? window.MonthUtils.buildMonthReferenceFromMonthKey(month)
+                : `${month}-01`;
             
             const { data, error } = await supabase
                 .from('social_calendars')
