@@ -78,6 +78,11 @@
             if (form) console.log('[CLIENT_PORTAL_LOGIN] form encontrado');
             else console.error('[CLIENT_PORTAL_LOGIN] ERRO: form não encontrado');
 
+            const path = window.location.pathname;
+            const isAuthPage =
+                path.includes('/login.html') ||
+                path.includes('/register.html');
+
             const tryHydrateAndRedirect = async () => {
                 if (!window.ClientAuth) return;
                 await window.ClientAuth.init();
@@ -87,7 +92,7 @@
                 if (!window.ClientAuth.ensurePortalSession) return;
                 const ensured = await window.ClientAuth.ensurePortalSession();
                 if (ensured.ok) {
-                    window.location.href = '/v2/client/index.html';
+                    if (!isAuthPage) window.location.href = '/v2/client/index.html';
                     return;
                 }
                 const map = {
