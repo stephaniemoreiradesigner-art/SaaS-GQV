@@ -2232,6 +2232,9 @@
                 mediaName: post.media_name || post.mediaName || '',
                 mediaSize: post.media_size || post.mediaSize || '',
                 notes: post.observacoes || post.feedback_aprovacao || post.notes || '',
+                feedbackAjuste: post.feedback_ajuste || post.feedbackAjuste || '',
+                feedbackCliente: post.feedback_cliente || post.feedbackCliente || '',
+                updatedAt: post.updated_at || post.updatedAt || '',
                 source: post.tipo || post.source || 'manual',
                 isTemp: post.isTemp || false,
                 isDirty: post.isDirty || false
@@ -2846,10 +2849,12 @@
                 return;
             }
 
+            console.log('[EditorialHistory] load requested:', { postId: post?.id || null, status: post?.status || null });
             const events = [];
             const feedbackAjuste = String(post?.feedback_ajuste || post?.feedbackAjuste || '').trim();
             const feedbackCliente = String(post?.feedback_cliente || post?.feedbackCliente || '').trim();
             const updatedAt = post?.updated_at || post?.updatedAt || null;
+            console.log('[EditorialHistory] source resolved:', { postId: post?.id || null, source: feedbackAjuste ? 'feedback_ajuste' : (feedbackCliente ? 'feedback_cliente' : null), hasText: !!(feedbackAjuste || feedbackCliente) });
 
             if (feedbackAjuste || feedbackCliente) {
                 console.log('[EditorialHistory] adjustment source:', { source: 'social_posts.feedback_ajuste', postId: post?.id || null, hasFeedbackAjuste: !!feedbackAjuste });
@@ -2881,14 +2886,15 @@
                 .filter((e) => e && e.ts)
                 .sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
 
+            console.log('[EditorialHistory] events normalized:', { postId: post?.id || null, count: sorted.length });
+            console.log('[EditorialHistory] render count:', { postId: post?.id || null, count: sorted.length });
             console.log('[EditorialHistory] loaded events:', { postId: post?.id || null, count: sorted.length });
-            if (!sorted.length) {
-                panel.classList.add('hidden');
-                container.innerHTML = '';
-                return;
-            }
 
             panel.classList.remove('hidden');
+            if (!sorted.length) {
+                container.innerHTML = '<div class="text-sm text-slate-400">Nenhum histórico disponível.</div>';
+                return;
+            }
             container.innerHTML = sorted.map((e) => {
                 const dateLabel = toPtBrDateTime(e.ts);
                 const origin = String(e.origin || '').trim();
