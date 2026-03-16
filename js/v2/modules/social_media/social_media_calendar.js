@@ -96,7 +96,35 @@
             const monthStart = state?.monthStart instanceof Date ? state.monthStart : new Date();
             const monthKey = String(state?.monthKey || '').trim();
             this.currentMonthKey = monthKey;
-            this.render(state?.monthPosts || [], monthStart);
+            const posts = Array.isArray(state?.monthPosts) ? state.monthPosts : [];
+            const items = Array.isArray(state?.editorialItems) ? state.editorialItems : [];
+            const status = String(state?.calendarStatus || '').trim() || 'draft';
+            const source = String(state?.gridSource || '').trim() || (posts.length ? 'posts' : (items.length ? 'items' : 'empty'));
+
+            const mappedItems = items.map((it) => ({
+                id: `item_${String(it?.id || Math.random()).replace(/[^\w-]/g, '')}`,
+                __fromCalendarItem: true,
+                calendar_item_id: it?.id || null,
+                data_agendada: String(it?.data || it?.data_agendada || it?.post_date || it?.data_sugerida || '').slice(0, 10),
+                tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
+                formato: it?.tipo_conteudo || it?.formato || it?.content_type || 'post_estatico',
+                plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
+                status
+            })).filter((p) => !!p.data_agendada);
+
+            const selectedSource = posts.length ? 'posts' : (mappedItems.length ? 'items' : 'empty');
+            console.log('[AgencyCalendar][5] render source selected', { monthKey, source: selectedSource, postsCount: posts.length, itemsCount: mappedItems.length });
+
+            const container = document.getElementById(this.containerId);
+            const prevSource = container ? String(container.dataset.renderSource || '').trim() : '';
+            if (container && prevSource && prevSource !== selectedSource) {
+                console.log('[AgencyCalendar][6] state overwritten', { monthKey, from: prevSource, to: selectedSource });
+            }
+            if (container) container.dataset.renderSource = selectedSource;
+
+            const renderList = selectedSource === 'posts' ? posts : (selectedSource === 'items' ? mappedItems : []);
+            this.render(renderList, monthStart);
+            console.log('[AgencyCalendar][7] final grid rendered', { monthKey, source: selectedSource, count: renderList.length });
         },
 
         createPostCard: function(post) {
@@ -171,8 +199,13 @@
                 el.classList.remove('opacity-50');
             });
             
-            // Clique para editar
             const openEditor = () => {
+                if (post && post.__fromCalendarItem) {
+                    if (global.SocialMediaUI?.showFeedback) {
+                        global.SocialMediaUI.showFeedback('Item do calendário (sem post) — abra o Planejamento para editar.', 'error');
+                    }
+                    return;
+                }
                 document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
             };
             el.addEventListener('click', (e) => {

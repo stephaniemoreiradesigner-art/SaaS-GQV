@@ -3,6 +3,13 @@
 
     const monthUtils = () => global.MonthUtils;
     const selectors = () => global.CalendarStateSelectors;
+    const shouldLogAgency = () => {
+        try {
+            return typeof document !== 'undefined' && !!document.getElementById('social-calendar-grid');
+        } catch {
+            return false;
+        }
+    };
 
     const clone = (value) => {
         try {
@@ -24,6 +31,7 @@
         calendarStatus: null,
         editorialItems: [],
         monthPosts: [],
+        gridSource: 'empty',
         selectedItemId: null,
         selectedPostId: null,
         loading: {
@@ -173,6 +181,9 @@
 
             const activeCalendarId = calendarMeta?.id || calendarMeta?.calendarId || calendarMeta?.calendar_id || null;
             const calendarStatus = calendarMeta?.status ?? null;
+            if (shouldLogAgency()) {
+                console.log('[AgencyCalendar][1] meta loaded', { clientId: state.clientId, monthKey: requestedMonthKey, activeCalendarId, calendarStatus });
+            }
 
             let editorialItems = [];
             if (typeof adapters.fetchEditorialItems === 'function' && activeCalendarId) {
@@ -185,6 +196,9 @@
                 editorialItems = Array.isArray(items) ? items : [];
             }
             if (!sameRequest()) return CalendarStateManager.getState();
+            if (shouldLogAgency()) {
+                console.log('[AgencyCalendar][2] items loaded', { clientId: state.clientId, monthKey: requestedMonthKey, count: editorialItems.length });
+            }
 
             let monthPosts = [];
             if (typeof adapters.fetchMonthPosts === 'function') {
@@ -198,6 +212,11 @@
                 monthPosts = Array.isArray(posts) ? posts : [];
             }
             if (!sameRequest()) return CalendarStateManager.getState();
+            if (shouldLogAgency()) {
+                console.log('[AgencyCalendar][3] posts loaded', { clientId: state.clientId, monthKey: requestedMonthKey, count: monthPosts.length });
+            }
+
+            const gridSource = monthPosts.length ? 'posts' : (editorialItems.length ? 'items' : 'empty');
 
             state = {
                 ...state,
@@ -211,9 +230,13 @@
                 calendarStatus,
                 editorialItems,
                 monthPosts,
+                gridSource,
                 pendingMonthKey: null,
                 loading: { monthData: false, calendarMeta: false, editorialItems: false, monthPosts: false }
             };
+            if (shouldLogAgency()) {
+                console.log('[AgencyCalendar][4] state before render', { clientId: state.clientId, monthKey: state.monthKey, gridSource: state.gridSource, postsCount: state.monthPosts.length, itemsCount: state.editorialItems.length });
+            }
             notify();
 
             if (typeof adapters.persistMonthKey === 'function') {
