@@ -2333,6 +2333,11 @@
             const planningStatuses = new Set(['rascunho', 'aguardando_aprovacao', 'ajuste_solicitado']);
             const isPlanning = planningStatuses.has(String(socialState.calendarStatus || '').trim());
             const canEditPlanning = isPlanning && socialState.calendarStatus !== 'aguardando_aprovacao';
+            const hasPosts = Array.isArray(socialState.posts) && socialState.posts.length > 0;
+            const hasItems = Array.isArray(socialState.calendarItems) && socialState.calendarItems.length > 0;
+            const useItemsFallback = !isPlanning && !hasPosts && hasItems;
+            const renderAsPlanning = isPlanning || useItemsFallback;
+            console.log('[AgencyCalendar] posts loaded:', { monthKey: socialState.calendarMonth, calendarStatus: socialState.calendarStatus, postsCount: hasPosts ? socialState.posts.length : 0, itemsCount: hasItems ? socialState.calendarItems.length : 0, fallbackToItems: useItemsFallback });
 
             const itemsByDate = (socialState.calendarItems || []).reduce((acc, item) => {
                 const dateKey = item?.data ? String(item.data).slice(0, 10) : null;
@@ -2364,7 +2369,7 @@
                 wrapper.appendChild(header);
                 const list = document.createElement('div');
                 list.className = 'flex flex-col gap-1';
-                if (isPlanning) {
+                if (renderAsPlanning) {
                     dayItems.forEach((item) => {
                         const card = document.createElement('div');
                         const tipoKey = String(item?.tipo_conteudo || 'post_estatico').trim().toLowerCase();
@@ -2408,7 +2413,10 @@
                         });
                         card.setAttribute('role', 'button');
                         card.tabIndex = 0;
-                        const openEditor = async () => openPlanModal(item);
+                        const openEditor = async () => {
+                            if (!canEditPlanning) return;
+                            await openPlanModal(item);
+                        };
                         card.addEventListener('click', (event) => {
                             event.stopPropagation();
                             const actionEl = event.target?.closest?.('[data-item-action]');
@@ -2751,12 +2759,21 @@
         const loadSavedMonth = (clientId) => {
             if (!clientId) return null;
             const saved = localStorage.getItem(getMonthStorageKey(clientId));
-            return saved || null;
+            const raw = String(saved || '').trim();
+            if (!raw) return null;
+            const key = raw.length >= 7 ? raw.slice(0, 7) : raw;
+            if (window.MonthUtils?.isValidMonthKey?.(key)) return key;
+            if (window.MonthUtils?.isValidMonthKey?.(raw)) return raw;
+            return null;
         };
 
         const saveMonth = (clientId, month) => {
             if (!clientId || !month) return;
-            localStorage.setItem(getMonthStorageKey(clientId), month);
+            const raw = String(month || '').trim();
+            if (!raw) return;
+            const key = raw.length >= 7 ? raw.slice(0, 7) : raw;
+            if (!window.MonthUtils?.isValidMonthKey?.(key)) return;
+            localStorage.setItem(getMonthStorageKey(clientId), key);
         };
 
         const normalizeSocialCalendarStatusFromDb = (status) => {
@@ -3125,14 +3142,21 @@
         const loadCalendarMeta = async () => {
             const supabase = await getSupabaseClient();
             if (!supabase || !socialState.clientId) return;
-            const monthKey = socialState.calendarMonth;
+            const monthKey = window.MonthUtils?.isValidMonthKey?.(socialState.calendarMonth)
+                ? socialState.calendarMonth
+                : (String(socialState.calendarMonth || '').trim().slice(0, 7));
+            if (!window.MonthUtils?.isValidMonthKey?.(monthKey)) return;
             const monthRef = `${monthKey}-01`;
-            const { data } = await supabase
+            console.log('[AgencyCalendar] query payload:', { table: 'social_calendars', cliente_id: socialState.clientId, mes_referencia: monthRef, monthKey });
+            const { data, error } = await supabase
                 .from('social_calendars')
                 .select('id, status')
                 .eq('cliente_id', socialState.clientId)
                 .eq('mes_referencia', monthRef)
                 .maybeSingle();
+            if (error) {
+                console.error('[AgencyCalendar] query error:', { table: 'social_calendars', cliente_id: socialState.clientId, mes_referencia: monthRef, monthKey, code: error.code, message: error.message });
+            }
             const calendarId = data?.id || null;
             const calendarStatus = normalizeSocialCalendarStatusFromDb(data?.status || null);
             socialState.calendarIdByMonth[monthKey] = calendarId;
@@ -3189,6 +3213,7 @@
                 return;
             }
             if (isDebug) console.log('[SocialMediaV2] list/render filter by cliente_id:', { clientId: socialState.clientId, monthKey: effectiveMonthKey, startDate, endDateExclusive });
+            console.log('[AgencyCalendar] range calculated:', { monthKey: effectiveMonthKey, monthStart: startDate, monthEndExclusive: endDateExclusive, clientId: socialState.clientId });
             const data = await repo.getPostsByDateRange(socialState.clientId, startDate, endDateExclusive);
             const posts = (Array.isArray(data) ? data : []).map(normalizePost);
             socialState.postsByMonth[effectiveMonthKey] = posts;
@@ -3232,10 +3257,14 @@
         const shiftMonth = async (delta) => {
             const utils = window.MonthUtils;
             if (!utils?.addMonths) return;
-            const next = utils.addMonths(socialState.calendarMonth, delta);
+            const baseRaw = String(socialState.calendarMonth || '').trim();
+            const base = utils.isValidMonthKey?.(baseRaw) ? baseRaw : (baseRaw.length >= 7 ? baseRaw.slice(0, 7) : '');
+            const seed = utils.isValidMonthKey?.(base) ? base : (utils.formatMonthKeyFromDate ? utils.formatMonthKeyFromDate(new Date()) : '');
+            const next = utils.addMonths(seed, delta);
             if (!next) return;
             socialState.calendarMonth = next;
             saveMonth(socialState.clientId, socialState.calendarMonth);
+            console.log('[AgencyCalendar] month selected:', { clientId: socialState.clientId, monthKey: socialState.calendarMonth });
             await refreshSocialMonth();
         };
 

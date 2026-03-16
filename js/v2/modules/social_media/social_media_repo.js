@@ -4,6 +4,8 @@
 
 (function(global) {
     const isDebug = () => global.__GQV_DEBUG_CONTEXT__ === true;
+    let mesReferenciaFormatCache = null;
+    let mesReferenciaFormatInFlight = null;
 
     const logQueryError = (name, table, filters, error) => {
         try {
@@ -15,6 +17,33 @@
                 message: error?.message || String(error || '')
             });
         } catch {}
+    };
+
+    const resolveMesReferenciaFormat = async () => {
+        if (mesReferenciaFormatCache) return mesReferenciaFormatCache;
+        if (mesReferenciaFormatInFlight) return await mesReferenciaFormatInFlight;
+        if (!global.supabaseClient) return null;
+        mesReferenciaFormatInFlight = (async () => {
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendars')
+                    .select('mes_referencia')
+                    .limit(1);
+                if (error) return null;
+                const raw = String(Array.isArray(data) && data[0] ? data[0].mes_referencia : '').trim();
+                if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return 'date';
+                if (/^\d{4}-\d{2}$/.test(raw)) return 'month';
+                return null;
+            } catch {
+                return null;
+            }
+        })();
+        try {
+            mesReferenciaFormatCache = await mesReferenciaFormatInFlight;
+            return mesReferenciaFormatCache;
+        } finally {
+            mesReferenciaFormatInFlight = null;
+        }
     };
 
     const SocialMediaRepo = {
@@ -39,9 +68,11 @@
 
             const normalizedMonthKey = String(monthKey || '').trim().slice(0, 7);
             const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey) ? `${normalizedMonthKey}-01` : '';
-            let mesReferenciaValue = normalizedMonthKey;
+            const fmt = await resolveMesReferenciaFormat();
+            let mesReferenciaValue = (fmt === 'date' && monthStart) ? monthStart : normalizedMonthKey;
 
             if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId: normalizedClientId, monthKey: normalizedMonthKey });
+            console.log('[AgencyCalendar] query payload:', { function: 'getCalendarByMonth', table: 'social_calendars', cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue, monthKey: normalizedMonthKey, monthStart });
 
             try {
                 // Tenta buscar existente
@@ -63,6 +94,7 @@
                 }
 
                 if (calendarError) {
+                    console.error('[AgencyCalendar] query error:', { function: 'getCalendarByMonth', table: 'social_calendars', cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue, code: calendarError?.code || null, message: calendarError?.message || null });
                     logQueryError('getCalendarByMonth', 'social_calendars', { cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue }, calendarError);
                     throw calendarError;
                 }
@@ -141,19 +173,22 @@
         },
 
         getCalendarItems: async function(calendarId) {
-            if (!global.supabaseClient || !calendarId) return [];
+            if (!global.supabaseClient) return [];
+            const id = String(calendarId || '').trim();
+            if (!id) return [];
 
             try {
                 const { data, error } = await global.supabaseClient
                     .from('social_calendar_items')
                     .select('*')
-                    .eq('calendar_id', calendarId)
+                    .eq('calendar_id', id)
                     .order('data', { ascending: true });
 
                 if (error) throw error;
                 return data || [];
             } catch (err) {
-                logQueryError('getCalendarItems', 'social_calendar_items', { calendar_id: calendarId }, err);
+                console.error('[AgencyCalendar] query error:', { function: 'getCalendarItems', table: 'social_calendar_items', calendar_id: id, code: err?.code || null, message: err?.message || null });
+                logQueryError('getCalendarItems', 'social_calendar_items', { calendar_id: id }, err);
                 console.error('[SOCIAL] Erro ao buscar itens do calendário:', err);
                 return [];
             }
@@ -627,22 +662,45 @@
          * @returns {Promise<Array>} Lista de posts
          */
         getPostsByDateRange: async function(clientId, startDate, endDateExclusive) {
-            if (!global.supabaseClient || !clientId) return [];
+            if (!global.supabaseClient) return [];
+            const normalizedClientId = String(clientId || '').trim();
+            const start = String(startDate || '').slice(0, 10);
+            const end = String(endDateExclusive || '').slice(0, 10);
+            const isIso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+            if (!normalizedClientId || !isIso(start) || !isIso(end)) {
+                console.error('[AgencyCalendar] query error:', {
+                    function: 'getPostsByDateRange',
+                    table: 'social_posts',
+                    cliente_id: normalizedClientId || null,
+                    data_agendada_gte: startDate,
+                    data_agendada_lt: endDateExclusive,
+                    reason: 'invalid_params'
+                });
+                return [];
+            }
+            console.log('[AgencyCalendar] query payload:', {
+                function: 'getPostsByDateRange',
+                table: 'social_posts',
+                cliente_id: normalizedClientId,
+                data_agendada_gte: start,
+                data_agendada_lt: end
+            });
 
             try {
                 // Tenta 'social_posts'
                 let { data, error } = await global.supabaseClient
                     .from('social_posts')
                     .select('*')
-                    .eq('cliente_id', clientId)
-                    .gte('data_agendada', startDate)
-                    .lt('data_agendada', endDateExclusive)
+                    .eq('cliente_id', normalizedClientId)
+                    .gte('data_agendada', start)
+                    .lt('data_agendada', end)
                     .order('data_agendada', { ascending: true });
 
                 if (error) throw error;
                 return data;
             } catch (err) {
-                logQueryError('getPostsByDateRange', 'social_posts', { cliente_id: clientId, data_agendada_gte: startDate, data_agendada_lt: endDateExclusive }, err);
+                console.error('[AgencyCalendar] query error:', { function: 'getPostsByDateRange', table: 'social_posts', cliente_id: normalizedClientId, data_agendada_gte: start, data_agendada_lt: end, code: err?.code || null, message: err?.message || null });
+                logQueryError('getPostsByDateRange', 'social_posts', { cliente_id: normalizedClientId, data_agendada_gte: start, data_agendada_lt: end }, err);
                 console.error('[SOCIAL] Falha ao buscar posts por range:', err);
                 return [];
             }
