@@ -302,6 +302,41 @@
             }
         },
 
+        updateCalendarStatus: async function(calendarId, clientId, status) {
+            if (!global.supabaseClient || !calendarId) return { ok: false, error: 'missing_params' };
+            const id = String(calendarId || '').trim();
+            const normalizedClientId = String(clientId || '').trim();
+            if (!id) return { ok: false, error: 'missing_params' };
+
+            const raw = String(status || '').trim().toLowerCase();
+            const map = {
+                aguardando_aprovacao: 'awaiting_approval',
+                ready_for_approval: 'awaiting_approval',
+                rascunho: 'draft',
+                ajuste_solicitado: 'changes_requested',
+                aprovado: 'approved',
+                em_producao: 'in_production',
+                publicado: 'published',
+                concluido: 'archived',
+                concluído: 'archived'
+            };
+            const next = map[raw] || raw;
+
+            try {
+                let query = global.supabaseClient
+                    .from('social_calendars')
+                    .update({ status: next, updated_at: new Date().toISOString() })
+                    .eq('id', id);
+                if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+                const { data, error } = await query.select('*').maybeSingle();
+                if (error) throw error;
+                return { ok: true, data: data || null };
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao atualizar status do calendário:', err);
+                return { ok: false, error: err };
+            }
+        },
+
         generatePostsFromCalendarItems: async function(calendarId) {
             if (!global.supabaseClient || !calendarId) return { ok: false, error: 'missing_params' };
             try {

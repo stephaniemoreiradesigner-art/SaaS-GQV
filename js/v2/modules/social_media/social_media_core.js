@@ -11,6 +11,7 @@
         currentMonthRef: new Date(),
         currentPosts: [],
         _calendarStateUnsub: null,
+        _deleteCalendarContext: null,
         // Helper de debug
         isDebug: function() {
             return window.__GQV_DEBUG_CONTEXT__ === true;
@@ -116,6 +117,8 @@
                 await this.changeMonth(1);
             };
 
+            this.bindCalendarActionHandlers();
+
             // Estado inicial
             if (global.ClientContext) {
                 const activeId = global.ClientContext.getActiveClient();
@@ -128,6 +131,144 @@
             }
 
             this.initialized = true;
+        },
+
+        cloneAndBind: function(id, handler) {
+            const el = document.getElementById(id);
+            if (!el || !el.parentNode) return null;
+            const next = el.cloneNode(true);
+            el.parentNode.replaceChild(next, el);
+            if (typeof handler === 'function') next.addEventListener('click', handler);
+            return next;
+        },
+
+        setAgencyFeedback: function(message, type = 'success') {
+            const ui = global.SocialMediaUI;
+            if (ui?.showFeedback) {
+                ui.showFeedback(message, type);
+                return;
+            }
+            const el = document.getElementById('social-feedback');
+            if (!el) return;
+            el.textContent = String(message || '');
+            el.className = `text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            el.classList.remove('hidden');
+        },
+
+        getCalendarSnap: function() {
+            const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+            return snap || null;
+        },
+
+        updateCalendarActionButtons: function(snap) {
+            const sendBtn = document.getElementById('social-send-approval');
+            const delBtn = document.getElementById('social-delete-calendar');
+            const status = String(snap?.calendarStatus || '').trim().toLowerCase();
+            const itemsCount = Array.isArray(snap?.editorialItems) ? snap.editorialItems.length : 0;
+            const isDraft = status === 'draft' || status === 'rascunho';
+            const canSend = (status === 'draft' || status === 'rascunho' || status === 'changes_requested') && itemsCount > 0;
+            if (sendBtn) sendBtn.disabled = !canSend;
+            if (delBtn) delBtn.disabled = !(isDraft && !!snap?.activeCalendarId);
+        },
+
+        bindCalendarActionHandlers: function() {
+            this.cloneAndBind('social-send-approval', async () => {
+                const snap = this.getCalendarSnap();
+                console.log('[AgencyCalendar] send approval clicked', { clientId: snap?.clientId || null, monthKey: snap?.monthKey || null, calendarId: snap?.activeCalendarId || null });
+                const calendarId = String(snap?.activeCalendarId || '').trim();
+                const clientId = String(snap?.clientId || '').trim();
+                const itemsCount = Array.isArray(snap?.editorialItems) ? snap.editorialItems.length : 0;
+                if (!calendarId || !clientId) return;
+                if (!itemsCount) {
+                    this.setAgencyFeedback('Adicione itens no planejamento antes de enviar para aprovação.', 'error');
+                    return;
+                }
+                console.log('[AgencyCalendar] approval payload', { calendarId, clientId, status: 'aguardando_aprovacao' });
+                const res = global.SocialMediaRepo?.updateCalendarStatus
+                    ? await global.SocialMediaRepo.updateCalendarStatus(calendarId, clientId, 'aguardando_aprovacao')
+                    : { ok: false, error: 'repo_missing' };
+                if (res?.ok !== true) {
+                    this.setAgencyFeedback('Não foi possível enviar o calendário para aprovação.', 'error');
+                    return;
+                }
+                console.log('[AgencyCalendar] approval persisted', { calendarId, clientId });
+                this.setAgencyFeedback('Calendário enviado para aprovação.', 'success');
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                }
+            });
+
+            this.cloneAndBind('social-delete-calendar', () => {
+                const snap = this.getCalendarSnap();
+                const calendarId = String(snap?.activeCalendarId || '').trim();
+                const status = String(snap?.calendarStatus || '').trim().toLowerCase();
+                console.log('[AgencyCalendar] delete calendar clicked', { clientId: snap?.clientId || null, monthKey: snap?.monthKey || null, calendarId: calendarId || null, status: status || null });
+                const isDraft = status === 'draft' || status === 'rascunho';
+                if (!isDraft) {
+                    console.log('[AgencyCalendar] delete blocked (status)', { status });
+                    this.setAgencyFeedback('Este calendário já foi enviado para aprovação e não pode mais ser excluído.', 'error');
+                    return;
+                }
+                if (!calendarId) return;
+                const modal = document.getElementById('social-calendar-delete-modal');
+                const monthEl = document.getElementById('social-calendar-delete-month');
+                const feedbackEl = document.getElementById('social-calendar-delete-feedback');
+                if (feedbackEl) feedbackEl.classList.add('hidden');
+                if (monthEl) {
+                    const label = global.CalendarStateSelectors?.formatMonthLabel ? global.CalendarStateSelectors.formatMonthLabel(snap?.monthKey || '') : String(snap?.monthKey || '');
+                    monthEl.textContent = label || String(snap?.monthKey || '');
+                }
+                this._deleteCalendarContext = { calendarId, clientId: String(snap?.clientId || '').trim(), monthKey: String(snap?.monthKey || '').trim() };
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                }
+            });
+
+            this.cloneAndBind('social-calendar-delete-close', () => this.closeDeleteCalendarModal());
+            this.cloneAndBind('social-calendar-delete-cancel', () => this.closeDeleteCalendarModal());
+            const modal = document.getElementById('social-calendar-delete-modal');
+            if (modal) {
+                modal.addEventListener('click', (event) => {
+                    if (event.target === modal) this.closeDeleteCalendarModal();
+                });
+            }
+
+            this.cloneAndBind('social-calendar-delete-confirm', async () => {
+                const ctx = this._deleteCalendarContext;
+                const calendarId = String(ctx?.calendarId || '').trim();
+                const clientId = String(ctx?.clientId || '').trim();
+                if (!calendarId || !clientId) return;
+                const snap = this.getCalendarSnap();
+                const status = String(snap?.calendarStatus || '').trim().toLowerCase();
+                const isDraft = status === 'draft' || status === 'rascunho';
+                if (!isDraft) {
+                    console.log('[AgencyCalendar] delete blocked (status)', { status });
+                    this.setAgencyFeedback('Este calendário já foi enviado para aprovação e não pode mais ser excluído.', 'error');
+                    this.closeDeleteCalendarModal();
+                    return;
+                }
+                const res = global.SocialMediaRepo?.deleteCalendarDraft
+                    ? await global.SocialMediaRepo.deleteCalendarDraft(calendarId)
+                    : { ok: false, error: 'repo_missing' };
+                if (res?.ok !== true) {
+                    this.setAgencyFeedback('Não foi possível excluir o calendário.', 'error');
+                    return;
+                }
+                console.log('[AgencyCalendar] delete persisted', { calendarId, clientId });
+                this.closeDeleteCalendarModal();
+                this.setAgencyFeedback('Calendário excluído com sucesso.', 'success');
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                }
+            });
+        },
+
+        closeDeleteCalendarModal: function() {
+            const modal = document.getElementById('social-calendar-delete-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         },
 
         onClientChange: async function(clientId, clientName) {
@@ -225,6 +366,8 @@
                                 if (status === 'in_production') statusEl.classList.add('bg-blue-100', 'text-blue-700');
                                 if (status === 'changes_requested') statusEl.classList.add('bg-red-100', 'text-red-700');
                             }
+
+                            this.updateCalendarActionButtons(snap);
                         });
                     }
 
