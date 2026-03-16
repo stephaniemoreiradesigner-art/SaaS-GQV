@@ -141,7 +141,7 @@
                         state.tenantUuid = null;
                     }
                 } else {
-                    console.error('[TenantContext] Não foi possível resolver o Tenant ID');
+                    state.tenantId = state.tenantUuid;
                 }
 
                 if (state.tenantUuid && (state.tenantId === null || state.tenantId === undefined)) {
