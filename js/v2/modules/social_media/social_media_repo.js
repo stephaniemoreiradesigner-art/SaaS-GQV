@@ -70,8 +70,8 @@
             const monthStart = /^\d{4}-\d{2}$/.test(normalizedMonthKey)
                 ? (global.MonthUtils?.buildMonthReferenceFromMonthKey ? global.MonthUtils.buildMonthReferenceFromMonthKey(normalizedMonthKey) : `${normalizedMonthKey}-01`)
                 : '';
-            const fmt = await resolveMesReferenciaFormat();
-            let mesReferenciaValue = (fmt === 'date' && monthStart) ? monthStart : normalizedMonthKey;
+            const mesReferenciaValue = monthStart;
+            if (!mesReferenciaValue) return null;
 
             if (isDebug()) console.log('[SocialMediaRepo] getCalendarByMonth:', { clientId: normalizedClientId, monthKey: normalizedMonthKey });
             console.log('[AgencyCalendar] query payload:', { function: 'getCalendarByMonth', table: 'social_calendars', cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue, monthKey: normalizedMonthKey, monthStart });
@@ -84,16 +84,6 @@
                     .eq('cliente_id', normalizedClientId)
                     .eq('mes_referencia', mesReferenciaValue)
                     .maybeSingle();
-
-                if (calendarError && calendarError.code === '22007' && monthStart) {
-                    mesReferenciaValue = monthStart;
-                    ({ data: calendarData, error: calendarError } = await global.supabaseClient
-                        .from('social_calendars')
-                        .select('*')
-                        .eq('cliente_id', normalizedClientId)
-                        .eq('mes_referencia', mesReferenciaValue)
-                        .maybeSingle());
-                }
 
                 if (calendarError) {
                     console.error('[AgencyCalendar] query error:', { function: 'getCalendarByMonth', table: 'social_calendars', cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue, code: calendarError?.code || null, message: calendarError?.message || null });
@@ -114,20 +104,6 @@
                     })
                     .select()
                     .single();
-
-                if (createError && createError.code === '22007' && monthStart && mesReferenciaValue !== monthStart) {
-                    mesReferenciaValue = monthStart;
-                    ({ data: createdCalendar, error: createError } = await global.supabaseClient
-                        .from('social_calendars')
-                        .insert({
-                            cliente_id: normalizedClientId,
-                            mes_referencia: mesReferenciaValue,
-                            status: 'draft',
-                            updated_at: new Date().toISOString()
-                        })
-                        .select()
-                        .single());
-                }
                 
                 if (createError) {
                      // Tratamento de concorrência (pode ter sido criado nesse milissegundo)
@@ -443,8 +419,7 @@
                 const monthRef = global.MonthUtils?.buildMonthReferenceFromMonthKey
                     ? global.MonthUtils.buildMonthReferenceFromMonthKey(monthKey)
                     : (monthKey ? `${monthKey}-01` : '');
-                const fmt = typeof resolveMesReferenciaFormat === 'function' ? await resolveMesReferenciaFormat() : null;
-                const mesReferenciaValue = fmt === 'month' ? monthKey : monthRef;
+                const mesReferenciaValue = monthRef;
                 if (!mesReferenciaValue) throw new Error('mes_referencia_invalid');
 
                 // Busca calendário existente com tratamento de erro
