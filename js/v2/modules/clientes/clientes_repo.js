@@ -7,6 +7,7 @@
     let schemaInFlight = null;
     let schemaAssumed = null;
     const isDebug = () => global.__GQV_DEBUG_CLIENTES__ === true;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
     const parseMissingColumnError = (error) => {
         const msg = String(error?.message || '');
@@ -134,6 +135,7 @@
                 docColumn,
                 hasTenantId: !!columns.tenant_id,
                 hasAtivo: !!columns.ativo,
+                tenantIdValueType: meta.tenantIdValueType || null,
                 empty: !!meta.empty,
                 assumed: !!meta.assumed
             };
@@ -153,7 +155,14 @@
             const row = Array.isArray(data) ? data[0] : null;
             if (row && typeof row === 'object') {
                 const existing = new Set(Object.keys(row));
-                schemaCache = buildSchemaFromColumns(existing, { empty: false, assumed: false });
+                const tenantSample = row.tenant_id;
+                const tenantIdValueType = (() => {
+                    if (typeof tenantSample === 'number') return 'number';
+                    if (typeof tenantSample === 'string' && UUID_RE.test(tenantSample)) return 'uuid';
+                    if (typeof tenantSample === 'string' && /^-?\d+$/.test(tenantSample)) return 'number_string';
+                    return tenantSample === null || tenantSample === undefined ? null : typeof tenantSample;
+                })();
+                schemaCache = buildSchemaFromColumns(existing, { empty: false, assumed: false, tenantIdValueType });
                 console.log('[ClientRepo] Schema clientes detectado:', schemaCache);
                 return schemaCache;
             }
@@ -301,8 +310,21 @@
 
                 const tenantCtx = global.TenantContext?.get ? global.TenantContext.get() : null;
                 const tenantCandidates = [];
-                if (tenantCtx?.tenantUuid) tenantCandidates.push(tenantCtx.tenantUuid);
-                if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push(tenantCtx.tenantId);
+                const hasNumericTenant = Number.isFinite(tenantCtx?.tenantId);
+                const hasUuidTenant = !!String(tenantCtx?.tenantUuid || '').trim();
+                if (schema?.hasTenantId) {
+                    const pref = String(schema?.tenantIdValueType || '').trim();
+                    if (pref === 'uuid') {
+                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
+                        else if (hasNumericTenant) tenantCandidates.push(String(tenantCtx.tenantId));
+                    } else if (pref === 'number' || pref === 'number_string') {
+                        if (hasNumericTenant) tenantCandidates.push(tenantCtx.tenantId);
+                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
+                    } else {
+                        if (hasNumericTenant) tenantCandidates.push(tenantCtx.tenantId);
+                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
+                    }
+                }
 
                 if (isDebug()) {
                     console.log('[ClientRepo] getClients debug:', {
@@ -352,6 +374,17 @@
                             }
                             continue;
                         }
+
+                        console.error('[ClientRepo][STARTUP_TRACE][QUERY_ERROR]', {
+                            function: 'getClients',
+                            table: 'clientes',
+                            select: '*',
+                            filter: { tenant_id: tenantValue },
+                            orderBy: schema?.nameColumn || null,
+                            activeModule: global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null,
+                            errorCode: error?.code || null,
+                            errorMessage: error?.message || null
+                        });
 
                         if (isDebug()) {
                             console.log('[ClientRepo] getClients query error:', {
