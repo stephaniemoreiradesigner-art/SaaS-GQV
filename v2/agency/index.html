@@ -1832,6 +1832,9 @@
                 btn.classList.toggle('text-slate-900', active);
                 btn.classList.toggle('text-slate-600', !active);
             });
+            if (key === 'history') {
+                window.loadAndRenderSocialPostHistory?.();
+            }
         };
 
         window.applySocialPostDrawerStatusBadge = (rawStatus) => {
@@ -2668,6 +2671,7 @@
             if (window.setSocialPostDrawerTab) {
                 window.setSocialPostDrawerTab('content');
             }
+            window.loadAndRenderSocialPostHistory?.();
             if (window.applySocialPostDrawerStatusBadge) {
                 window.applySocialPostDrawerStatusBadge(socialPostStatus?.value || post.status || 'rascunho');
             }
@@ -2821,6 +2825,87 @@
                 in_production: 'in_production'
             };
             return map[key] || raw || 'draft';
+        };
+
+        const toPtBrDateTime = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+            const d = new Date(raw);
+            if (Number.isNaN(d.getTime())) return raw;
+            return d.toLocaleString('pt-BR');
+        };
+
+        window.loadAndRenderSocialPostHistory = async () => {
+            const post = socialState.activePost;
+            const panel = document.getElementById('social-post-audit-panel');
+            const container = document.getElementById('social-post-history');
+            if (!panel || !container) return;
+            if (!post) {
+                panel.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+
+            const events = [];
+            const feedbackAjuste = String(post?.feedback_ajuste || post?.feedbackAjuste || '').trim();
+            const feedbackCliente = String(post?.feedback_cliente || post?.feedbackCliente || '').trim();
+            const updatedAt = post?.updated_at || post?.updatedAt || null;
+
+            if (feedbackAjuste || feedbackCliente) {
+                console.log('[EditorialHistory] adjustment source:', { source: 'social_posts.feedback_ajuste', postId: post?.id || null, hasFeedbackAjuste: !!feedbackAjuste });
+                events.push({
+                    ts: updatedAt || new Date().toISOString(),
+                    origin: 'Cliente',
+                    action: 'Solicitou ajustes',
+                    text: feedbackAjuste || feedbackCliente
+                });
+            }
+
+            if (post?.id && window.SocialMediaRepo?.getPostAuditEvents) {
+                const audit = await window.SocialMediaRepo.getPostAuditEvents(post.id);
+                (Array.isArray(audit) ? audit : []).forEach((ev) => {
+                    const decision = String(ev?.decision || '').trim();
+                    const comment = String(ev?.comment || '').trim();
+                    const decidedAt = ev?.decided_at || null;
+                    const actor = String(ev?.decided_by || '').trim();
+                    events.push({
+                        ts: decidedAt || new Date().toISOString(),
+                        origin: actor ? `Aprovação (${actor})` : 'Aprovação',
+                        action: decision || 'decisão',
+                        text: comment || ''
+                    });
+                });
+            }
+
+            const sorted = events
+                .filter((e) => e && e.ts)
+                .sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+
+            console.log('[EditorialHistory] loaded events:', { postId: post?.id || null, count: sorted.length });
+            if (!sorted.length) {
+                panel.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            container.innerHTML = sorted.map((e) => {
+                const dateLabel = toPtBrDateTime(e.ts);
+                const origin = String(e.origin || '').trim();
+                const action = String(e.action || '').trim();
+                const text = String(e.text || '').trim();
+                return `
+                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-xs text-slate-500">${dateLabel} • ${origin}</p>
+                                <p class="mt-1 text-sm font-semibold text-slate-900">${action}</p>
+                            </div>
+                        </div>
+                        ${text ? `<p class="mt-2 text-sm text-slate-700 whitespace-pre-wrap">${text}</p>` : ''}
+                    </div>
+                `;
+            }).join('');
         };
 
         const normalizeSocialPostStatusToDb = (status) => {
@@ -3145,25 +3230,14 @@
         };
 
         const loadCalendarMeta = async () => {
-            const supabase = await getSupabaseClient();
-            if (!supabase || !socialState.clientId) return;
+            const repo = window.SocialMediaRepo;
+            if (!repo?.getCalendarByMonth || !socialState.clientId) return;
             const monthKey = window.MonthUtils?.isValidMonthKey?.(socialState.calendarMonth)
                 ? socialState.calendarMonth
                 : (String(socialState.calendarMonth || '').trim().slice(0, 7));
             if (!window.MonthUtils?.isValidMonthKey?.(monthKey)) return;
-            const monthRef = window.MonthUtils?.buildMonthReferenceFromMonthKey
-                ? window.MonthUtils.buildMonthReferenceFromMonthKey(monthKey)
-                : `${monthKey}-01`;
-            console.log('[AgencyCalendar] query payload:', { table: 'social_calendars', cliente_id: socialState.clientId, mes_referencia: monthRef, monthKey });
-            const { data, error } = await supabase
-                .from('social_calendars')
-                .select('id, status')
-                .eq('cliente_id', socialState.clientId)
-                .eq('mes_referencia', monthRef)
-                .maybeSingle();
-            if (error) {
-                console.error('[AgencyCalendar] query error:', { table: 'social_calendars', cliente_id: socialState.clientId, mes_referencia: monthRef, monthKey, code: error.code, message: error.message });
-            }
+            console.log('[AgencyCalendar] initial hydration source:', { source: 'SocialMediaRepo.getCalendarByMonth', clientId: socialState.clientId, monthKey });
+            const data = await repo.getCalendarByMonth(socialState.clientId, monthKey);
             const calendarId = data?.id || null;
             const calendarStatus = normalizeSocialCalendarStatusFromDb(data?.status || null);
             socialState.calendarIdByMonth[monthKey] = calendarId;
@@ -3254,6 +3328,14 @@
             socialState.calendarStatus = socialState.calendarStatusByMonth[monthKey] || null;
             socialState.calendarItems = socialState.calendarItemsByMonth[monthKey] || [];
             socialState.posts = socialState.postsByMonth[monthKey] || [];
+            console.log('[AgencyCalendar] month reload result:', {
+                clientId: socialState.clientId,
+                monthKey,
+                calendarId: socialState.calendarId || null,
+                calendarStatus: socialState.calendarStatus || null,
+                postsCount: socialState.posts.length,
+                itemsCount: socialState.calendarItems.length
+            });
             updateCalendarStatus(socialState.calendarStatus);
             renderPlanItems(socialState.calendarItems);
             updateSocialOverview();
