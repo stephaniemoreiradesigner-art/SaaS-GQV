@@ -334,11 +334,11 @@
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
             const id = String(calendarId || '').trim();
             if (!id) return { ok: false, error: { message: 'missing_params' } };
-            const payload = { status: String(status || '').trim() || null };
+            const nextStatus = String(status || '').trim() || null;
 
             const { data, error } = await supabase
                 .from('social_calendars')
-                .update(payload)
+                .update({ status: nextStatus })
                 .eq('id', id);
 
             return { data, error };
