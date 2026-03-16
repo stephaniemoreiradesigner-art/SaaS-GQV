@@ -842,79 +842,29 @@
             }
             const clientId = this.getClientId();
             const monthKey = String(this.activeEditorialMonthKey || '').trim();
-            console.log('[ClientCalendar] conclude clicked', { calendarId, clientId, monthKey: monthKey || null });
-            const monthRange = monthKey && global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
-            const monthPosts = monthRange ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive) : [];
-
-            const byCalendarId = (Array.isArray(monthPosts) ? monthPosts : []).filter((p) => String(p?.calendar_id || '').trim() === calendarId);
-            const selected = byCalendarId.length ? byCalendarId : (Array.isArray(monthPosts) ? monthPosts : []);
-
-            const items = global.ClientRepo?.getCalendarItems ? await global.ClientRepo.getCalendarItems(calendarId, clientId) : [];
-            const itemsArr = Array.isArray(items) ? items : [];
-            const postsArr = Array.isArray(selected) ? selected : [];
-
-            const postsByItemId = {};
-            postsArr.forEach((p) => {
-                const key = String(p?.calendar_item_id || '').trim();
-                if (key) postsByItemId[key] = p;
-            });
-
-            const totalItems = itemsArr.length ? itemsArr.length : postsArr.length;
-            let approvedCount = 0;
-            let changesCount = 0;
-            let pendingCount = 0;
-
-            if (itemsArr.length) {
-                itemsArr.forEach((it) => {
-                    const itemId = String(it?.id || '').trim();
-                    const post = itemId ? postsByItemId[itemId] : null;
-                    const st = String(post?.status || '').trim().toLowerCase();
-                    if (st === 'draft' || st === 'approved' || st === 'scheduled' || st === 'published') {
-                        approvedCount += 1;
-                        return;
-                    }
-                    if (st === 'changes_requested' || st === 'needs_changes' || st === 'ready_for_review') {
-                        changesCount += 1;
-                        return;
-                    }
-                    pendingCount += 1;
-                });
-            } else {
-                postsArr.forEach((p) => {
-                    const st = String(p?.status || '').trim().toLowerCase();
-                    if (st === 'draft' || st === 'approved' || st === 'scheduled' || st === 'published') {
-                        approvedCount += 1;
-                        return;
-                    }
-                    if (st === 'changes_requested' || st === 'needs_changes' || st === 'ready_for_review') {
-                        changesCount += 1;
-                        return;
-                    }
-                    pendingCount += 1;
-                });
-            }
-
-            const nextStatus = pendingCount > 0 ? 'awaiting_approval' : (changesCount > 0 ? 'needs_changes' : 'approved');
             const commentInput = document.getElementById('client-calendar-approval-comment');
             const comment = commentInput ? String(commentInput.value || '').trim() : '';
-            console.log('[ClientCalendar] conclude payload', { calendarId, clientId, monthKey: monthKey || null, totalItems, approvedCount, changesCount, pendingCount, nextStatus, hasComment: !!comment });
+            console.log('[ClientCalendar] conclude clicked', { calendarId, clientId, monthKey: monthKey || null });
+            console.log('[ClientCalendar] conclude final action:', { calendarId, clientId, monthKey: monthKey || null, calendarStatus: 'approved' });
+            console.log('[ClientCalendar] conclude payload', { calendarId, clientId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
 
             if (global.ClientRepo?.updateCalendarStatus) {
-                const res = await global.ClientRepo.updateCalendarStatus(calendarId, clientId, nextStatus);
+                const res = await global.ClientRepo.updateCalendarStatus(calendarId, clientId, 'approved');
                 if (res?.ok !== true) {
-                    console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, clientId, nextStatus, error: res?.error || null });
-                    console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, clientId, nextStatus });
+                    console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, clientId, status: 'approved', error: res?.error || null });
+                    console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, clientId, status: 'approved' });
                     return;
                 }
             }
             if (comment && global.ClientRepo?.updateCalendarFeedback) {
                 await global.ClientRepo.updateCalendarFeedback(calendarId, clientId, comment);
             }
-            console.log('[ClientCalendar] conclude persisted', { calendarId, clientId, nextStatus });
+            console.log('[ClientCalendar] calendar status persisted:', { calendarId, clientId, status: 'approved' });
+            console.log('[ClientCalendar] pipeline untouched:', { calendarId, clientId, note: 'social_posts.status não foi alterado' });
 
             const statusEl = document.getElementById('client-calendar-modal-status');
             if (statusEl) {
-                const raw = String(nextStatus || '').trim().toLowerCase();
+                const raw = 'approved';
                 const map = {
                     ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700' },
                     awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
@@ -932,18 +882,7 @@
                 statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${info.cls}`;
             }
 
-            console.log('[ClientCalendar] verificacao concluida:', {
-                calendarId,
-                clientId,
-                monthKey: monthKey || null,
-                totalItems,
-                approvedCount,
-                changesCount,
-                pendingCount,
-                calendarStatus: nextStatus
-            });
-
-            await this.openCalendarModal(calendarId, monthKey, nextStatus);
+            await this.openCalendarModal(calendarId, monthKey, 'approved');
 
             await this.loadCalendars();
             await this.loadDashboardData();

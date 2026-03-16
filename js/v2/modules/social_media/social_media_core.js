@@ -12,6 +12,7 @@
         currentPosts: [],
         _calendarStateUnsub: null,
         _deleteCalendarContext: null,
+        _lastCalendarStatus: null,
         // Helper de debug
         isDebug: function() {
             return window.__GQV_DEBUG_CONTEXT__ === true;
@@ -359,6 +360,12 @@
                                     changes_requested: 'Ajustes Solicitados'
                                 };
                                 const status = String(snap.calendarStatus || 'draft');
+                                const prevStatus = String(this._lastCalendarStatus || '').trim();
+                                const nextStatus = String(status || '').trim();
+                                if (nextStatus === 'approved' && prevStatus && prevStatus !== nextStatus) {
+                                    console.log('[AgencyCalendar] unlocked after calendar approval:', { calendarId: snap.activeCalendarId || null, monthKey: snap.monthKey || null, from: prevStatus, to: nextStatus });
+                                }
+                                this._lastCalendarStatus = nextStatus;
                                 statusEl.textContent = statusMap[status] || status;
                                 statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
                                 if (status === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
