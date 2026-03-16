@@ -318,15 +318,13 @@
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
             const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
-            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
             const payload = { comentario_cliente: String(comment || '').trim() || null };
 
-            let query = supabase
+            const query = supabase
                 .from('social_calendars')
                 .update(payload)
                 .eq('id', normalizedCalendarId);
-            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
-            const { data, error } = await query.select('id,status,cliente_id');
+            const { data, error } = await query.select('id,status');
             if (error) return { ok: false, error };
             return { ok: true, data: (data && data[0]) || null };
         },
