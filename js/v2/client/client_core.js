@@ -851,14 +851,14 @@
 
             if (global.ClientRepo?.updateCalendarStatus) {
                 console.log('[ClientCalendar] about to update social_calendars from: concludeCalendarVerification');
-                const { data, error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'approved');
+                const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'approved');
                 if (error) {
                     console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, status: 'approved', error });
                     console.log('[ClientCalendar] conclude update error:', { calendarId, status: 'approved', code: error?.code || null, message: error?.message || null });
                     console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, status: 'approved' });
                     return;
                 }
-                console.log('[ClientCalendar] conclude update success:', { calendarId, status: 'approved', updated: Array.isArray(data) ? data.length : (data ? 1 : 0) });
+                console.log('[ClientCalendar] conclude update success:', { calendarId, status: 'approved' });
             }
             console.log('[ClientCalendar] calendar status persisted:', { calendarId, status: 'approved' });
             console.log('[ClientCalendar] pipeline untouched:', { calendarId, note: 'social_posts.status não foi alterado' });

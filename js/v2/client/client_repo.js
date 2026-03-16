@@ -338,12 +338,26 @@
             const nextStatus = String(status || '').trim() || null;
 
             console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarStatus');
-            const { data, error } = await supabase
+            const { error } = await supabase
                 .from('social_calendars')
                 .update({ status: nextStatus })
                 .eq('id', id);
 
-            return { data, error };
+            if (error) {
+                console.log('[ClientRepo] updateCalendarStatus error detail:', {
+                    calendarId: id,
+                    status: nextStatus,
+                    payload: { status: nextStatus },
+                    code: error?.code || null,
+                    message: error?.message || null,
+                    details: error?.details || null,
+                    hint: error?.hint || null
+                });
+                return { error };
+            }
+
+            console.log('[ClientRepo] updateCalendarStatus success:', { calendarId: id, status: nextStatus });
+            return { error: null };
         },
 
         /**
