@@ -468,6 +468,8 @@
             this.ensureEditorialReviewLoaded(calendarId);
             this._activeCalendarItems = [];
             this._activeCalendarPostsByItemId = {};
+            this._activeEditorialEntries = [];
+            this._activeEditorialMonthPosts = [];
             
             // UI Setup
             const titleEl = document.getElementById('client-calendar-modal-title');
@@ -480,10 +482,11 @@
             if (statusEl) {
                 const raw = String(status || '').trim().toLowerCase();
                 const map = {
+                    ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700' },
                     awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
-                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    needs_changes: { label: 'Precisa de ajustes', cls: 'bg-sky-100 text-sky-700' },
                     ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
                     approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
                     aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
@@ -510,6 +513,12 @@
                 ? metaMonthKey
                 : (global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : '');
             this.activeEditorialMonthKey = effectiveMonthKey || null;
+            console.log('[ClientCalendar] source calendario mensal:', {
+                calendarId,
+                clientId,
+                monthKey: effectiveMonthKey || null,
+                meta: meta ? { id: meta.id, status: meta.status, mes_referencia: meta.mes_referencia } : null
+            });
             if (periodEl) {
                 periodEl.textContent = global.MonthUtils?.formatMonthLabel && effectiveMonthKey
                     ? global.MonthUtils.formatMonthLabel(effectiveMonthKey)
@@ -518,10 +527,11 @@
             if (statusEl && meta?.status) {
                 const raw = String(meta.status || '').trim().toLowerCase();
                 const map = {
+                    ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700' },
                     awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
-                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    needs_changes: { label: 'Precisa de ajustes', cls: 'bg-sky-100 text-sky-700' },
                     ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
                     approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
                     aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
@@ -532,26 +542,77 @@
                 statusEl.textContent = info.label;
                 statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${info.cls}`;
             }
+            const monthRange = effectiveMonthKey && global.CalendarStateSelectors?.getMonthRange
+                ? global.CalendarStateSelectors.getMonthRange(effectiveMonthKey)
+                : null;
+            const monthPosts = monthRange
+                ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive)
+                : [];
+
             const items = global.ClientRepo.getCalendarItems
                 ? await global.ClientRepo.getCalendarItems(calendarId, clientId)
                 : [];
-            const posts = global.ClientRepo.getCalendarPosts
-                ? await global.ClientRepo.getCalendarPosts(calendarId, clientId)
-                : [];
+            const itemsById = {};
+            (Array.isArray(items) ? items : []).forEach((it) => {
+                const key = String(it?.id || '').trim();
+                if (key) itemsById[key] = it;
+            });
+
+            const byCalendarId = (Array.isArray(monthPosts) ? monthPosts : []).filter((p) => String(p?.calendar_id || '').trim() === String(calendarId || '').trim());
+            const modalPosts = byCalendarId.length ? byCalendarId : (Array.isArray(monthPosts) ? monthPosts : []);
+
+            this._activeEditorialMonthPosts = Array.isArray(monthPosts) ? monthPosts : [];
+
+            console.log('[ClientCalendar] source modal editorial:', {
+                calendarId,
+                clientId,
+                monthKey: effectiveMonthKey || null,
+                monthPostsCount: this._activeEditorialMonthPosts.length,
+                calendarPostsCount: byCalendarId.length,
+                selectedCount: modalPosts.length,
+                selectedStrategy: byCalendarId.length ? 'month_posts.filter(calendar_id)' : 'month_posts(all)'
+            });
+
+            const buildEntryFromPost = (post) => {
+                const itemId = String(post?.calendar_item_id || '').trim() || null;
+                const item = itemId ? itemsById[itemId] : null;
+                const scheduled = String(post?.data_agendada || item?.data || '').slice(0, 10);
+                const tema = post?.tema || post?.titulo || post?.title || item?.tema || item?.titulo || item?.title || 'Sem título';
+                const canal = post?.plataforma || post?.platform || post?.canal || item?.canal || item?.plataforma || item?.platform || '-';
+                const tipo = item?.tipo_conteudo || item?.formato || post?.formato || post?.content_type || post?.tipo || 'post_estatico';
+                const copy = post?.legenda || post?.copy || item?.copy || item?.copy_text || item?.copywriting || item?.observacoes || '';
+                return {
+                    key: String(post?.id || itemId || scheduled || Math.random()),
+                    postId: String(post?.id || '').trim() || null,
+                    itemId,
+                    calendarId: String(calendarId || '').trim(),
+                    scheduledDate: scheduled,
+                    tema,
+                    canal,
+                    tipo,
+                    copy,
+                    status: String(post?.status || '').trim() || 'draft'
+                };
+            };
+
+            const entries = modalPosts.map(buildEntryFromPost).filter((e) => !!e.scheduledDate);
+
             const postsByItemId = {};
-            (Array.isArray(posts) ? posts : []).forEach((p) => {
+            (Array.isArray(modalPosts) ? modalPosts : []).forEach((p) => {
                 const key = String(p?.calendar_item_id || '').trim();
                 if (key) postsByItemId[key] = p;
             });
+
             this._activeCalendarItems = Array.isArray(items) ? items : [];
             this._activeCalendarPostsByItemId = postsByItemId;
-            console.log('[ClientCalendar] itens do calendario:', {
-                calendarId,
-                clientId,
-                itemsCount: this._activeCalendarItems.length,
-                postsLinkedCount: Object.keys(postsByItemId).length
-            });
-            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(this._activeCalendarItems, { postsByItemId });
+            this._activeEditorialEntries = entries;
+
+            const uniqueStatuses = Array.from(new Set(entries.map((e) => String(e.status || '').trim().toLowerCase()).filter(Boolean)));
+            const mapped = uniqueStatuses.map((s) => ({ raw: s, label: global.ClientUI?.getStatusDisplay ? global.ClientUI.getStatusDisplay(s).label : s }));
+            console.log('[ClientCalendar] status normalizado:', mapped);
+            console.log('[ClientCalendar] itens renderizados no modal:', { calendarId, clientId, count: entries.length });
+
+            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(entries, { source: 'month_posts', postsByItemId });
 
             // Bind Actions
             this.setupModalActions();
@@ -612,57 +673,83 @@
         },
 
         approveCalendarItem: async function(itemId, comment) {
+            await this.approveCalendarEntry({ itemId: itemId }, comment);
+        },
+
+        approveCalendarEntry: async function(entry, comment) {
             const calendarId = this.activeCalendarId;
-            if (!calendarId || !itemId) return;
+            if (!calendarId || !entry) return;
             const clientId = this.getClientId();
-            const items = Array.isArray(this._activeCalendarItems) ? this._activeCalendarItems : [];
-            const item = items.find((i) => String(i?.id || '').trim() === String(itemId || '').trim()) || null;
-            const scheduledDate = String(item?.data || '').trim();
-            const result = await global.ClientRepo?.upsertCalendarItemEditorialDecision?.({
-                calendarId,
-                itemId,
-                clientId,
-                scheduledDate,
-                status: 'draft',
-                comment: String(comment || '').trim()
-            });
-            const ok = result?.ok === true;
-            if (ok) {
-                const key = String(itemId || '').trim();
-                if (key) this._activeCalendarPostsByItemId[key] = result?.data || { status: 'draft' };
-                this.setEditorialItemReview(itemId, 'approved', comment);
-                console.log('[ClientCalendar] item aprovado:', { calendarId, itemId, clientId });
-            } else {
-                console.error('[ClientCalendar] falha ao aprovar item:', { calendarId, itemId, clientId, error: result?.error || null });
+            const trimmedComment = String(comment || '').trim();
+            const postId = String(entry?.postId || '').trim();
+            const itemId = String(entry?.itemId || '').trim();
+
+            if (postId && global.ClientRepo?.updatePostEditorialStatus) {
+                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'draft', trimmedComment);
+                if (result?.ok === true) {
+                    console.log('[ClientCalendar] item aprovado:', { calendarId, postId, clientId });
+                } else {
+                    console.error('[ClientCalendar] falha ao aprovar item:', { calendarId, postId, clientId, error: result?.error || null });
+                }
+            } else if (itemId && global.ClientRepo?.upsertCalendarItemEditorialDecision) {
+                const scheduledDate = String(entry?.scheduledDate || '').trim();
+                const result = await global.ClientRepo.upsertCalendarItemEditorialDecision({
+                    calendarId,
+                    itemId,
+                    clientId,
+                    scheduledDate,
+                    status: 'draft',
+                    comment: trimmedComment
+                });
+                if (result?.ok === true) {
+                    this.setEditorialItemReview(itemId, 'approved', trimmedComment);
+                    console.log('[ClientCalendar] item aprovado:', { calendarId, itemId, clientId });
+                } else {
+                    console.error('[ClientCalendar] falha ao aprovar item:', { calendarId, itemId, clientId, error: result?.error || null });
+                }
             }
-            global.ClientUI?.renderCalendarPostsInModal?.(items, { postsByItemId: this._activeCalendarPostsByItemId });
+
+            await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
         },
 
         requestCalendarItemAdjustment: async function(itemId, comment) {
+            await this.requestCalendarEntryAdjustment({ itemId: itemId }, comment);
+        },
+
+        requestCalendarEntryAdjustment: async function(entry, comment) {
             const calendarId = this.activeCalendarId;
-            if (!calendarId || !itemId) return;
+            if (!calendarId || !entry) return;
             const clientId = this.getClientId();
-            const items = Array.isArray(this._activeCalendarItems) ? this._activeCalendarItems : [];
-            const item = items.find((i) => String(i?.id || '').trim() === String(itemId || '').trim()) || null;
-            const scheduledDate = String(item?.data || '').trim();
-            const result = await global.ClientRepo?.upsertCalendarItemEditorialDecision?.({
-                calendarId,
-                itemId,
-                clientId,
-                scheduledDate,
-                status: 'changes_requested',
-                comment: String(comment || '').trim()
-            });
-            const ok = result?.ok === true;
-            if (ok) {
-                const key = String(itemId || '').trim();
-                if (key) this._activeCalendarPostsByItemId[key] = result?.data || { status: 'changes_requested' };
-                this.setEditorialItemReview(itemId, 'changes_requested', comment);
-                console.log('[ClientCalendar] item com ajuste:', { calendarId, itemId, clientId });
-            } else {
-                console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, itemId, clientId, error: result?.error || null });
+            const trimmedComment = String(comment || '').trim();
+            const postId = String(entry?.postId || '').trim();
+            const itemId = String(entry?.itemId || '').trim();
+
+            if (postId && global.ClientRepo?.updatePostEditorialStatus) {
+                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'changes_requested', trimmedComment);
+                if (result?.ok === true) {
+                    console.log('[ClientCalendar] item com ajuste:', { calendarId, postId, clientId });
+                } else {
+                    console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, postId, clientId, error: result?.error || null });
+                }
+            } else if (itemId && global.ClientRepo?.upsertCalendarItemEditorialDecision) {
+                const scheduledDate = String(entry?.scheduledDate || '').trim();
+                const result = await global.ClientRepo.upsertCalendarItemEditorialDecision({
+                    calendarId,
+                    itemId,
+                    clientId,
+                    scheduledDate,
+                    status: 'changes_requested',
+                    comment: trimmedComment
+                });
+                if (result?.ok === true) {
+                    this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
+                    console.log('[ClientCalendar] item com ajuste:', { calendarId, itemId, clientId });
+                } else {
+                    console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, itemId, clientId, error: result?.error || null });
+                }
             }
-            global.ClientUI?.renderCalendarPostsInModal?.(items, { postsByItemId: this._activeCalendarPostsByItemId });
+
+            await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
         },
 
         sendEditorialFeedbackToAgency: async function() {
@@ -689,22 +776,20 @@
             const calendarId = String(this.activeCalendarId || '').trim();
             if (!calendarId) return;
             const clientId = this.getClientId();
-            const items = global.ClientRepo?.getCalendarItems ? await global.ClientRepo.getCalendarItems(calendarId, clientId) : (Array.isArray(this._activeCalendarItems) ? this._activeCalendarItems : []);
-            const posts = global.ClientRepo?.getCalendarPosts ? await global.ClientRepo.getCalendarPosts(calendarId, clientId) : [];
-            const postsByItemId = {};
-            (Array.isArray(posts) ? posts : []).forEach((p) => {
-                const key = String(p?.calendar_item_id || '').trim();
-                if (key) postsByItemId[key] = p;
-            });
+            const monthKey = String(this.activeEditorialMonthKey || '').trim();
+            const monthRange = monthKey && global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
+            const monthPosts = monthRange ? await global.ClientRepo.getPostsByDateRange(clientId, monthRange.startDate, monthRange.endDateExclusive) : [];
 
-            const totalItems = Array.isArray(items) ? items.length : 0;
+            const byCalendarId = (Array.isArray(monthPosts) ? monthPosts : []).filter((p) => String(p?.calendar_id || '').trim() === calendarId);
+            const selected = byCalendarId.length ? byCalendarId : (Array.isArray(monthPosts) ? monthPosts : []);
+
+            const totalItems = selected.length;
             let approvedCount = 0;
             let changesCount = 0;
             let pendingCount = 0;
-            (Array.isArray(items) ? items : []).forEach((it) => {
-                const key = String(it?.id || '').trim();
-                const st = String(postsByItemId[key]?.status || '').trim().toLowerCase();
-                if (st === 'draft' || st === 'approved') {
+            selected.forEach((p) => {
+                const st = String(p?.status || '').trim().toLowerCase();
+                if (st === 'draft' || st === 'approved' || st === 'scheduled' || st === 'published') {
                     approvedCount += 1;
                     return;
                 }
@@ -730,18 +815,15 @@
                 await global.ClientRepo.updateCalendarFeedback(calendarId, clientId, comment);
             }
 
-            this._activeCalendarItems = Array.isArray(items) ? items : [];
-            this._activeCalendarPostsByItemId = postsByItemId;
-            global.ClientUI?.renderCalendarPostsInModal?.(this._activeCalendarItems, { postsByItemId });
-
             const statusEl = document.getElementById('client-calendar-modal-status');
             if (statusEl) {
                 const raw = String(nextStatus || '').trim().toLowerCase();
                 const map = {
+                    ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700' },
                     awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
                     sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
-                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
+                    needs_changes: { label: 'Precisa de ajustes', cls: 'bg-sky-100 text-sky-700' },
                     ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700' },
                     approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
                     aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700' },
@@ -756,12 +838,15 @@
             console.log('[ClientCalendar] verificacao concluida:', {
                 calendarId,
                 clientId,
+                monthKey: monthKey || null,
                 totalItems,
                 approvedCount,
                 changesCount,
                 pendingCount,
                 calendarStatus: nextStatus
             });
+
+            await this.openCalendarModal(calendarId, monthKey, nextStatus);
 
             await this.loadCalendars();
             await this.loadDashboardData();
@@ -770,14 +855,10 @@
         setupModalActions: function() {
             const closeBtn = document.getElementById('client-calendar-modal-close');
             const closeFooterBtn = document.getElementById('client-calendar-modal-close-footer');
-            const sendBtn = document.getElementById('client-calendar-modal-send-feedback');
             const concludeBtn = document.getElementById('client-calendar-modal-conclude');
 
             if (closeBtn) closeBtn.onclick = () => global.ClientUI.showCalendarModal(false);
             if (closeFooterBtn) closeFooterBtn.onclick = () => global.ClientUI.showCalendarModal(false);
-            if (sendBtn) sendBtn.onclick = async () => {
-                await this.sendEditorialFeedbackToAgency();
-            };
             if (concludeBtn) concludeBtn.onclick = async () => {
                 await this.concludeCalendarVerification();
             };

@@ -550,6 +550,42 @@
             return { ok: true, data: data[0] };
         },
 
+        updatePostEditorialStatus: async function(postId, clientId, status, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !postId) return { ok: false, error: { message: 'missing_params' } };
+
+            const normalizedPostId = String(postId || '').trim();
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const nextStatus = String(status || '').trim();
+            const trimmedComment = String(comment || '').trim();
+
+            const payload = {
+                status: nextStatus,
+                feedback_cliente: trimmedComment || null,
+                feedback_ajuste: nextStatus === 'changes_requested' ? (trimmedComment || null) : null,
+                updated_at: new Date().toISOString()
+            };
+
+            let query = supabase
+                .from('social_posts')
+                .update(payload)
+                .eq('id', normalizedPostId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+
+            const { data, error } = await query.select('*').maybeSingle();
+            if (error) {
+                console.error('[ClientRepo] Erro ao atualizar status editorial do post:', {
+                    postId: normalizedPostId,
+                    clientId: normalizedClientId,
+                    payload,
+                    code: error.code,
+                    message: error.message
+                });
+                return { ok: false, error };
+            }
+            return { ok: true, data: data || null };
+        },
+
         getPostsByDateRange: async function(clientId, startDate, endDate) {
             const supabase = await this.getClient();
             if (!supabase || !clientId) return [];

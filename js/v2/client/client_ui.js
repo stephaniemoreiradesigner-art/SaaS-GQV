@@ -6,6 +6,32 @@
         views: ['home', 'calendar', 'approvals', 'history', 'metrics'],
         metricsChart: null,
 
+        getStatusDisplay: function(rawStatus) {
+            const key = String(rawStatus || '').trim().toLowerCase();
+            const base = {
+                cls: 'bg-slate-100 text-slate-700 border border-slate-200'
+            };
+            const map = {
+                ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
+                awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
+                draft: { label: 'Rascunho', cls: base.cls },
+                rascunho: { label: 'Rascunho', cls: base.cls },
+                changes_requested: { label: 'Ajustes solicitados', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                needs_changes: { label: 'Precisa de ajustes', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
+                ready_for_review: { label: 'Revisão interna', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
+                approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                scheduled: { label: 'Agendado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+                published: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' }
+            };
+            const found = map[key] || null;
+            if (found) return found;
+            const fallbackLabel = key ? key.replace(/_/g, ' ') : '-';
+            return { label: fallbackLabel, cls: base.cls };
+        },
+
         init: function() {
             this.setupNavigation();
             this.setupMobileMenu();
@@ -178,24 +204,7 @@
                     : (global.MonthUtils?.formatMonthLabel && monthKey ? global.MonthUtils.formatMonthLabel(monthKey) : (monthKey || 'Mês'));
                 const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
                 const rawStatus = String(cal.status || '').trim().toLowerCase();
-                const statusMap = {
-                    draft: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
-                    rascunho: { label: 'Rascunho', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
-                    awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                    aguardando_aprovacao: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                    sent_for_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                    needs_changes: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                    ajuste_solicitado: { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                    approved: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                    aprovado: { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                    in_production: { label: 'Em produção', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
-                    em_producao: { label: 'Em produção', cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
-                    published: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' },
-                    publicado: { label: 'Publicado', cls: 'bg-slate-900 text-white border border-slate-900' },
-                    archived: { label: 'Concluído', cls: 'bg-slate-100 text-slate-700 border border-slate-200' },
-                    concluido: { label: 'Concluído', cls: 'bg-slate-100 text-slate-700 border border-slate-200' }
-                };
-                const statusInfo = statusMap[rawStatus] || { label: rawStatus || 'Status', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
+                const statusInfo = this.getStatusDisplay(rawStatus);
 
                 const card = document.createElement('div');
                 card.className = 'bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer';
@@ -224,45 +233,36 @@
             });
         },
 
-        renderCalendarPostsInModal: function(items, options = null) {
+        renderCalendarPostsInModal: function(entries, options = null) {
             const container = document.getElementById('client-calendar-posts-list');
             const loading = document.getElementById('client-calendar-posts-loading');
             const empty = document.getElementById('client-calendar-posts-empty');
             const commentEl = document.getElementById('client-calendar-approval-comment');
-            const postsByItemId = options?.postsByItemId && typeof options.postsByItemId === 'object' ? options.postsByItemId : {};
+            const source = String(options?.source || '').trim() || 'unknown';
 
             if (loading) loading.classList.add('hidden');
             if (!container) return;
             
             container.innerHTML = '';
 
-            if (!items || items.length === 0) {
+            const list = Array.isArray(entries) ? entries : [];
+            console.log('[ClientCalendar] itens renderizados no modal:', { source, count: list.length });
+
+            if (!list.length) {
                 if (empty) empty.classList.remove('hidden');
                 return;
             }
             if (empty) empty.classList.add('hidden');
 
-            items.forEach(item => {
-                const post = postsByItemId[String(item?.id || '').trim()] || null;
-                const review = global.ClientCore?.getEditorialItemReview
-                    ? global.ClientCore.getEditorialItemReview(item.id)
-                    : null;
-                const reviewKey = String(post?.status || review?.status || '').trim().toLowerCase();
-                const reviewBadge = (() => {
-                    if (reviewKey === 'draft' || reviewKey === 'approved' || reviewKey === 'aprovado') return { label: 'Aprovado', cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' };
-                    if (reviewKey === 'changes_requested' || reviewKey === 'needs_changes' || reviewKey === 'ajuste_solicitado' || reviewKey === 'ready_for_review') return { label: 'Ajuste solicitado', cls: 'bg-sky-100 text-sky-700 border border-sky-200' };
-                    return { label: 'Pendente', cls: 'bg-slate-100 text-slate-700 border border-slate-200' };
-                })();
-                const dateRaw = item.data || '';
+            list.forEach((entry) => {
+                const statusInfo = this.getStatusDisplay(entry?.status);
+                const dateRaw = entry?.scheduledDate || '';
                 const date = dateRaw ? new Date(String(dateRaw).slice(0, 10)).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Sem data';
-                const tema = item.tema || item.titulo || item.title || 'Sem título';
-                const tipo = item.tipo_conteudo || item.formato || 'post_estatico';
-                const canal = item.canal || item.plataforma || item.platform || '-';
-                const copy = item.copy || item.copy_text || item.copywriting || '';
-                const obs = item.observacoes || '';
-                const notes = item.notes || item.legenda || post?.legenda || post?.caption || '';
-                const detailText = String(copy || obs || notes || '').trim();
-                const detailId = `cal-item-detail-${String(item.id || Math.random()).replace(/[^\w-]/g, '')}`;
+                const tema = entry?.tema || 'Sem título';
+                const tipo = entry?.tipo || 'post_estatico';
+                const canal = entry?.canal || '-';
+                const detailText = String(entry?.copy || '').trim();
+                const detailId = `cal-item-detail-${String(entry?.key || Math.random()).replace(/[^\w-]/g, '')}`;
 
                 const el = document.createElement('div');
                 el.className = 'bg-white border border-slate-200 rounded-xl p-4';
@@ -273,7 +273,7 @@
                             <p class="mt-1 text-sm font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</p>
                         </div>
                         <div class="flex flex-col items-end gap-2">
-                            <span class="text-[10px] uppercase px-2 py-0.5 rounded-full ${reviewBadge.cls}">${reviewBadge.label}</span>
+                            <span class="text-[10px] uppercase px-2 py-0.5 rounded-full ${statusInfo.cls}">${statusInfo.label}</span>
                             <span class="text-[10px] uppercase px-2 py-0.5 bg-slate-100 rounded-full text-slate-600 border border-slate-200">${tipo}</span>
                         </div>
                     </div>
@@ -324,14 +324,14 @@
                 if (requestBtn) {
                     requestBtn.addEventListener('click', () => {
                         const comment = commentEl ? String(commentEl.value || '').trim() : '';
-                        global.ClientCore?.requestCalendarItemAdjustment?.(item.id, comment);
+                        global.ClientCore?.requestCalendarEntryAdjustment?.(entry, comment);
                     });
                 }
                 const approveItemBtn = el.querySelector('[data-cal-item-action="approve-item"]');
                 if (approveItemBtn) {
                     approveItemBtn.addEventListener('click', () => {
                         const comment = commentEl ? String(commentEl.value || '').trim() : '';
-                        global.ClientCore?.approveCalendarItem?.(item.id, comment);
+                        global.ClientCore?.approveCalendarEntry?.(entry, comment);
                     });
                 }
                 container.appendChild(el);
@@ -688,7 +688,7 @@
                 dayPosts.forEach((p) => {
                     const title = p.tema || p.titulo || p.title || 'Post';
                     const status = String(p.status || '').toLowerCase();
-                    const statusLabel = status ? status.replace(/_/g, ' ') : '-';
+                    const statusLabel = this.getStatusDisplay(status).label;
                     const formatRaw = String(p.formato || p.content_type || p.tipo || '').toLowerCase();
                     const typeBorder = (formatRaw.includes('carrossel'))
                         ? 'border-l-4 border-l-violet-500'
