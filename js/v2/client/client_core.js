@@ -840,13 +840,12 @@
                 console.log('[ClientCalendar] conclude blocked reason:', { reason: 'missing_calendarId' });
                 return;
             }
-            const clientId = this.getClientId();
             const monthKey = String(this.activeEditorialMonthKey || '').trim();
             const commentInput = document.getElementById('client-calendar-approval-comment');
             const comment = commentInput ? String(commentInput.value || '').trim() : '';
-            console.log('[ClientCalendar] conclude clicked', { calendarId, clientId, monthKey: monthKey || null });
-            console.log('[ClientCalendar] conclude final action:', { calendarId, clientId, monthKey: monthKey || null, calendarStatus: 'approved' });
-            console.log('[ClientCalendar] conclude payload', { calendarId, clientId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
+            console.log('[ClientCalendar] conclude clicked', { calendarId, monthKey: monthKey || null });
+            console.log('[ClientCalendar] conclude final action:', { calendarId, monthKey: monthKey || null, calendarStatus: 'approved' });
+            console.log('[ClientCalendar] conclude payload', { calendarId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
             console.log('[ClientCalendar] conclude update filters:', { id: calendarId });
             console.log('[ClientCalendar] conclude update payload:', { status: 'approved' });
 

@@ -320,6 +320,7 @@
             const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
             const payload = { comentario_cliente: String(comment || '').trim() || null };
 
+            console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarFeedback');
             const query = supabase
                 .from('social_calendars')
                 .update(payload)
@@ -336,6 +337,7 @@
             if (!id) return { ok: false, error: { message: 'missing_params' } };
             const nextStatus = String(status || '').trim() || null;
 
+            console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarStatus');
             const { data, error } = await supabase
                 .from('social_calendars')
                 .update({ status: nextStatus })
