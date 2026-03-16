@@ -847,11 +847,14 @@
             console.log('[ClientCalendar] conclude clicked', { calendarId, clientId, monthKey: monthKey || null });
             console.log('[ClientCalendar] conclude final action:', { calendarId, clientId, monthKey: monthKey || null, calendarStatus: 'approved' });
             console.log('[ClientCalendar] conclude payload', { calendarId, clientId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
+            console.log('[ClientCalendar] conclude update filters:', { id: calendarId, cliente_id: clientId || null });
+            console.log('[ClientCalendar] conclude update payload:', { status: 'approved' });
 
             if (global.ClientRepo?.updateCalendarStatus) {
                 const res = await global.ClientRepo.updateCalendarStatus(calendarId, clientId, 'approved');
                 if (res?.ok !== true) {
                     console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, clientId, status: 'approved', error: res?.error || null });
+                    console.log('[ClientCalendar] conclude update error:', { calendarId, clientId, status: 'approved', code: res?.error?.code || null, message: res?.error?.message || null });
                     console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, clientId, status: 'approved' });
                     return;
                 }
@@ -860,6 +863,7 @@
                 await global.ClientRepo.updateCalendarFeedback(calendarId, clientId, comment);
             }
             console.log('[ClientCalendar] calendar status persisted:', { calendarId, clientId, status: 'approved' });
+            console.log('[ClientCalendar] conclude update success:', { calendarId, clientId, status: 'approved' });
             console.log('[ClientCalendar] pipeline untouched:', { calendarId, clientId, note: 'social_posts.status não foi alterado' });
 
             const statusEl = document.getElementById('client-calendar-modal-status');

@@ -334,17 +334,27 @@
         updateCalendarStatus: async function(calendarId, clientId, status) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
-            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
-            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : null;
+            const fallbackCalendarId = String(calendarId || '').trim();
+            const id = normalizedCalendarId || fallbackCalendarId;
+            if (!id) return { ok: false, error: { message: 'missing_params' } };
             const payload = { status: String(status || '').trim() || null };
 
             let query = supabase
                 .from('social_calendars')
                 .update(payload)
-                .eq('id', normalizedCalendarId);
-            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+                .eq('id', id);
             const { data, error } = await query.select('id,status,cliente_id');
-            if (error) return { ok: false, error };
+            if (error) {
+                console.error('[ClientRepo] Erro ao atualizar status do calendário:', {
+                    calendarId: id,
+                    clientId: String(clientId || '').trim() || null,
+                    payload,
+                    code: error.code,
+                    message: error.message
+                });
+                return { ok: false, error };
+            }
             return { ok: true, data: (data && data[0]) || null };
         },
 
