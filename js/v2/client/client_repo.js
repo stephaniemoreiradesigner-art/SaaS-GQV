@@ -334,17 +334,15 @@
         updateCalendarStatus: async function(calendarId, clientId, status) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
-            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : null;
-            const fallbackCalendarId = String(calendarId || '').trim();
-            const id = normalizedCalendarId || fallbackCalendarId;
+            const id = String(calendarId || '').trim();
             if (!id) return { ok: false, error: { message: 'missing_params' } };
             const payload = { status: String(status || '').trim() || null };
 
-            let query = supabase
+            const { data, error } = await supabase
                 .from('social_calendars')
                 .update(payload)
-                .eq('id', id);
-            const { data, error } = await query.select('id,status,cliente_id');
+                .eq('id', id)
+                .select('id,status');
             if (error) {
                 console.error('[ClientRepo] Erro ao atualizar status do calendário:', {
                     calendarId: id,

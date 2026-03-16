@@ -847,7 +847,7 @@
             console.log('[ClientCalendar] conclude clicked', { calendarId, clientId, monthKey: monthKey || null });
             console.log('[ClientCalendar] conclude final action:', { calendarId, clientId, monthKey: monthKey || null, calendarStatus: 'approved' });
             console.log('[ClientCalendar] conclude payload', { calendarId, clientId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
-            console.log('[ClientCalendar] conclude update filters:', { id: calendarId, cliente_id: clientId || null });
+            console.log('[ClientCalendar] conclude update filters:', { id: calendarId });
             console.log('[ClientCalendar] conclude update payload:', { status: 'approved' });
 
             if (global.ClientRepo?.updateCalendarStatus) {
