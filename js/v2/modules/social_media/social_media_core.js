@@ -79,8 +79,18 @@
             // Ouvir adição rápida de post no dia
             document.addEventListener('v2:calendar-add', (e) => {
                 if (e.detail && e.detail.date) {
-                    this.startCreate(e.detail.date);
+                    this.openPlanning({ date: e.detail.date });
                 }
+            });
+            document.addEventListener('v2:calendar-item-add', (e) => {
+                if (e.detail && e.detail.date) {
+                    this.openPlanning({ date: e.detail.date });
+                }
+            });
+            document.addEventListener('v2:calendar-item-click', (e) => {
+                const itemId = e?.detail?.itemId ?? null;
+                const date = e?.detail?.date ?? null;
+                this.openPlanning({ itemId, date });
             });
             
             // Ouvir botão Novo Post
@@ -88,6 +98,17 @@
             if (newPostBtn) {
                 newPostBtn.onclick = () => {
                     const todayStr = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
+                    const snap = this.getCalendarSnap();
+                    const status = String(snap?.calendarStatus || '').trim().toLowerCase();
+                    const normalized = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                        ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(status)
+                        : status;
+                    const inPlanning = ['draft', 'sent_for_approval', 'needs_changes', 'rascunho', 'aguardando_aprovacao', 'ajuste_solicitado'].includes(normalized);
+                    const calendarTabActive = global.SocialMediaUI?.isTabActive ? global.SocialMediaUI.isTabActive('calendar') : false;
+                    if (calendarTabActive && inPlanning) {
+                        this.openPlanning({ date: todayStr });
+                        return;
+                    }
                     this.startCreate(todayStr);
                 };
             }
@@ -140,6 +161,28 @@
         getCalendarSnap: function() {
             const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
             return snap || null;
+        },
+
+        openPlanning: function({ date = null, itemId = null } = {}) {
+            const snap = this.getCalendarSnap();
+            const hasClient = !!String(this.currentClientId || '').trim();
+            if (!hasClient) {
+                this.setAgencyFeedback('Selecione um cliente primeiro.', 'error');
+                return;
+            }
+            if (!global.SocialMediaUI?.openPlanningModal) {
+                this.setAgencyFeedback('Planejamento indisponível.', 'error');
+                return;
+            }
+            global.SocialMediaUI.openPlanningModal({
+                clientId: this.currentClientId,
+                monthKey: snap?.monthKey || '',
+                calendarId: snap?.activeCalendarId || null,
+                calendarStatus: snap?.calendarStatus || null,
+                editorialItems: Array.isArray(snap?.editorialItems) ? snap.editorialItems : [],
+                date,
+                itemId
+            });
         },
 
         updateCalendarActionButtons: function(snap) {

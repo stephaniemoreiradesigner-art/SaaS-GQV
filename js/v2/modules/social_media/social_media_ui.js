@@ -6,6 +6,7 @@
     const SocialMediaUI = {
         drawerId: 'social-post-drawer',
         _activePost: null,
+        _planningContext: null,
 
         isDebug: function() {
             return global.__GQV_DEBUG_CONTEXT__ === true;
@@ -16,6 +17,7 @@
             this.setupDrawer();
             this.setupTabs();
             this.setupCalendarFab();
+            this.setupPlanningModal();
         },
 
         getSelectedMonthKey: function(clientId) {
@@ -48,7 +50,7 @@
         },
 
         refreshPostsBoardFromRepo: async function() {
-            const clientId = global.ClientContext?.getActiveClient?.() || global.SocialMediaCore?.currentClientId || null;
+            const clientId = global.ClientContext?.getActiveClient?.() || null;
             if (!clientId) {
                 this.renderPostsBoard([], '');
                 return;
@@ -142,10 +144,10 @@
                         if (video) video.classList.add('hidden');
                     }
 
-                    const clientId = global.SocialMediaCore ? global.SocialMediaCore.currentClientId : null;
-                    if (!global.SocialMediaUpload || !clientId) return;
+                    const activeClientId = global.ClientContext?.getActiveClient?.() || null;
+                    if (!global.SocialMediaUpload || !activeClientId) return;
 
-                    const uploadedUrl = await global.SocialMediaUpload.uploadFile(file, clientId);
+                    const uploadedUrl = await global.SocialMediaUpload.uploadFile(file, activeClientId);
                     if (!uploadedUrl) return;
 
                     container.dataset.mediaUrl = uploadedUrl;
@@ -683,12 +685,280 @@
                 const monthKey = String(snap?.monthKey || '').trim();
                 const todayStr = global.CalendarStateSelectors?.getTodayLocalDate ? global.CalendarStateSelectors.getTodayLocalDate() : '';
                 const dateStr = todayStr && monthKey && todayStr.slice(0, 7) === monthKey ? todayStr : (monthKey ? `${monthKey}-01` : todayStr);
-                if (global.SocialMediaCore?.startCreate) {
-                    global.SocialMediaCore.startCreate(dateStr);
+                document.dispatchEvent(new CustomEvent('v2:calendar-item-add', { detail: { date: dateStr } }));
+            });
+        },
+
+        setupPlanningModal: function() {
+            const modal = document.getElementById('social-plan-modal');
+            if (!modal) return;
+
+            const close = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                this._planningContext = null;
+                this.clearPlanningForm();
+                const feedback = document.getElementById('social-plan-feedback');
+                if (feedback) feedback.classList.add('hidden');
+            };
+
+            const closeBtn = document.getElementById('social-plan-close');
+            const closeBottomBtn = document.getElementById('social-plan-close-bottom');
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            if (closeBottomBtn) closeBottomBtn.addEventListener('click', close);
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) close();
+            });
+
+            const clearBtn = document.getElementById('social-plan-clear');
+            if (clearBtn) clearBtn.addEventListener('click', () => this.clearPlanningForm());
+
+            const saveBtn = document.getElementById('social-plan-save');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    await this.savePlanningItem();
+                });
+            }
+        },
+
+        clearPlanningForm: function() {
+            const idEl = document.getElementById('social-plan-item-id');
+            const dateEl = document.getElementById('social-plan-date');
+            const themeEl = document.getElementById('social-plan-theme');
+            const typeEl = document.getElementById('social-plan-type');
+            const channelEl = document.getElementById('social-plan-channel');
+            const notesEl = document.getElementById('social-plan-notes');
+            const feedback = document.getElementById('social-plan-feedback');
+
+            if (idEl) idEl.value = '';
+            if (dateEl) dateEl.value = '';
+            if (themeEl) themeEl.value = '';
+            if (typeEl) typeEl.value = 'post_estatico';
+            if (channelEl) channelEl.value = 'instagram';
+            if (notesEl) notesEl.value = '';
+            if (feedback) feedback.classList.add('hidden');
+        },
+
+        setPlanningFeedback: function(message, type = 'success') {
+            const el = document.getElementById('social-plan-feedback');
+            if (!el) return;
+            el.textContent = String(message || '');
+            el.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
+            if (type === 'error') el.classList.add('bg-red-50', 'text-red-600');
+            else el.classList.add('bg-green-50', 'text-green-600');
+        },
+
+        renderPlanningList: function(items, { selectedId = null } = {}) {
+            const listEl = document.getElementById('social-plan-items');
+            const emptyEl = document.getElementById('social-plan-empty');
+            const countEl = document.getElementById('social-plan-count');
+            if (!listEl) return;
+
+            const safeItems = Array.isArray(items) ? items : [];
+            if (countEl) countEl.textContent = String(safeItems.length);
+
+            listEl.innerHTML = '';
+            if (!safeItems.length) {
+                if (emptyEl) emptyEl.classList.remove('hidden');
+                return;
+            }
+            if (emptyEl) emptyEl.classList.add('hidden');
+
+            safeItems.slice(0, 80).forEach((it) => {
+                const row = document.createElement('button');
+                row.type = 'button';
+                const id = it?.id ?? null;
+                const date = String(it?.data || '').slice(0, 10);
+                const tema = String(it?.tema || '').trim() || 'Sem tema';
+                const canal = String(it?.canal || '').trim() || '-';
+                const tipo = String(it?.tipo_conteudo || '').trim() || '-';
+                const active = selectedId && String(id) === String(selectedId);
+                row.className = `w-full text-left rounded-xl border px-3 py-2 bg-white hover:bg-slate-50 ${active ? 'border-slate-900' : 'border-slate-200'}`;
+                row.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-xs text-slate-400">${date || '-'}</div>
+                            <div class="text-sm font-semibold text-slate-900 truncate">${tema}</div>
+                        </div>
+                        <div class="shrink-0 text-xs text-slate-500">${canal} • ${tipo}</div>
+                    </div>
+                `;
+                row.addEventListener('click', () => {
+                    this.openPlanningModal({
+                        ...(this._planningContext || {}),
+                        itemId: id,
+                        date
+                    });
+                });
+                listEl.appendChild(row);
+            });
+        },
+
+        fillPlanningForm: function(item, preferredDate) {
+            const idEl = document.getElementById('social-plan-item-id');
+            const dateEl = document.getElementById('social-plan-date');
+            const themeEl = document.getElementById('social-plan-theme');
+            const typeEl = document.getElementById('social-plan-type');
+            const channelEl = document.getElementById('social-plan-channel');
+            const notesEl = document.getElementById('social-plan-notes');
+
+            if (idEl) idEl.value = item?.id ? String(item.id) : '';
+            if (dateEl) dateEl.value = String(item?.data || preferredDate || '').slice(0, 10);
+            if (themeEl) themeEl.value = String(item?.tema || '').trim();
+            if (typeEl) typeEl.value = String(item?.tipo_conteudo || 'post_estatico');
+            if (channelEl) channelEl.value = String(item?.canal || 'instagram');
+            if (notesEl) notesEl.value = String(item?.observacoes || '');
+        },
+
+        setPlanningEditable: function(isEditable) {
+            const controls = [
+                document.getElementById('social-plan-date'),
+                document.getElementById('social-plan-theme'),
+                document.getElementById('social-plan-type'),
+                document.getElementById('social-plan-channel'),
+                document.getElementById('social-plan-notes'),
+                document.getElementById('social-plan-save')
+            ];
+            controls.forEach((el) => {
+                if (!el) return;
+                el.disabled = !isEditable;
+            });
+        },
+
+        openPlanningModal: function(input) {
+            const modal = document.getElementById('social-plan-modal');
+            if (!modal) return;
+
+            const clientId = String(input?.clientId || '').trim();
+            const monthKey = String(input?.monthKey || '').trim();
+            const calendarStatusRaw = input?.calendarStatus ?? null;
+            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(calendarStatusRaw)
+                : String(calendarStatusRaw || '').trim().toLowerCase();
+            const editable = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
+
+            let calendarId = input?.calendarId ?? null;
+            const items = Array.isArray(input?.editorialItems) ? input.editorialItems : [];
+            const date = String(input?.date || '').slice(0, 10);
+            const itemId = input?.itemId ?? null;
+
+            this._planningContext = {
+                clientId,
+                monthKey,
+                calendarId,
+                calendarStatus: calendarStatusRaw,
+                editorialItems: items
+            };
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            if (!clientId) {
+                this.setPlanningFeedback('Selecione um cliente primeiro.', 'error');
+                this.setPlanningEditable(false);
+                this.renderPlanningList([], {});
+                return;
+            }
+
+            const ensureCalendar = async () => {
+                if (calendarId) return calendarId;
+                if (global.SocialMediaRepo?.getCalendarByMonth && clientId && monthKey) {
+                    const cal = await global.SocialMediaRepo.getCalendarByMonth(clientId, monthKey);
+                    calendarId = cal?.id || null;
+                    this._planningContext = { ...(this._planningContext || {}), calendarId };
+                }
+                return calendarId;
+            };
+
+            Promise.resolve()
+                .then(async () => {
+                    await ensureCalendar();
+                    const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+                    const liveItems = Array.isArray(snap?.editorialItems) ? snap.editorialItems : items;
+                    this._planningContext = { ...(this._planningContext || {}), editorialItems: liveItems };
+                    const selected = itemId ? (liveItems || []).find((it) => String(it?.id) === String(itemId)) : null;
+                    this.renderPlanningList(liveItems, { selectedId: selected?.id || null });
+                    this.clearPlanningForm();
+                    this.fillPlanningForm(selected, date);
+                    this.setPlanningEditable(editable);
+                    if (!editable && statusKey) {
+                        this.setPlanningFeedback('Edição bloqueada: calendário em aprovação.', 'error');
+                    }
+                })
+                .catch(() => {
+                    this.setPlanningFeedback('Não foi possível abrir o planejamento.', 'error');
+                });
+        },
+
+        savePlanningItem: async function() {
+            const ctx = this._planningContext || {};
+            const calendarId = String(ctx.calendarId || '').trim();
+            if (!calendarId) {
+                this.setPlanningFeedback('Calendário do mês não encontrado.', 'error');
+                return;
+            }
+            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(ctx.calendarStatus)
+                : String(ctx.calendarStatus || '').trim().toLowerCase();
+            const editable = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
+            if (!editable) {
+                this.setPlanningFeedback('Edição bloqueada: calendário em aprovação.', 'error');
+                return;
+            }
+
+            const idEl = document.getElementById('social-plan-item-id');
+            const dateEl = document.getElementById('social-plan-date');
+            const themeEl = document.getElementById('social-plan-theme');
+            const typeEl = document.getElementById('social-plan-type');
+            const channelEl = document.getElementById('social-plan-channel');
+            const notesEl = document.getElementById('social-plan-notes');
+
+            const idRaw = String(idEl?.value || '').trim();
+            const payload = {
+                id: idRaw ? Number(idRaw) : undefined,
+                calendar_id: calendarId,
+                data: String(dateEl?.value || '').slice(0, 10),
+                tema: String(themeEl?.value || '').trim(),
+                tipo_conteudo: String(typeEl?.value || 'post_estatico'),
+                canal: String(channelEl?.value || 'instagram'),
+                observacoes: String(notesEl?.value || '')
+            };
+            if (!payload.data || !payload.tema) {
+                this.setPlanningFeedback('Informe data e tema.', 'error');
+                return;
+            }
+            if (!global.SocialMediaRepo?.upsertCalendarItem) {
+                this.setPlanningFeedback('Repositório Social Media não disponível.', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('social-plan-save');
+            const original = saveBtn ? saveBtn.innerHTML : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
+            }
+            try {
+                const saved = await global.SocialMediaRepo.upsertCalendarItem(payload);
+                if (!saved) {
+                    this.setPlanningFeedback('Não foi possível salvar o item.', 'error');
                     return;
                 }
-                document.dispatchEvent(new CustomEvent('v2:calendar-add', { detail: { date: dateStr } }));
-            });
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData();
+                    const snap = global.CalendarStateManager.getState();
+                    const liveItems = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+                    this._planningContext = { ...(this._planningContext || {}), editorialItems: liveItems };
+                    this.renderPlanningList(liveItems, { selectedId: saved?.id || null });
+                }
+                this.clearPlanningForm();
+                this.setPlanningFeedback('Item salvo.', 'success');
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = original;
+                }
+            }
         },
 
         closeDrawer: function() {

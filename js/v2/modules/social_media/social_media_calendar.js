@@ -65,7 +65,7 @@
                 cell.innerHTML = `
                     <div class="flex justify-between items-start mb-1">
                         <span class="text-xs font-semibold ${isToday ? 'text-purple-600 bg-purple-50 px-1.5 rounded' : 'text-slate-400'}">${day}</span>
-                        <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-purple-600 transition-opacity" onclick="document.dispatchEvent(new CustomEvent('v2:calendar-add', { detail: { date: '${dateStr}' } }))">
+                        <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-purple-600 transition-opacity" onclick="document.dispatchEvent(new CustomEvent('v2:calendar-item-add', { detail: { date: '${dateStr}' } }))">
                             <i class="fas fa-plus-circle"></i>
                         </button>
                     </div>
@@ -116,7 +116,8 @@
 
         createPostCard: function(post) {
             const el = document.createElement('div');
-            el.draggable = true;
+            const isCalendarItem = !!post?.__fromCalendarItem;
+            el.draggable = !isCalendarItem;
             el.className = 'text-xs p-2 rounded-xl border border-slate-200 bg-white hover:shadow-sm hover:border-slate-300 cursor-grab active:cursor-grabbing transition-all select-none group/card relative min-h-[72px] flex flex-col justify-between';
             el.dataset.postId = post.id;
             
@@ -159,17 +160,6 @@
             const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;
             
             el.innerHTML = `
-                <div class="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
-                    <button type="button" data-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
-                        <i class="fas fa-pen text-[10px]"></i>
-                    </button>
-                    <button type="button" data-action="duplicate" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
-                        <i class="far fa-copy text-[10px]"></i>
-                    </button>
-                    <button type="button" data-action="send" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
-                        <i class="far fa-paper-plane text-[10px]"></i>
-                    </button>
-                </div>
                 <div class="min-w-0">
                     <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</p>
                 </div>
@@ -180,21 +170,21 @@
             `;
 
             // Eventos de Drag
-            el.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', post.id);
-                e.dataTransfer.effectAllowed = 'move';
-                el.classList.add('opacity-50');
-            });
+            if (!isCalendarItem) {
+                el.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', post.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    el.classList.add('opacity-50');
+                });
+            }
 
             el.addEventListener('dragend', (e) => {
                 el.classList.remove('opacity-50');
             });
             
             const openEditor = () => {
-                if (post && post.__fromCalendarItem) {
-                    if (global.SocialMediaUI?.showFeedback) {
-                        global.SocialMediaUI.showFeedback('Item do calendário (sem post) — abra o Planejamento para editar.', 'error');
-                    }
+                if (isCalendarItem) {
+                    document.dispatchEvent(new CustomEvent('v2:calendar-item-click', { detail: { itemId: post.calendar_item_id, date: post.data_agendada } }));
                     return;
                 }
                 document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
@@ -206,55 +196,42 @@
                 openEditor();
             });
 
-            const editBtn = el.querySelector('[data-action="edit"]');
-            if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    openEditor();
-                });
-            }
-            const duplicateBtn = el.querySelector('[data-action="duplicate"]');
-            if (duplicateBtn) {
-                duplicateBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const duplicated = { ...post, status: 'draft' };
-                    delete duplicated.id;
-                    delete duplicated.post_id;
-                    if (global.SocialMediaUI?.renderCreateForm) {
-                        global.SocialMediaUI.renderCreateForm(duplicated);
-                    } else {
-                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post: duplicated } }));
-                    }
-                });
-            }
-            const sendBtn = el.querySelector('[data-action="send"]');
-            if (sendBtn) {
-                sendBtn.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (!post?.id) return;
-                    if (!global.SocialMediaRepo?.updatePostStatus) return;
-                    const normalized = global.SocialMediaUI?.normalizeStatus ? global.SocialMediaUI.normalizeStatus(post.status) : String(post.status || '').toLowerCase();
-                    const canSend = ['draft', 'ready_for_review', 'changes_requested'].includes(normalized);
-                    if (!canSend) return;
-                    const ok = await global.SocialMediaRepo.updatePostStatus(post.id, 'ready_for_approval');
-                    if (!ok) {
-                        global.SocialMediaUI?.showFeedback?.('Não foi possível enviar para aprovação.', 'error');
-                        return;
-                    }
-                    post.status = 'ready_for_approval';
-                    const statusEl = document.getElementById(statusElId);
-                    if (statusEl) {
-                        const label = global.GQV_CONSTANTS?.getSocialStatusLabelPt
-                            ? global.GQV_CONSTANTS.getSocialStatusLabelPt('ready_for_approval')
-                            : 'Pronto para aprovação';
-                        statusEl.textContent = label;
-                        statusEl.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700';
-                    }
-                    global.SocialMediaUI?.showFeedback?.('Enviado para aprovação.');
-                });
+            if (!isCalendarItem) {
+                const actionWrap = document.createElement('div');
+                actionWrap.className = 'absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity';
+                actionWrap.innerHTML = `
+                    <button type="button" data-action="edit" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                        <i class="fas fa-pen text-[10px]"></i>
+                    </button>
+                    <button type="button" data-action="duplicate" class="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300" draggable="false">
+                        <i class="far fa-copy text-[10px]"></i>
+                    </button>
+                `;
+                el.prepend(actionWrap);
+
+                const editBtn = el.querySelector('[data-action="edit"]');
+                if (editBtn) {
+                    editBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openEditor();
+                    });
+                }
+                const duplicateBtn = el.querySelector('[data-action="duplicate"]');
+                if (duplicateBtn) {
+                    duplicateBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const duplicated = { ...post, status: 'draft' };
+                        delete duplicated.id;
+                        delete duplicated.post_id;
+                        if (global.SocialMediaUI?.renderCreateForm) {
+                            global.SocialMediaUI.renderCreateForm(duplicated);
+                        } else {
+                            document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post: duplicated } }));
+                        }
+                    });
+                }
             }
 
             return el;

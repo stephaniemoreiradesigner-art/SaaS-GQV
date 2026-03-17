@@ -227,7 +227,7 @@
                             <div>
                                 <p class="text-xs uppercase tracking-widest text-slate-400">Social Media V2</p>
                                 <h2 class="text-2xl font-bold text-slate-900">Gestão do calendário</h2>
-                                <p class="text-sm text-slate-500">Cliente: <span id="social-client-name">Nenhum cliente selecionado</span></p>
+                                <p class="text-sm text-slate-500">Cliente: <span id="social-client-name">Nenhum cliente selecionado</span> <span id="social-client-id" class="text-xs text-slate-400"></span></p>
                             </div>
                             <div class="flex items-center gap-3">
                                 <span id="social-calendar-status" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem calendário</span>
@@ -1046,6 +1046,7 @@
         const dashboardOwner = document.getElementById('dashboard-owner');
         const dashboardPendencies = document.getElementById('dashboard-pendencies');
         const socialClientName = document.getElementById('social-client-name');
+        const socialClientId = document.getElementById('social-client-id');
         const socialCalendarStatus = document.getElementById('social-calendar-status');
         const socialCountDraft = document.getElementById('social-count-draft');
         const socialCountPending = document.getElementById('social-count-pending');
@@ -1231,6 +1232,7 @@
             if (dashboardClientName) dashboardClientName.textContent = safeName;
             if (socialClientName) socialClientName.textContent = safeName;
             if (hubClientId) hubClientId.textContent = hasClient ? `ID ${id}` : '';
+            if (socialClientId) socialClientId.textContent = hasClient ? `• ID ${id}` : '';
 
             if (activeClientId) {
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
@@ -1256,6 +1258,7 @@
 
             if (!hasClient) {
                 if (hubClientId) hubClientId.textContent = '';
+                if (socialClientId) socialClientId.textContent = '';
                 if (hubClientStatus) hubClientStatus.textContent = '';
                 if (hubOwner) hubOwner.textContent = 'Não definido';
                 if (hubStatus) hubStatus.textContent = 'Não definido';
