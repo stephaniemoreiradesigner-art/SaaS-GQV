@@ -167,7 +167,7 @@
             const status = String(snap?.calendarStatus || '').trim().toLowerCase();
             const itemsCount = Array.isArray(snap?.editorialItems) ? snap.editorialItems.length : 0;
             const isDraft = status === 'draft' || status === 'rascunho';
-            const canSend = (status === 'draft' || status === 'rascunho' || status === 'changes_requested') && itemsCount > 0;
+            const canSend = (status === 'draft' || status === 'rascunho' || status === 'needs_changes' || status === 'ajuste_solicitado' || status === 'changes_requested') && itemsCount > 0;
             if (sendBtn) sendBtn.disabled = !canSend;
             if (delBtn) delBtn.disabled = !(isDraft && !!snap?.activeCalendarId);
         },
@@ -184,9 +184,9 @@
                     this.setAgencyFeedback('Adicione itens no planejamento antes de enviar para aprovação.', 'error');
                     return;
                 }
-                console.log('[AgencyCalendar] approval payload', { calendarId, clientId, status: 'aguardando_aprovacao' });
+                console.log('[AgencyCalendar] approval payload', { calendarId, clientId, status: 'sent_for_approval' });
                 const res = global.SocialMediaRepo?.updateCalendarStatus
-                    ? await global.SocialMediaRepo.updateCalendarStatus(calendarId, clientId, 'aguardando_aprovacao')
+                    ? await global.SocialMediaRepo.updateCalendarStatus(calendarId, clientId, 'sent_for_approval')
                     : { ok: false, error: 'repo_missing' };
                 if (res?.ok !== true) {
                     this.setAgencyFeedback('Não foi possível enviar o calendário para aprovação.', 'error');

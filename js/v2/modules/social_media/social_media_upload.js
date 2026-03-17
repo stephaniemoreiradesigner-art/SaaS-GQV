@@ -12,43 +12,10 @@
          */
         uploadFile: async function(file, clientId) {
             if (!file) return null;
-            if (!clientId) {
-                console.error('[Upload] Client ID obrigatório para upload.');
-                return null;
-            }
-
-            try {
-                const supabase = global.supabaseClient || window.supabaseClient;
-                if (!supabase) throw new Error('Supabase Client não encontrado');
-
-                const fileExt = file.name.split('.').pop();
-                const fileName = `${clientId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-                const filePath = `${fileName}`;
-
-                console.log(`[Upload] Iniciando upload: ${filePath}`);
-
-                const { data, error } = await supabase.storage
-                    .from('social-media-assets')
-                    .upload(filePath, file, {
-                        cacheControl: '3600',
-                        upsert: false
-                    });
-
-                if (error) throw error;
-
-                // Obter URL pública
-                const { data: publicData } = supabase.storage
-                    .from('social-media-assets')
-                    .getPublicUrl(filePath);
-
-                console.log(`[Upload] Sucesso: ${publicData.publicUrl}`);
-                return publicData.publicUrl;
-
-            } catch (err) {
-                console.error('[Upload] Erro no upload:', err);
-                alert('Erro ao fazer upload da imagem. Tente novamente.');
-                return null;
-            }
+            const normalizedClientId = String(clientId ?? '').trim();
+            if (!normalizedClientId) return null;
+            if (!global.SocialMediaRepo?.uploadFile) return null;
+            return await global.SocialMediaRepo.uploadFile(file, normalizedClientId);
         }
     };
 

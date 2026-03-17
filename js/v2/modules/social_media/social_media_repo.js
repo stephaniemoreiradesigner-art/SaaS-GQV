@@ -127,6 +127,31 @@
             }
         },
 
+        uploadFile: async function(file, clientId) {
+            if (!global.supabaseClient || !file) return null;
+            const normalizedClientId = String(clientId ?? '').trim();
+            if (!normalizedClientId) return null;
+
+            try {
+                const fileExt = String(file.name || '').split('.').pop();
+                const fileName = `${normalizedClientId}/${Date.now()}_${Math.random().toString(36).slice(2, 11)}.${fileExt}`;
+                const filePath = `${fileName}`;
+
+                const { error } = await global.supabaseClient.storage
+                    .from('social-media-assets')
+                    .upload(filePath, file, { cacheControl: '3600', upsert: false });
+                if (error) throw error;
+
+                const { data: publicData } = global.supabaseClient.storage
+                    .from('social-media-assets')
+                    .getPublicUrl(filePath);
+                return publicData?.publicUrl || null;
+            } catch (err) {
+                console.error('[SOCIAL] Falha ao fazer upload:', err);
+                return null;
+            }
+        },
+
         /**
          * Busca posts de um calendário específico
          * @param {string} calendarId 
@@ -286,10 +311,14 @@
 
             const raw = String(status || '').trim().toLowerCase();
             const map = {
-                aguardando_aprovacao: 'awaiting_approval',
-                ready_for_approval: 'awaiting_approval',
+                aguardando_aprovacao: 'sent_for_approval',
+                awaiting_approval: 'sent_for_approval',
+                ready_for_approval: 'sent_for_approval',
+                sent_for_approval: 'sent_for_approval',
                 rascunho: 'draft',
-                ajuste_solicitado: 'changes_requested',
+                ajuste_solicitado: 'needs_changes',
+                changes_requested: 'needs_changes',
+                needs_changes: 'needs_changes',
                 aprovado: 'approved',
                 em_producao: 'in_production',
                 publicado: 'published',

@@ -1766,6 +1766,7 @@
             loadedOnce: false,
             retryScheduled: false
         };
+        if (!(window.SocialMediaCore && typeof window.SocialMediaCore.init === 'function')) {
         let socialState = {
             clientId: null,
             calendarMonth: window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
@@ -4117,6 +4118,7 @@
                 if (event.target === socialPlanModal) closePlanModal();
             });
         }
+        }
 
         const toggleBtn = document.getElementById('btn-toggle-sidebar');
         if (toggleBtn) {
@@ -4140,7 +4142,9 @@
         const startUp = async () => {
             setActiveView('clients');
             await loadClients({ reason: 'startup' });
-            refreshSocialMonth();
+            if (window.SocialMediaCore?.init) {
+                await window.SocialMediaCore.init();
+            }
         };
 
         if (document.body.classList.contains('v2-ready')) {
