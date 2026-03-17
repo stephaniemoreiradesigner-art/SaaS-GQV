@@ -1,565 +1,786 @@
-// js/v2/modules/clientes/clientes_repo.js
-// Repositório de Dados de Clientes V2
-// Responsável exclusivamente por buscar dados no Supabase
+// js/v2/client/client_repo.js
+// Repositório de Dados do Portal do Cliente V2
 
 (function(global) {
-    let schemaCache = null;
-    let schemaInFlight = null;
-    let schemaAssumed = null;
-    const isDebug = () => global.__GQV_DEBUG_CLIENTES__ === true;
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const ClientRepo = {
+        isDebug: function() {
+            return global.__GQV_DEBUG_CONTEXT__ === true;
+        },
 
-    const parseMissingColumnError = (error) => {
-        const msg = String(error?.message || '');
-        const match = msg.match(/Could not find the '([^']+)' column of 'clientes' in the schema cache/i);
-        return match ? match[1] : null;
-    };
+        normalizeBigIntId: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            const num = Number(raw);
+            if (!Number.isFinite(num) || Number.isNaN(num)) return null;
+            const intVal = Math.trunc(num);
+            if (intVal <= 0) return null;
+            return intVal;
+        },
 
-    const detectSchema = async function() {
-        if (schemaCache) return schemaCache;
-        if (schemaInFlight) return await schemaInFlight;
-        if (!global.supabaseClient) return null;
+        normalizeIdForFilter: function(value) {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            if (/^\d+$/.test(raw)) return raw;
+            if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) return raw;
+            return null;
+        },
 
-        const candidates = [
-            'nome_fantasia',
-            'nome_empresa',
-            'nome',
-            'empresa',
-            'email',
-            'logo_url',
-            'logo',
-            'imagem_logo',
-            'brand_logo_url',
-            'responsavel_nome',
-            'responsavel',
-            'contato',
-            'contato_nome',
-            'telefone',
-            'celular',
-            'phone',
-            'telefone_contato',
-            'contato_telefone',
-            'whatsapp',
-            'responsavel_whatsapp',
-            'telefone_whatsapp',
-            'whatsapp_numero',
-            'whats',
-            'servicos',
-            'servicos_contratados',
-            'servicos_ativos',
-            'produtos',
-            'planos',
-            'status',
-            'status_cliente',
-            'situacao',
-            'ativo',
-            'tipo_documento',
-            'documento',
-            'cnpj',
-            'cpf',
-            'tenant_id'
-        ];
+        _mesReferenciaFormatByClient: {},
+        _mesReferenciaFormatInflight: {},
 
-        schemaInFlight = (async () => {
-            const { data, error } = await global.supabaseClient
-                .from('clientes')
-                .select('*')
-                .limit(1);
+        resolveMesReferenciaFormat: async function(clientId) {
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const key = String(normalizedClientId || '').trim();
+            if (!key) return null;
+            if (this._mesReferenciaFormatByClient[key]) return this._mesReferenciaFormatByClient[key];
+            if (this._mesReferenciaFormatInflight[key]) return await this._mesReferenciaFormatInflight[key];
 
-            if (error) {
-                console.error('[ClientRepo] schema detection error:', error);
+            this._mesReferenciaFormatInflight[key] = (async () => {
+                const supabase = await this.getClient();
+                if (!supabase) return null;
+                const { data, error } = await supabase
+                    .from('social_calendars')
+                    .select('mes_referencia')
+                    .eq('cliente_id', normalizedClientId)
+                    .order('mes_referencia', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (error || !data) return null;
+                const raw = String(data?.mes_referencia || '').trim();
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return 'date';
+                if (/^\d{4}-\d{2}$/.test(raw)) return 'month';
                 return null;
-            }
-
-            const row = Array.isArray(data) ? data[0] : null;
-            const rawColumns = row && typeof row === 'object' ? Object.keys(row) : [];
-            const columnsSet = new Set(rawColumns);
-            const columns = {};
-            for (const column of candidates) {
-                columns[column] = columnsSet.has(column);
-            }
-
-            const nameColumn =
-                (rawColumns.includes('nome_fantasia') && 'nome_fantasia') ||
-                (rawColumns.includes('nome_empresa') && 'nome_empresa') ||
-                (rawColumns.includes('nome') && 'nome') ||
-                (rawColumns.includes('empresa') && 'empresa') ||
-                null;
-
-            const statusColumn =
-                (rawColumns.includes('status') && 'status') ||
-                (rawColumns.includes('status_cliente') && 'status_cliente') ||
-                (rawColumns.includes('situacao') && 'situacao') ||
-                null;
-
-            const logoColumn =
-                (rawColumns.includes('logo_url') && 'logo_url') ||
-                (rawColumns.includes('brand_logo_url') && 'brand_logo_url') ||
-                (rawColumns.includes('imagem_logo') && 'imagem_logo') ||
-                (rawColumns.includes('logo') && 'logo') ||
-                null;
-
-            const contactColumn =
-                (rawColumns.includes('responsavel_nome') && 'responsavel_nome') ||
-                (rawColumns.includes('responsavel') && 'responsavel') ||
-                (rawColumns.includes('contato_nome') && 'contato_nome') ||
-                (rawColumns.includes('contato') && 'contato') ||
-                null;
-
-            const phoneColumn =
-                (rawColumns.includes('telefone') && 'telefone') ||
-                (rawColumns.includes('celular') && 'celular') ||
-                (rawColumns.includes('telefone_contato') && 'telefone_contato') ||
-                (rawColumns.includes('contato_telefone') && 'contato_telefone') ||
-                (rawColumns.includes('phone') && 'phone') ||
-                null;
-
-            const whatsappColumn =
-                (rawColumns.includes('responsavel_whatsapp') && 'responsavel_whatsapp') ||
-                (rawColumns.includes('telefone_whatsapp') && 'telefone_whatsapp') ||
-                (rawColumns.includes('whatsapp') && 'whatsapp') ||
-                (rawColumns.includes('whatsapp_numero') && 'whatsapp_numero') ||
-                (rawColumns.includes('whats') && 'whats') ||
-                null;
-
-            const servicesColumn =
-                (rawColumns.includes('servicos') && 'servicos') ||
-                (rawColumns.includes('servicos_contratados') && 'servicos_contratados') ||
-                (rawColumns.includes('servicos_ativos') && 'servicos_ativos') ||
-                (rawColumns.includes('planos') && 'planos') ||
-                (rawColumns.includes('produtos') && 'produtos') ||
-                null;
-
-            const docColumn =
-                (rawColumns.includes('documento') && 'documento') ||
-                (rawColumns.includes('cnpj') && 'cnpj') ||
-                (rawColumns.includes('cpf') && 'cpf') ||
-                null;
-
-            const tenantSample = row?.tenant_id;
-            const tenantIdValueType = (() => {
-                if (typeof tenantSample === 'number') return 'number';
-                if (typeof tenantSample === 'string' && UUID_RE.test(tenantSample)) return 'uuid';
-                if (typeof tenantSample === 'string' && /^-?\d+$/.test(tenantSample)) return 'number_string';
-                return tenantSample === null || tenantSample === undefined ? null : typeof tenantSample;
             })();
 
-            schemaCache = {
-                columns,
-                nameColumn,
-                statusColumn,
-                logoColumn,
-                contactColumn,
-                phoneColumn,
-                whatsappColumn,
-                servicesColumn,
-                docColumn,
-                hasTenantId: rawColumns.includes('tenant_id'),
-                hasAtivo: rawColumns.includes('ativo'),
-                tenantIdValueType,
-                empty: !rawColumns.length,
-                assumed: false
+            const resolved = await this._mesReferenciaFormatInflight[key];
+            delete this._mesReferenciaFormatInflight[key];
+            if (resolved) this._mesReferenciaFormatByClient[key] = resolved;
+            return resolved || null;
+        },
+
+        getPendingCalendarStatuses: function() {
+            const base = [
+                'awaiting_approval',
+                'aguardando_aprovacao',
+                'sent_for_approval',
+                'needs_changes',
+                'ajuste_solicitado'
+            ];
+            return Array.from(new Set(base.filter(Boolean)));
+        },
+
+        getPendingPostStatuses: function() {
+            const base = [
+                'ready_for_approval',
+                'pendente_aprovacao',
+                'pendente_aprovação',
+                'aguardando_aprovacao',
+                'awaiting_approval',
+                'em_aprovacao'
+            ];
+            const fromConstants = global.GQV_CONSTANTS?.SOCIAL_STATUS?.READY_FOR_APPROVAL
+                ? [global.GQV_CONSTANTS.SOCIAL_STATUS.READY_FOR_APPROVAL]
+                : [];
+            return Array.from(new Set([...fromConstants, ...base].filter(Boolean)));
+        },
+
+        /**
+         * Helper para garantir cliente Supabase correto
+         */
+        getClient: async function() {
+            if (global.clientPortalSupabase) return global.clientPortalSupabase;
+            if (global.ClientAuth) {
+                await global.ClientAuth.init();
+                return global.clientPortalSupabase;
+            }
+            return null;
+        },
+
+        /**
+         * Busca calendários aguardando aprovação
+         * @param {string} clientId 
+         */
+        getPendingCalendars: async function(clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+            const pendingStatuses = this.getPendingCalendarStatuses();
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+
+            const { data, error } = await supabase
+                .from('social_calendars')
+                .select('*')
+                .eq('cliente_id', normalizedClientId)
+                .in('status', pendingStatuses)
+                .order('mes_referencia', { ascending: false });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar calendários:', error);
+                return [];
+            }
+            return data || [];
+        },
+
+        getClientCalendars: async function(clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+
+            const { data, error } = await supabase
+                .from('social_calendars')
+                .select('*')
+                .eq('cliente_id', normalizedClientId)
+                .order('mes_referencia', { ascending: false });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar calendários do cliente:', error);
+                return [];
+            }
+
+            const excluded = new Set(['published', 'publicado', 'archived', 'concluido', 'concluído']);
+            const rows = Array.isArray(data) ? data : [];
+            return rows.filter((c) => !excluded.has(String(c?.status || '').trim().toLowerCase()));
+        },
+
+        getCalendarByMonthKey: async function(clientId, monthKey) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return null;
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const key = String(monthKey || '').trim().slice(0, 7);
+            if (!global.MonthUtils?.isValidMonthKey?.(key)) return null;
+
+            const monthRef = global.MonthUtils?.buildMonthReferenceFromMonthKey
+                ? global.MonthUtils.buildMonthReferenceFromMonthKey(key)
+                : `${key}-01`;
+
+            const tryFetch = async (mesReferencia) => {
+                const { data, error } = await supabase
+                    .from('social_calendars')
+                    .select('id,status,mes_referencia,cliente_id')
+                    .eq('cliente_id', normalizedClientId)
+                    .eq('mes_referencia', mesReferencia)
+                    .maybeSingle();
+                if (error) return { data: null, error };
+                return { data: data || null, error: null };
             };
 
-            console.log('[ClientRepo] schema detectado:', schemaCache);
-            return schemaCache;
-        })();
+            const format = await this.resolveMesReferenciaFormat(normalizedClientId);
+            const preferred = format === 'month' ? key : monthRef;
 
-        try {
-            return await schemaInFlight;
-        } finally {
-            schemaInFlight = null;
-        }
-    };
-
-    const ClientRepo = {
-        updateClient: async function(clientId, input) {
-            if (!global.supabaseClient) {
-                console.error('[ClientRepo] Supabase não inicializado');
-                return { data: null, error: new Error('Supabase não inicializado') };
-            }
-            const normalizedId = clientId ? String(clientId).trim() : '';
-            if (!normalizedId) {
-                return { data: null, error: new Error('clientId obrigatório') };
-            }
-
-            try {
-                const schema = await detectSchema();
-                if (!schema) return { data: null, error: new Error('Schema de clientes não identificado') };
-
-                const companyName = String(input?.nome_empresa || input?.nome || '').trim();
-                const tradeName = String(input?.nome_fantasia || '').trim();
-                const emailValue = input?.email !== undefined ? String(input.email || '').trim() : undefined;
-                const contactValue = input?.responsavel !== undefined
-                    ? String(input.responsavel || '').trim()
-                    : (input?.responsavel_nome !== undefined ? String(input.responsavel_nome || '').trim() : undefined);
-                const phoneValue = input?.telefone !== undefined ? String(input.telefone || '').trim() : undefined;
-                const whatsappValue = input?.whatsapp !== undefined ? String(input.whatsapp || '').trim() : undefined;
-                const logoValue = input?.logo_url !== undefined ? String(input.logo_url || '').trim() : undefined;
-                const docTypeValue = input?.tipo_documento !== undefined ? String(input.tipo_documento || '').trim() : undefined;
-                const documentoValue = input?.documento !== undefined ? String(input.documento || '').trim() : undefined;
-                const statusValue = input?.status !== undefined ? String(input.status || '').trim() : undefined;
-
-                const updatePayload = {};
-                if (schema.columns.nome_empresa && companyName) updatePayload.nome_empresa = companyName;
-                if (schema.columns.nome_fantasia && tradeName) updatePayload.nome_fantasia = tradeName;
-                if (!updatePayload[schema.nameColumn] && schema.nameColumn) {
-                    const fallbackName = companyName || tradeName;
-                    if (fallbackName) updatePayload[schema.nameColumn] = fallbackName;
-                }
-                if (schema.columns.nome && companyName && schema.nameColumn !== 'nome') updatePayload.nome = companyName;
-                if (schema.columns.empresa && companyName && schema.nameColumn !== 'empresa') updatePayload.empresa = companyName;
-                if (schema.columns.email && emailValue !== undefined) updatePayload.email = emailValue === '' ? null : emailValue;
-                if (schema.contactColumn && contactValue !== undefined) updatePayload[schema.contactColumn] = contactValue === '' ? null : contactValue;
-                if (schema.phoneColumn && phoneValue !== undefined) updatePayload[schema.phoneColumn] = phoneValue === '' ? null : phoneValue;
-                if (schema.whatsappColumn && whatsappValue !== undefined) updatePayload[schema.whatsappColumn] = whatsappValue === '' ? null : whatsappValue;
-                if (schema.logoColumn && logoValue !== undefined) updatePayload[schema.logoColumn] = logoValue === '' ? null : logoValue;
-                if (schema.columns.tipo_documento && docTypeValue !== undefined) updatePayload.tipo_documento = docTypeValue === '' ? null : docTypeValue;
-                if (schema.docColumn && documentoValue !== undefined) updatePayload[schema.docColumn] = documentoValue === '' ? null : documentoValue;
-                if (schema.statusColumn && statusValue !== undefined) updatePayload[schema.statusColumn] = statusValue === '' ? 'ativo' : statusValue;
-                if (schema.hasAtivo && statusValue !== undefined) updatePayload.ativo = (statusValue === '' ? 'ativo' : statusValue) === 'ativo';
-
-                if (schema.servicesColumn) {
-                    const services = Array.isArray(input?.servicos) ? input.servicos : undefined;
-                    if (services !== undefined) {
-                        if (schema.servicesColumn === 'servicos') updatePayload[schema.servicesColumn] = services;
-                        else updatePayload[schema.servicesColumn] = services.length ? services.join(', ') : null;
-                    }
-                }
-
-                let attemptPayload = { ...updatePayload };
-                let data = null;
-                let error = null;
-                let guard = 0;
-                while (attemptPayload && Object.keys(attemptPayload).length && guard < 10) {
-                    guard += 1;
-                    const result = await global.supabaseClient
-                        .from('clientes')
-                        .update(attemptPayload)
-                        .eq('id', normalizedId)
-                        .select('*')
-                        .maybeSingle();
-                    data = result.data;
-                    error = result.error;
-                    if (!error) break;
-                    const missing = parseMissingColumnError(error);
-                    if (!missing || attemptPayload[missing] === undefined) break;
-                    delete attemptPayload[missing];
-                }
-
-                if (error) {
-                    console.error('[ClientRepo] Erro ao atualizar cliente:', error, updatePayload);
-                    return { data: null, error };
-                }
-                return { data: data || null, error: null };
-            } catch (error) {
-                console.error('[ClientRepo] Erro inesperado ao atualizar cliente:', error);
-                return { data: null, error };
-            }
-        },
-
-        /**
-         * Busca todos os clientes ativos do tenant atual
-         * @returns {Promise<Array>} Lista de clientes
-         */
-        getClients: async function() {
-            if (!global.supabaseClient) {
-                console.error('[ClientRepo] Supabase não inicializado');
-                return [];
-            }
-
-            try {
-                if (global.TenantContext?.init) {
-                    try {
-                        await global.TenantContext.init();
-                    } catch (err) {
-                        console.error('[ClientRepo] Falha ao inicializar TenantContext:', err);
-                    }
-                }
-
-                const schema = await detectSchema();
-                const buildBaseQuery = () => {
-                    let query = global.supabaseClient.from('clientes').select('*');
-                    if (schema?.nameColumn) {
-                        query = query.order(schema.nameColumn, { ascending: true });
-                    }
-                    return query;
-                };
-
-                const tenantCtx = global.TenantContext?.get ? global.TenantContext.get() : null;
-                const tenantCandidates = [];
-                const hasNumericTenant = Number.isFinite(tenantCtx?.tenantId);
-                const hasUuidTenant = !!String(tenantCtx?.tenantUuid || '').trim();
-                if (schema?.hasTenantId) {
-                    const pref = String(schema?.tenantIdValueType || '').trim();
-                    if (pref === 'uuid') {
-                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
-                        else if (hasNumericTenant) tenantCandidates.push(String(tenantCtx.tenantId));
-                    } else if (pref === 'number' || pref === 'number_string') {
-                        if (hasNumericTenant) tenantCandidates.push(tenantCtx.tenantId);
-                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
-                    } else {
-                        if (hasNumericTenant) tenantCandidates.push(tenantCtx.tenantId);
-                        if (hasUuidTenant) tenantCandidates.push(String(tenantCtx.tenantUuid).trim());
-                    }
-                }
-
-                if (isDebug()) {
-                    console.log('[ClientRepo] getClients debug:', {
-                        tenantCtx,
-                        tenantCandidates,
-                        hasTenantId: !!schema?.hasTenantId,
-                        schema: schema ? { hasTenantId: !!schema.hasTenantId, nameColumn: schema.nameColumn, empty: !!schema.empty, assumed: !!schema.assumed } : null,
-                        activeClientId: global.ClientContext?.getActiveClient ? global.ClientContext.getActiveClient() : null
-                    });
-                }
-
-                if (schema?.hasTenantId && tenantCandidates.length) {
-                    for (const tenantValue of tenantCandidates) {
-                        if (isDebug()) {
-                            console.log('[ClientRepo] getClients query attempt:', {
-                                filter: { tenant_id: tenantValue },
-                                type: typeof tenantValue
-                            });
-                        }
-                        const { data, error } = await buildBaseQuery().eq('tenant_id', tenantValue);
-                        if (!error) {
-                            const rows = Array.isArray(data) ? data : (data ? [data] : []);
-                            if (isDebug()) {
-                                console.log('[ClientRepo] getClients query result:', {
-                                    count: rows.length,
-                                    ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
-                                    tenantIds: rows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null).slice(0, 6)
-                                });
-                            }
-                            if (rows.length) return rows;
-                            if (isDebug()) {
-                                try {
-                                    const preview = await global.supabaseClient
-                                        .from('clientes')
-                                        .select('id,tenant_id')
-                                        .order('id', { ascending: true })
-                                        .limit(10);
-                                    const pRows = Array.isArray(preview?.data) ? preview.data : (preview?.data ? [preview.data] : []);
-                                    console.log('[ClientRepo] getClients fallback preview (no tenant filter):', {
-                                        count: pRows.length,
-                                        ids: pRows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
-                                        tenantIds: pRows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null)
-                                    });
-                                } catch (e) {
-                                    console.log('[ClientRepo] getClients fallback preview error:', e);
-                                }
-                            }
-                            continue;
-                        }
-
-                        console.error('[ClientRepo][STARTUP_TRACE][QUERY_ERROR]', {
-                            function: 'getClients',
-                            table: 'clientes',
-                            select: '*',
-                            filter: { tenant_id: tenantValue },
-                            orderBy: schema?.nameColumn || null,
-                            activeModule: global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null,
-                            errorCode: error?.code || null,
-                            errorMessage: error?.message || null
-                        });
-
-                        if (isDebug()) {
-                            console.log('[ClientRepo] getClients query error:', {
-                                filter: { tenant_id: tenantValue },
-                                errorCode: error?.code,
-                                errorMessage: error?.message,
-                                errorDetails: error?.details,
-                                errorHint: error?.hint
-                            });
-                        }
-
-                        const msg = String(error?.message || '');
-                        const canFallback =
-                            error?.code === '42883' ||
-                            error?.code === '42703' ||
-                            msg.includes('invalid input syntax') ||
-                            msg.includes('bigint = uuid') ||
-                            msg.includes('uuid = bigint');
-                        if (!canFallback) {
-                            console.error('[ClientRepo] Erro ao buscar clientes:', error);
-                            return [];
-                        }
-                    }
-                }
-
-                let query = buildBaseQuery();
-                let { data, error } = await query;
-
-                if (error) {
-                    const missing = parseMissingColumnError(error);
-                    if (missing && schema?.nameColumn === missing) {
-                        const retry = await global.supabaseClient.from('clientes').select('*');
-                        data = retry.data;
-                        error = retry.error;
-                    }
-                }
-                if (error) throw error;
-                if (isDebug()) {
-                    const rows = Array.isArray(data) ? data : (data ? [data] : []);
-                    console.log('[ClientRepo] getClients unfiltered result:', {
-                        count: rows.length,
-                        ids: rows.map((r) => r?.id).filter((id) => id !== undefined && id !== null),
-                        tenantIds: rows.map((r) => r?.tenant_id).filter((v) => v !== undefined && v !== null).slice(0, 6)
-                    });
-                }
-                return data || [];
-            } catch (error) {
-                console.error('[ClientRepo] Erro ao buscar clientes:', error);
-                return [];
-            }
-        },
-
-        createClient: async function(input) {
-            if (!global.supabaseClient) {
-                console.error('[ClientRepo] Supabase não inicializado');
-                return { data: null, error: new Error('Supabase não inicializado') };
-            }
-
-            const name = String(input?.nome_empresa || input?.nome_fantasia || input?.nome || '').trim();
-            if (!name) {
-                return { data: null, error: new Error('Nome obrigatório') };
-            }
-
-            if (global.TenantContext?.init) {
-                try {
-                    await global.TenantContext.init();
-                } catch (err) {
-                    console.error('[ClientRepo] Falha ao inicializar TenantContext:', err);
-                }
-            }
-
-            const schema = await detectSchema();
-            const tenantCandidates = [];
-            const tenantCtx = global.TenantContext?.get ? global.TenantContext.get() : null;
-            if (tenantCtx?.tenantUuid) tenantCandidates.push({ value: tenantCtx.tenantUuid, source: 'tenantContext_uuid' });
-            if (Number.isFinite(tenantCtx?.tenantId)) tenantCandidates.push({ value: tenantCtx.tenantId, source: 'tenantContext_legacy' });
-
-            let tenantSource = tenantCandidates[0]?.source || 'none';
-            const { data: userData, error: userError } = await global.supabaseClient.auth.getUser();
-            if (userError) {
-                console.error('[ClientRepo] Erro ao obter usuário autenticado:', userError);
-            }
-            const user = userData?.user || null;
-            if (!tenantCandidates.length && user) {
-                const rawTenant = user.user_metadata?.tenant_id || user.app_metadata?.tenant_id;
-                if (rawTenant) {
-                    const raw = String(rawTenant || '').trim();
-                    if (/^-?\d+$/.test(raw)) tenantCandidates.push({ value: Number(raw), source: 'auth_metadata_legacy' });
-                    else tenantCandidates.push({ value: raw, source: 'auth_metadata_uuid' });
-                    tenantSource = tenantCandidates[0]?.source || tenantSource;
-                }
-            }
-            if (!tenantCandidates.length && schema?.hasTenantId) {
-                console.warn('[ClientRepo] tenant_id não resolvido para insert em clientes.');
-            }
-            const payload = {};
-            if (schema?.columns?.nome_empresa) payload.nome_empresa = String(input?.nome_empresa || name).trim();
-            if (schema?.columns?.nome_fantasia) {
-                const tradeName = String(input?.nome_fantasia || '').trim();
-                if (tradeName) payload.nome_fantasia = tradeName;
-            }
-            if (schema?.columns?.nome) payload.nome = name;
-            if (schema?.columns?.empresa) payload.empresa = name;
-            if (schema?.columns?.email) payload.email = input?.email ? String(input.email).trim() : null;
-            if (schema?.columns?.tipo_documento) payload.tipo_documento = input?.tipo_documento || null;
-            if (schema?.docColumn && input?.documento) payload[schema.docColumn] = String(input.documento).trim();
-            if (schema?.statusColumn) payload[schema.statusColumn] = input?.status || 'ativo';
-            if (schema?.hasAtivo) payload.ativo = true;
-            if (schema?.contactColumn && (input?.responsavel || input?.responsavel_nome)) {
-                payload[schema.contactColumn] = String(input?.responsavel || input?.responsavel_nome || '').trim() || null;
-            }
-            if (schema?.phoneColumn && input?.telefone) {
-                payload[schema.phoneColumn] = String(input.telefone).trim() || null;
-            }
-            if (schema?.whatsappColumn && input?.whatsapp) {
-                payload[schema.whatsappColumn] = String(input.whatsapp).trim() || null;
-            }
-            if (schema?.servicesColumn && Array.isArray(input?.servicos) && input.servicos.length) {
-                if (schema.servicesColumn === 'servicos') payload[schema.servicesColumn] = input.servicos;
-                else payload[schema.servicesColumn] = input.servicos.join(', ');
-            }
-            if (schema?.logoColumn && input?.logo_url) {
-                payload[schema.logoColumn] = String(input.logo_url).trim() || null;
-            }
-
-            const attempts = [];
-            if (schema?.hasTenantId && tenantCandidates.length) {
-                for (const candidate of tenantCandidates) {
-                    attempts.push({ ...payload, tenant_id: candidate.value });
-                }
-            }
-            attempts.push(payload);
-
-            if (!Object.keys(payload).length) {
-                return { data: null, error: new Error('Schema de clientes não identificado') };
-            }
-
-            if (schema?.hasTenantId) {
-                const withoutTenant = { ...payload };
-                delete withoutTenant.tenant_id;
-                if (Object.keys(withoutTenant).length) attempts.push(withoutTenant);
-            }
-
-            console.log('[ClientRepo] createClient payload:', payload);
-            console.log('[ClientRepo] createClient tenant source:', tenantSource);
-
-            let lastError = null;
-            for (const payload of attempts) {
-                let attemptPayload = { ...payload };
-                let guard = 0;
-                while (attemptPayload && Object.keys(attemptPayload).length && guard < 10) {
-                    guard += 1;
-                    console.log('[ClientRepo] Tentando insert clientes:', attemptPayload);
-                    const { data, error } = await global.supabaseClient
-                        .from('clientes')
-                        .insert([attemptPayload])
-                        .select('*');
-                    console.log('[ClientRepo] Resposta insert clientes:', { data, error });
-                    if (!error) {
-                        const created = Array.isArray(data) ? data[0] : data;
-                        return { data: created || null, error: null };
-                    }
-                    lastError = error;
-                    const missing = parseMissingColumnError(error);
-                    if (!missing || attemptPayload[missing] === undefined) break;
-                    delete attemptPayload[missing];
-                }
-            }
-
-            return { data: null, error: lastError };
-        },
-
-        /**
-         * Busca um cliente específico pelo ID
-         * @param {string} id 
-         * @returns {Promise<Object|null>} Cliente encontrado ou null
-         */
-        getClientById: async function(id) {
-            if (!global.supabaseClient || !id) return null;
-
-            try {
-                const { data, error } = await global.supabaseClient
-                    .from('clientes')
-                    .select('*')
-                    .eq('id', id)
-                    .single();
-
-                if (error) throw error;
-                return data;
-            } catch (error) {
-                console.error(`[ClientRepo] Erro ao buscar cliente ${id}:`, error);
+            const first = await tryFetch(preferred);
+            if (first.data) return first.data;
+            if (first.error) {
+                console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
+                    clientId: normalizedClientId,
+                    monthKey: key,
+                    monthRef: preferred,
+                    code: first.error.code,
+                    message: first.error.message
+                });
+                if (String(first.error.code || '') === '22007') this._mesReferenciaFormatByClient[String(normalizedClientId)] = 'date';
                 return null;
             }
+            if (!format) {
+                const second = await tryFetch(key);
+                if (second.data) {
+                    this._mesReferenciaFormatByClient[String(normalizedClientId)] = 'month';
+                    return second.data;
+                }
+                if (second.error && String(second.error.code || '') !== '22007') {
+                    console.error('[ClientRepo] Erro ao buscar calendário por mês:', {
+                        clientId: normalizedClientId,
+                        monthKey: key,
+                        monthRef: key,
+                        code: second.error.code,
+                        message: second.error.message
+                    });
+                }
+            }
+            return null;
+        },
+
+        getCalendarMeta: async function(calendarId, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return null;
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+
+            let query = supabase
+                .from('social_calendars')
+                .select('id,status,mes_referencia,cliente_id')
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.maybeSingle();
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar meta do calendário:', error);
+                return null;
+            }
+            return data || null;
+        },
+
+        /**
+         * Busca posts de um calendário
+         * @param {string} calendarId 
+         */
+        getCalendarPosts: async function(calendarId, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return [];
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+
+            let query = supabase
+                .from('social_posts')
+                .select('*')
+                .eq('calendar_id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.order('data_agendada', { ascending: true });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar posts:', error);
+                return [];
+            }
+            return data || [];
+        },
+
+        getCalendarItems: async function(calendarId, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return [];
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+
+            let query = supabase
+                .from('social_calendar_items')
+                .select('*')
+                .eq('calendar_id', normalizedCalendarId);
+            const { data, error } = await query.order('data', { ascending: true });
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao buscar itens do calendário:', error);
+                return [];
+            }
+            return data || [];
+        },
+
+        upsertCalendarItemEditorialDecision: async function(params) {
+            const supabase = await this.getClient();
+            if (!supabase) return { ok: false, error: { message: 'missing_supabase' } };
+
+            const calendarId = params?.calendarId;
+            const itemId = params?.itemId;
+            const clientId = params?.clientId;
+            const scheduledDate = String(params?.scheduledDate || '').trim();
+            const status = String(params?.status || '').trim();
+            const comment = String(params?.comment || '').trim();
+            const tema = String(params?.tema || '').trim();
+            const legenda = String(params?.legenda || params?.copy || '').trim();
+
+            if (!calendarId || !itemId || !clientId || !scheduledDate || !status) {
+                return { ok: false, error: { message: 'missing_params' } };
+            }
+
+            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            const normalizedItemId = this.normalizeBigIntId(itemId) ?? itemId;
+
+            const basePayload = {
+                cliente_id: normalizedClientId,
+                calendar_id: normalizedCalendarId,
+                calendar_item_id: normalizedItemId,
+                data_agendada: scheduledDate,
+                status: status,
+                feedback_cliente: comment || null,
+                feedback_ajuste: status === 'changes_requested' ? (comment || null) : null,
+                tema: tema || null,
+                legenda: legenda || null,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                const { data: existing, error: findError } = await supabase
+                    .from('social_posts')
+                    .select('id,calendar_item_id')
+                    .eq('calendar_id', normalizedCalendarId)
+                    .eq('calendar_item_id', normalizedItemId)
+                    .maybeSingle();
+
+                if (findError) {
+                    console.error('[ClientRepo] Erro ao localizar post por calendar_item_id:', findError);
+                    return { ok: false, error: findError };
+                }
+
+                if (existing?.id) {
+                    const { data, error } = await supabase
+                        .from('social_posts')
+                        .update(basePayload)
+                        .eq('id', existing.id)
+                        .select('*')
+                        .maybeSingle();
+                    if (error) return { ok: false, error };
+                    return { ok: true, data: data || null };
+                }
+
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .insert(basePayload)
+                    .select('*')
+                    .maybeSingle();
+                if (error) return { ok: false, error };
+                return { ok: true, data: data || null };
+            } catch (error) {
+                console.error('[ClientRepo] Falha em upsertCalendarItemEditorialDecision:', error);
+                return { ok: false, error };
+            }
+        },
+
+        updateCalendarItemReview: async function(itemId, clientId, review) {
+            const supabase = await this.getClient();
+            if (!supabase || !itemId) return { ok: false, error: { message: 'missing_params' } };
+
+            const normalizedItemId = this.normalizeIdForFilter ? this.normalizeIdForFilter(itemId) : String(itemId || '').trim();
+            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const status = String(review?.status || '').trim();
+            const comment = String(review?.comment || '').trim();
+
+            const attempts = [
+                { statusKey: 'client_review_status', commentKey: 'client_review_comment' },
+                { statusKey: 'review_status', commentKey: 'review_comment' },
+                { statusKey: 'status_cliente', commentKey: 'comentario_cliente' },
+                { statusKey: 'status', commentKey: 'comentario_cliente' },
+                { statusKey: 'status', commentKey: 'comentario' }
+            ];
+
+            for (let i = 0; i < attempts.length; i += 1) {
+                const a = attempts[i];
+                const payload = {};
+                if (status) payload[a.statusKey] = status;
+                if (comment) payload[a.commentKey] = comment;
+                if (!Object.keys(payload).length) continue;
+
+                let query = supabase
+                    .from('social_calendar_items')
+                    .update(payload)
+                    .eq('id', normalizedItemId);
+                if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+
+                const { data, error } = await query.select('id');
+                if (!error) return { ok: true, data: (data && data[0]) || null };
+            }
+
+            return { ok: true, data: null };
+        },
+
+        updateCalendarFeedback: async function(calendarId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
+            const normalizedCalendarId = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
+            const payload = { comentario_cliente: String(comment || '').trim() || null };
+
+            console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarFeedback');
+            const query = supabase
+                .from('social_calendars')
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            const { data, error } = await query.select('id,status');
+            if (error) return { ok: false, error };
+            return { ok: true, data: (data && data[0]) || null };
+        },
+
+        updateCalendarStatus: async function(calendarId, status, clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
+            const id = this.normalizeIdForFilter(calendarId) ?? String(calendarId || '').trim();
+            if (!id) return { ok: false, error: { message: 'missing_params' } };
+            const nextStatus = String(status || '').trim() || null;
+
+            console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarStatus');
+            // NOTE: Filtramos apenas por 'id' (UUID único do calendário).
+            // Adicionar .eq('cliente_id', ...) no PATCH causava erro 22P02 no PostgREST
+            // pois o valor normalizado não era aceito como bigint pelo driver.
+            const query = supabase.from('social_calendars').update({ status: nextStatus }).eq('id', id);
+            const { error } = await query;
+
+            if (error) {
+                console.log('[ClientRepo] updateCalendarStatus error detail:', {
+                    calendarId: id,
+                    status: nextStatus,
+                    payload: { status: nextStatus },
+                    code: error?.code || null,
+                    message: error?.message || null,
+                    details: error?.details || null,
+                    hint: error?.hint || null
+                });
+                return { error };
+            }
+
+            console.log('[ClientRepo] updateCalendarStatus success:', { calendarId: id, status: nextStatus });
+            return { error: null };
+        },
+
+        /**
+         * Busca todos os posts pendentes de aprovação (independente do calendário)
+         * @param {string} clientId
+         */
+        getPendingPosts: async function(clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+
+            const pendingStatuses = this.getPendingPostStatuses();
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .in('status', pendingStatuses)
+                    .order('data_agendada', { ascending: true });
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar posts pendentes em social_posts:', error);
+                return [];
+            }
+        },
+
+        /**
+         * Aprova um calendário inteiro
+         * @param {string} calendarId 
+         */
+        approveCalendar: async function(calendarId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return false;
+
+            const approvedStatus = 'approved';
+            const trimmedComment = String(comment || '').trim();
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId ?? '').trim();
+            const normalizedClientId = this.normalizeIdForFilter(clientId);
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
+            const payload = {
+                status: approvedStatus,
+                comentario_cliente: trimmedComment || null
+            };
+
+            if (this.isDebug()) {
+                console.log('[ClientRepo] approveCalendar update:', {
+                    table: 'social_calendars',
+                    payload,
+                    filter: {
+                        id: normalizedCalendarId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
+
+            // 1. Aprova calendário
+            let calendarQuery = supabase
+                .from('social_calendars')
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) calendarQuery = calendarQuery.eq('cliente_id', normalizedClientId);
+
+            const { data: calData, error: calError } = await calendarQuery.select('id,status,cliente_id');
+
+            if (calError) {
+                console.error('[ClientRepo] Erro ao aprovar calendário:', calError);
+                return { ok: false, error: calError };
+            }
+            if (!calData || calData.length === 0) {
+                console.error('[ClientRepo] Aprovação de calendário não afetou nenhuma linha (possível RLS/filtro).', {
+                    calendarId: normalizedCalendarId,
+                    clientId: normalizedClientId,
+                    authEmail: email,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, calendarId: normalizedCalendarId, clientId: normalizedClientId };
+            }
+
+            return { ok: true, data: calData[0] };
+        },
+
+        /**
+         * Solicita ajustes no calendário
+         * @param {string} calendarId 
+         * @param {string} comment 
+         */
+        rejectCalendar: async function(calendarId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !calendarId) return false;
+
+            const changesStatus = 'draft';
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId ?? '').trim();
+            const normalizedClientId = this.normalizeIdForFilter(clientId);
+            const payload = {
+                status: changesStatus,
+                comentario_cliente: comment
+            };
+
+            let query = supabase
+                .from('social_calendars')
+                .update(payload)
+                .eq('id', normalizedCalendarId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { data, error } = await query.select('id,status,cliente_id');
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao rejeitar calendário:', error);
+                return { ok: false, error };
+            }
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Rejeição de calendário não afetou nenhuma linha (possível RLS/filtro).', {
+                    calendarId: normalizedCalendarId,
+                    clientId: normalizedClientId,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' } };
+            }
+            return { ok: true, data: data[0] };
+        },
+
+        /**
+         * Aprova um post individual
+         * @param {string} postId 
+         */
+        approvePost: async function(postId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase) return false;
+
+            const approvedStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.APPROVED : 'approved';
+            const normalizedPostId = postId ? String(postId).trim() : '';
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
+            const trimmedComment = String(comment || '').trim();
+
+            const payload = {
+                status: approvedStatus,
+                comentario_cliente: trimmedComment || null
+            };
+
+            if (this.isDebug()) {
+                console.log('[ClientRepo] approvePost update:', {
+                    table: 'social_posts',
+                    payload,
+                    filter: {
+                        id: normalizedPostId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
+
+            let query = supabase
+                .from('social_posts')
+                .update(payload)
+                .eq('id', normalizedPostId);
+            const { data, error } = await query.select('id,status,cliente_id,calendar_id');
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao aprovar post:', {
+                    postId: normalizedPostId,
+                    authEmail: email,
+                    payload,
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                return { ok: false, error, postId, payload };
+            }
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Aprovação não afetou nenhuma linha (possível RLS/filtro).', {
+                    postId: normalizedPostId,
+                    authEmail: email,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
+            }
+            return { ok: true, data: data[0] };
+        },
+
+        /**
+         * Rejeita um post individual
+         * @param {string} postId 
+         * @param {string} comment 
+         */
+        rejectPost: async function(postId, clientId, comment) {
+            const supabase = await this.getClient();
+            if (!supabase) return false;
+
+            const changesStatus = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS.CHANGES_REQUESTED : 'changes_requested';
+            const normalizedPostId = postId ? String(postId).trim() : '';
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const { data: userData } = await supabase.auth.getUser();
+            const email = userData?.user?.email || null;
+
+            const payload = {
+                status: changesStatus,
+                comentario_cliente: comment
+            };
+
+            if (this.isDebug()) {
+                console.log('[ClientRepo] rejectPost update:', {
+                    table: 'social_posts',
+                    payload,
+                    filter: {
+                        id: normalizedPostId,
+                        cliente_id: normalizedClientId
+                    },
+                    authEmail: email
+                });
+            }
+
+            let query = supabase
+                .from('social_posts')
+                .update(payload)
+                .eq('id', normalizedPostId);
+            const { data, error } = await query.select('id,status,cliente_id,calendar_id');
+
+            if (error) {
+                console.error('[ClientRepo] Erro ao solicitar ajustes no post:', {
+                    postId: normalizedPostId,
+                    authEmail: email,
+                    payload,
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                return { ok: false, error, postId, payload };
+            }
+            if (!data || data.length === 0) {
+                console.error('[ClientRepo] Solicitação de ajuste não afetou nenhuma linha (possível RLS/filtro).', {
+                    postId: normalizedPostId,
+                    authEmail: email,
+                    payload
+                });
+                return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
+            }
+            return { ok: true, data: data[0] };
+        },
+
+        updatePostEditorialStatus: async function(postId, clientId, status, comment) {
+            const supabase = await this.getClient();
+            if (!supabase || !postId) return { ok: false, error: { message: 'missing_params' } };
+
+            const normalizedPostId = String(postId || '').trim();
+            const normalizedClientId = this.normalizeBigIntId(clientId);
+            const nextStatus = String(status || '').trim();
+            const trimmedComment = String(comment || '').trim();
+
+            const payload = {
+                status: nextStatus,
+                feedback_cliente: trimmedComment || null,
+                feedback_ajuste: nextStatus === 'changes_requested' ? (trimmedComment || null) : null,
+                updated_at: new Date().toISOString()
+            };
+            const patch = arguments.length >= 5 ? arguments[4] : null;
+            const tema = String(patch?.tema || '').trim();
+            const legenda = String(patch?.legenda || patch?.copy || '').trim();
+            if (tema) payload.tema = tema;
+            if (legenda) payload.legenda = legenda;
+
+            let query = supabase
+                .from('social_posts')
+                .update(payload)
+                .eq('id', normalizedPostId);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+
+            const { data, error } = await query.select('*').maybeSingle();
+            if (error) {
+                console.error('[ClientRepo] Erro ao atualizar status editorial do post:', {
+                    postId: normalizedPostId,
+                    clientId: normalizedClientId,
+                    payload,
+                    code: error.code,
+                    message: error.message
+                });
+                return { ok: false, error };
+            }
+            return { ok: true, data: data || null };
+        },
+
+        getPostsByDateRange: async function(clientId, startDate, endDate) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+
+            const start = String(startDate || '').slice(0, 10);
+            const end = String(endDate || '').slice(0, 10);
+            if (!start || !end) return [];
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_agendada', start)
+                    .lt('data_agendada', end)
+                    .order('data_agendada', { ascending: true });
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar posts por período em social_posts:', error);
+                return [];
+            }
+        },
+
+        getNextPost: async function(clientId, fromDate) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return null;
+
+            const from = String(fromDate || '').slice(0, 10);
+            if (!from) return null;
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .gte('data_agendada', from)
+                    .order('data_agendada', { ascending: true })
+                    .limit(1);
+                if (error) throw error;
+                return (data && data[0]) || null;
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar próximo post em social_posts:', error);
+                return null;
+            }
+        },
+
+        getHistoryPosts: async function(clientId, limit = 60) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+
+            const statuses = ['approved', 'scheduled', 'published', 'aprovado', 'agendado', 'publicado'];
+            const safeLimit = Math.max(1, Math.min(200, Number(limit || 60)));
+
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('cliente_id', clientId)
+                    .in('status', statuses)
+                    .order('data_agendada', { ascending: false })
+                    .limit(safeLimit);
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('[ClientRepo] Erro ao buscar histórico em social_posts:', error);
+                return [];
+            }
+        },
+
+        /**
+         * Busca métricas resumidas (Mock para MVP)
+         */
+        getMetricsSummary: async function(clientId) {
+            // Futuro: conectar com tabela de analytics
+            return {
+                approvals: (await this.getPendingCalendars(clientId)).length,
+                investment: 0,
+                leads: 0
+            };
         }
     };
 
-    // Expor globalmente
     global.ClientRepo = ClientRepo;
 
 })(window);
