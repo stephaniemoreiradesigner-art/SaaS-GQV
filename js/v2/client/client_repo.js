@@ -386,7 +386,7 @@
         updateCalendarStatus: async function(calendarId, status) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
-            const id = String(calendarId || '').trim();
+            const id = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
             if (!id) return { ok: false, error: { message: 'missing_params' } };
             const nextStatus = String(status || '').trim() || null;
 
