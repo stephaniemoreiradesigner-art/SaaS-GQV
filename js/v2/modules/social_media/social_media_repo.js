@@ -352,12 +352,10 @@
                     const observacoes = [notes, caption ? `Copy base:\n${caption}` : '', `[${opTag}]`].filter(Boolean).join('\n\n');
                     return {
                         calendar_id: calId,
-                        cliente_id: clientId,
                         data,
                         tema,
                         tipo_conteudo,
                         canal,
-                        copy: caption || null,
                         observacoes,
                         updated_at: new Date().toISOString()
                     };
@@ -387,8 +385,6 @@
 
                 const withoutOptional = payloadsBase.map((p) => {
                     const next = { ...p };
-                    delete next.copy;
-                    delete next.cliente_id;
                     return next;
                 });
                 try {
@@ -907,17 +903,35 @@
             });
 
             try {
-                // Tenta 'social_posts'
+                const clientValue = /^\d+$/.test(normalizedClientId) ? Number(normalizedClientId) : normalizedClientId;
+
                 let { data, error } = await global.supabaseClient
                     .from('social_posts')
-                    .select('*')
-                    .eq('cliente_id', normalizedClientId)
+                    .select('*, social_calendars!inner(cliente_id)')
+                    .eq('social_calendars.cliente_id', clientValue)
                     .gte('data_agendada', start)
                     .lt('data_agendada', end)
                     .order('data_agendada', { ascending: true });
 
+                if (error) {
+                    const msg = String(error?.message || '');
+                    const shouldFallback =
+                        error?.code === 'PGRST200' ||
+                        msg.toLowerCase().includes('relationship') ||
+                        msg.toLowerCase().includes('foreign key');
+                    if (!shouldFallback) throw error;
+
+                    ({ data, error } = await global.supabaseClient
+                        .from('social_posts')
+                        .select('*')
+                        .eq('cliente_id', clientValue)
+                        .gte('data_agendada', start)
+                        .lt('data_agendada', end)
+                        .order('data_agendada', { ascending: true }));
+                }
+
                 if (error) throw error;
-                return data;
+                return data || [];
             } catch (err) {
                 console.error('[AgencyCalendar] query error:', { function: 'getPostsByDateRange', table: 'social_posts', cliente_id: normalizedClientId, data_agendada_gte: start, data_agendada_lt: end, code: err?.code || null, message: err?.message || null });
                 logQueryError('getPostsByDateRange', 'social_posts', { cliente_id: normalizedClientId, data_agendada_gte: start, data_agendada_lt: end }, err);
@@ -935,12 +949,29 @@
             if (!global.supabaseClient || !clientId) return [];
 
             try {
-                // Tenta tabela 'social_posts' primeiro (mais provável ser a correta v2/legada)
+                const normalizedClientId = String(clientId || '').trim();
+                const clientValue = /^\d+$/.test(normalizedClientId) ? Number(normalizedClientId) : normalizedClientId;
+
                 let { data, error } = await global.supabaseClient
                     .from('social_posts')
-                    .select('*')
-                    .eq('cliente_id', clientId)
+                    .select('*, social_calendars!inner(cliente_id)')
+                    .eq('social_calendars.cliente_id', clientValue)
                     .order('data_agendada', { ascending: false });
+
+                if (error) {
+                    const msg = String(error?.message || '');
+                    const shouldFallback =
+                        error?.code === 'PGRST200' ||
+                        msg.toLowerCase().includes('relationship') ||
+                        msg.toLowerCase().includes('foreign key');
+                    if (!shouldFallback) throw error;
+
+                    ({ data, error } = await global.supabaseClient
+                        .from('social_posts')
+                        .select('*')
+                        .eq('cliente_id', clientValue)
+                        .order('data_agendada', { ascending: false }));
+                }
 
                 if (error) throw error;
                 return data || [];

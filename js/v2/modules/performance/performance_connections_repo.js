@@ -46,9 +46,9 @@
     };
 
     const buildClientColumnCandidates = (clienteId) => {
-        if (isUuid(clienteId)) return ['cliente_id', 'client_id_uuid', 'client_uuid', 'client_id'];
-        if (isNumeric(clienteId)) return ['cliente_id', 'client_id', 'client_id_uuid', 'client_uuid'];
-        return ['cliente_id', 'client_id', 'client_id_uuid', 'client_uuid'];
+        if (isUuid(clienteId)) return ['client_uuid', 'client_id_uuid', 'client_id', 'cliente_id'];
+        if (isNumeric(clienteId)) return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
+        return ['client_id', 'cliente_id', 'client_id_uuid', 'client_uuid'];
     };
 
     const resolveClientValue = (column, raw) => {
