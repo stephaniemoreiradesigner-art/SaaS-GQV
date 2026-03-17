@@ -97,7 +97,6 @@
             const monthKey = String(state?.monthKey || '').trim();
             this.currentMonthKey = monthKey;
             const items = Array.isArray(state?.editorialItems) ? state.editorialItems : [];
-            const status = String(state?.calendarStatus || '').trim() || 'draft';
 
             const mappedItems = items.map((it) => ({
                 id: `item_${String(it?.id || Math.random()).replace(/[^\w-]/g, '')}`,
@@ -107,7 +106,7 @@
                 tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
                 formato: it?.tipo_conteudo || it?.formato || it?.content_type || 'post_estatico',
                 plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
-                status
+                status: it?.status || 'draft'
             })).filter((p) => !!p.data_agendada);
 
             const renderList = mappedItems;

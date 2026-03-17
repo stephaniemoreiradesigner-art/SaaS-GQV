@@ -154,7 +154,7 @@
                                 tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
                                 formato: it?.tipo_conteudo || it?.formato || 'post_estatico',
                                 plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
-                                status: calendarStatus
+                                status: it?.status || 'draft'
                             })).filter((p) => !!p.data_agendada);
                             global.ClientUI.renderClientCalendar(mapped, monthKey);
                             return;
@@ -364,7 +364,7 @@
                         tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
                         formato: it?.tipo_conteudo || it?.formato || 'post_estatico',
                         plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
-                        status: calendarStatus
+                        status: it?.status || 'draft'
                     })).filter((p) => !!p.data_agendada);
                     global.ClientUI?.renderClientCalendar?.(mapped, monthKey);
                     return;
@@ -613,7 +613,7 @@
 
             this._activeCalendarItems = Array.isArray(items) ? items : [];
             this._activeCalendarPostsByItemId = postsByItemId;
-            const calendarStatusFallback = String(meta?.status || status || '').trim() || 'draft';
+            const calendarStatusFallback = String(meta?.status || status || '').trim() || '';
 
             const entries = (Array.isArray(items) ? items : [])
                 .map((item) => {
@@ -637,7 +637,8 @@
                         relatedPost?.status
                         || itemReviewStatus
                         || localReview?.status
-                        || calendarStatusFallback
+                        || item?.status
+                        || 'draft'
                     ).trim() || 'draft';
                     return {
                         key: String(relatedPost?.id || `item_${itemId}`),
