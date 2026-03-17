@@ -1470,6 +1470,11 @@
             renderActiveClientFoundation(initialClientId);
             refreshDashboardPerformance(initialClientId);
             refreshDashboardSocial(initialClientId);
+            if (typeof loadClients === 'function') {
+                Promise.resolve(loadClients({ reason: 'startup' })).then((clients) => {
+                    if (Array.isArray(clients)) updateDashboardTotalClientsCount(clients.length);
+                });
+            }
             if (window.CalendarStateManager?.subscribe) {
                 window.CalendarStateManager.subscribe(() => {
                     const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
@@ -3298,9 +3303,9 @@
             const map = {
                 rascunho: 'draft',
                 draft: 'draft',
-                aguardando_aprovacao: 'awaiting_approval',
-                awaiting_approval: 'awaiting_approval',
-                sent_for_approval: 'awaiting_approval',
+                aguardando_aprovacao: 'sent_for_approval',
+                awaiting_approval: 'sent_for_approval',
+                sent_for_approval: 'sent_for_approval',
                 aprovado: 'approved',
                 approved: 'approved',
                 ajuste_solicitado: 'needs_changes',
@@ -4440,7 +4445,6 @@
 
         const startUp = async () => {
             setActiveView('dashboard');
-            await loadClients({ reason: 'startup' });
             if (window.SocialMediaCore?.init) {
                 await window.SocialMediaCore.init();
             }
