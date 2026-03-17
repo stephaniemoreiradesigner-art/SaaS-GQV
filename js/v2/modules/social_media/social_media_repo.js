@@ -127,39 +127,6 @@
             }
         },
 
-        getCalendarStatusByMonth: async function(clientId, monthKey) {
-            if (!global.supabaseClient || !monthKey) return null;
-
-            const normalizedClientId = String(clientId ?? '').trim();
-            if (!normalizedClientId) return null;
-
-            const normalizedMonthKey = String(monthKey || '').trim().slice(0, 7);
-            if (!/^\d{4}-\d{2}$/.test(normalizedMonthKey)) return null;
-
-            const fmt = await resolveMesReferenciaFormat();
-            const monthStart = global.MonthUtils?.buildMonthReferenceFromMonthKey
-                ? global.MonthUtils.buildMonthReferenceFromMonthKey(normalizedMonthKey)
-                : `${normalizedMonthKey}-01`;
-            const mesReferenciaValue = fmt === 'month' ? normalizedMonthKey : monthStart;
-            if (!mesReferenciaValue) return null;
-
-            try {
-                const { data, error } = await global.supabaseClient
-                    .from('social_calendars')
-                    .select('id,status,mes_referencia')
-                    .eq('cliente_id', normalizedClientId)
-                    .eq('mes_referencia', mesReferenciaValue)
-                    .maybeSingle();
-                if (error) {
-                    logQueryError('getCalendarStatusByMonth', 'social_calendars', { cliente_id: normalizedClientId, mes_referencia: mesReferenciaValue }, error);
-                    return null;
-                }
-                return data || null;
-            } catch (err) {
-                return null;
-            }
-        },
-
         uploadFile: async function(file, clientId) {
             if (!global.supabaseClient || !file) return null;
             const normalizedClientId = String(clientId ?? '').trim();

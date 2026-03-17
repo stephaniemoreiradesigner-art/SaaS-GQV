@@ -1371,6 +1371,11 @@
                 dashboardPerformanceSummary.textContent = 'Selecione um cliente para ver conexões.';
                 return;
             }
+            if (!window.supabaseClient) {
+                dashboardPerformanceBadge.textContent = 'Carregando';
+                dashboardPerformanceSummary.textContent = 'Inicializando dados de Performance.';
+                return;
+            }
             if (!window.PerformanceConnectionsRepo?.getConnections) {
                 dashboardPerformanceBadge.textContent = 'Indisponível';
                 dashboardPerformanceSummary.textContent = 'Repo de conexões não carregado.';
@@ -1401,29 +1406,38 @@
             dashboardSocialSeq = seq;
 
             const id = String(clientId || '').trim();
-            const monthKey = window.MonthUtils?.formatMonthKeyFromDate
-                ? window.MonthUtils.formatMonthKeyFromDate(new Date())
-                : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-            const monthLabel = window.MonthUtils?.formatMonthLabel ? window.MonthUtils.formatMonthLabel(monthKey) : monthKey;
+            const calendarState = window.CalendarStateManager?.getState ? window.CalendarStateManager.getState() : null;
+            const monthKeyFromState = calendarState && String(calendarState.clientId || '') === id ? String(calendarState.monthKey || '').trim().slice(0, 7) : '';
+            const monthKeyFallback = window.CalendarStateSelectors?.getCurrentMonthKey
+                ? window.CalendarStateSelectors.getCurrentMonthKey()
+                : (window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+            const monthKey = monthKeyFromState || monthKeyFallback;
+            const monthLabel = window.CalendarStateSelectors?.formatMonthLabel
+                ? window.CalendarStateSelectors.formatMonthLabel(monthKey)
+                : (window.MonthUtils?.formatMonthLabel ? window.MonthUtils.formatMonthLabel(monthKey) : monthKey);
 
             if (!id) {
                 dashboardSocialBadge.textContent = 'Sem cliente';
                 dashboardSocialSummary.textContent = 'Selecione um cliente para ver o calendário.';
                 return;
             }
-            if (!window.SocialMediaRepo?.getCalendarStatusByMonth) {
-                dashboardSocialBadge.textContent = 'Indisponível';
-                dashboardSocialSummary.textContent = `${monthLabel} • Repo Social não carregado.`;
-                return;
+            let rawStatus = '';
+            let isLoading = false;
+            if (calendarState && String(calendarState.clientId || '') === id && String(calendarState.monthKey || '').slice(0, 7) === String(monthKey || '').slice(0, 7)) {
+                rawStatus = String(calendarState.calendarStatus || '').trim();
+                isLoading = !!(calendarState.loading?.monthData || calendarState.loading?.calendarMeta);
+            } else if (typeof socialState !== 'undefined' && socialState) {
+                const byMonth = socialState.calendarStatusByMonth && monthKey ? socialState.calendarStatusByMonth[monthKey] : null;
+                if (byMonth) rawStatus = String(byMonth || '').trim();
+                if (!rawStatus && String(socialState.calendarMonth || '').slice(0, 7) === String(monthKey || '').slice(0, 7)) {
+                    rawStatus = String(socialState.calendarStatus || '').trim();
+                }
             }
-
-            const cal = await window.SocialMediaRepo.getCalendarStatusByMonth(id, monthKey);
             if (seq !== dashboardSocialSeq) return;
 
-            const rawStatus = String(cal?.status || '').trim();
             if (!rawStatus) {
-                dashboardSocialBadge.textContent = 'Sem calendário';
-                dashboardSocialSummary.textContent = `${monthLabel} • Nenhum calendário encontrado.`;
+                dashboardSocialBadge.textContent = isLoading ? 'Carregando' : 'Aguardando dados';
+                dashboardSocialSummary.textContent = `${monthLabel} • Status ainda não carregado.`;
                 return;
             }
 
@@ -1456,6 +1470,12 @@
             renderActiveClientFoundation(initialClientId);
             refreshDashboardPerformance(initialClientId);
             refreshDashboardSocial(initialClientId);
+            if (window.CalendarStateManager?.subscribe) {
+                window.CalendarStateManager.subscribe(() => {
+                    const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
+                    refreshDashboardSocial(activeId);
+                });
+            }
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
                     renderActiveClientFoundation(clientId);
@@ -1764,6 +1784,8 @@
                     clientDetailAccessWarning.textContent = '';
                 }
             }
+
+            await new Promise((resolve) => requestAnimationFrame(resolve));
 
             rebindClickById('client-detail-close', closeClientDetailModal);
             if (clientDetailModal) {
@@ -4073,7 +4095,6 @@
                 allClients = Array.isArray(clients) ? clients : [];
                 clientsLoadState.loadedOnce = true;
                 console.log('[ClientsView] loadClients result', { count: allClients.length, reason });
-                updateDashboardTotalClientsCount(allClients.length);
                 const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
                 if (activeId && !allClients.some((client) => String(client.id) === String(activeId))) {
                     if (window.ClientContext?.setActiveClient) {
@@ -4081,6 +4102,7 @@
                     }
                 }
                 renderClientList(allClients);
+                updateDashboardTotalClientsCount(allClients.length);
 
                 if (!clientsLoadState.retryScheduled && allClients.length === 0) {
                     clientsLoadState.retryScheduled = true;
