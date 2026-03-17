@@ -1665,6 +1665,84 @@
                 if (!selectedClientForDetail) return;
                 openClientDeleteModal(selectedClientForDetail);
             });
+            rebindClickById('client-detail-grant-access', async () => {
+                if (!selectedClientForDetail?.id) {
+                    setClientFeedback('Selecione um cliente primeiro.', 'error');
+                    return;
+                }
+
+                const clientId = selectedClientForDetail.id;
+                const origin = window.location.origin;
+                const rawEmail =
+                    String(selectedClientForDetail.email || '').trim()
+                    || String(selectedClientForDetail.email_contato || '').trim()
+                    || String(selectedClientForDetail.email_responsavel || '').trim()
+                    || String(selectedClientForDetail.responsavel_email || '').trim()
+                    || String(selectedClientForDetail.email_empresa || '').trim()
+                    || String(document.getElementById('client-detail-email')?.textContent || '').trim();
+                const normalizedEmail = rawEmail ? rawEmail.toLowerCase() : '';
+                const safeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? normalizedEmail : '';
+                const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+                const rawTenantId =
+                    String(selectedClientForDetail.tenant_id || '').trim()
+                    || String(selectedClientForDetail.tenantId || '').trim()
+                    || String(selectedClientForDetail.tenant_uuid || '').trim()
+                    || String(selectedClientForDetail.tenantUuid || '').trim();
+                const safeTenantId = uuidRe.test(rawTenantId) ? rawTenantId : '';
+                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${safeTenantId ? `&tenant_id=${encodeURIComponent(safeTenantId)}` : ''}${safeEmail ? `&email=${encodeURIComponent(safeEmail)}` : ''}`;
+
+                const detailFeedback = document.getElementById('client-detail-access-warning');
+                const showDetailFeedback = (message, type) => {
+                    if (!detailFeedback) return;
+                    detailFeedback.textContent = message;
+                    detailFeedback.classList.remove('hidden');
+                    detailFeedback.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
+                    if (type === 'success') {
+                        detailFeedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                    } else if (type === 'error') {
+                        detailFeedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
+                    } else {
+                        detailFeedback.classList.add('bg-amber-50', 'text-amber-700', 'border', 'border-amber-100');
+                    }
+                };
+
+                if (clientDetailFirstAccessWrap) clientDetailFirstAccessWrap.classList.remove('hidden');
+                if (clientDetailFirstAccessLink) {
+                    clientDetailFirstAccessLink.value = url;
+                    clientDetailFirstAccessLink.focus();
+                    clientDetailFirstAccessLink.select();
+                }
+                if (window.__GQV_DEBUG_CONTEXT__ === true) console.log('[ClientAccess] first access link:', url);
+                showDetailFeedback('Link de primeiro acesso gerado.', 'success');
+            });
+            rebindClickById('client-detail-first-access-copy', async () => {
+                const url = String(clientDetailFirstAccessLink?.value || '').trim();
+                if (!url) {
+                    setClientFeedback('Gere o link primeiro.', 'error');
+                    return;
+                }
+
+                try {
+                    if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(url);
+                        setClientFeedback('Link copiado.', 'success');
+                        if (clientDetailAccessWarning) {
+                            clientDetailAccessWarning.textContent = 'Link copiado para a área de transferência.';
+                            clientDetailAccessWarning.classList.remove('hidden');
+                            clientDetailAccessWarning.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
+                            clientDetailAccessWarning.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
+                        }
+                        return;
+                    }
+                } catch {}
+
+                try {
+                    window.prompt('Copie o link de primeiro acesso:', url);
+                    setClientFeedback('Link exibido para cópia.', 'success');
+                } catch {
+                    setClientFeedback('Não foi possível copiar o link.', 'error');
+                }
+            });
         };
         window.openClientDetailModal = openClientDetailModal;
 
@@ -3888,188 +3966,6 @@
         }
         if (clientOpenHub) {
             clientOpenHub.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'client_open_hub' }));
-        }
-
-        if (clientDetailClose) clientDetailClose.addEventListener('click', closeClientDetailModal);
-        if (clientDetailModal) {
-            clientDetailModal.addEventListener('click', (event) => {
-                if (event.target === clientDetailModal) closeClientDetailModal();
-            });
-        }
-        if (clientDetailSetActive) {
-            clientDetailSetActive.addEventListener('click', () => {
-                if (!selectedClientForDetail) return;
-                const client = selectedClientForDetail;
-                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Cliente';
-                if (window.ClientContext) {
-                    window.ClientContext.setActiveClient({ id: client.id, name });
-                }
-                currentClient = client;
-                closeClientDetailModal();
-            });
-        }
-        if (clientDetailOpenHub) {
-            clientDetailOpenHub.addEventListener('click', () => {
-                if (!selectedClientForDetail) return;
-                const client = selectedClientForDetail;
-                const name = client.nome_fantasia || client.razao_social || client.nome_empresa || client.nome || client.empresa || 'Cliente';
-                if (window.ClientContext) {
-                    window.ClientContext.setActiveClient({ id: client.id, name });
-                }
-                currentClient = client;
-                closeClientDetailModal();
-                navigateTo('hub', { view: 'client-hub', reason: 'client_detail_open_hub_legacy' });
-            });
-        }
-        if (clientDetailEditBtn) {
-            clientDetailEditBtn.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!selectedClientForDetail) return;
-                const snapshot = selectedClientForDetail;
-                closeClientDetailModal();
-                await openClientEditModal(snapshot);
-            });
-        }
-        if (clientDetailDeleteBtn) {
-            clientDetailDeleteBtn.addEventListener('click', () => {
-                if (!selectedClientForDetail) return;
-                openClientDeleteModal(selectedClientForDetail);
-            });
-        }
-        if (clientDetailIntegrationsBtn) {
-            clientDetailIntegrationsBtn.addEventListener('click', () => {
-                setClientFeedback('Integrações: em breve.', 'success');
-            });
-        }
-        if (clientDetailHistoryBtn) {
-            clientDetailHistoryBtn.addEventListener('click', () => {
-                setClientFeedback('Histórico: em breve.', 'success');
-            });
-        }
-        if (clientDetailGrantAccessBtn) {
-            clientDetailGrantAccessBtn.addEventListener('click', async () => {
-                if (!selectedClientForDetail?.id) {
-                    setClientFeedback('Selecione um cliente primeiro.', 'error');
-                    return;
-                }
-
-                const clientId = selectedClientForDetail.id;
-                const origin = window.location.origin;
-                const rawEmail =
-                    String(selectedClientForDetail.email || '').trim()
-                    || String(selectedClientForDetail.email_contato || '').trim()
-                    || String(selectedClientForDetail.email_responsavel || '').trim()
-                    || String(selectedClientForDetail.responsavel_email || '').trim()
-                    || String(selectedClientForDetail.email_empresa || '').trim()
-                    || String(document.getElementById('client-detail-email')?.textContent || '').trim();
-                const normalizedEmail = rawEmail ? rawEmail.toLowerCase() : '';
-                const safeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) ? normalizedEmail : '';
-                const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-                const rawTenantId =
-                    String(selectedClientForDetail.tenant_id || '').trim()
-                    || String(selectedClientForDetail.tenantId || '').trim()
-                    || String(selectedClientForDetail.tenant_uuid || '').trim()
-                    || String(selectedClientForDetail.tenantUuid || '').trim();
-                const safeTenantId = uuidRe.test(rawTenantId) ? rawTenantId : '';
-                const url = `${origin}/v2/client/register.html?client_id=${encodeURIComponent(clientId)}${safeTenantId ? `&tenant_id=${encodeURIComponent(safeTenantId)}` : ''}${safeEmail ? `&email=${encodeURIComponent(safeEmail)}` : ''}`;
-
-                const detailFeedback = document.getElementById('client-detail-access-warning');
-                const showDetailFeedback = (message, type) => {
-                    if (!detailFeedback) return;
-                    detailFeedback.textContent = message;
-                    detailFeedback.classList.remove('hidden');
-                    detailFeedback.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
-                    if (type === 'success') {
-                        detailFeedback.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
-                    } else if (type === 'error') {
-                        detailFeedback.classList.add('bg-red-50', 'text-red-700', 'border', 'border-red-100');
-                    } else {
-                        detailFeedback.classList.add('bg-amber-50', 'text-amber-700', 'border', 'border-amber-100');
-                    }
-                };
-
-                if (clientDetailFirstAccessWrap) clientDetailFirstAccessWrap.classList.remove('hidden');
-                if (clientDetailFirstAccessLink) {
-                    clientDetailFirstAccessLink.value = url;
-                    clientDetailFirstAccessLink.focus();
-                    clientDetailFirstAccessLink.select();
-                }
-                if (window.__GQV_DEBUG_CONTEXT__ === true) console.log('[ClientAccess] first access link:', url);
-                showDetailFeedback('Link de primeiro acesso gerado.', 'success');
-            });
-        }
-
-        if (clientDetailFirstAccessCopyBtn) {
-            clientDetailFirstAccessCopyBtn.addEventListener('click', async () => {
-                const url = String(clientDetailFirstAccessLink?.value || '').trim();
-                if (!url) {
-                    setClientFeedback('Gere o link primeiro.', 'error');
-                    return;
-                }
-
-                try {
-                    if (navigator.clipboard?.writeText) {
-                        await navigator.clipboard.writeText(url);
-                        setClientFeedback('Link copiado.', 'success');
-                        if (clientDetailAccessWarning) {
-                            clientDetailAccessWarning.textContent = 'Link copiado para a área de transferência.';
-                            clientDetailAccessWarning.classList.remove('hidden');
-                            clientDetailAccessWarning.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-100', 'bg-green-50', 'text-green-700', 'border-green-100', 'bg-red-50', 'text-red-700', 'border-red-100');
-                            clientDetailAccessWarning.classList.add('bg-green-50', 'text-green-700', 'border', 'border-green-100');
-                        }
-                        return;
-                    }
-                } catch {}
-
-                try {
-                    window.prompt('Copie o link de primeiro acesso:', url);
-                    setClientFeedback('Link exibido para cópia.', 'success');
-                } catch {
-                    setClientFeedback('Não foi possível copiar o link.', 'error');
-                }
-            });
-        }
-
-        if (clientDeleteClose) clientDeleteClose.addEventListener('click', closeClientDeleteModal);
-        if (clientDeleteCancel) clientDeleteCancel.addEventListener('click', closeClientDeleteModal);
-        if (clientDeleteModal) {
-            clientDeleteModal.addEventListener('click', (event) => {
-                if (event.target === clientDeleteModal) closeClientDeleteModal();
-            });
-        }
-        if (clientDeleteConfirm) {
-            clientDeleteConfirm.addEventListener('click', async () => {
-                if (!selectedClientForDetail?.id) return;
-                const supabase = window.supabaseClient;
-                if (!supabase) {
-                    setDeleteFeedback('Supabase não inicializado.', 'error');
-                    return;
-                }
-                clientDeleteConfirm.disabled = true;
-                try {
-                    const deletingId = selectedClientForDetail.id;
-                    const { error } = await supabase.from('clientes').delete().eq('id', deletingId);
-                    if (error) {
-                        console.error('[Clients] delete client error:', error);
-                        setDeleteFeedback(error.message || 'Não foi possível excluir o cliente.', 'error');
-                        return;
-                    }
-
-                    const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
-                    if (activeId === deletingId && window.ClientContext?.setActiveClient) {
-                        window.ClientContext.setActiveClient(null);
-                        currentClient = null;
-                        updateClientUI(null, null);
-                    }
-
-                    closeClientDeleteModal();
-                    closeClientDetailModal();
-                    await loadClients({ reason: 'client_deleted' });
-                } finally {
-                    clientDeleteConfirm.disabled = false;
-                }
-            });
         }
 
         document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
