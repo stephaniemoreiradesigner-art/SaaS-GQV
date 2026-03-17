@@ -4086,10 +4086,24 @@
         });
 
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
-            btn.addEventListener('click', () => navigateTo('social', { view: 'default', reason: 'action_go_social' }));
+            btn.addEventListener('click', () => {
+                const info = window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : null;
+                const clientId = info?.clientId || (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+                if (clientId && window.ClientContext?.setActiveClient) {
+                    window.ClientContext.setActiveClient({ id: clientId, name: info?.clientName || '' });
+                }
+                navigateTo('social', { view: 'default', reason: 'action_go_social' });
+            });
         });
         document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
-            btn.addEventListener('click', () => navigateTo('performance', { view: 'default', reason: 'action_go_performance' }));
+            btn.addEventListener('click', () => {
+                const info = window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : null;
+                const clientId = info?.clientId || (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+                if (clientId && window.ClientContext?.setActiveClient) {
+                    window.ClientContext.setActiveClient({ id: clientId, name: info?.clientName || '' });
+                }
+                navigateTo('performance', { view: 'default', reason: 'action_go_performance' });
+            });
         });
         document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
             btn.addEventListener('click', () => navigateTo('approvals', { view: 'default', reason: 'action_go_approvals' }));
