@@ -1009,6 +1009,7 @@
     <script src="/js/v2/shared/workspaceState.js"></script>
     <script src="/js/v2/modules/clientes/clientes_repo.js"></script>
     <script src="/js/v2/modules/clientes/clientes_ui.js"></script>
+    <script src="/js/v2/modules/clientes/clientes_core.js"></script>
     <script src="/js/v2/modules/social_media/social_media_repo.js"></script>
     <script src="/js/v2/modules/social_media/social_media_upload.js"></script>
     <script src="/js/v2/modules/social_media/social_media_ui.js"></script>
@@ -1019,6 +1020,12 @@
     <script src="/js/v2/modules/performance/performance_connections_core.js"></script>
     <script src="/js/v2/bootstrap.js"></script>
     <script>
+        const loadClients = async function(...args) {
+            if (typeof window.loadClients === 'function') return await window.loadClients(...args);
+            if (window.ClientCore?.loadClients) return await window.ClientCore.loadClients(...args);
+            return [];
+        };
+
         const navButtons = document.querySelectorAll('.v2-nav-btn');
         const hubClientName = document.getElementById('hub-client-name');
         const hubClientStatus = document.getElementById('hub-client-status');
