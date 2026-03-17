@@ -951,7 +951,7 @@
 
             await this.loadCalendars();
             await this.loadDashboardData();
-            console.log('[ClientCalendar] conclude refresh done', { calendarId, clientId, monthKey: monthKey || null });
+            console.log('[ClientCalendar] conclude refresh done', { calendarId, clientId: this.getClientId(), monthKey: monthKey || null });
         },
 
         setupModalActions: function() {
