@@ -71,6 +71,10 @@
             } else {
                 console.error('[ClientCore V2] ClientContext não disponível!');
             }
+
+            if (typeof global.openClientDetailModal === 'function') {
+                global.openClientDetailModal(client);
+            }
         }
     };
 
