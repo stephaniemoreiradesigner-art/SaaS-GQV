@@ -667,7 +667,6 @@
 
                 const dbPayload = {
                     calendar_id: calendarId,
-                    cliente_id: clientId,
                     data_agendada: postDate,
                     tema: title,
                     formato: formato,
