@@ -1211,29 +1211,92 @@
             if (fab) fab.classList.toggle('hidden', tabName !== 'calendar');
         };
 
-        const syncActiveClientHeader = ({ clientId, clientName } = {}) => {
-            const id = clientId ?? (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+        let activeClientRenderSeq = 0;
+        const getActiveClientId = () => (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+        const getActiveClientName = () => (window.ClientContext?.getActiveClientName ? window.ClientContext.getActiveClientName() : null);
+
+        const renderActiveClientFoundation = async (forcedClientId) => {
+            const seq = (activeClientRenderSeq || 0) + 1;
+            activeClientRenderSeq = seq;
+
+            const id = forcedClientId !== undefined ? forcedClientId : getActiveClientId();
             const hasClient = !!id;
-            const name = clientName ?? localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') ?? '';
+            const name = getActiveClientName();
             const safeName = String(name || '').trim() || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
+
             if (activeClientName) activeClientName.textContent = safeName;
+            if (hubClientName) hubClientName.textContent = safeName;
+            if (dashboardClientName) dashboardClientName.textContent = safeName;
+            if (socialClientName) socialClientName.textContent = safeName;
+
             if (activeClientId) {
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
                 activeClientId.classList.toggle('hidden', !hasClient);
             }
             if (headerSelectClient) headerSelectClient.textContent = hasClient ? 'Trocar' : 'Selecionar';
+
+            if (dashboardEmpty) dashboardEmpty.classList.toggle('hidden', hasClient);
+            if (dashboardContent) dashboardContent.classList.toggle('hidden', !hasClient);
+            if (emptySocial) emptySocial.classList.toggle('hidden', hasClient);
+            if (socialContent) socialContent.classList.toggle('hidden', !hasClient);
+            if (emptyPerformance) emptyPerformance.classList.toggle('hidden', hasClient);
+            if (performanceContent) performanceContent.classList.toggle('hidden', !hasClient);
+            if (emptyApprovals) emptyApprovals.classList.toggle('hidden', hasClient);
+            if (approvalsContent) approvalsContent.classList.toggle('hidden', !hasClient);
+            if (hubEmpty) hubEmpty.classList.toggle('hidden', hasClient);
+
+            clientRequiredActions.forEach(btn => {
+                btn.disabled = !hasClient;
+                btn.classList.toggle('opacity-50', !hasClient);
+                btn.classList.toggle('cursor-not-allowed', !hasClient);
+            });
+
+            if (!hasClient) {
+                if (hubClientStatus) hubClientStatus.textContent = '';
+                if (hubOwner) hubOwner.textContent = 'Não definido';
+                if (hubStatus) hubStatus.textContent = 'Não definido';
+                if (dashboardClientStatus) dashboardClientStatus.textContent = '';
+                if (dashboardOwner) dashboardOwner.textContent = 'Não definido';
+                if (dashboardPendencies) dashboardPendencies.textContent = '0';
+                if (hubPendencies) hubPendencies.textContent = '0';
+                return;
+            }
+
+            const getClientStatusLabel = (client) => {
+                if (!client) return 'Não definido';
+                return client.status || client.status_cliente || client.situacao || (client.ativo === false ? 'inativo' : 'ativo') || 'Não definido';
+            };
+            const getClientOwnerLabel = (client) => {
+                if (!client) return 'Não definido';
+                return client.responsavel || client.responsavel_nome || client.gestor || client.owner || 'Não definido';
+            };
+
+            let client = null;
+            if (window.ClientRepo?.getClientById) {
+                try {
+                    client = await window.ClientRepo.getClientById(id);
+                } catch (err) {
+                    console.error('[AgencyV2] getClientById failed:', err);
+                }
+            }
+            if (seq !== activeClientRenderSeq) return;
+
+            const statusLabel = getClientStatusLabel(client);
+            const ownerLabel = getClientOwnerLabel(client);
+            if (hubClientStatus) hubClientStatus.textContent = statusLabel === 'Não definido' ? '' : statusLabel;
+            if (hubOwner) hubOwner.textContent = ownerLabel;
+            if (hubStatus) hubStatus.textContent = statusLabel;
+            if (dashboardClientStatus) dashboardClientStatus.textContent = statusLabel === 'Não definido' ? '' : `Status: ${statusLabel}`;
+            if (dashboardOwner) dashboardOwner.textContent = ownerLabel;
+            if (dashboardPendencies) dashboardPendencies.textContent = '0';
+            if (hubPendencies) hubPendencies.textContent = '0';
         };
 
-        window.addEventListener('gqv:client-changed', (e) => {
-            if (!e?.detail) return;
-            syncActiveClientHeader({ clientId: e.detail.clientId || null, clientName: e.detail.clientName || '' });
-        });
-
         window.addEventListener('v2:ready', () => {
-            syncActiveClientHeader({});
+            renderActiveClientFoundation(getActiveClientId());
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
-                    syncActiveClientHeader({ clientId, clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '' });
+                    renderActiveClientFoundation(clientId);
                 });
             }
         });
@@ -1507,7 +1570,6 @@
                 const c = selectedClientForDetail;
                 const n = c.nome_fantasia || c.razao_social || c.nome_empresa || c.nome || c.empresa || 'Cliente';
                 if (window.ClientContext?.setActiveClient) window.ClientContext.setActiveClient({ id: c.id, name: n });
-                currentClient = c;
                 closeClientDetailModal();
             });
             rebindClickById('client-detail-open-hub', () => {
@@ -1515,7 +1577,6 @@
                 const c = selectedClientForDetail;
                 const n = c.nome_fantasia || c.razao_social || c.nome_empresa || c.nome || c.empresa || 'Cliente';
                 if (window.ClientContext?.setActiveClient) window.ClientContext.setActiveClient({ id: c.id, name: n });
-                currentClient = c;
                 closeClientDetailModal();
                 setActiveView('hub');
             });
@@ -1695,8 +1756,6 @@
                     const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
                     if (activeId === deletingId && window.ClientContext?.setActiveClient) {
                         window.ClientContext.setActiveClient(null);
-                        currentClient = null;
-                        updateClientUI(null, null);
                     }
                     closeClientDeleteModal();
                     closeClientDetailModal();
@@ -1873,8 +1932,6 @@
                 if (createdId && window.ClientContext) {
                     window.ClientContext.setActiveClient({ id: createdId, name: createdName });
                 }
-                currentClient = createdId ? created : currentClient;
-                updateClientUI(createdId, createdName);
                 closeClientModal();
                 setActiveView('hub');
                 if (clientSaveBtn) {

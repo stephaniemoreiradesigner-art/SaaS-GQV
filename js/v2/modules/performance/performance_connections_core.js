@@ -11,27 +11,18 @@
 
             if (global.ClientContext?.subscribe) {
                 global.ClientContext.subscribe((clientId) => {
-                    const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                    const name = global.ClientContext?.getActiveClientName ? global.ClientContext.getActiveClientName() : '';
                     if (isDebug()) console.log('[PerformanceV2] active client received:', { clientId, clientName: name || null });
                     this.onClientChange(clientId, name);
                 });
-            }
-
-            const activeId = global.ClientContext?.getActiveClient ? global.ClientContext.getActiveClient() : null;
-            if (activeId) {
-                const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
-                if (isDebug()) console.log('[PerformanceV2] active client received:', { clientId: activeId, clientName: name || null });
-                this.onClientChange(activeId, name);
-            } else {
-                global.PerformanceConnectionsUI.render({ clienteId: null, clientName: null, connections: [] });
-                global.PerformanceConnectionsUI.renderMetrics({ lastSyncAt: null });
             }
 
             if (global.WorkspaceState?.subscribe) {
                 global.WorkspaceState.subscribe(() => {
                     const moduleName = global.WorkspaceState?.getState ? global.WorkspaceState.getState().activeModule : null;
                     if (moduleName === 'performance' && this.currentClientId) {
-                        this.onClientChange(this.currentClientId, this.currentClientName);
+                        const name = global.ClientContext?.getActiveClientName ? global.ClientContext.getActiveClientName() : (this.currentClientName || '');
+                        this.onClientChange(this.currentClientId, name);
                     }
                 });
             }

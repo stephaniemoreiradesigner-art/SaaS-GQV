@@ -70,6 +70,20 @@
             return activeClientId;
         },
 
+        getActiveClientName() {
+            if (!isInitialized) this.init(); // Lazy init fallback
+            const name = localStorage.getItem(NAME_KEY);
+            return name ? String(name).trim() : null;
+        },
+
+        getActiveClientInfo() {
+            if (!isInitialized) this.init(); // Lazy init fallback
+            return {
+                clientId: activeClientId,
+                clientName: this.getActiveClientName()
+            };
+        },
+
         /**
          * Define o novo cliente ativo, persiste e notifica
          * @param {string|number|object|null} input - ID ou objeto { id, name }

@@ -30,19 +30,11 @@
             // Inscrever-se no Contexto
             if (global.ClientContext) {
                 global.ClientContext.subscribe((clientId) => {
-                    const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || null;
+                    const name = global.ClientContext?.getActiveClientName ? global.ClientContext.getActiveClientName() : null;
                     if (this.isDebug()) console.log('[SocialMediaV2] active client received:', { clientId, clientName: name });
                     this.onClientChange(clientId, name);
                 });
             }
-
-            // Ouvir evento global também (segurança)
-            window.addEventListener('gqv:client-changed', (e) => {
-                if (e.detail && e.detail.clientId) {
-                    if (this.isDebug()) console.log('[SocialMediaV2] client changed received:', { clientId: e.detail.clientId, clientName: e.detail.clientName || null });
-                    this.onClientChange(e.detail.clientId, e.detail.clientName);
-                }
-            });
 
             // Delegate para botão salvar no drawer
             const saveBtn = document.getElementById('social-post-save');
@@ -119,17 +111,6 @@
             };
 
             this.bindCalendarActionHandlers();
-
-            // Estado inicial
-            if (global.ClientContext) {
-                const activeId = global.ClientContext.getActiveClient();
-                if (activeId) {
-                    const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME');
-                    this.onClientChange(activeId, name);
-                } else {
-                    this.showEmptyState();
-                }
-            }
 
             this.initialized = true;
         },
@@ -286,7 +267,7 @@
                 return;
             }
 
-            const resolvedName = clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || 'Cliente';
+            const resolvedName = clientName || (global.ClientContext?.getActiveClientName ? global.ClientContext.getActiveClientName() : null) || 'Cliente';
             if (this.isDebug()) console.log('[SocialMediaV2] render for client:', { clientId: normalizedClientId, clientName: resolvedName });
 
             // Se mudou o cliente, reseta o estado

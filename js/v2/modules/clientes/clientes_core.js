@@ -5,6 +5,7 @@
 (function(global) {
     const ClientCore = {
         initialized: false,
+        _unsubClient: null,
 
         init: async function() {
             if (this.initialized) return;
@@ -31,19 +32,15 @@
                 global.ClientUI.highlightActive(activeId);
             }
 
-            // 4. Ouvir mudanças externas (para manter UI sincronizada se mudar por outro lugar)
-            global.addEventListener('gqv:client-changed', (e) => {
-                // [GUARD] Proteção contra eventos malformados
-                if (!e || !e.detail) {
-                    console.warn('[ClientCore V2] Evento gqv:client-changed recebido sem detail', e);
-                    return;
-                }
-
-                const newId = e.detail.clientId;
-                if (newId) {
-                    global.ClientUI.highlightActive(newId);
-                }
-            });
+            if (this._unsubClient) {
+                try { this._unsubClient(); } catch {}
+                this._unsubClient = null;
+            }
+            if (global.ClientContext?.subscribe) {
+                this._unsubClient = global.ClientContext.subscribe((clientId) => {
+                    if (clientId) global.ClientUI.highlightActive(clientId);
+                });
+            }
 
             this.initialized = true;
         },
