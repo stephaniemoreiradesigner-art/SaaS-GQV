@@ -36,6 +36,11 @@
         const rawCount = Number(payload?.postsCount ?? NaN);
         if (!Number.isFinite(rawCount) || rawCount < 1 || rawCount > 30) throw new Error('postsCount inválido');
 
+        const supabase = global.supabaseClient;
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        if (!accessToken) throw new Error('usuário não autenticado — faça login novamente');
+
         const monthKey = String(payload?.monthKey ?? '').trim().slice(0, 7);
         const seasonalDates = Array.isArray(payload?.seasonalDates) ? payload.seasonalDates.map((s) => String(s || '').trim()).filter(Boolean) : [];
 
@@ -51,7 +56,8 @@
         const res = await fetch(EDGE_URL, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${accessToken}`
             },
             body: JSON.stringify(body)
         });
@@ -77,4 +83,3 @@
     global.SocialMediaAI.generateAICalendar = generateAICalendar;
     global.SocialMediaAI.generateCalendarWithAI = generateAICalendar;
 })(window);
-
