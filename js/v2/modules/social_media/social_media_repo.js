@@ -285,6 +285,137 @@
             }
         },
 
+        insertAICalendarItems: async function(items, calendarId, clienteId, options = {}) {
+            if (!global.supabaseClient) return { ok: false, error: 'db_not_ready' };
+            const clientId = String(clienteId || '').trim();
+            if (!clientId) return { ok: false, error: 'cliente_missing' };
+
+            const monthKeyFromOptions = String(options?.monthKey || '').trim().slice(0, 7);
+            const monthKeyFromState = global.CalendarStateManager?.getState ? String(global.CalendarStateManager.getState()?.monthKey || '').trim().slice(0, 7) : '';
+            const monthKey = monthKeyFromOptions || monthKeyFromState;
+
+            let calId = String(calendarId || '').trim();
+            if (!calId) {
+                const cal = await this.getCalendarByMonth(clientId, monthKey);
+                calId = String(cal?.id || '').trim();
+            }
+            if (!calId) return { ok: false, error: 'calendar_not_found' };
+
+            const list = Array.isArray(items) ? items : [];
+            if (!list.length) return { ok: true, inserted: 0, insertedIds: [], calendarId: calId };
+
+            let hasExisting = false;
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .select('id')
+                    .eq('calendar_id', calId)
+                    .limit(1);
+                if (!error && Array.isArray(data) && data.length) hasExisting = true;
+            } catch {}
+
+            if (hasExisting) {
+                const confirmed = typeof global.confirm === 'function'
+                    ? global.confirm('Já existem itens neste mês. Substituir o planejamento atual pelos itens gerados por IA?')
+                    : false;
+                if (!confirmed) return { ok: false, error: 'cancelled_by_user' };
+
+                try {
+                    const { error: delErr } = await global.supabaseClient
+                        .from('social_calendar_items')
+                        .delete()
+                        .eq('calendar_id', calId);
+                    if (delErr) throw delErr;
+                } catch (err) {
+                    return { ok: false, error: err };
+                }
+            }
+
+            const normalizeFormat = (raw) => {
+                const f = String(raw || '').trim().toLowerCase();
+                if (f === 'imagem') return 'post_estatico';
+                if (f === 'reels') return 'reels';
+                if (f === 'carrossel') return 'carrossel';
+                return f || 'post_estatico';
+            };
+
+            const opTag = `ai_gen:${Date.now().toString(36)}`;
+            const payloadsBase = list
+                .map((it) => {
+                    const data = String(it?.date || '').slice(0, 10);
+                    const tema = String(it?.theme || '').trim();
+                    const tipo_conteudo = normalizeFormat(it?.format);
+                    const canal = String(it?.channel || 'instagram').trim() || 'instagram';
+                    const caption = String(it?.caption_base || '').trim();
+                    const notes = String(it?.notes || '').trim();
+                    if (!data || !tema) return null;
+                    const observacoes = [notes, caption ? `Copy base:\n${caption}` : '', `[${opTag}]`].filter(Boolean).join('\n\n');
+                    return {
+                        calendar_id: calId,
+                        cliente_id: clientId,
+                        data,
+                        tema,
+                        tipo_conteudo,
+                        canal,
+                        copy: caption || null,
+                        observacoes,
+                        updated_at: new Date().toISOString()
+                    };
+                })
+                .filter(Boolean);
+
+            if (!payloadsBase.length) return { ok: true, inserted: 0, insertedIds: [], calendarId: calId };
+
+            const tryInsert = async (payloads) => {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .insert(payloads)
+                    .select('id');
+                if (error) throw error;
+                const rows = Array.isArray(data) ? data : [];
+                const ids = rows.map((r) => r?.id).filter(Boolean);
+                return ids;
+            };
+
+            try {
+                const ids = await tryInsert(payloadsBase);
+                return { ok: true, inserted: ids.length, insertedIds: ids, calendarId: calId };
+            } catch (err) {
+                const msg = String(err?.message || '').toLowerCase();
+                const shouldRetry = msg.includes('column') || msg.includes('unknown');
+                if (!shouldRetry) return { ok: false, error: err };
+
+                const withoutOptional = payloadsBase.map((p) => {
+                    const next = { ...p };
+                    delete next.copy;
+                    delete next.cliente_id;
+                    return next;
+                });
+                try {
+                    const ids = await tryInsert(withoutOptional);
+                    return { ok: true, inserted: ids.length, insertedIds: ids, calendarId: calId };
+                } catch (err2) {
+                    return { ok: false, error: err2 };
+                }
+            }
+        },
+
+        deleteCalendarItemsByIds: async function(ids) {
+            if (!global.supabaseClient) return false;
+            const list = Array.isArray(ids) ? ids.filter(Boolean) : [];
+            if (!list.length) return true;
+            try {
+                const { error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .delete()
+                    .in('id', list);
+                if (error) throw error;
+                return true;
+            } catch {
+                return false;
+            }
+        },
+
         deleteCalendarItem: async function(itemId) {
             if (!global.supabaseClient || !itemId) return false;
             try {

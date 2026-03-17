@@ -754,7 +754,11 @@
 
                 const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
                 const mk = String(snap?.monthKey || '').trim();
-                if (monthEl && mk) monthEl.value = mk;
+                if (monthEl) {
+                    if (mk) monthEl.value = mk;
+                    monthEl.readOnly = true;
+                    monthEl.disabled = true;
+                }
 
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
@@ -779,10 +783,14 @@
 
                     const rawCount = Number(countEl?.value || 0);
                     const postsCount = Math.max(1, Math.min(40, Number.isFinite(rawCount) ? rawCount : 8));
-                    const monthKey = String(monthEl?.value || '').trim().slice(0, 7);
+                    const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+                    const monthKey = String(snap?.monthKey || monthEl?.value || '').trim().slice(0, 7);
                     const channel = String(channelEl?.value || 'instagram').trim() || 'instagram';
                     const briefingText = String(briefingEl?.value || '').trim();
-                    const seasonalDates = String(seasonalEl?.value || '').trim();
+                    const seasonalRaw = String(seasonalEl?.value || '').trim();
+                    const seasonalDates = seasonalRaw
+                        ? seasonalRaw.split(/[,\n]/g).map((s) => String(s || '').trim()).filter(Boolean)
+                        : [];
                     const notes = String(notesEl?.value || '').trim();
                     const file = fileEl?.files && fileEl.files[0] ? fileEl.files[0] : null;
 

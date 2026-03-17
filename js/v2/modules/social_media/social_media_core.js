@@ -189,94 +189,64 @@
             const activeInfo = global.ClientContext?.getActiveClientInfo ? global.ClientContext.getActiveClientInfo() : null;
             const clientId = String(activeInfo?.clientId || input?.clientId || '').trim();
             const clientName = String(activeInfo?.clientName || input?.clientName || '').trim();
-            if (!clientId) return { ok: false, error: 'Selecione um cliente primeiro.' };
+            if (!clientId) return { ok: false, error: 'cliente não selecionado' };
 
             const snap = this.getCalendarSnap();
-            const monthKeyRaw = String(input?.monthKey || snap?.monthKey || '').trim().slice(0, 7);
-            const monthKey = global.MonthUtils?.isValidMonthKey?.(monthKeyRaw)
-                ? monthKeyRaw
-                : (global.MonthUtils?.formatMonthKeyFromDate ? global.MonthUtils.formatMonthKeyFromDate(new Date()) : monthKeyRaw);
-            if (!global.MonthUtils?.isValidMonthKey?.(monthKey)) return { ok: false, error: 'Mês inválido.' };
+            const monthKey = String(snap?.monthKey || input?.monthKey || '').trim().slice(0, 7);
+            if (!global.MonthUtils?.isValidMonthKey?.(monthKey)) return { ok: false, error: 'monthKey inválido' };
 
+            if (!global.SocialMediaAI?.generateAICalendar) return { ok: false, error: 'ai_adapter_missing' };
             const repo = global.SocialMediaRepo;
-            if (!repo?.getCalendarByMonth) return { ok: false, error: 'Repositório indisponível.' };
+            if (!repo?.insertAICalendarItems) return { ok: false, error: 'repo_missing' };
 
-            const calendar = await repo.getCalendarByMonth(clientId, monthKey);
-            const calendarId = String(calendar?.id || '').trim();
-            if (!calendarId) return { ok: false, error: 'Não foi possível carregar o calendário do mês.' };
-
-            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
-                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(calendar?.status)
-                : String(calendar?.status || '').trim().toLowerCase();
-            const canEdit = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
-            if (!canEdit) return { ok: false, error: 'Calendário em aprovação — edição temporariamente bloqueada.' };
-
-            const postsCount = Math.max(1, Math.min(40, Number(input?.postsCount || 0) || 8));
-            const seasonalRaw = String(input?.seasonalDates || '').trim();
-            const channel = String(input?.channel || 'instagram').trim() || 'instagram';
-            const briefing = String(input?.briefing || '').trim();
-
-            const seasonal = this.parseSeasonalDates(seasonalRaw, monthKey);
-            const generated = await this.generateEditorialItemsWithAdapter({
-                clientId,
-                clientName,
-                briefing,
-                postsCount,
-                seasonal,
-                monthKey,
-                channel
-            });
-            const suggestions = Array.isArray(generated) ? generated : [];
-            if (!suggestions.length) return { ok: false, error: 'Nenhum item gerado.' };
-
-            const existing = (() => {
-                const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
-                if (String(snap?.activeCalendarId || '').trim() === calendarId) return items;
-                return [];
-            })();
-            const existingSet = new Set(
-                existing.map((it) => {
-                    const date = String(it?.data || '').slice(0, 10);
-                    const tema = String(it?.tema || '').trim().toLowerCase();
-                    const canalIt = String(it?.canal || '').trim().toLowerCase();
-                    const tipoIt = String(it?.tipo_conteudo || '').trim().toLowerCase();
-                    return `${date}|${tema}|${canalIt}|${tipoIt}`;
-                })
-            );
-
-            const toInsert = [];
-            let skipped = 0;
-            for (const it of suggestions) {
-                const date = String(it?.data || '').slice(0, 10);
-                const tema = String(it?.tema || '').trim();
-                const tipo_conteudo = String(it?.tipo_conteudo || 'post_estatico').trim() || 'post_estatico';
-                const canal = String(it?.canal || channel).trim() || channel;
-                const observacoes = it?.observacoes ?? null;
-                if (!date || !tema) {
-                    skipped += 1;
-                    continue;
-                }
-                const key = `${date}|${tema.toLowerCase()}|${canal.toLowerCase()}|${tipo_conteudo.toLowerCase()}`;
-                if (existingSet.has(key)) {
-                    skipped += 1;
-                    continue;
-                }
-                toInsert.push({ calendar_id: calendarId, data: date, tema, tipo_conteudo, canal, observacoes });
-                existingSet.add(key);
+            let calendarId = String(snap?.activeCalendarId || '').trim();
+            if (!calendarId && repo?.getCalendarByMonth) {
+                const calendar = await repo.getCalendarByMonth(clientId, monthKey);
+                calendarId = String(calendar?.id || '').trim();
             }
-            if (!toInsert.length) return { ok: true, added: 0, skipped };
 
-            if (!repo?.insertCalendarItemsBatch) return { ok: false, error: 'Persistência em lote indisponível.' };
-            const res = await repo.insertCalendarItemsBatch(calendarId, toInsert);
-            if (res?.ok !== true) {
-                const msg = typeof res?.error?.message === 'string' ? res.error.message : 'Não foi possível salvar itens.';
+            const postsCount = Math.max(1, Math.min(30, Number(input?.postsCount || 0) || 8));
+            const briefing = String(input?.briefing || '').trim();
+            const seasonalDates = Array.isArray(input?.seasonalDates) ? input.seasonalDates : [];
+
+            let ai;
+            try {
+                ai = await global.SocialMediaAI.generateAICalendar({
+                    clientId,
+                    clientName,
+                    monthKey,
+                    briefing,
+                    postsCount,
+                    seasonalDates
+                });
+            } catch (err) {
+                return { ok: false, error: String(err?.message || err || '').trim() || 'ai_error' };
+            }
+
+            const items = Array.isArray(ai?.items) ? ai.items : [];
+            if (!items.length) return { ok: false, error: 'empty_items' };
+
+            const inserted = await repo.insertAICalendarItems(items, calendarId, clientId, { monthKey });
+            if (inserted?.ok !== true) {
+                const msg = typeof inserted?.error?.message === 'string'
+                    ? inserted.error.message
+                    : (typeof inserted?.error === 'string' ? inserted.error : 'persist_failed');
                 return { ok: false, error: msg };
             }
 
-            if (global.CalendarStateManager?.refreshMonthData) {
-                await global.CalendarStateManager.refreshMonthData({ monthKey, source: 'ai_generate' });
+            const insertedIds = Array.isArray(inserted?.insertedIds) ? inserted.insertedIds : [];
+            try {
+                if (global.CalendarStateManager?.refreshMonthData) {
+                    await global.CalendarStateManager.refreshMonthData({ monthKey, source: 'ai_generate_edge' });
+                }
+            } catch (err) {
+                if (repo?.deleteCalendarItemsByIds && insertedIds.length) {
+                    await repo.deleteCalendarItemsByIds(insertedIds);
+                }
+                return { ok: false, error: 'refresh_failed' };
             }
-            return { ok: true, added: Number(res?.inserted || 0), skipped };
+
+            return { ok: true, added: Number(inserted?.inserted || 0), skipped: 0 };
         },
 
         generateEditorialItemsWithAdapter: async function(input) {
