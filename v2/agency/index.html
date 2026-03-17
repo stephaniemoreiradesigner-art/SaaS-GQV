@@ -1338,6 +1338,15 @@
             return url;
         };
 
+        const rebindClickById = (id, handler) => {
+            const el = document.getElementById(id);
+            if (!el || !el.parentNode) return null;
+            const next = el.cloneNode(true);
+            el.parentNode.replaceChild(next, el);
+            if (typeof handler === 'function') next.addEventListener('click', handler);
+            return next;
+        };
+
         const openClientDetailModal = async (client) => {
             if (!clientDetailModal || !client?.id) return;
             selectedClientForDetail = client;
@@ -1486,6 +1495,48 @@
                     clientDetailAccessWarning.textContent = '';
                 }
             }
+
+            rebindClickById('client-detail-close', closeClientDetailModal);
+            if (clientDetailModal) {
+                clientDetailModal.onclick = (event) => {
+                    if (event.target === clientDetailModal) closeClientDetailModal();
+                };
+            }
+            rebindClickById('client-detail-set-active', () => {
+                if (!selectedClientForDetail) return;
+                const c = selectedClientForDetail;
+                const n = c.nome_fantasia || c.razao_social || c.nome_empresa || c.nome || c.empresa || 'Cliente';
+                if (window.ClientContext?.setActiveClient) window.ClientContext.setActiveClient({ id: c.id, name: n });
+                currentClient = c;
+                closeClientDetailModal();
+            });
+            rebindClickById('client-detail-open-hub', () => {
+                if (!selectedClientForDetail) return;
+                const c = selectedClientForDetail;
+                const n = c.nome_fantasia || c.razao_social || c.nome_empresa || c.nome || c.empresa || 'Cliente';
+                if (window.ClientContext?.setActiveClient) window.ClientContext.setActiveClient({ id: c.id, name: n });
+                currentClient = c;
+                closeClientDetailModal();
+                setActiveView('hub');
+            });
+            rebindClickById('client-detail-action-edit', async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!selectedClientForDetail) return;
+                const snapshot = selectedClientForDetail;
+                closeClientDetailModal();
+                await openClientEditModal(snapshot);
+            });
+            rebindClickById('client-detail-action-integrations', () => {
+                setClientFeedback('Integrações: em breve.', 'success');
+            });
+            rebindClickById('client-detail-action-history', () => {
+                setClientFeedback('Histórico: em breve.', 'success');
+            });
+            rebindClickById('client-detail-action-delete', () => {
+                if (!selectedClientForDetail) return;
+                openClientDeleteModal(selectedClientForDetail);
+            });
         };
         window.openClientDetailModal = openClientDetailModal;
 
@@ -1616,6 +1667,44 @@
             if (clientDeleteFeedback) clientDeleteFeedback.classList.add('hidden');
             clientDeleteModal.classList.remove('hidden');
             clientDeleteModal.classList.add('flex');
+
+            rebindClickById('client-delete-close', closeClientDeleteModal);
+            rebindClickById('client-delete-cancel', closeClientDeleteModal);
+            if (clientDeleteModal) {
+                clientDeleteModal.onclick = (event) => {
+                    if (event.target === clientDeleteModal) closeClientDeleteModal();
+                };
+            }
+            rebindClickById('client-delete-confirm', async () => {
+                if (!selectedClientForDetail?.id) return;
+                const supabase = window.supabaseClient;
+                if (!supabase) {
+                    setDeleteFeedback('Supabase não inicializado.', 'error');
+                    return;
+                }
+                const confirmBtn = document.getElementById('client-delete-confirm');
+                if (confirmBtn) confirmBtn.disabled = true;
+                try {
+                    const deletingId = selectedClientForDetail.id;
+                    const { error } = await supabase.from('clientes').delete().eq('id', deletingId);
+                    if (error) {
+                        console.error('[Clients] delete client error:', error);
+                        setDeleteFeedback(error.message || 'Não foi possível excluir o cliente.', 'error');
+                        return;
+                    }
+                    const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
+                    if (activeId === deletingId && window.ClientContext?.setActiveClient) {
+                        window.ClientContext.setActiveClient(null);
+                        currentClient = null;
+                        updateClientUI(null, null);
+                    }
+                    closeClientDeleteModal();
+                    closeClientDetailModal();
+                    await loadClients({ reason: 'client_deleted' });
+                } finally {
+                    if (confirmBtn) confirmBtn.disabled = false;
+                }
+            });
         };
 
         const closeClientDeleteModal = () => {
