@@ -392,9 +392,14 @@
             const normalizedClientId = clientId ? this.normalizeIdForFilter(clientId) : null;
 
             console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarStatus');
-            let query = supabase.from('social_calendars').update({ status: nextStatus }).eq('id', id);
+            let query = supabase
+                .from('social_calendars')
+                .update({ status: nextStatus })
+                .eq('id', id)
+                .select('id,status,cliente_id')
+                .maybeSingle();
             if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
-            const { error } = await query;
+            const { data, error } = await query;
 
             if (error) {
                 console.log('[ClientRepo] updateCalendarStatus error detail:', {
@@ -410,7 +415,7 @@
             }
 
             console.log('[ClientRepo] updateCalendarStatus success:', { calendarId: id, status: nextStatus });
-            return { error: null };
+            return { error: null, data };
         },
 
         /**
