@@ -394,84 +394,15 @@
                 await global.CalendarStateManager.nextMonth();
                 return;
             }
-            if (!this.currentMonthRef) this.currentMonthRef = new Date();
-            const newDate = new Date(this.currentMonthRef);
-            newDate.setMonth(newDate.getMonth() + delta);
-            await this.loadCalendarForMonth(newDate);
+            return;
         },
 
         loadCalendarForMonth: async function(dateRef) {
             if (!this.currentClientId) return;
 
-            if (global.CalendarStateManager?.goToMonth && dateRef instanceof Date && !Number.isNaN(dateRef.getTime())) {
-                await global.CalendarStateManager.goToMonth(dateRef.getFullYear(), dateRef.getMonth() + 1);
-                return;
-            }
-
-            this.currentMonthRef = dateRef;
-            const monthKey = global.CalendarStateSelectors?.formatMonthKeyFromDate ? global.CalendarStateSelectors.formatMonthKeyFromDate(dateRef) : '';
-            if (this.isDebug()) console.log('[SocialMediaV2] loadCalendarForMonth:', { clientId: this.currentClientId, monthKey });
-
-            if (global.SocialMediaUI && global.SocialMediaUI.showLoading) {
-                global.SocialMediaUI.showLoading();
-            }
-
-            try {
-                // 1. Busca/Cria Calendário
-                const calendar = await global.SocialMediaRepo.getCalendarByMonth(this.currentClientId, monthKey);
-                
-                if (calendar) {
-                    this.currentCalendarId = calendar.id;
-                    
-                    // 2. Busca Posts do mês por range
-                    const range = global.CalendarStateSelectors?.getMonthRange ? global.CalendarStateSelectors.getMonthRange(monthKey) : null;
-                    const posts = range && global.SocialMediaRepo?.getPostsByDateRange
-                        ? await global.SocialMediaRepo.getPostsByDateRange(this.currentClientId, range.startDate, range.endDateExclusive)
-                        : [];
-                    this.currentPosts = Array.isArray(posts) ? posts : [];
-                    
-                    // 3. Renderiza
-                    if (global.SocialMediaCalendar) {
-                        global.SocialMediaCalendar.render(this.currentPosts, dateRef);
-                    }
-                    if (global.SocialMediaUI && typeof global.SocialMediaUI.renderPostsBoard === 'function') {
-                        global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
-                    }
-                    
-                    // Atualiza status na UI
-                    const statusEl = document.getElementById('social-calendar-status');
-                    if (statusEl) {
-                        const rawStatus = String(calendar.status || 'draft');
-                        const normalized = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
-                            ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(rawStatus)
-                            : String(rawStatus || '').trim().toLowerCase();
-                        const label = global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt
-                            ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(rawStatus)
-                            : (normalized ? normalized.replace(/_/g, ' ') : '-');
-                        statusEl.textContent = label;
-                        statusEl.className = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full'; // Reset classes
-                        
-                        if (normalized === 'approved') statusEl.classList.add('bg-green-100', 'text-green-700');
-                        if (normalized === 'sent_for_approval') statusEl.classList.add('bg-yellow-100', 'text-yellow-700');
-                        if (normalized === 'needs_changes') statusEl.classList.add('bg-red-100', 'text-red-700');
-                    }
-                    
-                    // Exibir feedback do cliente se houver ajustes solicitados
-                    if (calendar.status === 'changes_requested' && calendar.comentario_cliente) {
-                        if (global.SocialMediaUI.showFeedback) {
-                            global.SocialMediaUI.showFeedback(`Cliente solicitou ajustes: "${calendar.comentario_cliente}"`, 'error');
-                        }
-                    }
-                } else {
-                    console.error('[SOCIAL] Falha ao carregar calendário.');
-                }
-            } catch (err) {
-                console.error('[SOCIAL] Erro no fluxo de carregamento:', err);
-            } finally {
-                if (global.SocialMediaUI && global.SocialMediaUI.hideLoading) {
-                    global.SocialMediaUI.hideLoading();
-                }
-            }
+            if (!global.CalendarStateManager?.goToMonth) return;
+            if (!(dateRef instanceof Date) || Number.isNaN(dateRef.getTime())) return;
+            await global.CalendarStateManager.goToMonth(dateRef.getFullYear(), dateRef.getMonth() + 1);
         },
 
         handlePostMove: async function(postId, newDate) {

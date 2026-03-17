@@ -96,10 +96,8 @@
             const monthStart = state?.monthStart instanceof Date ? state.monthStart : new Date();
             const monthKey = String(state?.monthKey || '').trim();
             this.currentMonthKey = monthKey;
-            const posts = Array.isArray(state?.monthPosts) ? state.monthPosts : [];
             const items = Array.isArray(state?.editorialItems) ? state.editorialItems : [];
             const status = String(state?.calendarStatus || '').trim() || 'draft';
-            const source = String(state?.gridSource || '').trim() || (posts.length ? 'posts' : (items.length ? 'items' : 'empty'));
 
             const mappedItems = items.map((it) => ({
                 id: `item_${String(it?.id || Math.random()).replace(/[^\w-]/g, '')}`,
@@ -112,19 +110,8 @@
                 status
             })).filter((p) => !!p.data_agendada);
 
-            const selectedSource = posts.length ? 'posts' : (mappedItems.length ? 'items' : 'empty');
-            console.log('[AgencyCalendar][5] render source selected', { monthKey, source: selectedSource, postsCount: posts.length, itemsCount: mappedItems.length });
-
-            const container = document.getElementById(this.containerId);
-            const prevSource = container ? String(container.dataset.renderSource || '').trim() : '';
-            if (container && prevSource && prevSource !== selectedSource) {
-                console.log('[AgencyCalendar][6] state overwritten', { monthKey, from: prevSource, to: selectedSource });
-            }
-            if (container) container.dataset.renderSource = selectedSource;
-
-            const renderList = selectedSource === 'posts' ? posts : (selectedSource === 'items' ? mappedItems : []);
+            const renderList = mappedItems;
             this.render(renderList, monthStart);
-            console.log('[AgencyCalendar][7] final grid rendered', { monthKey, source: selectedSource, count: renderList.length });
         },
 
         createPostCard: function(post) {

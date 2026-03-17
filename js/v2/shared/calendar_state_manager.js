@@ -41,6 +41,7 @@
             monthPosts: false
         },
         lastRequestKey: null,
+        requestId: null,
         version: 0,
         error: null
     });
@@ -156,6 +157,7 @@
             ...state,
             version: requestVersion,
             lastRequestKey: requestKey,
+            requestId: requestKey,
             error: null,
             pendingMonthKey: isMonthChange ? requestedMonthKey : null,
             loading: { monthData: true, calendarMeta: true, editorialItems: true, monthPosts: true }
