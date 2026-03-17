@@ -13,13 +13,13 @@
             console.log('[ClientCore V2] Inicializando...');
 
             // Aguardar dependências globais
-            if (!global.ClientRepo || !global.ClientUI || !global.ClientContext) {
+            if (!global.ClientesRepo || !global.ClientUI || !global.ClientContext) {
                 console.error('[ClientCore V2] Dependências não encontradas (Repo, UI ou Context).');
                 return;
             }
 
             // 1. Carregar Clientes
-            const clients = await global.ClientRepo.getClients();
+            const clients = await global.ClientesRepo.getClients();
             console.log(`[ClientCore V2] ${clients.length} clientes carregados.`);
 
             // 2. Renderizar UI
@@ -46,8 +46,8 @@
         },
 
         loadClients: async function() {
-            if (!global.ClientRepo || !global.ClientUI || !global.ClientContext) return [];
-            const clients = await global.ClientRepo.getClients();
+            if (!global.ClientesRepo || !global.ClientUI || !global.ClientContext) return [];
+            const clients = await global.ClientesRepo.getClients();
             global.ClientUI.renderClients(clients, this.handleClientSelection.bind(this));
             const activeId = global.ClientContext.getActiveClient();
             if (activeId) global.ClientUI.highlightActive(activeId);
