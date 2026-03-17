@@ -120,14 +120,35 @@
                                 <p id="dashboard-client-status" class="text-sm text-slate-500 mt-1"></p>
                             </div>
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <p class="text-xs uppercase text-slate-400">Pendências</p>
-                                <p id="dashboard-pendencies" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
-                                <p class="text-sm text-slate-500 mt-1">Resumo rápido em preparação</p>
+                                <p class="text-xs uppercase text-slate-400">Total de clientes</p>
+                                <p id="dashboard-total-clients" class="text-2xl font-semibold text-slate-900 mt-2">0</p>
+                                <p class="text-sm text-slate-500 mt-1">Na sua base</p>
                             </div>
                             <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                                 <p class="text-xs uppercase text-slate-400">Equipe responsável</p>
                                 <p id="dashboard-owner" class="text-lg font-semibold text-slate-900 mt-2">Não definido</p>
-                                <p class="text-sm text-slate-500 mt-1">Última atualização pendente</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-xs uppercase text-slate-400">Performance</p>
+                                    <span id="dashboard-performance-badge" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem cliente</span>
+                                </div>
+                                <p id="dashboard-performance-summary" class="text-sm text-slate-600 mt-3">Selecione um cliente para ver conexões.</p>
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button data-action="go-performance" class="ui-btn ui-btn-secondary">Abrir Performance</button>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                                <div class="flex items-center justify-between gap-3">
+                                    <p class="text-xs uppercase text-slate-400">Social Media</p>
+                                    <span id="dashboard-social-badge" class="text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full">Sem cliente</span>
+                                </div>
+                                <p id="dashboard-social-summary" class="text-sm text-slate-600 mt-3">Selecione um cliente para ver o calendário.</p>
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button data-action="go-social" class="ui-btn ui-btn-secondary">Abrir Social</button>
+                                </div>
                             </div>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -136,7 +157,11 @@
                                     <p class="text-xs uppercase text-slate-400">Acesso rápido</p>
                                     <p class="text-sm text-slate-500">Use o cliente ativo para avançar no workflow.</p>
                                 </div>
-                                <button data-action="go-clients" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800">Selecionar cliente</button>
+                                <div class="flex flex-wrap gap-2">
+                                    <button id="dashboard-open-hub" class="ui-btn ui-btn-primary">Abrir Hub</button>
+                                    <button data-action="go-social" class="ui-btn ui-btn-secondary">Social</button>
+                                    <button data-action="go-performance" class="ui-btn ui-btn-secondary">Performance</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1065,6 +1090,12 @@
         const dashboardClientStatus = document.getElementById('dashboard-client-status');
         const dashboardOwner = document.getElementById('dashboard-owner');
         const dashboardPendencies = document.getElementById('dashboard-pendencies');
+        const dashboardTotalClients = document.getElementById('dashboard-total-clients');
+        const dashboardPerformanceBadge = document.getElementById('dashboard-performance-badge');
+        const dashboardPerformanceSummary = document.getElementById('dashboard-performance-summary');
+        const dashboardSocialBadge = document.getElementById('dashboard-social-badge');
+        const dashboardSocialSummary = document.getElementById('dashboard-social-summary');
+        const dashboardOpenHubBtn = document.getElementById('dashboard-open-hub');
         const socialClientName = document.getElementById('social-client-name');
         const socialClientId = document.getElementById('social-client-id');
         const socialCalendarStatus = document.getElementById('social-calendar-status');
@@ -1322,11 +1353,114 @@
             if (hubPendencies) hubPendencies.textContent = '0';
         };
 
+        const updateDashboardTotalClientsCount = (count) => {
+            if (!dashboardTotalClients) return;
+            const value = Number.isFinite(Number(count)) ? Number(count) : 0;
+            dashboardTotalClients.textContent = String(value);
+        };
+
+        let dashboardPerformanceSeq = 0;
+        const refreshDashboardPerformance = async (clientId) => {
+            if (!dashboardPerformanceBadge || !dashboardPerformanceSummary) return;
+            const seq = (dashboardPerformanceSeq || 0) + 1;
+            dashboardPerformanceSeq = seq;
+
+            const id = String(clientId || '').trim();
+            if (!id) {
+                dashboardPerformanceBadge.textContent = 'Sem cliente';
+                dashboardPerformanceSummary.textContent = 'Selecione um cliente para ver conexões.';
+                return;
+            }
+            if (!window.PerformanceConnectionsRepo?.getConnections) {
+                dashboardPerformanceBadge.textContent = 'Indisponível';
+                dashboardPerformanceSummary.textContent = 'Repo de conexões não carregado.';
+                return;
+            }
+
+            const rows = await window.PerformanceConnectionsRepo.getConnections(id);
+            if (seq !== dashboardPerformanceSeq) return;
+            const list = Array.isArray(rows) ? rows : [];
+            const connected = list.filter((c) => String(c?.connection_status || '').trim() === 'connected').length;
+            const pending = list.filter((c) => String(c?.connection_status || '').trim() === 'pending').length;
+            const total = list.length;
+
+            if (!total) {
+                dashboardPerformanceBadge.textContent = 'Sem conexões';
+                dashboardPerformanceSummary.textContent = 'Nenhuma conexão registrada.';
+                return;
+            }
+
+            dashboardPerformanceBadge.textContent = `${connected}/${total} conectadas`;
+            dashboardPerformanceSummary.textContent = pending ? `${pending} pendente(s) • ${total} total` : `${total} total`;
+        };
+
+        let dashboardSocialSeq = 0;
+        const refreshDashboardSocial = async (clientId) => {
+            if (!dashboardSocialBadge || !dashboardSocialSummary) return;
+            const seq = (dashboardSocialSeq || 0) + 1;
+            dashboardSocialSeq = seq;
+
+            const id = String(clientId || '').trim();
+            const monthKey = window.MonthUtils?.formatMonthKeyFromDate
+                ? window.MonthUtils.formatMonthKeyFromDate(new Date())
+                : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+            const monthLabel = window.MonthUtils?.formatMonthLabel ? window.MonthUtils.formatMonthLabel(monthKey) : monthKey;
+
+            if (!id) {
+                dashboardSocialBadge.textContent = 'Sem cliente';
+                dashboardSocialSummary.textContent = 'Selecione um cliente para ver o calendário.';
+                return;
+            }
+            if (!window.SocialMediaRepo?.getCalendarStatusByMonth) {
+                dashboardSocialBadge.textContent = 'Indisponível';
+                dashboardSocialSummary.textContent = `${monthLabel} • Repo Social não carregado.`;
+                return;
+            }
+
+            const cal = await window.SocialMediaRepo.getCalendarStatusByMonth(id, monthKey);
+            if (seq !== dashboardSocialSeq) return;
+
+            const rawStatus = String(cal?.status || '').trim();
+            if (!rawStatus) {
+                dashboardSocialBadge.textContent = 'Sem calendário';
+                dashboardSocialSummary.textContent = `${monthLabel} • Nenhum calendário encontrado.`;
+                return;
+            }
+
+            const key = rawStatus.toLowerCase();
+            const labels = {
+                rascunho: 'Rascunho',
+                aguardando_aprovacao: 'Aguardando aprovação',
+                aprovado: 'Aprovado',
+                rejeitado: 'Rejeitado',
+                em_producao: 'Em produção',
+                ajuste_solicitado: 'Ajustes solicitados',
+                agendado: 'Agendado',
+                publicado: 'Publicado',
+                concluido: 'Concluído',
+                draft: 'Rascunho',
+                ready_for_review: 'Pronto para revisão',
+                ready_for_approval: 'Pronto para aprovação',
+                changes_requested: 'Ajustes solicitados',
+                approved: 'Aprovado',
+                scheduled: 'Agendado',
+                published: 'Publicado'
+            };
+            const label = labels[key] || rawStatus;
+            dashboardSocialBadge.textContent = label;
+            dashboardSocialSummary.textContent = `${monthLabel} • Status: ${label}`;
+        };
+
         window.addEventListener('v2:ready', () => {
-            renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
+            const initialClientId = getActiveClientInfo()?.clientId || null;
+            renderActiveClientFoundation(initialClientId);
+            refreshDashboardPerformance(initialClientId);
+            refreshDashboardSocial(initialClientId);
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
                     renderActiveClientFoundation(clientId);
+                    refreshDashboardPerformance(clientId);
+                    refreshDashboardSocial(clientId);
                     const name = window.ClientContext?.getActiveClientInfo?.()?.clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
                     if (typeof updateClientUI === 'function') updateClientUI(clientId, name);
                     if (
@@ -3939,6 +4073,7 @@
                 allClients = Array.isArray(clients) ? clients : [];
                 clientsLoadState.loadedOnce = true;
                 console.log('[ClientsView] loadClients result', { count: allClients.length, reason });
+                updateDashboardTotalClientsCount(allClients.length);
                 const activeId = window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null;
                 if (activeId && !allClients.some((client) => String(client.id) === String(activeId))) {
                     if (window.ClientContext?.setActiveClient) {
@@ -3973,6 +4108,9 @@
         }
         if (clientOpenHub) {
             clientOpenHub.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'client_open_hub' }));
+        }
+        if (dashboardOpenHubBtn) {
+            dashboardOpenHubBtn.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'dashboard_open_hub' }));
         }
 
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
