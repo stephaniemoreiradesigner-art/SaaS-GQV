@@ -603,52 +603,45 @@
             });
 
             const byCalendarId = (Array.isArray(monthPosts) ? monthPosts : []).filter((p) => String(p?.calendar_id || '').trim() === String(calendarId || '').trim());
-            const modalPosts = byCalendarId.length ? byCalendarId : (Array.isArray(monthPosts) ? monthPosts : []);
-
             this._activeEditorialMonthPosts = Array.isArray(monthPosts) ? monthPosts : [];
 
-            console.log('[ClientCalendar] source modal editorial:', {
-                calendarId,
-                clientId,
-                monthKey: effectiveMonthKey || null,
-                monthPostsCount: this._activeEditorialMonthPosts.length,
-                calendarPostsCount: byCalendarId.length,
-                selectedCount: modalPosts.length,
-                selectedStrategy: byCalendarId.length ? 'month_posts.filter(calendar_id)' : 'month_posts(all)'
-            });
-
-            const buildEntryFromPost = (post) => {
-                const itemId = String(post?.calendar_item_id || '').trim() || null;
-                const item = itemId ? itemsById[itemId] : null;
-                const scheduled = String(post?.data_agendada || item?.data || '').slice(0, 10);
-                const tema = post?.tema || post?.titulo || post?.title || item?.tema || item?.titulo || item?.title || 'Sem título';
-                const canal = post?.plataforma || post?.platform || post?.canal || item?.canal || item?.plataforma || item?.platform || '-';
-                const tipo = item?.tipo_conteudo || item?.formato || post?.formato || post?.content_type || post?.tipo || 'post_estatico';
-                const copy = post?.legenda || post?.copy || item?.copy || item?.copy_text || item?.copywriting || item?.observacoes || '';
-                return {
-                    key: String(post?.id || itemId || scheduled || Math.random()),
-                    postId: String(post?.id || '').trim() || null,
-                    itemId,
-                    calendarId: String(calendarId || '').trim(),
-                    scheduledDate: scheduled,
-                    tema,
-                    canal,
-                    tipo,
-                    copy,
-                    status: String(post?.status || '').trim() || 'draft'
-                };
-            };
-
-            const entries = modalPosts.map(buildEntryFromPost).filter((e) => !!e.scheduledDate);
-
             const postsByItemId = {};
-            (Array.isArray(modalPosts) ? modalPosts : []).forEach((p) => {
+            (Array.isArray(byCalendarId) ? byCalendarId : []).forEach((p) => {
                 const key = String(p?.calendar_item_id || '').trim();
                 if (key) postsByItemId[key] = p;
             });
 
             this._activeCalendarItems = Array.isArray(items) ? items : [];
             this._activeCalendarPostsByItemId = postsByItemId;
+            const calendarStatusFallback = String(meta?.status || status || '').trim() || 'draft';
+
+            const entries = (Array.isArray(items) ? items : [])
+                .map((item) => {
+                    const itemId = String(item?.id || '').trim();
+                    if (!itemId) return null;
+                    const scheduled = String(item?.data || item?.data_agendada || item?.post_date || '').slice(0, 10);
+                    if (!scheduled) return null;
+                    const relatedPost = postsByItemId[itemId] || null;
+                    const tema = item?.tema || item?.titulo || item?.title || 'Sem título';
+                    const canal = item?.canal || item?.plataforma || item?.platform || '-';
+                    const tipo = item?.tipo_conteudo || item?.formato || 'post_estatico';
+                    const copy = item?.copy || item?.copy_text || item?.copywriting || item?.observacoes || '';
+                    const statusValue = String(relatedPost?.status || calendarStatusFallback).trim() || 'draft';
+                    return {
+                        key: String(relatedPost?.id || `item_${itemId}`),
+                        postId: String(relatedPost?.id || '').trim() || null,
+                        itemId,
+                        calendarId: String(calendarId || '').trim(),
+                        scheduledDate: scheduled,
+                        tema,
+                        canal,
+                        tipo,
+                        copy,
+                        status: statusValue
+                    };
+                })
+                .filter(Boolean);
+
             this._activeEditorialEntries = entries;
 
             const uniqueStatuses = Array.from(new Set(entries.map((e) => String(e.status || '').trim().toLowerCase()).filter(Boolean)));
@@ -656,7 +649,7 @@
             console.log('[ClientCalendar] status normalizado:', mapped);
             console.log('[ClientCalendar] itens renderizados no modal:', { calendarId, clientId, count: entries.length });
 
-            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(entries, { source: 'month_posts', postsByItemId });
+            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(entries, { source: 'calendar_items', postsByItemId });
 
             // Bind Actions
             this.setupModalActions();
