@@ -1326,7 +1326,22 @@
             renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
+                    currentClient = allClients.find(client => String(client.id) === String(clientId)) || currentClient;
+                    socialState.clientId = clientId;
+                    socialState.calendarIdByMonth = {};
+                    socialState.calendarStatusByMonth = {};
+                    socialState.calendarItemsByMonth = {};
+                    socialState.postsByMonth = {};
+                    const savedMonth = loadSavedMonth(clientId);
+                    if (savedMonth) {
+                        socialState.calendarMonth = savedMonth;
+                    } else {
+                        socialState.calendarMonth = window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                    }
                     renderActiveClientFoundation(clientId);
+                    const name = window.ClientContext?.getActiveClientInfo?.()?.clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
+                    updateClientUI(clientId, name);
+                    refreshSocialMonth();
                 });
             }
         });
@@ -3861,28 +3876,6 @@
                 clientsLoadState.inFlight = false;
             }
         };
-
-        if (window.ClientContext) {
-            window.ClientContext.subscribe((clientId) => {
-                const name = localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
-                currentClient = allClients.find(client => String(client.id) === String(clientId)) || currentClient;
-                socialState.clientId = clientId;
-                socialState.calendarIdByMonth = {};
-                socialState.calendarStatusByMonth = {};
-                socialState.calendarItemsByMonth = {};
-                socialState.postsByMonth = {};
-                const savedMonth = loadSavedMonth(clientId);
-                if (savedMonth) {
-                    socialState.calendarMonth = savedMonth;
-                } else {
-                    socialState.calendarMonth = window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-                }
-                updateClientUI(clientId, name);
-                refreshSocialMonth();
-            });
-        } else {
-            updateClientUI(null, '');
-        }
 
         if (clientsSearchInput) {
             clientsSearchInput.addEventListener('input', filterClients);
