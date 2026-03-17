@@ -644,12 +644,18 @@
 
             this._activeEditorialEntries = entries;
 
+            const visible = entries.filter((e) => {
+                const raw = String(e?.status || '').trim().toLowerCase();
+                const key = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(raw) : raw;
+                return key !== 'approved' && key !== 'changes_requested';
+            });
+
             const uniqueStatuses = Array.from(new Set(entries.map((e) => String(e.status || '').trim().toLowerCase()).filter(Boolean)));
             const mapped = uniqueStatuses.map((s) => ({ raw: s, label: global.ClientUI?.getStatusDisplay ? global.ClientUI.getStatusDisplay(s).label : s }));
             console.log('[ClientCalendar] status normalizado:', mapped);
-            console.log('[ClientCalendar] itens renderizados no modal:', { calendarId, clientId, count: entries.length });
+            console.log('[ClientCalendar] itens renderizados no modal:', { calendarId, clientId, count: visible.length, total: entries.length });
 
-            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(entries, { source: 'calendar_items', postsByItemId });
+            if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(visible, { source: 'calendar_items', postsByItemId });
 
             // Bind Actions
             this.setupModalActions();
@@ -721,28 +727,17 @@
             const postId = String(entry?.postId || '').trim();
             const itemId = String(entry?.itemId || '').trim();
 
-            if (postId && global.ClientRepo?.updatePostEditorialStatus) {
-                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'draft', trimmedComment);
+            if (!postId) {
+                console.log('[ClientCalendar] approve skipped (missing postId):', { calendarId, itemId: itemId || null });
+                return;
+            }
+            if (global.ClientRepo?.updatePostEditorialStatus) {
+                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'approved', trimmedComment);
                 if (result?.ok === true) {
+                    if (itemId) this.setEditorialItemReview(itemId, 'approved', trimmedComment);
                     console.log('[ClientCalendar] item aprovado:', { calendarId, postId, clientId });
                 } else {
                     console.error('[ClientCalendar] falha ao aprovar item:', { calendarId, postId, clientId, error: result?.error || null });
-                }
-            } else if (itemId && global.ClientRepo?.upsertCalendarItemEditorialDecision) {
-                const scheduledDate = String(entry?.scheduledDate || '').trim();
-                const result = await global.ClientRepo.upsertCalendarItemEditorialDecision({
-                    calendarId,
-                    itemId,
-                    clientId,
-                    scheduledDate,
-                    status: 'draft',
-                    comment: trimmedComment
-                });
-                if (result?.ok === true) {
-                    this.setEditorialItemReview(itemId, 'approved', trimmedComment);
-                    console.log('[ClientCalendar] item aprovado:', { calendarId, itemId, clientId });
-                } else {
-                    console.error('[ClientCalendar] falha ao aprovar item:', { calendarId, itemId, clientId, error: result?.error || null });
                 }
             }
 
@@ -755,7 +750,7 @@
 
         requestCalendarEntryAdjustment: async function(entry, comment, patch = null) {
             const calendarId = this.activeCalendarId;
-            if (!calendarId || !entry) return;
+            if (!calendarId || !entry) return false;
             const clientId = this.getClientId();
             const trimmedComment = String(comment || '').trim();
             const postId = String(entry?.postId || '').trim();
@@ -763,34 +758,25 @@
             const tema = String(patch?.tema || '').trim();
             const copy = String(patch?.copy || patch?.legenda || '').trim();
 
-            if (postId && global.ClientRepo?.updatePostEditorialStatus) {
+            if (!postId) {
+                console.log('[ClientCalendar] adjustment skipped (missing postId):', { calendarId, itemId: itemId || null });
+                return false;
+            }
+            if (global.ClientRepo?.updatePostEditorialStatus) {
                 const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'changes_requested', trimmedComment, { tema, legenda: copy });
                 if (result?.ok === true) {
+                    if (itemId) this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
+                    if (global.ClientRepo?.updateCalendarStatus) {
+                        const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'needs_changes', clientId);
+                        if (error) console.error('[ClientCalendar] calendar needs_changes failed:', { calendarId, error });
+                    }
                     console.log('[ClientCalendar] item com ajuste:', { calendarId, postId, clientId });
-                } else {
-                    console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, postId, clientId, error: result?.error || null });
+                    await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
+                    return true;
                 }
-            } else if (itemId && global.ClientRepo?.upsertCalendarItemEditorialDecision) {
-                const scheduledDate = String(entry?.scheduledDate || '').trim();
-                const result = await global.ClientRepo.upsertCalendarItemEditorialDecision({
-                    calendarId,
-                    itemId,
-                    clientId,
-                    scheduledDate,
-                    status: 'changes_requested',
-                    comment: trimmedComment,
-                    tema,
-                    legenda: copy
-                });
-                if (result?.ok === true) {
-                    this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
-                    console.log('[ClientCalendar] item com ajuste:', { calendarId, itemId, clientId });
-                } else {
-                    console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, itemId, clientId, error: result?.error || null });
-                }
+                console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, postId, clientId, error: result?.error || null });
             }
-
-            await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
+            return false;
         },
 
         submitEditorialAdjustment: async function(entry, payload) {
@@ -802,7 +788,8 @@
                 global.ClientUI?.setEditorialAdjustFeedback?.('Descreva o ajuste solicitado para continuar.', 'error');
                 return;
             }
-            await this.requestCalendarEntryAdjustment(entry, adjustmentText, { tema: payload?.tema, copy: payload?.copy });
+            const ok = await this.requestCalendarEntryAdjustment(entry, adjustmentText, { tema: payload?.tema, copy: payload?.copy });
+            if (!ok) return;
             console.log('[EditorialReview] adjustment text saved:', { calendarId, entryKey: entry?.key || null });
             global.ClientUI?.showEditorialAdjustModal?.(false);
         },
@@ -837,29 +824,44 @@
             const commentInput = document.getElementById('client-calendar-approval-comment');
             const comment = commentInput ? String(commentInput.value || '').trim() : '';
             console.log('[ClientCalendar] conclude clicked', { calendarId, monthKey: monthKey || null });
-            console.log('[ClientCalendar] conclude final action:', { calendarId, monthKey: monthKey || null, calendarStatus: 'approved' });
-            console.log('[ClientCalendar] conclude payload', { calendarId, monthKey: monthKey || null, status: 'approved', hasComment: !!comment });
-            console.log('[ClientCalendar] conclude update filters:', { id: calendarId });
-            console.log('[ClientCalendar] conclude update payload:', { status: 'approved' });
+            await this.sendEditorialFeedbackToAgency();
+
+            const entries = Array.isArray(this._activeEditorialEntries) ? this._activeEditorialEntries : [];
+            const approvedKeys = new Set(['approved', 'scheduled', 'published']);
+            let hasChangesRequested = false;
+            let pendingCount = 0;
+            entries.forEach((e) => {
+                const raw = String(e?.status || '').trim().toLowerCase();
+                const key = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(raw) : raw;
+                if (key === 'changes_requested') hasChangesRequested = true;
+                else if (!approvedKeys.has(key)) pendingCount += 1;
+            });
+
+            const nextCalendarStatus = hasChangesRequested ? 'needs_changes' : (pendingCount === 0 ? 'approved' : null);
+            console.log('[ClientCalendar] conclude aggregate:', { calendarId, total: entries.length, pendingCount, hasChangesRequested, nextCalendarStatus });
+            if (!nextCalendarStatus) {
+                console.log('[ClientCalendar] conclude blocked reason:', { reason: 'pending_items', calendarId, pendingCount });
+                return;
+            }
 
             if (global.ClientRepo?.updateCalendarStatus) {
                 console.log('[ClientCalendar] about to update social_calendars from: concludeCalendarVerification');
                 const clientId = this.getClientId();
-                const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'approved', clientId);
+                const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, nextCalendarStatus, clientId);
                 if (error) {
-                    console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, status: 'approved', error });
-                    console.log('[ClientCalendar] conclude update error:', { calendarId, status: 'approved', code: error?.code || null, message: error?.message || null });
-                    console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, status: 'approved' });
+                    console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, status: nextCalendarStatus, error });
+                    console.log('[ClientCalendar] conclude update error:', { calendarId, status: nextCalendarStatus, code: error?.code || null, message: error?.message || null });
+                    console.log('[ClientCalendar] conclude blocked reason:', { reason: 'updateCalendarStatus_failed', calendarId, status: nextCalendarStatus });
                     return;
                 }
-                console.log('[ClientCalendar] conclude update success:', { calendarId, status: 'approved' });
+                console.log('[ClientCalendar] conclude update success:', { calendarId, status: nextCalendarStatus });
             }
-            console.log('[ClientCalendar] calendar status persisted:', { calendarId, status: 'approved' });
+            console.log('[ClientCalendar] calendar status persisted:', { calendarId, status: nextCalendarStatus });
             console.log('[ClientCalendar] pipeline untouched:', { calendarId, note: 'social_posts.status não foi alterado' });
 
             const statusEl = document.getElementById('client-calendar-modal-status');
             if (statusEl) {
-                const raw = 'approved';
+                const raw = nextCalendarStatus;
                 const map = {
                     ready_for_approval: { label: 'Pronto para aprovação', cls: 'bg-amber-100 text-amber-700' },
                     awaiting_approval: { label: 'Aguardando aprovação', cls: 'bg-yellow-100 text-yellow-700' },
@@ -877,7 +879,7 @@
                 statusEl.className = `inline-flex items-center mt-2 px-3 py-1 rounded-full text-xs font-medium ${info.cls}`;
             }
 
-            await this.openCalendarModal(calendarId, monthKey, 'approved');
+            await this.openCalendarModal(calendarId, monthKey, nextCalendarStatus);
 
             await this.loadCalendars();
             await this.loadDashboardData();

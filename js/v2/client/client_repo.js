@@ -62,9 +62,7 @@
             const base = [
                 'awaiting_approval',
                 'aguardando_aprovacao',
-                'sent_for_approval',
-                'needs_changes',
-                'ajuste_solicitado'
+                'sent_for_approval'
             ];
             return Array.from(new Set(base.filter(Boolean)));
         },
