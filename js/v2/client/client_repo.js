@@ -270,7 +270,7 @@
             const tema = String(params?.tema || '').trim();
             const legenda = String(params?.legenda || params?.copy || '').trim();
 
-            if (!calendarId || !itemId || !clientId || !scheduledDate || !status) {
+            if (!calendarId || !itemId || !clientId || !status) {
                 return { ok: false, error: { message: 'missing_params' } };
             }
 
@@ -278,17 +278,43 @@
             const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
             const normalizedItemId = this.normalizeBigIntId(itemId) ?? itemId;
 
+            const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '').slice(0, 10));
+            const scheduled = isIsoDate(scheduledDate) ? String(scheduledDate).slice(0, 10) : '';
+            const nowIso = new Date().toISOString();
+
             const basePayload = {
                 cliente_id: normalizedClientId,
                 calendar_id: normalizedCalendarId,
                 calendar_item_id: normalizedItemId,
-                data_agendada: scheduledDate,
                 status: status,
                 feedback_cliente: comment || null,
                 feedback_ajuste: status === 'changes_requested' ? (comment || null) : null,
                 tema: tema || null,
                 legenda: legenda || null,
-                updated_at: new Date().toISOString()
+                updated_at: nowIso
+            };
+            if (scheduled) basePayload.data_agendada = scheduled;
+
+            const errorLooksLikeMissingColumn = (error, columnName) => {
+                const msg = String(error?.message || '').toLowerCase();
+                const col = String(columnName || '').toLowerCase();
+                return error?.code === '42703' || msg.includes(`column ${col}`) || msg.includes(`"${col}"`) || msg.includes(`'${col}'`);
+            };
+
+            const applyWithFallback = async (op) => {
+                let payload = { ...basePayload };
+                let result = await op(payload);
+                if (result?.error && errorLooksLikeMissingColumn(result.error, 'cliente_id')) {
+                    payload = { ...payload };
+                    delete payload.cliente_id;
+                    result = await op(payload);
+                }
+                if (result?.error && errorLooksLikeMissingColumn(result.error, 'data_agendada')) {
+                    payload = { ...payload };
+                    delete payload.data_agendada;
+                    result = await op(payload);
+                }
+                return result;
             };
 
             try {
@@ -305,21 +331,21 @@
                 }
 
                 if (existing?.id) {
-                    const { data, error } = await supabase
+                    const { data, error } = await applyWithFallback((payload) => supabase
                         .from('social_posts')
-                        .update(basePayload)
+                        .update(payload)
                         .eq('id', existing.id)
                         .select('*')
-                        .maybeSingle();
+                        .maybeSingle());
                     if (error) return { ok: false, error };
                     return { ok: true, data: data || null };
                 }
 
-                const { data, error } = await supabase
+                const { data, error } = await applyWithFallback((payload) => supabase
                     .from('social_posts')
-                    .insert(basePayload)
+                    .insert(payload)
                     .select('*')
-                    .maybeSingle();
+                    .maybeSingle());
                 if (error) return { ok: false, error };
                 return { ok: true, data: data || null };
             } catch (error) {
