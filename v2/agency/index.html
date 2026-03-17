@@ -176,6 +176,7 @@
                             <div>
                                 <p class="text-xs uppercase text-slate-400">Cliente ativo</p>
                                 <p id="hub-client-name" class="text-lg font-semibold text-slate-900">Nenhum cliente selecionado</p>
+                                <p id="hub-client-id" class="text-xs text-slate-400 mt-1"></p>
                                 <p id="hub-client-status" class="text-sm text-slate-500 mt-1"></p>
                             </div>
                             <div class="flex flex-wrap gap-3">
@@ -1028,6 +1029,7 @@
 
         const navButtons = document.querySelectorAll('.v2-nav-btn');
         const hubClientName = document.getElementById('hub-client-name');
+        const hubClientId = document.getElementById('hub-client-id');
         const hubClientStatus = document.getElementById('hub-client-status');
         const hubPendencies = document.getElementById('hub-pendencies');
         const hubOwner = document.getElementById('hub-owner');
@@ -1212,22 +1214,23 @@
         };
 
         let activeClientRenderSeq = 0;
-        const getActiveClientId = () => (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
-        const getActiveClientName = () => (window.ClientContext?.getActiveClientName ? window.ClientContext.getActiveClientName() : null);
+        const getActiveClientInfo = () => (window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : { clientId: null, clientName: null });
 
         const renderActiveClientFoundation = async (forcedClientId) => {
             const seq = (activeClientRenderSeq || 0) + 1;
             activeClientRenderSeq = seq;
 
-            const id = forcedClientId !== undefined ? forcedClientId : getActiveClientId();
+            const info = getActiveClientInfo();
+            const id = forcedClientId !== undefined ? forcedClientId : info?.clientId;
             const hasClient = !!id;
-            const name = getActiveClientName();
+            const name = info?.clientName;
             const safeName = String(name || '').trim() || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
 
             if (activeClientName) activeClientName.textContent = safeName;
             if (hubClientName) hubClientName.textContent = safeName;
             if (dashboardClientName) dashboardClientName.textContent = safeName;
             if (socialClientName) socialClientName.textContent = safeName;
+            if (hubClientId) hubClientId.textContent = hasClient ? `ID ${id}` : '';
 
             if (activeClientId) {
                 activeClientId.textContent = hasClient ? `ID ${id}` : '';
@@ -1252,6 +1255,7 @@
             });
 
             if (!hasClient) {
+                if (hubClientId) hubClientId.textContent = '';
                 if (hubClientStatus) hubClientStatus.textContent = '';
                 if (hubOwner) hubOwner.textContent = 'Não definido';
                 if (hubStatus) hubStatus.textContent = 'Não definido';
@@ -1293,13 +1297,35 @@
         };
 
         window.addEventListener('v2:ready', () => {
-            renderActiveClientFoundation(getActiveClientId());
+            renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
                     renderActiveClientFoundation(clientId);
                 });
             }
         });
+
+        const navigateTo = (moduleName, options = {}) => {
+            const targetModule = String(moduleName || 'dashboard').trim() || 'dashboard';
+            const viewName = String(options?.view || 'default').trim() || 'default';
+            const reason = String(options?.reason || '').trim();
+
+            if (window.WorkspaceState?.setActiveView) {
+                window.WorkspaceState.setActiveView(viewName);
+            }
+            if (window.WorkspaceState?.setActiveModule) {
+                window.WorkspaceState.setActiveModule(targetModule);
+            } else {
+                setActiveView(targetModule);
+            }
+
+            if (targetModule === 'clients') {
+                loadClients({ reason: reason || 'navigate_clients' });
+            }
+            if (targetModule === 'hub') {
+                renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
+            }
+        };
 
         const setActiveView = (moduleName, options = {}) => {
             const views = document.querySelectorAll('.v2-view');
@@ -1578,7 +1604,7 @@
                 const n = c.nome_fantasia || c.razao_social || c.nome_empresa || c.nome || c.empresa || 'Cliente';
                 if (window.ClientContext?.setActiveClient) window.ClientContext.setActiveClient({ id: c.id, name: n });
                 closeClientDetailModal();
-                setActiveView('hub');
+                navigateTo('hub', { view: 'client-hub', reason: 'client_detail_open_hub' });
             });
             rebindClickById('client-detail-action-edit', async (event) => {
                 event.preventDefault();
@@ -1787,10 +1813,7 @@
         navButtons.forEach(btn => {
             btn.addEventListener('click', () => {
                 const moduleName = btn.dataset.module;
-                setActiveView(moduleName);
-                if (moduleName === 'clients') {
-                    loadClients({ reason: 'nav_click_clients' });
-                }
+                navigateTo(moduleName, { view: 'default', reason: 'nav_click' });
             });
         });
         if (window.WorkspaceState?.subscribe) {
@@ -1806,8 +1829,7 @@
 
         if (headerSelectClient) {
             headerSelectClient.addEventListener('click', () => {
-                setActiveView('clients');
-                loadClients({ reason: 'header_select_client' });
+                navigateTo('clients', { view: 'default', reason: 'header_select_client' });
             });
         }
 
@@ -1933,7 +1955,7 @@
                     window.ClientContext.setActiveClient({ id: createdId, name: createdName });
                 }
                 closeClientModal();
-                setActiveView('hub');
+                navigateTo('hub', { view: 'client-hub', reason: 'client_created' });
                 if (clientSaveBtn) {
                     clientSaveBtn.disabled = false;
                     clientSaveBtn.innerHTML = saveOriginal;
@@ -3846,7 +3868,7 @@
             });
         }
         if (clientOpenHub) {
-            clientOpenHub.addEventListener('click', () => setActiveView('hub'));
+            clientOpenHub.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'client_open_hub' }));
         }
 
         if (clientDetailClose) clientDetailClose.addEventListener('click', closeClientDetailModal);
@@ -3877,7 +3899,7 @@
                 }
                 currentClient = client;
                 closeClientDetailModal();
-                setActiveView('hub');
+                navigateTo('hub', { view: 'client-hub', reason: 'client_detail_open_hub_legacy' });
             });
         }
         if (clientDetailEditBtn) {
@@ -4033,19 +4055,18 @@
 
         document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
             btn.addEventListener('click', () => {
-                setActiveView('clients');
-                loadClients({ reason: 'action_go_clients' });
+                navigateTo('clients', { view: 'default', reason: 'action_go_clients' });
             });
         });
 
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
-            btn.addEventListener('click', () => setActiveView('social'));
+            btn.addEventListener('click', () => navigateTo('social', { view: 'default', reason: 'action_go_social' }));
         });
         document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
-            btn.addEventListener('click', () => setActiveView('performance'));
+            btn.addEventListener('click', () => navigateTo('performance', { view: 'default', reason: 'action_go_performance' }));
         });
         document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
-            btn.addEventListener('click', () => setActiveView('approvals'));
+            btn.addEventListener('click', () => navigateTo('approvals', { view: 'default', reason: 'action_go_approvals' }));
         });
         if (socialTabButtons.length) {
             socialTabButtons.forEach((btn) => {
