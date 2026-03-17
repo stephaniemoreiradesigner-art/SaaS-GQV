@@ -851,7 +851,8 @@
 
             if (global.ClientRepo?.updateCalendarStatus) {
                 console.log('[ClientCalendar] about to update social_calendars from: concludeCalendarVerification');
-                const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'approved');
+                const clientId = this.getClientId();
+                const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'approved', clientId);
                 if (error) {
                     console.error('[ClientCalendar] falha ao concluir verificacao (update status):', { calendarId, status: 'approved', error });
                     console.log('[ClientCalendar] conclude update error:', { calendarId, status: 'approved', code: error?.code || null, message: error?.message || null });

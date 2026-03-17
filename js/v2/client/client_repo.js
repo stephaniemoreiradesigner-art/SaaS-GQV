@@ -383,18 +383,18 @@
             return { ok: true, data: (data && data[0]) || null };
         },
 
-        updateCalendarStatus: async function(calendarId, status) {
+        updateCalendarStatus: async function(calendarId, status, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
-            const id = this.normalizeIdForFilter ? this.normalizeIdForFilter(calendarId) : String(calendarId || '').trim();
+            const id = this.normalizeIdForFilter(calendarId) ?? String(calendarId || '').trim();
             if (!id) return { ok: false, error: { message: 'missing_params' } };
             const nextStatus = String(status || '').trim() || null;
+            const normalizedClientId = clientId ? this.normalizeIdForFilter(clientId) : null;
 
             console.log('[ClientCalendar] about to update social_calendars from: ClientRepo.updateCalendarStatus');
-            const { error } = await supabase
-                .from('social_calendars')
-                .update({ status: nextStatus })
-                .eq('id', id);
+            let query = supabase.from('social_calendars').update({ status: nextStatus }).eq('id', id);
+            if (normalizedClientId) query = query.eq('cliente_id', normalizedClientId);
+            const { error } = await query;
 
             if (error) {
                 console.log('[ClientRepo] updateCalendarStatus error detail:', {
