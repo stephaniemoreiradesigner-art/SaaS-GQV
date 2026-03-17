@@ -751,6 +751,8 @@
                     scheduledDate,
                     status: 'approved',
                     comment: trimmedComment,
+                    plataforma: String(entry?.canal || '').trim(),
+                    formato: String(entry?.tipo || '').trim(),
                     tema: String(entry?.tema || '').trim(),
                     legenda: String(entry?.copy || '').trim()
                 });
@@ -798,7 +800,7 @@
             const copy = String(patch?.copy || patch?.legenda || '').trim();
 
             if (!postId && itemId && global.ClientRepo?.upsertCalendarItemEditorialDecision) {
-                const scheduledDate = String(entry?.scheduledDate || '').trim();
+                const scheduledDate = String(entry?.scheduledDate || entry?.date || entry?.data || '').trim();
                 const result = await global.ClientRepo.upsertCalendarItemEditorialDecision({
                     calendarId,
                     itemId,
@@ -806,6 +808,8 @@
                     scheduledDate,
                     status: 'changes_requested',
                     comment: trimmedComment,
+                    plataforma: String(entry?.canal || '').trim(),
+                    formato: String(entry?.tipo || '').trim(),
                     tema: tema || String(entry?.tema || '').trim(),
                     legenda: copy || String(entry?.copy || '').trim()
                 });

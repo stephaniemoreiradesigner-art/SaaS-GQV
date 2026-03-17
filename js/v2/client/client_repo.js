@@ -269,6 +269,8 @@
             const comment = String(params?.comment || '').trim();
             const tema = String(params?.tema || '').trim();
             const legenda = String(params?.legenda || params?.copy || '').trim();
+            const plataforma = String(params?.plataforma || params?.platform || params?.canal || '').trim();
+            const formato = String(params?.formato || params?.format || params?.tipo_conteudo || params?.tipo || '').trim();
 
             if (!calendarId || !itemId || !clientId || !status) {
                 return { ok: false, error: { message: 'missing_params' } };
@@ -277,23 +279,30 @@
             const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
             const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
             const normalizedItemId = this.normalizeBigIntId(itemId) ?? itemId;
+            const normalizedClientIdStr = /^\d+$/.test(String(normalizedClientId)) ? String(normalizedClientId) : String(clientId).trim();
 
             const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '').slice(0, 10));
             const scheduled = isIsoDate(scheduledDate) ? String(scheduledDate).slice(0, 10) : '';
             const nowIso = new Date().toISOString();
 
+            if (!scheduled) {
+                return { ok: false, error: { message: 'missing_data_agendada' } };
+            }
+
             const basePayload = {
-                cliente_id: normalizedClientId,
+                cliente_id: normalizedClientIdStr,
                 calendar_id: normalizedCalendarId,
                 calendar_item_id: normalizedItemId,
                 status: status,
+                data_agendada: scheduled,
+                plataforma: plataforma || 'instagram',
+                formato: formato || 'post_estatico',
                 feedback_cliente: comment || null,
                 feedback_ajuste: status === 'changes_requested' ? (comment || null) : null,
                 tema: tema || null,
                 legenda: legenda || null,
                 updated_at: nowIso
             };
-            if (scheduled) basePayload.data_agendada = scheduled;
 
             const errorLooksLikeMissingColumn = (error, columnName) => {
                 const msg = String(error?.message || '').toLowerCase();
