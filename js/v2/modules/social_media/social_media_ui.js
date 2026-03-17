@@ -241,7 +241,7 @@
                 ready_for_review: { label: 'Pronto para revisão', className: `${base} bg-indigo-100 text-indigo-700` },
                 ready_for_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
                 awaiting_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
-                approved: { label: 'Aprovado', className: `${base} bg-green-100 text-green-700` },
+                approved: { label: 'Para produção', className: `${base} bg-green-100 text-green-700` },
                 changes_requested: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
                 rejected: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
                 scheduled: { label: 'Agendado', className: `${base} bg-indigo-100 text-indigo-700` },
@@ -459,7 +459,7 @@
                 { key: 'draft', label: 'Rascunhos' },
                 { key: 'internal_review', label: 'Revisão interna' },
                 { key: 'awaiting_approval', label: 'Aguardando aprovação' },
-                { key: 'approved', label: 'Aprovados' },
+                { key: 'approved', label: 'Para produção' },
                 { key: 'published', label: 'Publicados' }
             ];
 
