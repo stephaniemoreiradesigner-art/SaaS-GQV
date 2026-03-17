@@ -185,6 +185,276 @@
             });
         },
 
+        generateCalendarWithAI: async function(input) {
+            const activeInfo = global.ClientContext?.getActiveClientInfo ? global.ClientContext.getActiveClientInfo() : null;
+            const clientId = String(activeInfo?.clientId || input?.clientId || '').trim();
+            const clientName = String(activeInfo?.clientName || input?.clientName || '').trim();
+            if (!clientId) return { ok: false, error: 'Selecione um cliente primeiro.' };
+
+            const snap = this.getCalendarSnap();
+            const monthKeyRaw = String(input?.monthKey || snap?.monthKey || '').trim().slice(0, 7);
+            const monthKey = global.MonthUtils?.isValidMonthKey?.(monthKeyRaw)
+                ? monthKeyRaw
+                : (global.MonthUtils?.formatMonthKeyFromDate ? global.MonthUtils.formatMonthKeyFromDate(new Date()) : monthKeyRaw);
+            if (!global.MonthUtils?.isValidMonthKey?.(monthKey)) return { ok: false, error: 'Mês inválido.' };
+
+            const repo = global.SocialMediaRepo;
+            if (!repo?.getCalendarByMonth) return { ok: false, error: 'Repositório indisponível.' };
+
+            const calendar = await repo.getCalendarByMonth(clientId, monthKey);
+            const calendarId = String(calendar?.id || '').trim();
+            if (!calendarId) return { ok: false, error: 'Não foi possível carregar o calendário do mês.' };
+
+            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(calendar?.status)
+                : String(calendar?.status || '').trim().toLowerCase();
+            const canEdit = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
+            if (!canEdit) return { ok: false, error: 'Calendário em aprovação — edição temporariamente bloqueada.' };
+
+            const postsCount = Math.max(1, Math.min(40, Number(input?.postsCount || 0) || 8));
+            const seasonalRaw = String(input?.seasonalDates || '').trim();
+            const channel = String(input?.channel || 'instagram').trim() || 'instagram';
+            const briefing = String(input?.briefing || '').trim();
+
+            const seasonal = this.parseSeasonalDates(seasonalRaw, monthKey);
+            const generated = await this.generateEditorialItemsWithAdapter({
+                clientId,
+                clientName,
+                briefing,
+                postsCount,
+                seasonal,
+                monthKey,
+                channel
+            });
+            const suggestions = Array.isArray(generated) ? generated : [];
+            if (!suggestions.length) return { ok: false, error: 'Nenhum item gerado.' };
+
+            const existing = (() => {
+                const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+                if (String(snap?.activeCalendarId || '').trim() === calendarId) return items;
+                return [];
+            })();
+            const existingSet = new Set(
+                existing.map((it) => {
+                    const date = String(it?.data || '').slice(0, 10);
+                    const tema = String(it?.tema || '').trim().toLowerCase();
+                    const canalIt = String(it?.canal || '').trim().toLowerCase();
+                    const tipoIt = String(it?.tipo_conteudo || '').trim().toLowerCase();
+                    return `${date}|${tema}|${canalIt}|${tipoIt}`;
+                })
+            );
+
+            const toInsert = [];
+            let skipped = 0;
+            for (const it of suggestions) {
+                const date = String(it?.data || '').slice(0, 10);
+                const tema = String(it?.tema || '').trim();
+                const tipo_conteudo = String(it?.tipo_conteudo || 'post_estatico').trim() || 'post_estatico';
+                const canal = String(it?.canal || channel).trim() || channel;
+                const observacoes = it?.observacoes ?? null;
+                if (!date || !tema) {
+                    skipped += 1;
+                    continue;
+                }
+                const key = `${date}|${tema.toLowerCase()}|${canal.toLowerCase()}|${tipo_conteudo.toLowerCase()}`;
+                if (existingSet.has(key)) {
+                    skipped += 1;
+                    continue;
+                }
+                toInsert.push({ calendar_id: calendarId, data: date, tema, tipo_conteudo, canal, observacoes });
+                existingSet.add(key);
+            }
+            if (!toInsert.length) return { ok: true, added: 0, skipped };
+
+            if (!repo?.insertCalendarItemsBatch) return { ok: false, error: 'Persistência em lote indisponível.' };
+            const res = await repo.insertCalendarItemsBatch(calendarId, toInsert);
+            if (res?.ok !== true) {
+                const msg = typeof res?.error?.message === 'string' ? res.error.message : 'Não foi possível salvar itens.';
+                return { ok: false, error: msg };
+            }
+
+            if (global.CalendarStateManager?.refreshMonthData) {
+                await global.CalendarStateManager.refreshMonthData({ monthKey, source: 'ai_generate' });
+            }
+            return { ok: true, added: Number(res?.inserted || 0), skipped };
+        },
+
+        generateEditorialItemsWithAdapter: async function(input) {
+            const adapter = global.SocialMediaAI?.generateCalendarWithAI;
+            if (typeof adapter === 'function') {
+                try {
+                    const out = await adapter(input);
+                    if (Array.isArray(out) && out.length) return out;
+                } catch {}
+            }
+            return this.generateEditorialItemsFallback(input);
+        },
+
+        generateEditorialItemsFallback: function(input) {
+            const monthKey = String(input?.monthKey || '').trim().slice(0, 7);
+            const postsCount = Math.max(1, Math.min(40, Number(input?.postsCount || 0) || 8));
+            const channel = String(input?.channel || 'instagram').trim() || 'instagram';
+            const briefing = String(input?.briefing || '').trim();
+            const seasonal = Array.isArray(input?.seasonal) ? input.seasonal : [];
+
+            const dates = this.pickEditorialDates(monthKey, postsCount, seasonal);
+            const keywords = this.extractBriefingKeywords(briefing);
+            const formats = (() => {
+                if (channel === 'tiktok') return ['reels', 'reels', 'post_estatico'];
+                if (channel === 'linkedin') return ['post_estatico', 'carrossel', 'post_estatico'];
+                return ['carrossel', 'post_estatico', 'reels', 'post_estatico'];
+            })();
+
+            const baseThemes = [
+                'Educação',
+                'Autoridade',
+                'Prova social',
+                'Bastidores',
+                'Oferta',
+                'Engajamento'
+            ];
+
+            const truncate = (value, max) => {
+                const s = String(value || '').trim();
+                if (!max) return s;
+                return s.length > max ? `${s.slice(0, max)}…` : s;
+            };
+
+            return dates.map((date, idx) => {
+                const seed = keywords[idx % Math.max(1, keywords.length)] || baseThemes[idx % baseThemes.length];
+                const seasonalMatch = seasonal.find((s) => String(s?.date || '') === date);
+                const theme = seasonalMatch?.label
+                    ? `${seasonalMatch.label} — ${seed}`
+                    : `${baseThemes[idx % baseThemes.length]} — ${seed}`;
+                const tipo = formats[idx % formats.length] || 'post_estatico';
+                const observacoes = [
+                    briefing ? `Briefing: ${truncate(briefing, 700)}` : '',
+                    `Copy base: ${theme}. CTA: Comente/mande DM para saber mais.`,
+                    `Sugestão de ângulo: ${seed}.`,
+                    seasonalMatch?.label ? `Data sazonal: ${seasonalMatch.label}` : ''
+                ].filter(Boolean).join('\n');
+
+                return {
+                    data: date,
+                    tema: theme,
+                    tipo_conteudo: tipo,
+                    canal: channel,
+                    observacoes
+                };
+            });
+        },
+
+        extractBriefingKeywords: function(briefing) {
+            const text = String(briefing || '').toLowerCase();
+            const parts = text
+                .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+                .split(/\s+/g)
+                .map((w) => w.trim())
+                .filter(Boolean);
+            const stop = new Set(['para', 'com', 'sem', 'uma', 'uns', 'umas', 'sobre', 'mais', 'menos', 'cliente', 'marca', 'empresa', 'produto', 'servico', 'serviço', 'publico', 'público', 'campanha', 'conteudo', 'conteúdo', 'instagram', 'facebook', 'linkedin', 'tiktok', 'nos', 'nas', 'dos', 'das', 'que', 'por', 'como', 'seu', 'sua', 'seus', 'suas', 'isso', 'essa', 'esse', 'este', 'esta']);
+            const counts = new Map();
+            for (const w of parts) {
+                if (w.length < 5) continue;
+                if (stop.has(w)) continue;
+                counts.set(w, (counts.get(w) || 0) + 1);
+            }
+            const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([w]) => w);
+            return sorted.slice(0, 8);
+        },
+
+        parseSeasonalDates: function(raw, monthKey) {
+            const mk = String(monthKey || '').trim().slice(0, 7);
+            if (!global.MonthUtils?.isValidMonthKey?.(mk)) return [];
+            const year = Number(mk.slice(0, 4));
+            const month = Number(mk.slice(5, 7));
+            if (!Number.isFinite(year) || !Number.isFinite(month)) return [];
+
+            const lines = String(raw || '').split(/\r?\n/g).map((l) => l.trim()).filter(Boolean);
+            const out = [];
+            for (const line of lines) {
+                const mIso = line.match(/^(\d{4}-\d{2}-\d{2})\s*(.*)$/);
+                if (mIso) {
+                    const date = mIso[1];
+                    const label = String(mIso[2] || '').trim() || 'Data sazonal';
+                    if (date.slice(0, 7) === mk) out.push({ date, label });
+                    continue;
+                }
+
+                const mBr = line.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s*(.*)$/);
+                if (mBr) {
+                    const dd = Number(mBr[1]);
+                    const mm = Number(mBr[2]);
+                    const yy = mBr[3] ? Number(mBr[3]) : year;
+                    const label = String(mBr[4] || '').trim() || 'Data sazonal';
+                    if (!Number.isFinite(dd) || !Number.isFinite(mm) || !Number.isFinite(yy)) continue;
+                    const iso = `${String(yy).padStart(4, '0')}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+                    if (iso.slice(0, 7) === mk) out.push({ date: iso, label });
+                }
+            }
+            const uniq = new Map();
+            out.forEach((it) => {
+                const k = String(it?.date || '').slice(0, 10);
+                if (!k) return;
+                if (!uniq.has(k)) uniq.set(k, { date: k, label: String(it?.label || '').trim() || 'Data sazonal' });
+            });
+            return Array.from(uniq.values()).slice(0, 24);
+        },
+
+        pickEditorialDates: function(monthKey, postsCount, seasonal) {
+            const mk = String(monthKey || '').trim().slice(0, 7);
+            if (!global.MonthUtils?.isValidMonthKey?.(mk)) return [];
+            const year = Number(mk.slice(0, 4));
+            const month = Number(mk.slice(5, 7));
+            const total = Math.max(1, Math.min(40, Number(postsCount || 0) || 8));
+
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const candidates = [];
+            for (let d = 1; d <= daysInMonth; d += 1) {
+                const date = new Date(year, month - 1, d);
+                const dow = date.getDay();
+                if (dow === 0 || dow === 6) continue;
+                const iso = `${mk}-${String(d).padStart(2, '0')}`;
+                candidates.push(iso);
+            }
+
+            const picked = [];
+            const seen = new Set();
+            const seasonalDates = Array.isArray(seasonal) ? seasonal.map((s) => String(s?.date || '').slice(0, 10)).filter(Boolean) : [];
+            seasonalDates.forEach((d) => {
+                if (d.slice(0, 7) !== mk) return;
+                if (!seen.has(d)) {
+                    picked.push(d);
+                    seen.add(d);
+                }
+            });
+
+            const remaining = Math.max(0, total - picked.length);
+            if (!remaining) return picked.slice(0, total);
+            if (!candidates.length) return picked.slice(0, total);
+
+            const step = candidates.length / remaining;
+            for (let i = 0; i < remaining; i += 1) {
+                const idx = Math.min(candidates.length - 1, Math.floor(i * step));
+                const date = candidates[idx];
+                if (!seen.has(date)) {
+                    picked.push(date);
+                    seen.add(date);
+                }
+            }
+
+            if (picked.length < total) {
+                for (const d of candidates) {
+                    if (picked.length >= total) break;
+                    if (!seen.has(d)) {
+                        picked.push(d);
+                        seen.add(d);
+                    }
+                }
+            }
+
+            return picked.slice(0, total).sort();
+        },
+
         updateCalendarActionButtons: function(snap) {
             const sendBtn = document.getElementById('social-send-approval');
             const delBtn = document.getElementById('social-delete-calendar');

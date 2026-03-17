@@ -18,6 +18,7 @@
             this.setupTabs();
             this.setupCalendarFab();
             this.setupPlanningModal();
+            this.setupAiCalendarModal();
         },
 
         getSelectedMonthKey: function(clientId) {
@@ -719,6 +720,144 @@
                     await this.savePlanningItem();
                 });
             }
+        },
+
+        setupAiCalendarModal: function() {
+            const openBtn = document.getElementById('social-generate-ai');
+            const modal = document.getElementById('social-ai-modal');
+            if (!openBtn || !modal) return;
+
+            const closeBtn = document.getElementById('social-ai-close');
+            const cancelBtn = document.getElementById('social-ai-cancel');
+            const generateBtn = document.getElementById('social-ai-generate');
+            const countEl = document.getElementById('social-ai-count');
+            const monthEl = document.getElementById('social-ai-month');
+            const briefingEl = document.getElementById('social-ai-briefing');
+            const seasonalEl = document.getElementById('social-ai-seasonal');
+            const notesEl = document.getElementById('social-ai-notes');
+            const fileEl = document.getElementById('social-ai-briefing-file');
+            const channelEl = document.getElementById('social-ai-channel');
+
+            const close = () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                this.setAiCalendarFeedback('', 'success', { hidden: true });
+            };
+
+            openBtn.addEventListener('click', () => {
+                const info = global.ClientContext?.getActiveClientInfo ? global.ClientContext.getActiveClientInfo() : null;
+                const clientId = String(info?.clientId || '').trim();
+                if (!clientId) {
+                    this.showFeedback?.('Selecione um cliente primeiro.', 'error');
+                    return;
+                }
+
+                const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
+                const mk = String(snap?.monthKey || '').trim();
+                if (monthEl && mk) monthEl.value = mk;
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                this.setAiCalendarFeedback('', 'success', { hidden: true });
+            });
+
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            if (cancelBtn) cancelBtn.addEventListener('click', close);
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) close();
+            });
+
+            if (generateBtn) {
+                generateBtn.addEventListener('click', async () => {
+                    const info = global.ClientContext?.getActiveClientInfo ? global.ClientContext.getActiveClientInfo() : null;
+                    const clientId = String(info?.clientId || '').trim();
+                    const clientName = String(info?.clientName || '').trim();
+                    if (!clientId) {
+                        this.setAiCalendarFeedback('Selecione um cliente primeiro.', 'error');
+                        return;
+                    }
+
+                    const rawCount = Number(countEl?.value || 0);
+                    const postsCount = Math.max(1, Math.min(40, Number.isFinite(rawCount) ? rawCount : 8));
+                    const monthKey = String(monthEl?.value || '').trim().slice(0, 7);
+                    const channel = String(channelEl?.value || 'instagram').trim() || 'instagram';
+                    const briefingText = String(briefingEl?.value || '').trim();
+                    const seasonalDates = String(seasonalEl?.value || '').trim();
+                    const notes = String(notesEl?.value || '').trim();
+                    const file = fileEl?.files && fileEl.files[0] ? fileEl.files[0] : null;
+
+                    const original = generateBtn.innerHTML;
+                    generateBtn.disabled = true;
+                    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Gerando...';
+                    try {
+                        const fileText = await this.readAiBriefingFile(file);
+                        const mergedBriefing = [briefingText, fileText, notes].filter(Boolean).join('\n\n');
+
+                        if (!global.SocialMediaCore?.generateCalendarWithAI) {
+                            this.setAiCalendarFeedback('Geração indisponível.', 'error');
+                            return;
+                        }
+
+                        const res = await global.SocialMediaCore.generateCalendarWithAI({
+                            clientId,
+                            clientName,
+                            briefing: mergedBriefing,
+                            postsCount,
+                            seasonalDates,
+                            monthKey,
+                            channel
+                        });
+
+                        if (!res?.ok) {
+                            this.setAiCalendarFeedback(res?.error || 'Não foi possível gerar o calendário.', 'error');
+                            return;
+                        }
+
+                        const added = Number(res?.added || 0);
+                        const skipped = Number(res?.skipped || 0);
+                        this.setAiCalendarFeedback(`Calendário gerado: ${added} itens adicionados${skipped ? ` • ${skipped} ignorados` : ''}.`, 'success');
+                    } finally {
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = original;
+                    }
+                });
+            }
+        },
+
+        setAiCalendarFeedback: function(message, type = 'success', options = {}) {
+            const el = document.getElementById('social-ai-feedback');
+            if (!el) return;
+            const hidden = options && options.hidden === true;
+            if (hidden) {
+                el.classList.add('hidden');
+                el.textContent = '';
+                return;
+            }
+            el.textContent = String(message || '');
+            el.className = `text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+            el.classList.remove('hidden');
+        },
+
+        readAiBriefingFile: function(file) {
+            if (!file) return Promise.resolve('');
+            const maxBytes = 160 * 1024;
+            if (file.size && file.size > maxBytes) {
+                return Promise.resolve('');
+            }
+            const name = String(file.name || '').toLowerCase();
+            const looksText = name.endsWith('.txt') || name.endsWith('.md') || name.endsWith('.csv') || name.endsWith('.json');
+            if (!looksText) return Promise.resolve('');
+
+            return new Promise((resolve) => {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || '').trim());
+                    reader.onerror = () => resolve('');
+                    reader.readAsText(file);
+                } catch {
+                    resolve('');
+                }
+            });
         },
 
         clearPlanningForm: function() {

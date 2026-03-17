@@ -243,6 +243,48 @@
             }
         },
 
+        insertCalendarItemsBatch: async function(calendarId, items) {
+            if (!global.supabaseClient) return { ok: false, error: 'db_not_ready' };
+            const id = String(calendarId || '').trim();
+            const list = Array.isArray(items) ? items : [];
+            if (!id || !list.length) return { ok: true, data: [], inserted: 0 };
+
+            const payloads = list
+                .map((it) => {
+                    const date = String(it?.data || it?.date || '').slice(0, 10);
+                    const tema = String(it?.tema || it?.title || '').trim();
+                    const tipo_conteudo = String(it?.tipo_conteudo || it?.formato || it?.content_type || 'post_estatico').trim() || 'post_estatico';
+                    const canal = String(it?.canal || it?.channel || it?.platform || 'instagram').trim() || 'instagram';
+                    const observacoes = it?.observacoes ?? it?.notes ?? null;
+                    if (!date || !tema) return null;
+                    return {
+                        calendar_id: id,
+                        data: date,
+                        tema,
+                        tipo_conteudo,
+                        canal,
+                        observacoes,
+                        updated_at: new Date().toISOString()
+                    };
+                })
+                .filter(Boolean);
+
+            if (!payloads.length) return { ok: true, data: [], inserted: 0 };
+
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .insert(payloads)
+                    .select('*');
+                if (error) throw error;
+                const out = Array.isArray(data) ? data : [];
+                return { ok: true, data: out, inserted: out.length };
+            } catch (err) {
+                console.error('[SOCIAL] Erro ao inserir itens em lote:', err);
+                return { ok: false, error: err };
+            }
+        },
+
         deleteCalendarItem: async function(itemId) {
             if (!global.supabaseClient || !itemId) return false;
             try {
