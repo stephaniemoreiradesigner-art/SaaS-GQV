@@ -633,13 +633,15 @@
                         || item?.status_cliente
                         || ''
                     ).trim();
-                    const statusValue = String(
+                    let statusValue = String(
                         relatedPost?.status
                         || itemReviewStatus
                         || localReview?.status
                         || item?.status
                         || 'draft'
                     ).trim() || 'draft';
+                    const statusKey = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(statusValue) : String(statusValue || '').trim().toLowerCase();
+                    if (statusKey === 'needs_changes' || statusKey === 'sent_for_approval') statusValue = 'draft';
                     return {
                         key: String(relatedPost?.id || `item_${itemId}`),
                         postId: String(relatedPost?.id || '').trim() || null,
@@ -807,17 +809,11 @@
                     tema: tema || String(entry?.tema || '').trim(),
                     legenda: copy || String(entry?.copy || '').trim()
                 });
-                if (result?.ok === true) {
-                    this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
-                } else if (global.ClientRepo?.updateCalendarItemReview) {
-                    const reviewResult = await global.ClientRepo.updateCalendarItemReview(itemId, clientId, { status: 'changes_requested', comment: trimmedComment });
-                    if (reviewResult?.error) {
-                        console.error('[ClientCalendar] falha ao solicitar ajuste (calendar_item):', { calendarId, itemId, error: reviewResult.error });
-                        return false;
-                    }
+                const createdPostId = String(result?.data?.id || '').trim();
+                if (result?.ok === true && createdPostId) {
                     this.setEditorialItemReview(itemId, 'changes_requested', trimmedComment);
                 } else {
-                    console.error('[ClientCalendar] falha ao solicitar ajuste (no postId):', { calendarId, itemId, error: result?.error || null });
+                    console.error('[ClientCalendar] falha ao solicitar ajuste (no postId):', { calendarId, itemId, ok: result?.ok === true, hasPostId: !!createdPostId, error: result?.error || null });
                     return false;
                 }
                 if (global.ClientRepo?.updateCalendarStatus) {
@@ -854,7 +850,10 @@
                 return;
             }
             const ok = await this.requestCalendarEntryAdjustment(entry, adjustmentText, { tema: payload?.tema, copy: payload?.copy });
-            if (!ok) return;
+            if (!ok) {
+                global.ClientUI?.setEditorialAdjustFeedback?.('Não foi possível enviar ajustes. Tente novamente.', 'error');
+                return;
+            }
             console.log('[EditorialReview] adjustment text saved:', { calendarId, entryKey: entry?.key || null });
             global.ClientUI?.showEditorialAdjustModal?.(false);
         },
