@@ -1211,6 +1211,33 @@
             if (fab) fab.classList.toggle('hidden', tabName !== 'calendar');
         };
 
+        const syncActiveClientHeader = ({ clientId, clientName } = {}) => {
+            const id = clientId ?? (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+            const hasClient = !!id;
+            const name = clientName ?? localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') ?? '';
+            const safeName = String(name || '').trim() || (hasClient ? `Cliente ${id}` : 'Nenhum cliente selecionado');
+            if (activeClientName) activeClientName.textContent = safeName;
+            if (activeClientId) {
+                activeClientId.textContent = hasClient ? `ID ${id}` : '';
+                activeClientId.classList.toggle('hidden', !hasClient);
+            }
+            if (headerSelectClient) headerSelectClient.textContent = hasClient ? 'Trocar' : 'Selecionar';
+        };
+
+        window.addEventListener('gqv:client-changed', (e) => {
+            if (!e?.detail) return;
+            syncActiveClientHeader({ clientId: e.detail.clientId || null, clientName: e.detail.clientName || '' });
+        });
+
+        window.addEventListener('v2:ready', () => {
+            syncActiveClientHeader({});
+            if (window.ClientContext?.subscribe) {
+                window.ClientContext.subscribe((clientId) => {
+                    syncActiveClientHeader({ clientId, clientName: localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '' });
+                });
+            }
+        });
+
         const setActiveView = (moduleName, options = {}) => {
             const views = document.querySelectorAll('.v2-view');
             views.forEach(view => view.classList.add('hidden'));
