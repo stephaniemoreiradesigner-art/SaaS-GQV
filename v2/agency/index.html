@@ -1326,7 +1326,6 @@
             renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
-                    currentClient = allClients.find(client => String(client.id) === String(clientId)) || currentClient;
                     socialState.clientId = clientId;
                     socialState.calendarIdByMonth = {};
                     socialState.calendarStatusByMonth = {};
@@ -2083,7 +2082,6 @@
         }
 
         let allClients = [];
-        let currentClient = null;
         let clientsLoadState = {
             inFlight: false,
             loadedOnce: false,
@@ -2208,8 +2206,11 @@
                     ? 'Cliente ativo pronto para operação nos módulos prioritários.'
                     : 'Selecione um cliente para visualizar o hub operacional.';
             }
-            const statusLabel = getClientStatusLabel(currentClient);
-            const ownerLabel = getClientOwnerLabel(currentClient);
+            const activeInfo = window.ClientContext?.getActiveClientInfo?.() || null;
+            const activeIdForLabels = id || activeInfo?.clientId || (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
+            const clientForLabels = activeIdForLabels ? (allClients.find((client) => String(client.id) === String(activeIdForLabels)) || null) : null;
+            const statusLabel = getClientStatusLabel(clientForLabels);
+            const ownerLabel = getClientOwnerLabel(clientForLabels);
             if (clientStatus) clientStatus.textContent = statusLabel;
             if (clientOwner) clientOwner.textContent = ownerLabel;
             if (hubClientStatus) hubClientStatus.textContent = statusLabel;
@@ -3936,7 +3937,6 @@
                     if (window.ClientContext?.setActiveClient) {
                         window.ClientContext.setActiveClient(null);
                     }
-                    currentClient = null;
                 }
                 renderClientList(allClients);
 
