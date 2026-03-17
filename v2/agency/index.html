@@ -3975,12 +3975,6 @@
             clientOpenHub.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'client_open_hub' }));
         }
 
-        document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                navigateTo('clients', { view: 'default', reason: 'action_go_clients' });
-            });
-        });
-
         document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const info = window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : null;
@@ -4259,6 +4253,12 @@
         }
         }
 
+        document.querySelectorAll('[data-action="go-clients"]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                navigateTo('clients', { view: 'default', reason: 'action_go_clients' });
+            });
+        });
+
         const toggleBtn = document.getElementById('btn-toggle-sidebar');
         if (toggleBtn) {
             toggleBtn.addEventListener('click', () => {
@@ -4279,7 +4279,7 @@
         }
 
         const startUp = async () => {
-            setActiveView('clients');
+            setActiveView('dashboard');
             await loadClients({ reason: 'startup' });
             if (window.SocialMediaCore?.init) {
                 await window.SocialMediaCore.init();
