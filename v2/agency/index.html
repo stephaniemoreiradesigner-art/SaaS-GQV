@@ -1326,21 +1326,27 @@
             renderActiveClientFoundation(getActiveClientInfo()?.clientId || null);
             if (window.ClientContext?.subscribe) {
                 window.ClientContext.subscribe((clientId) => {
-                    socialState.clientId = clientId;
-                    socialState.calendarIdByMonth = {};
-                    socialState.calendarStatusByMonth = {};
-                    socialState.calendarItemsByMonth = {};
-                    socialState.postsByMonth = {};
-                    const savedMonth = loadSavedMonth(clientId);
-                    if (savedMonth) {
-                        socialState.calendarMonth = savedMonth;
-                    } else {
-                        socialState.calendarMonth = window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-                    }
                     renderActiveClientFoundation(clientId);
                     const name = window.ClientContext?.getActiveClientInfo?.()?.clientName || localStorage.getItem('GQV_ACTIVE_CLIENT_NAME') || '';
-                    updateClientUI(clientId, name);
-                    refreshSocialMonth();
+                    if (typeof updateClientUI === 'function') updateClientUI(clientId, name);
+                    if (
+                        typeof refreshSocialMonth === 'function'
+                        && typeof socialState !== 'undefined'
+                        && socialState
+                    ) {
+                        socialState.clientId = clientId;
+                        socialState.calendarIdByMonth = {};
+                        socialState.calendarStatusByMonth = {};
+                        socialState.calendarItemsByMonth = {};
+                        socialState.postsByMonth = {};
+                        const savedMonth = loadSavedMonth(clientId);
+                        if (savedMonth) {
+                            socialState.calendarMonth = savedMonth;
+                        } else {
+                            socialState.calendarMonth = window.MonthUtils?.formatMonthKeyFromDate ? window.MonthUtils.formatMonthKeyFromDate(new Date()) : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+                        }
+                        refreshSocialMonth();
+                    }
                 });
             }
         });
@@ -3645,6 +3651,7 @@
         };
 
         const refreshSocialMonth = async () => {
+            if (typeof socialState === 'undefined' || !socialState) return;
             const seq = (socialState.monthLoadSeq || 0) + 1;
             socialState.monthLoadSeq = seq;
             const monthKey = socialState.calendarMonth;
