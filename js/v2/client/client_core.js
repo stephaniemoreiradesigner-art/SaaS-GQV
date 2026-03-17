@@ -619,7 +619,7 @@
                 .map((item) => {
                     const itemId = String(item?.id || '').trim();
                     if (!itemId) return null;
-                    const scheduled = String(item?.data || item?.data_agendada || item?.post_date || '').slice(0, 10);
+                    const scheduled = String(item?.data || item?.data_agendada || item?.post_date || item?.data_sugerida || '').slice(0, 10);
                     if (!scheduled) return null;
                     const relatedPost = postsByItemId[itemId] || null;
                     const localReview = this.getEditorialItemReview(itemId);
