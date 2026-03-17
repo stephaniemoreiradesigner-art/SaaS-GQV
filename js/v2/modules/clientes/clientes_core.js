@@ -48,6 +48,15 @@
             this.initialized = true;
         },
 
+        loadClients: async function() {
+            if (!global.ClientRepo || !global.ClientUI || !global.ClientContext) return [];
+            const clients = await global.ClientRepo.getClients();
+            global.ClientUI.renderClients(clients, this.handleClientSelection.bind(this));
+            const activeId = global.ClientContext.getActiveClient();
+            if (activeId) global.ClientUI.highlightActive(activeId);
+            return clients || [];
+        },
+
         handleClientSelection: function(client) {
             console.log('[ClientCore V2] Cliente selecionado:', client.nome_fantasia);
             
@@ -71,5 +80,8 @@
     });
 
     global.ClientCore = ClientCore;
+    global.loadClients = async function() {
+        return await ClientCore.loadClients();
+    };
 
 })(window);
