@@ -2332,11 +2332,19 @@
 
         window.setSocialPostDrawerTab = (tabKey) => {
             const key = String(tabKey || 'content').trim().toLowerCase();
-            socialPostTabPanelsInternal.forEach((panel) => {
+            const panels = document.querySelectorAll('[data-social-post-tab-panel]');
+            const buttons = document.querySelectorAll('.social-post-tab-btn');
+
+            panels.forEach((panel) => {
                 const panelKey = String(panel?.dataset?.socialPostTabPanel || '').trim().toLowerCase();
-                panel.classList.toggle('hidden', panelKey !== key);
+                if (panelKey === key) {
+                    panel.classList.remove('hidden');
+                } else {
+                    panel.classList.add('hidden');
+                }
             });
-            socialPostTabButtonsInternal.forEach((btn) => {
+
+            buttons.forEach((btn) => {
                 const btnKey = String(btn?.dataset?.postTab || '').trim().toLowerCase();
                 const active = btnKey === key;
                 btn.classList.toggle('bg-white', active);
@@ -2344,6 +2352,7 @@
                 btn.classList.toggle('text-slate-900', active);
                 btn.classList.toggle('text-slate-600', !active);
             });
+
             if (key === 'history') {
                 window.loadAndRenderSocialPostHistory?.();
             }
@@ -3373,22 +3382,30 @@
             }
 
             panel.classList.remove('hidden');
+            container.innerHTML = '<div class="text-sm text-slate-400">Carregando histórico...</div>';
 
+            const feedbackText = [
+                post.feedback_ajuste, post.feedbackAjuste, post.feedback_cliente,
+                post.feedbackCliente, post.client_feedback, post.comentario_cliente,
+                post.comentarioCliente, post.comentario, post.comment,
+                post.observacoes, post.observação, post.notas,
+                post.notes, post.feedback, post.adjustment_note,
+                post.adjustmentNote, post.motivo_ajuste, post.motivoAjuste
+            ].map(v => String(v || '').trim()).find(v => v.length > 0) || '';
+
+            const updatedAt = post.updated_at || post.updatedAt || null;
             const events = [];
-            const feedbackAjuste = String(post?.feedback_ajuste || post?.feedbackAjuste || '').trim();
-            const feedbackCliente = String(post?.feedback_cliente || post?.feedbackCliente || '').trim();
-            const updatedAt = post?.updated_at || post?.updatedAt || null;
 
-            if (feedbackAjuste || feedbackCliente) {
+            if (feedbackText) {
                 events.push({
                     ts: updatedAt || new Date().toISOString(),
                     origin: 'Cliente',
                     action: 'Solicitou ajustes',
-                    text: feedbackAjuste || feedbackCliente
+                    text: feedbackText
                 });
             }
 
-            if (post?.id && window.SocialMediaRepo?.getPostAuditEvents) {
+            if (post.id && window.SocialMediaRepo?.getPostAuditEvents) {
                 try {
                     const audit = await window.SocialMediaRepo.getPostAuditEvents(String(post.id));
                     (Array.isArray(audit) ? audit : []).forEach((ev) => {
@@ -3397,17 +3414,18 @@
                         const decidedAt = ev?.decided_at || null;
                         const actor = String(ev?.decided_by || '').trim();
 
-                        const decisionLabel = decision === 'approved' ? 'Aprovado'
-                            : decision === 'changes_requested' ? 'Ajustes solicitados'
-                            : decision === 'needs_revision' ? 'Ajustes solicitados'
-                            : decision === 'rejected' ? 'Reprovado'
-                            : decision || 'Decisão';
+                        const decisionLabel =
+                            decision === 'approved'           ? 'Aprovado' :
+                            decision === 'changes_requested'  ? 'Ajustes solicitados' :
+                            decision === 'needs_revision'     ? 'Ajustes solicitados' :
+                            decision === 'rejected'           ? 'Reprovado' :
+                            decision || 'Decisão';
 
                         events.push({
                             ts: decidedAt || new Date().toISOString(),
                             origin: actor ? `Aprovação (${actor})` : 'Aprovação',
                             action: decisionLabel,
-                            text: comment || ''
+                            text: comment
                         });
                     });
                 } catch (err) {
@@ -3416,7 +3434,7 @@
             }
 
             const sorted = events
-                .filter((e) => e && e.ts)
+                .filter(e => e && e.ts)
                 .sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
 
             if (!sorted.length) {
@@ -3432,12 +3450,8 @@
 
                 return `
                     <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-1">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="text-xs text-slate-500">${dateLabel}${origin ? ` • ${origin}` : ''}</p>
-                                <p class="mt-1 text-sm font-semibold text-slate-900">${action}</p>
-                            </div>
-                        </div>
+                        <p class="text-xs text-slate-500">${dateLabel}${origin ? ` • ${origin}` : ''}</p>
+                        <p class="text-sm font-semibold text-slate-900">${action}</p>
                         ${text ? `<p class="text-sm text-slate-600 whitespace-pre-wrap">${text}</p>` : ''}
                     </div>
                 `;
