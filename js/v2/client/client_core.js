@@ -655,7 +655,29 @@
                         status: statusValue
                     };
                 })
-                .filter(Boolean);
+                .filter((e) => !!e?.scheduledDate);
+
+            // Se não há posts vinculados, renderizar direto dos calendar_items
+            if (!entries.length && items && items.length) {
+                const itemEntries = items.map((it) => ({
+                    key: String(it?.id || Math.random()),
+                    postId: null,
+                    itemId: String(it?.id || '').trim(),
+                    calendarId: String(calendarId || '').trim(),
+                    scheduledDate: String(it?.data || it?.data_agendada || '').slice(0, 10),
+                    tema: it?.tema || it?.titulo || it?.title || 'Sem título',
+                    canal: it?.canal || it?.plataforma || it?.platform || '-',
+                    tipo: it?.tipo_conteudo || it?.formato || 'post_estatico',
+                    copy: it?.copy || it?.copy_text || it?.copywriting || it?.observacoes || '',
+                    status: String(it?.status || '').trim() || 'draft'
+                })).filter((e) => !!e.scheduledDate);
+
+                if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(
+                    itemEntries, { source: 'calendar_items_fallback' }
+                );
+                this.setupModalActions();
+                return;
+            }
 
             this._activeEditorialEntries = entries;
 
