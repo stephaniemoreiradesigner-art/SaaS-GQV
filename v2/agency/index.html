@@ -2085,14 +2085,37 @@
         };
 
         const setClientFeedback = (message, type = 'success') => {
-            if (!clientCreateFeedback) return;
-            clientCreateFeedback.textContent = message;
-            clientCreateFeedback.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'bg-green-50', 'text-green-600');
-            if (type === 'error') {
-                clientCreateFeedback.classList.add('bg-red-50', 'text-red-600');
-            } else {
-                clientCreateFeedback.classList.add('bg-green-50', 'text-green-600');
+            const isDetailOpen = !!clientDetailModal && !clientDetailModal.classList.contains('hidden');
+            const isCreateOpen = !!clientModal && !clientModal.classList.contains('hidden');
+            const targetEl = (isDetailOpen && clientDetailAccessWarning)
+                ? clientDetailAccessWarning
+                : ((isCreateOpen && clientCreateFeedback) ? clientCreateFeedback : (clientCreateFeedback || clientDetailAccessWarning));
+
+            if (targetEl) {
+                targetEl.textContent = String(message || '');
+                targetEl.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'border-red-100', 'bg-green-50', 'text-green-600', 'border-green-100', 'bg-amber-50', 'text-amber-700', 'border-amber-100');
+                if (type === 'error') {
+                    targetEl.classList.add('bg-red-50', 'text-red-600', 'border', 'border-red-100');
+                } else {
+                    targetEl.classList.add('bg-amber-50', 'text-amber-700', 'border', 'border-amber-100');
+                }
+                return;
             }
+
+            const toastId = 'gqv-global-toast';
+            let toast = document.getElementById(toastId);
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = toastId;
+                toast.className = 'fixed bottom-4 right-4 z-[99999] hidden';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = String(message || '');
+            toast.classList.remove('hidden', 'bg-red-600', 'bg-slate-900');
+            toast.classList.add(type === 'error' ? 'bg-red-600' : 'bg-slate-900');
+            toast.className = `${toast.className} text-white text-sm px-4 py-3 rounded-xl shadow-xl`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 1800);
         };
 
         navButtons.forEach(btn => {
