@@ -1,5 +1,5 @@
 (function(global) {
-    const ClientesRepo = {
+    const ClientRepo = {
         getClients: async function() {
             try {
                 const supabase = global.supabaseClient || null;
@@ -38,9 +38,68 @@
                 console.error('[ClientesRepo] getClients fatal:', error);
                 return [];
             }
+        },
+
+        getClientById: async function(id) {
+            try {
+                const supabase = global.supabaseClient || null;
+                const rawId = String(id || '').trim();
+                if (!supabase || !rawId) return null;
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .select('*')
+                    .eq('id', rawId)
+                    .maybeSingle();
+                if (error) {
+                    console.error('[ClientRepo] getClientById error:', error);
+                    return null;
+                }
+                return data || null;
+            } catch (error) {
+                console.error('[ClientRepo] getClientById fatal:', error);
+                return null;
+            }
+        },
+
+        createClient: async function(payload) {
+            try {
+                const supabase = global.supabaseClient || null;
+                if (!supabase) return { data: null, error: new Error('missing_supabase') };
+                const input = payload && typeof payload === 'object' ? payload : {};
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .insert(input)
+                    .select('*')
+                    .maybeSingle();
+                if (error) return { data: null, error };
+                return { data: data || null, error: null };
+            } catch (error) {
+                console.error('[ClientRepo] createClient fatal:', error);
+                return { data: null, error };
+            }
+        },
+
+        updateClient: async function(id, payload) {
+            try {
+                const supabase = global.supabaseClient || null;
+                const rawId = String(id || '').trim();
+                if (!supabase || !rawId) return { data: null, error: new Error('missing_params') };
+                const input = payload && typeof payload === 'object' ? payload : {};
+                const { data, error } = await supabase
+                    .from('clientes')
+                    .update(input)
+                    .eq('id', rawId)
+                    .select('*')
+                    .maybeSingle();
+                if (error) return { data: null, error };
+                return { data: data || null, error: null };
+            } catch (error) {
+                console.error('[ClientRepo] updateClient fatal:', error);
+                return { data: null, error };
+            }
         }
     };
 
-    global.ClientesRepo = ClientesRepo;
+    global.ClientRepo = ClientRepo;
+    global.ClientesRepo = ClientRepo;
 })(window);
-
