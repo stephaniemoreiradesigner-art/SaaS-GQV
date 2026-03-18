@@ -1149,7 +1149,12 @@
             }
 
             this.renderPostAuditPanel(post, []);
-            if (isEdit) this.refreshPostAuditPanel(post);
+            if (isEdit) {
+                this.refreshPostAuditPanel(post);
+                if (typeof window.setSocialActivePost === 'function') {
+                    window.setSocialActivePost(post);
+                }
+            }
             if (typeof global.setSocialPostDrawerTab === 'function') {
                 global.setSocialPostDrawerTab('content');
             }
