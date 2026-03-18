@@ -216,7 +216,7 @@
             const rawStatus = String(raw || '').trim().toLowerCase();
             const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
             if (['rascunho', 'draft'].includes(normalized)) return 'draft';
-            if (['ready_for_review', 'in_production', 'em_producao', 'em_produção', 'producing', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'ready_for_review';
+            if (['ready_for_review', 'in_production', 'em_producao', 'em_produção', 'para_producao', 'para_produção', 'para producao', 'para produção', 'producing', 'design', 'design_in_progress', 'briefing_sent'].includes(normalized)) return 'ready_for_review';
             if (['ready_for_approval', 'awaiting_approval', 'aguardando_aprovacao', 'pendente_aprovacao', 'pendente_aprovação', 'pending_approval'].includes(normalized)) return 'ready_for_approval';
             if (['changes_requested', 'needs_revision', 'ajuste_solicitado', 'rejected', 'rejeitado'].includes(normalized)) return 'changes_requested';
             if (['approved', 'aprovado'].includes(normalized)) return 'approved';
