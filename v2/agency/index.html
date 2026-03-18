@@ -2473,38 +2473,30 @@
 
         window.setSocialPostDrawerTab = (tabKey) => {
             const key = String(tabKey || 'content').trim().toLowerCase();
-            
-            // Seleção de força bruta pelos IDs reais do DOM
-            const tabContent = document.getElementById('social-post-tab-content') || document.getElementById('social-post-content');
-            const tabSettings = document.getElementById('social-post-tab-settings') || document.getElementById('social-post-settings');
-            const tabHistory = document.getElementById('social-post-tab-history') || document.getElementById('social-post-history-container') || document.getElementById('social-post-history');
 
-            // Oculta todas as abas por padrão (Adiciona classe hidden)
-            if (tabContent) tabContent.classList.add('hidden');
-            if (tabSettings) tabSettings.classList.add('hidden');
-            if (tabHistory) tabHistory.classList.add('hidden');
-
-            // Exibe apenas a aba clicada (Remove classe hidden)
-            if (key === 'content' && tabContent) tabContent.classList.remove('hidden');
-            if (key === 'settings' && tabSettings) tabSettings.classList.remove('hidden');
-            if (key === 'history' && tabHistory) tabHistory.classList.remove('hidden');
-
-            // Atualiza a estilização visual dos botões do menu da aba
+            // Consulta o DOM no momento do clique (resolve o bug da NodeList vazia)
+            const panels = document.querySelectorAll('[data-social-post-tab-panel]');
             const buttons = document.querySelectorAll('.social-post-tab-btn');
-            buttons.forEach((btn) => {
-                // Tenta capturar a chave do botão pelo dataset ou pelo onclick
-                const btnKey = String(btn?.dataset?.postTab || btn.getAttribute('onclick') || '').toLowerCase();
-                const active = btnKey.includes(key);
 
+            panels.forEach((panel) => {
+                const panelKey = String(panel?.dataset?.socialPostTabPanel || '').trim().toLowerCase();
+                if (panelKey === key) {
+                    panel.classList.remove('hidden');
+                } else {
+                    panel.classList.add('hidden');
+                }
+            });
+
+            buttons.forEach((btn) => {
+                const btnKey = String(btn?.dataset?.postTab || '').trim().toLowerCase();
+                const active = btnKey === key;
                 btn.classList.toggle('bg-white', active);
                 btn.classList.toggle('shadow-sm', active);
                 btn.classList.toggle('text-slate-900', active);
                 btn.classList.toggle('text-slate-600', !active);
             });
 
-            // Se for a aba de histórico, dispara o carregamento dos dados
             if (key === 'history') {
-                console.log("🔥 RENDERIZANDO HISTÓRICO - Aba ativada à força com sucesso");
                 window.loadAndRenderSocialPostHistory?.();
             }
         };
