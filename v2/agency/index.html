@@ -712,7 +712,9 @@
                         </div>
                         <div id="social-post-last-decision" class="hidden text-sm text-slate-700"></div>
                         <div class="space-y-2">
-                            <div id="social-post-history" class="space-y-2"></div>
+                            <div id="social-post-history" class="space-y-2">
+                                <div id="social-post-history-items"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3293,7 +3295,11 @@
             updateContentTypeFields(post.contentType || 'post_estatico');
             const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
             const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
-            const isInProduction = ['in_production', 'draft', 'changes_requested', 'ready_for_review'].includes(dbStatus);
+            const isInProduction = [
+                'in_production', 'para_producao', 'para_produção',
+                'changes_requested', 'ajustes_solicitados', 'ajuste_solicitado',
+                'draft', 'rascunho', 'ready_for_review'
+            ].includes(dbStatus.toLowerCase());
             const calendarLocked = socialState.calendarStatus === 'aguardando_aprovacao' && !isInProduction;
             const editable = !calendarLocked && !blockedDbStatuses.has(dbStatus);
             [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave, socialPostDelete].forEach((el) => {
@@ -3358,7 +3364,11 @@
             }
             const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
             const activeDbStatus = normalizeSocialPostStatusToDb(socialState.activePost.status || 'rascunho');
-            const isProductionStatus = ['in_production', 'draft', 'changes_requested', 'ready_for_review'].includes(activeDbStatus);
+            const isProductionStatus = [
+                'in_production', 'para_producao', 'para_produção',
+                'changes_requested', 'ajustes_solicitados', 'ajuste_solicitado',
+                'draft', 'rascunho', 'ready_for_review'
+            ].includes(activeDbStatus.toLowerCase());
             if (!isProductionStatus && blockedDbStatuses.has(activeDbStatus)) {
                 setPostFeedback('Edição bloqueada para este status.', 'error');
                 return null;
@@ -3479,104 +3489,30 @@
         };
 
         window.loadAndRenderSocialPostHistory = async () => {
-            const post = socialState.activePost || window.SocialMediaUI?._activePost || null;
-            const panel = document.getElementById('social-post-audit-panel');
-            const container = document.getElementById('social-post-history');
-
-            if (!panel || !container) return;
-
-            if (!post || !post.id) {
-                panel.classList.add('hidden');
-                container.innerHTML = '';
-                return;
-            }
-
-            panel.classList.remove('hidden');
-            container.innerHTML = '<div class="text-sm text-slate-400">Carregando histórico...</div>';
-
+            const post = socialState.activePost;
             const feedbackText = [
-                post.comentario_cliente,
-                post.comentarioCliente,
-                post.feedback_ajuste,
-                post.feedbackAjuste,
-                post.feedback_cliente,
-                post.feedbackCliente,
-                post.client_feedback,
-                post.adjustment_note,
-                post.adjustmentNote,
-                post.motivo_ajuste,
-                post.motivoAjuste,
-                post.observacoes,
-                post.notas,
-                post.notes,
-                post.feedback,
-                post.comentario,
-                post.comment,
-            ].map(v => String(v || '').trim()).find(v => v.length > 0) || '';
+                post.comentario_cliente, post.comentarioCliente,
+                post.feedback_ajuste, post.feedback_cliente,
+                post.motivo_ajuste, post.observacoes, post.legenda_ajustada
+            ].map(v => String(v || '').trim()).find(v => v.length > 0);
 
-            const updatedAt = post.updated_at || post.updatedAt || null;
-            const events = [];
-
-            if (feedbackText) {
-                events.push({
-                    ts: updatedAt || new Date().toISOString(),
-                    origin: 'Cliente',
-                    action: 'Solicitou ajustes',
-                    text: feedbackText
-                });
-            }
-
-            if (post.id && window.SocialMediaRepo?.getPostAuditEvents) {
-                try {
-                    const audit = await window.SocialMediaRepo.getPostAuditEvents(String(post.id));
-                    (Array.isArray(audit) ? audit : []).forEach((ev) => {
-                        const decision = String(ev?.decision || '').trim();
-                        const comment = String(ev?.comment || '').trim();
-                        const decidedAt = ev?.decided_at || null;
-                        const actor = String(ev?.decided_by || '').trim();
-
-                        const decisionLabel =
-                            decision === 'approved'           ? 'Aprovado' :
-                            decision === 'changes_requested'  ? 'Ajustes solicitados' :
-                            decision === 'needs_revision'     ? 'Ajustes solicitados' :
-                            decision === 'rejected'           ? 'Reprovado' :
-                            decision || 'Decisão';
-
-                        events.push({
-                            ts: decidedAt || new Date().toISOString(),
-                            origin: actor ? `Aprovação (${actor})` : 'Aprovação',
-                            action: decisionLabel,
-                            text: comment
-                        });
-                    });
-                } catch (err) {
-                    console.error('[EditorialHistory] falha ao buscar audit events:', err);
+            const historyContainer = document.getElementById('social-post-history-items');
+            if (historyContainer) {
+                if (feedbackText) {
+                    historyContainer.innerHTML = `
+                        <div class="p-4 bg-amber-50 border-l-4 border-amber-400 rounded-r-xl mb-4">
+                            <p class="text-[10px] font-bold text-amber-700 uppercase mb-1">Ajuste Solicitado pelo Cliente</p>
+                            <p class="text-sm text-slate-800 italic">"${feedbackText}"</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 border-l-4 border-slate-300 rounded-r-xl">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">Sistema</p>
+                            <p class="text-sm text-slate-600">Post criado e enviado para aprovação editorial.</p>
+                        </div>
+                    `;
+                } else {
+                    historyContainer.innerHTML = '<p class="text-sm text-slate-400 text-center py-8 italic">Iniciando histórico de revisões...</p>';
                 }
             }
-
-            const sorted = events
-                .filter(e => e && e.ts)
-                .sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
-
-            if (!sorted.length) {
-                container.innerHTML = '<div class="text-sm text-slate-400">Nenhum histórico disponível.</div>';
-                return;
-            }
-
-            container.innerHTML = sorted.map((e) => {
-                const dateLabel = new Date(e.ts).toLocaleString('pt-BR');
-                const origin = String(e.origin || '').trim();
-                const action = String(e.action || '').trim();
-                const text = String(e.text || '').trim();
-
-                return `
-                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-1">
-                        <p class="text-xs text-slate-500">${dateLabel}${origin ? ` • ${origin}` : ''}</p>
-                        <p class="text-sm font-semibold text-slate-900">${action}</p>
-                        ${text ? `<p class="text-sm text-slate-600 whitespace-pre-wrap">${text}</p>` : ''}
-                    </div>
-                `;
-            }).join('');
         };
 
         const normalizeSocialPostStatusToDb = (status) => {
