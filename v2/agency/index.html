@@ -2447,29 +2447,19 @@
 
         window.setSocialPostDrawerTab = (tabKey) => {
             const key = String(tabKey || 'content').trim().toLowerCase();
-
-            // Consulta o DOM no momento do clique (resolve o bug da NodeList vazia)
-            const panels = document.querySelectorAll('[data-social-post-tab-panel]');
-            const buttons = document.querySelectorAll('.social-post-tab-btn');
-
-            panels.forEach((panel) => {
-                const panelKey = String(panel?.dataset?.socialPostTabPanel || '').trim().toLowerCase();
-                if (panelKey === key) {
-                    panel.classList.remove('hidden');
-                } else {
-                    panel.classList.add('hidden');
-                }
+            // Re-query em runtime para evitar NodeList vazia
+            document.querySelectorAll('[data-social-post-tab-panel]').forEach((panel) => {
+                const panelKey = String(panel.dataset?.socialPostTabPanel || '').trim().toLowerCase();
+                panel.classList.toggle('hidden', panelKey !== key);
             });
-
-            buttons.forEach((btn) => {
-                const btnKey = String(btn?.dataset?.postTab || '').trim().toLowerCase();
+            document.querySelectorAll('.social-post-tab-btn').forEach((btn) => {
+                const btnKey = String(btn.dataset?.postTab || '').trim().toLowerCase();
                 const active = btnKey === key;
                 btn.classList.toggle('bg-white', active);
                 btn.classList.toggle('shadow-sm', active);
                 btn.classList.toggle('text-slate-900', active);
                 btn.classList.toggle('text-slate-600', !active);
             });
-
             if (key === 'history') {
                 window.loadAndRenderSocialPostHistory?.();
             }
@@ -3303,7 +3293,9 @@
             updateContentTypeFields(post.contentType || 'post_estatico');
             const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
             const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
-            const editable = socialState.calendarStatus !== 'aguardando_aprovacao' && !blockedDbStatuses.has(dbStatus);
+            const isInProduction = ['in_production', 'draft', 'changes_requested', 'ready_for_review'].includes(dbStatus);
+            const calendarLocked = socialState.calendarStatus === 'aguardando_aprovacao' && !isInProduction;
+            const editable = !calendarLocked && !blockedDbStatuses.has(dbStatus);
             [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave, socialPostDelete].forEach((el) => {
                 if (el) el.disabled = !editable;
             });
@@ -3366,7 +3358,8 @@
             }
             const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
             const activeDbStatus = normalizeSocialPostStatusToDb(socialState.activePost.status || 'rascunho');
-            if (blockedDbStatuses.has(activeDbStatus)) {
+            const isProductionStatus = ['in_production', 'draft', 'changes_requested', 'ready_for_review'].includes(activeDbStatus);
+            if (!isProductionStatus && blockedDbStatuses.has(activeDbStatus)) {
                 setPostFeedback('Edição bloqueada para este status.', 'error');
                 return null;
             }
@@ -3502,12 +3495,23 @@
             container.innerHTML = '<div class="text-sm text-slate-400">Carregando histórico...</div>';
 
             const feedbackText = [
-                post.feedback_ajuste, post.feedbackAjuste, post.feedback_cliente,
-                post.feedbackCliente, post.client_feedback, post.comentario_cliente,
-                post.comentarioCliente, post.comentario, post.comment,
-                post.observacoes, post.observação, post.notas,
-                post.notes, post.feedback, post.adjustment_note,
-                post.adjustmentNote, post.motivo_ajuste, post.motivoAjuste
+                post.comentario_cliente,
+                post.comentarioCliente,
+                post.feedback_ajuste,
+                post.feedbackAjuste,
+                post.feedback_cliente,
+                post.feedbackCliente,
+                post.client_feedback,
+                post.adjustment_note,
+                post.adjustmentNote,
+                post.motivo_ajuste,
+                post.motivoAjuste,
+                post.observacoes,
+                post.notas,
+                post.notes,
+                post.feedback,
+                post.comentario,
+                post.comment,
             ].map(v => String(v || '').trim()).find(v => v.length > 0) || '';
 
             const updatedAt = post.updated_at || post.updatedAt || null;

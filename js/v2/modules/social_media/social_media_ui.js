@@ -267,10 +267,21 @@
         },
 
         resolveAdjustmentFromPost: function(post) {
-            const feedbackAjuste = String(post?.feedback_ajuste || post?.feedbackAjuste || '').trim();
-            const feedbackCliente = String(post?.feedback_cliente || post?.feedbackCliente || '').trim();
-            const text = feedbackAjuste || feedbackCliente;
-            const source = feedbackAjuste ? 'feedback_ajuste' : (feedbackCliente ? 'feedback_cliente' : '');
+            const candidates = [
+                post?.comentario_cliente,
+                post?.comentarioCliente,
+                post?.feedback_ajuste,
+                post?.feedbackAjuste,
+                post?.feedback_cliente,
+                post?.feedbackCliente,
+                post?.client_feedback,
+                post?.adjustment_note,
+                post?.adjustmentNote,
+            ];
+            const text = candidates.map(v => String(v || '').trim()).find(v => v.length > 0) || '';
+            const source = post?.comentario_cliente ? 'comentario_cliente'
+                : post?.feedback_ajuste ? 'feedback_ajuste'
+                : post?.feedback_cliente ? 'feedback_cliente' : '';
             const at = post?.updated_at || post?.updatedAt || null;
             return { text, source, at };
         },
