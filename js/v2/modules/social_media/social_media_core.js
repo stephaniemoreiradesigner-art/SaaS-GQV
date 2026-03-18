@@ -597,18 +597,25 @@
                         this._calendarStateUnsub = manager.subscribe((snap) => {
                             if (!snap || String(snap.clientId || '') !== String(this.currentClientId || '')) return;
 
+                            const monthKey = String(snap.monthKey || '').trim();
+                            const monthReady = !!monthKey
+                                && global.MonthUtils?.isValidMonthKey?.(monthKey)
+                                && !(snap?.loading?.monthData)
+                                && !(snap?.loading?.calendarMeta);
+
                             this.currentCalendarId = snap.activeCalendarId || null;
                             this.currentMonthRef = snap.monthStart instanceof Date ? snap.monthStart : new Date();
                             this.currentPosts = Array.isArray(snap.monthPosts) ? snap.monthPosts : [];
 
-                            if (global.SocialMediaCalendar?.renderFromState) {
-                                global.SocialMediaCalendar.renderFromState(snap);
-                            } else if (global.SocialMediaCalendar?.render) {
-                                global.SocialMediaCalendar.render(this.currentPosts, this.currentMonthRef);
-                            }
-
-                            if (global.SocialMediaUI?.renderPostsBoard) {
-                                global.SocialMediaUI.renderPostsBoard(this.currentPosts, snap.monthKey || '');
+                            if (monthReady) {
+                                if (global.SocialMediaCalendar?.renderFromState) {
+                                    global.SocialMediaCalendar.renderFromState(snap);
+                                } else if (global.SocialMediaCalendar?.render) {
+                                    global.SocialMediaCalendar.render(this.currentPosts, this.currentMonthRef);
+                                }
+                                if (global.SocialMediaUI?.renderPostsBoard) {
+                                    global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
+                                }
                             }
 
                             const statusEl = document.getElementById('social-calendar-status');

@@ -59,7 +59,10 @@
 
             if (global.CalendarStateManager?.getState) {
                 const snap = global.CalendarStateManager.getState();
-                this.renderPostsBoard(snap.monthPosts || [], snap.monthKey || '');
+                const monthKey = String(snap?.monthKey || '').trim();
+                const isReady = !!monthKey && global.MonthUtils?.isValidMonthKey?.(monthKey) && !(snap?.loading?.monthData);
+                if (!isReady) return;
+                this.renderPostsBoard(snap.monthPosts || [], monthKey);
                 return;
             }
 
