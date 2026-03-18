@@ -4156,35 +4156,44 @@
                 renderClientList(allClients);
             });
         }
-        if (clientOpenHub) {
-            clientOpenHub.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'client_open_hub' }));
-        }
-        if (dashboardOpenHubBtn) {
-            dashboardOpenHubBtn.addEventListener('click', () => navigateTo('hub', { view: 'client-hub', reason: 'dashboard_open_hub' }));
-        }
+        document.addEventListener('click', (event) => {
+            const hubBtn = event.target?.closest?.('#client-open-hub, #dashboard-open-hub');
+            if (hubBtn) {
+                event.preventDefault();
+                navigateTo('hub', { view: 'client-hub', reason: hubBtn.id === 'dashboard-open-hub' ? 'dashboard_open_hub' : 'client_open_hub' });
+                return;
+            }
 
-        document.querySelectorAll('[data-action="go-social"]').forEach(btn => {
-            btn.addEventListener('click', () => {
+            const actionBtn = event.target?.closest?.('[data-action]');
+            if (!actionBtn) return;
+            const action = String(actionBtn.dataset.action || '').trim();
+            if (!action) return;
+
+            const ensureActiveClient = () => {
                 const info = window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : null;
                 const clientId = info?.clientId || (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
                 if (clientId && window.ClientContext?.setActiveClient) {
                     window.ClientContext.setActiveClient({ id: clientId, name: info?.clientName || '' });
                 }
+                return { info, clientId };
+            };
+
+            if (action === 'go-social') {
+                event.preventDefault();
+                ensureActiveClient();
                 navigateTo('social', { view: 'default', reason: 'action_go_social' });
-            });
-        });
-        document.querySelectorAll('[data-action="go-performance"]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const info = window.ClientContext?.getActiveClientInfo ? window.ClientContext.getActiveClientInfo() : null;
-                const clientId = info?.clientId || (window.ClientContext?.getActiveClient ? window.ClientContext.getActiveClient() : null);
-                if (clientId && window.ClientContext?.setActiveClient) {
-                    window.ClientContext.setActiveClient({ id: clientId, name: info?.clientName || '' });
-                }
+                return;
+            }
+            if (action === 'go-performance') {
+                event.preventDefault();
+                ensureActiveClient();
                 navigateTo('performance', { view: 'default', reason: 'action_go_performance' });
-            });
-        });
-        document.querySelectorAll('[data-action="go-approvals"]').forEach(btn => {
-            btn.addEventListener('click', () => navigateTo('approvals', { view: 'default', reason: 'action_go_approvals' }));
+                return;
+            }
+            if (action === 'go-approvals') {
+                event.preventDefault();
+                navigateTo('approvals', { view: 'default', reason: 'action_go_approvals' });
+            }
         });
         if (socialTabButtons.length) {
             socialTabButtons.forEach((btn) => {
