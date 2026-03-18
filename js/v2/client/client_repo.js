@@ -199,7 +199,7 @@
         getCalendarMeta: async function(calendarId, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return null;
-            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId || '').trim();
             const normalizedClientId = this.normalizeBigIntId(clientId);
 
             let query = supabase
@@ -242,7 +242,8 @@
         getCalendarItems: async function(calendarId, clientId) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return [];
-            const normalizedCalendarId = this.normalizeBigIntId(calendarId) ?? calendarId;
+            const normalizedCalendarId = this.normalizeIdForFilter(calendarId) ?? String(calendarId || '').trim();
+            console.log('[ClientRepo] getCalendarItems filter:', { calendarId: String(calendarId || '').trim(), normalizedCalendarId });
 
             let query = supabase
                 .from('social_calendar_items')
