@@ -4674,5 +4674,30 @@
             }, { once: true });
         }
     </script>
+    <script>
+    // Captura o nome do cliente ativo no topo da tela para os Mockups
+    function syncClientName() {
+        const activeClient = document.querySelector('.cliente-ativo-nome')?.innerText || 'Cliente Ativo';
+        document.querySelectorAll('.client-name-display').forEach(el => el.innerText = activeClient);
+    }
+
+    // Script de prioridade para destravar abas do histórico
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.social-post-tab-btn');
+        if (!btn) return;
+        let tab = btn.getAttribute('data-post-tab');
+        if (!tab && btn.getAttribute('onclick')) {
+            const match = btn.getAttribute('onclick').match(/'([^']+)'/);
+            if (match) tab = match[1];
+        }
+        if (tab && typeof window.setSocialPostDrawerTab === 'function') {
+            window.setSocialPostDrawerTab(tab);
+        }
+    }, true);
+
+    // Sincroniza o nome ao carregar e periodicamente
+    window.addEventListener('load', syncClientName);
+    setInterval(syncClientName, 2000);
+    </script>
 </body>
 </html>

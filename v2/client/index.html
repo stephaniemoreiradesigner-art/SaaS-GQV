@@ -227,35 +227,72 @@
                         <p class="text-sm text-slate-500">Visão enxuta do desempenho.</p>
                     </div>
                     <div id="metrics-loading" class="hidden text-sm text-slate-500">Carregando métricas...</div>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div class="ui-card p-5">
-                            <p class="text-xs uppercase text-slate-400">Investimento</p>
-                            <p class="text-xl font-semibold text-slate-900 mt-2">R$ 0</p>
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <button onclick="document.getElementById('view-social').classList.remove('hidden'); document.getElementById('view-ads').classList.add('hidden');" class="p-6 bg-white border-2 border-fuchsia-600 rounded-2xl shadow-sm hover:bg-fuchsia-50 transition text-center group cursor-pointer">
+                                <i class="fas fa-share-alt text-2xl text-fuchsia-600 mb-2"></i>
+                                <p class="font-bold text-slate-900">Desempenho Redes Sociais</p>
+                            </button>
+                            <button onclick="document.getElementById('view-ads').classList.remove('hidden'); document.getElementById('view-social').classList.add('hidden');" class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-blue-50 transition text-center group cursor-pointer">
+                                <i class="fas fa-chart-line text-2xl text-blue-600 mb-2"></i>
+                                <p class="font-bold text-slate-900">Desempenho Campanhas</p>
+                            </button>
                         </div>
-                        <div class="ui-card p-5">
-                            <p class="text-xs uppercase text-slate-400">Leads</p>
-                            <p class="text-xl font-semibold text-slate-900 mt-2">0</p>
+
+                        <div id="view-social" class="hidden animate-fade-in">
+                            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                <h3 class="font-bold mb-4">Métricas Orgânicas - Instagram</h3>
+                                <div class="grid grid-cols-4 gap-4">
+                                    <div class="p-4 bg-slate-50 rounded-xl">
+                                        <p class="text-xs text-slate-500 uppercase">Seguidores</p>
+                                        <p class="text-xl font-bold">1.133</p>
+                                    </div>
+                                    <div class="p-4 bg-slate-50 rounded-xl">
+                                        <p class="text-xs text-slate-500 uppercase">Alcance</p>
+                                        <p class="text-xl font-bold">329</p>
+                                    </div>
+                                    <div class="p-4 bg-slate-50 rounded-xl">
+                                        <p class="text-xs text-slate-500 uppercase">Publicações</p>
+                                        <p class="text-xl font-bold">3</p>
+                                    </div>
+                                    <div class="p-4 bg-green-50 rounded-xl">
+                                        <p class="text-xs text-green-700 font-bold uppercase">Status API</p>
+                                        <p class="text-sm font-bold text-green-600">Conectado</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="ui-card p-5">
-                            <p class="text-xs uppercase text-slate-400">CTR</p>
-                            <p class="text-xl font-semibold text-slate-900 mt-2">0%</p>
+
+                        <div id="view-ads" class="hidden animate-fade-in">
+                            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                <div class="flex justify-between mb-6">
+                                    <h3 class="font-bold">Tráfego Pago - <span class="client-name-display text-fuchsia-700">Carregando...</span></h3>
+                                    <span class="text-xs text-slate-400">Dados Consolidados (Últimos 7 dias)</span>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                                    <div class="p-4 border border-slate-100 rounded-xl bg-slate-50 text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase font-bold">Investimento</p>
+                                        <p class="text-lg font-bold text-slate-900">R$ 149,17</p>
+                                    </div>
+                                    <div class="p-4 border border-slate-100 rounded-xl text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase font-bold">Impressões</p>
+                                        <p class="text-lg font-bold">4.609</p>
+                                    </div>
+                                    <div class="p-4 border border-slate-100 rounded-xl text-center">
+                                        <p class="text-[10px] text-slate-500 uppercase font-bold">Cliques</p>
+                                        <p class="text-lg font-bold">202</p>
+                                    </div>
+                                    <div class="p-4 border border-green-100 rounded-xl bg-green-50 text-center">
+                                        <p class="text-[10px] text-green-700 uppercase font-bold">Conversões</p>
+                                        <p class="text-lg font-bold text-green-600">12</p>
+                                    </div>
+                                    <div class="p-4 border border-fuchsia-100 rounded-xl bg-fuchsia-50 text-center">
+                                        <p class="text-[10px] text-fuchsia-700 uppercase font-bold">ROAS</p>
+                                        <p class="text-lg font-bold text-fuchsia-600">5.4x</p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="ui-card p-5">
-                            <p class="text-xs uppercase text-slate-400">ROAS</p>
-                            <p class="text-xl font-semibold text-slate-900 mt-2">0.0x</p>
-                        </div>
-                    </div>
-                    <div class="ui-surface p-6">
-                        <h3 class="text-sm font-semibold text-slate-700 mb-4">Evolução (30 dias)</h3>
-                        <div class="h-64">
-                            <canvas id="metrics-chart"></canvas>
-                        </div>
-                    </div>
-                    <div id="metrics-empty-state" class="ui-empty p-8 text-center">
-                        <div class="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                            <i class="fas fa-chart-line"></i>
-                        </div>
-                        <p class="mt-3 text-sm text-slate-600">Nenhuma métrica disponível ainda.</p>
                     </div>
                 </section>
             </main>
@@ -444,6 +481,8 @@
         const updateClientName = (name) => {
             const nodes = document.querySelectorAll('[data-client-name]');
             nodes.forEach(node => { node.textContent = name || 'Cliente'; });
+            const displayNodes = document.querySelectorAll('.client-name-display');
+            displayNodes.forEach(node => { node.textContent = name || 'Cliente'; });
         };
 
         const setFeedback = (message, type = 'success') => {
