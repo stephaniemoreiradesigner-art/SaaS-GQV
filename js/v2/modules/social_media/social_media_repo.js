@@ -599,12 +599,15 @@
                 let status = input.status || 'draft';
                 const statusMap = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS_MAP : {
                     'rascunho': 'draft',
+                    'para_producao': 'in_production',
+                    'para_produção': 'in_production',
                     'pendente_aprovacao': 'ready_for_approval',
                     'awaiting_approval': 'ready_for_approval',
                     'aprovado': 'approved',
                     'rejeitado': 'rejected',
                     'agendado': 'scheduled',
-                    'publicado': 'published'
+                    'publicado': 'published',
+                    'ajustes_solicitados': 'changes_requested'
                 };
                 
                 if (statusMap[status]) status = statusMap[status];
@@ -673,6 +676,7 @@
                     legenda: content,
                     detailed_content: input.detailed_content || content,
                     status,
+                    sugestao_criativo: input.sugestao_criativo || input.criativo || input.creative || null,
                     cta: input.cta || null,
                     hashtags: input.hashtags || null,
                     imagem_url: input.imagem_url || input.media_url || null,
@@ -720,6 +724,9 @@
             if (input.detailed_content !== undefined) {
                 dbPayload.detailed_content = input.detailed_content;
             }
+            if (input.sugestao_criativo !== undefined || input.criativo !== undefined || input.creative !== undefined) {
+                dbPayload.sugestao_criativo = input.sugestao_criativo || input.criativo || input.creative;
+            }
             if (input.data_agendada !== undefined || input.data !== undefined) {
                 dbPayload.data_agendada = input.data_agendada || input.data;
             }
@@ -727,12 +734,15 @@
                 let status = input.status;
                 const statusMap = global.GQV_CONSTANTS ? global.GQV_CONSTANTS.SOCIAL_STATUS_MAP : {
                     'rascunho': 'draft',
+                    'para_producao': 'in_production',
+                    'para_produção': 'in_production',
                     'pendente_aprovacao': 'ready_for_approval',
                     'awaiting_approval': 'ready_for_approval',
                     'aprovado': 'approved',
                     'rejeitado': 'rejected',
                     'agendado': 'scheduled',
-                    'publicado': 'published'
+                    'publicado': 'published',
+                    'ajustes_solicitados': 'changes_requested'
                 };
                 if (statusMap[status]) status = statusMap[status];
                 dbPayload.status = status;
@@ -821,12 +831,15 @@
             let normalizedStatus = newStatus;
             const statusMap = {
                 'rascunho': 'draft',
+                'para_producao': 'in_production',
+                'para_produção': 'in_production',
                 'pendente_aprovacao': 'ready_for_approval',
                 'awaiting_approval': 'ready_for_approval',
                 'aprovado': 'approved',
                 'rejeitado': 'rejected',
                 'agendado': 'scheduled',
-                'publicado': 'published'
+                'publicado': 'published',
+                'ajustes_solicitados': 'changes_requested'
             };
             if (statusMap[newStatus]) normalizedStatus = statusMap[newStatus];
 

@@ -242,12 +242,12 @@
                 draft: { label: 'Rascunho', className: base },
                 briefing_sent: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
                 design_in_progress: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
-                in_production: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
+                in_production: { label: 'Para produção', className: `${base} bg-blue-100 text-blue-700` },
                 producing: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
                 ready_for_review: { label: 'Pronto para revisão', className: `${base} bg-indigo-100 text-indigo-700` },
                 ready_for_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
                 awaiting_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
-                approved: { label: 'Para produção', className: `${base} bg-green-100 text-green-700` },
+                approved: { label: 'Aprovado', className: `${base} bg-green-100 text-green-700` },
                 changes_requested: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
                 rejected: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
                 scheduled: { label: 'Agendado', className: `${base} bg-indigo-100 text-indigo-700` },
@@ -476,7 +476,7 @@
                 { key: 'draft', label: 'Rascunhos' },
                 { key: 'internal_review', label: 'Revisão interna' },
                 { key: 'awaiting_approval', label: 'Aguardando aprovação' },
-                { key: 'approved', label: 'Para produção' },
+                { key: 'approved', label: 'Aprovado' },
                 { key: 'published', label: 'Publicados' }
             ];
 

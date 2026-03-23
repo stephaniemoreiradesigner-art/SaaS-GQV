@@ -2416,6 +2416,8 @@
             aprovado: 'Aprovado',
             rejeitado: 'Rejeitado',
             em_producao: 'Em produção',
+            para_producao: 'Para produção',
+            'para_produção': 'Para produção',
             ajuste_solicitado: 'Ajustes solicitados',
             agendado: 'Agendado',
             publicado: 'Publicado',
@@ -2425,6 +2427,7 @@
             ready_for_approval: 'Pronto para aprovação',
             changes_requested: 'Ajustes solicitados',
             approved: 'Aprovado',
+            in_production: 'Para produção',
             scheduled: 'Agendado',
             published: 'Publicado'
         };
@@ -2434,6 +2437,8 @@
             aprovado: 'bg-emerald-100 text-emerald-700',
             rejeitado: 'bg-rose-100 text-rose-700',
             em_producao: 'bg-indigo-100 text-indigo-700',
+            para_producao: 'bg-green-100 text-green-700',
+            'para_produção': 'bg-green-100 text-green-700',
             ajuste_solicitado: 'bg-rose-100 text-rose-700',
             agendado: 'bg-indigo-100 text-indigo-700',
             publicado: 'bg-emerald-100 text-emerald-700',
@@ -2443,6 +2448,7 @@
             ready_for_approval: 'bg-blue-100 text-blue-700',
             changes_requested: 'bg-rose-100 text-rose-700',
             approved: 'bg-emerald-100 text-emerald-700',
+            in_production: 'bg-green-100 text-green-700',
             scheduled: 'bg-indigo-100 text-indigo-700',
             published: 'bg-emerald-100 text-emerald-700'
         };
@@ -2830,7 +2836,7 @@
                 const key = raw.toLowerCase();
                 const map = {
                     draft: 'rascunho',
-                    ready_for_review: 'em_producao',
+                    ready_for_review: 'ready_for_review',
                     ready_for_approval: 'aguardando_aprovacao',
                     awaiting_approval: 'aguardando_aprovacao',
                     approved: 'aprovado',
@@ -2838,7 +2844,7 @@
                     rejected: 'ajuste_solicitado',
                     scheduled: 'agendado',
                     published: 'publicado',
-                    in_production: 'em_producao',
+                    in_production: 'para_producao',
                     archived: 'concluido'
                 };
                 return map[key] || (raw || 'rascunho');
@@ -3284,7 +3290,7 @@
             if (socialPostChannel) socialPostChannel.value = post.platform || 'instagram';
             if (socialPostHashtags) socialPostHashtags.value = post.hashtags || '';
             if (socialPostCreative) socialPostCreative.value = post.creative || '';
-            if (socialPostStatus) socialPostStatus.value = post.status || 'rascunho';
+            if (socialPostStatus) socialPostStatus.value = normalizeSocialPostStatusToDb(post.status || 'rascunho');
             if (socialPostNotes) socialPostNotes.value = post.notes || '';
             if (socialPostSlide1) socialPostSlide1.value = post.slides?.[0] || '';
             if (socialPostSlide2) socialPostSlide2.value = post.slides?.[1] || '';
@@ -3294,16 +3300,58 @@
             if (socialPostScript) socialPostScript.value = post.script || '';
             updateContentTypeFields(post.contentType || 'post_estatico');
             const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
-            const dbStatus = normalizeSocialPostStatusToDb(post.status || 'rascunho');
-            const isInProduction = [
-                'in_production', 'para_producao', 'para_produção',
-                'changes_requested', 'ajustes_solicitados', 'ajuste_solicitado',
-                'draft', 'rascunho', 'ready_for_review'
-            ].includes(dbStatus.toLowerCase());
-            const calendarLocked = socialState.calendarStatus === 'aguardando_aprovacao' && !isInProduction;
-            const editable = !calendarLocked && !blockedDbStatuses.has(dbStatus);
-            [socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull, socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative, socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2, socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript, socialPostMediaUpload, socialPostSave, socialPostDelete].forEach((el) => {
-                if (el) el.disabled = !editable;
+            const rawPostStatus = post.status || 'rascunho';
+            const dbStatus = normalizeSocialPostStatusToDb(rawPostStatus);
+            const calStatus = socialState.calendarStatus || '';
+            const editableByStatus = !blockedDbStatuses.has(dbStatus);
+            const editableByCalendar = calStatus !== 'aguardando_aprovacao';
+            const isProductionStatus = ['in_production', 'changes_requested'].includes(dbStatus);
+            const editable = isProductionStatus ? editableByStatus : (editableByCalendar && editableByStatus);
+
+            const uiBadgeStatus = socialPostStatus?.value || rawPostStatus;
+            console.log('[EditFlow] open post:', post?.id || 'new');
+            console.log('[EditFlow] raw post status:', rawPostStatus);
+            console.log('[EditFlow] normalized status:', dbStatus);
+            console.log('[EditFlow] calendar status:', calStatus);
+            console.log('[EditFlow] is production status:', isProductionStatus);
+            console.log('[EditFlow] editable final:', editable);
+            if (uiBadgeStatus !== rawPostStatus) {
+                console.warn('[EditFlow] UI badge status:', uiBadgeStatus);
+                console.warn('[EditFlow] internal status mismatch: badge =', uiBadgeStatus, '| raw =', rawPostStatus, '| db =', dbStatus);
+            }
+
+            const ptNormalized = (() => {
+                const map = {
+                    draft: 'rascunho',
+                    ready_for_review: 'ready_for_review',
+                    ready_for_approval: 'aguardando_aprovacao',
+                    approved: 'aprovado',
+                    changes_requested: 'ajustes_solicitados',
+                    scheduled: 'agendado',
+                    published: 'publicado',
+                    in_production: 'para_producao'
+                };
+                return map[dbStatus] || rawPostStatus;
+            })();
+            const badgeLabel = SOCIAL_STATUS_LABELS[dbStatus] || dbStatus || '-';
+            console.log('[StatusSemantics] raw status:', rawPostStatus);
+            console.log('[StatusSemantics] normalized PT:', ptNormalized);
+            console.log('[StatusSemantics] normalized DB:', dbStatus);
+            console.log('[StatusSemantics] badge label:', badgeLabel);
+
+            const fieldList = [
+                socialPostDate, socialPostContentType, socialPostTitleInput, socialPostCaptionFull,
+                socialPostCta, socialPostChannel, socialPostHashtags, socialPostCreative,
+                socialPostStatus, socialPostNotes, socialPostSlide1, socialPostSlide2,
+                socialPostSlide3, socialPostSlide4, socialPostHook, socialPostScript,
+                socialPostMediaUpload, socialPostSave, socialPostDelete
+            ];
+
+            fieldList.forEach((el) => {
+                if (el) {
+                    el.disabled = !editable;
+                    if (!editable) console.log('[EditFlow] disabling field:', el.id || el.name || '(sem id)');
+                }
             });
             if (socialPostSaveTop) socialPostSaveTop.disabled = !editable;
             if (socialPostFeedback) {
@@ -3315,7 +3363,7 @@
             }
             window.loadAndRenderSocialPostHistory?.();
             if (window.applySocialPostDrawerStatusBadge) {
-                window.applySocialPostDrawerStatusBadge(socialPostStatus?.value || post.status || 'rascunho');
+                window.applySocialPostDrawerStatusBadge(dbStatus);
             }
             const previewPost = getPostFromForm();
             if (previewPost) updatePreview(previewPost);
@@ -3336,7 +3384,8 @@
                 });
             }
             if (!editable) {
-                if (socialState.calendarStatus === 'aguardando_aprovacao') {
+                const calendarBlocks = calStatus === 'aguardando_aprovacao' && !isProductionStatus;
+                if (calendarBlocks) {
                     setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 } else if (blockedDbStatuses.has(dbStatus)) {
                     setPostFeedback('Edição bloqueada para este status.', 'error');
@@ -3358,18 +3407,36 @@
 
         const applyPostForm = () => {
             if (!socialState.activePost) return null;
-            if (socialState.calendarStatus === 'aguardando_aprovacao') {
+            const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
+            const activeDbStatus = normalizeSocialPostStatusToDb(socialState.activePost.status || 'rascunho');
+            const isProductionSave = ['in_production', 'changes_requested'].includes(activeDbStatus);
+            const calendarBlocksSave = socialState.calendarStatus === 'aguardando_aprovacao' && !isProductionSave;
+            console.log('[EditFlow] save payload status:', activeDbStatus, '| calendar blocks:', calendarBlocksSave);
+            const ptNormalized = (() => {
+                const map = {
+                    draft: 'rascunho',
+                    ready_for_review: 'ready_for_review',
+                    ready_for_approval: 'aguardando_aprovacao',
+                    approved: 'aprovado',
+                    changes_requested: 'ajustes_solicitados',
+                    scheduled: 'agendado',
+                    published: 'publicado',
+                    in_production: 'para_producao'
+                };
+                return map[activeDbStatus] || String(socialState.activePost.status || '');
+            })();
+            const badgeLabel = SOCIAL_STATUS_LABELS[activeDbStatus] || activeDbStatus || '-';
+            console.log('[StatusSemantics] raw status:', socialState.activePost.status);
+            console.log('[StatusSemantics] normalized PT:', ptNormalized);
+            console.log('[StatusSemantics] normalized DB:', activeDbStatus);
+            console.log('[StatusSemantics] badge label:', badgeLabel);
+
+            if (calendarBlocksSave) {
                 setPostFeedback('Calendário em aprovação — edição temporariamente bloqueada', 'error');
                 return null;
             }
-            const blockedDbStatuses = new Set(['ready_for_approval', 'approved', 'scheduled', 'published']);
-            const activeDbStatus = normalizeSocialPostStatusToDb(socialState.activePost.status || 'rascunho');
-            const isProductionStatus = [
-                'in_production', 'para_producao', 'para_produção',
-                'changes_requested', 'ajustes_solicitados', 'ajuste_solicitado',
-                'draft', 'rascunho', 'ready_for_review'
-            ].includes(activeDbStatus.toLowerCase());
-            if (!isProductionStatus && blockedDbStatuses.has(activeDbStatus)) {
+
+            if (blockedDbStatuses.has(activeDbStatus)) {
                 setPostFeedback('Edição bloqueada para este status.', 'error');
                 return null;
             }
@@ -3534,6 +3601,7 @@
                 pendente_aprovacao: 'ready_for_approval',
                 ready_for_approval: 'ready_for_approval',
                 ajuste_solicitado: 'changes_requested',
+                ajustes_solicitados: 'changes_requested',
                 changes_requested: 'changes_requested',
                 aprovado: 'approved',
                 approved: 'approved',
@@ -3584,6 +3652,7 @@
                 status: normalizeSocialPostStatusToDb(post.status || 'rascunho'),
                 formato: post.contentType || 'post_estatico',
                 tipo_conteudo: post.contentType || 'post_estatico',
+                sugestao_criativo: post.creative || '',
                 cta: post.cta || '',
                 hashtags: post.hashtags || '',
                 slides: post.slides || [],

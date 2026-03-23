@@ -53,8 +53,11 @@
             'publicado': 'published',
             'published': 'published',
             'changes_requested': 'changes_requested',
+            'ajustes_solicitados': 'changes_requested',
             'archived': 'archived',
             'in_production': 'in_production',
+            'para_producao': 'in_production',
+            'para_produção': 'in_production',
             'producing': 'in_production'
         },
         getSocialStatusKey: function(raw) {
