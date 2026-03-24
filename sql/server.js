@@ -19,6 +19,11 @@ const app = express();
 app.use(express.json()); // Parse JSON bodies
 app.use('/api/v2', v2Router); // Mount v2 router
 
+// Healthcheck para Coolify/containers
+app.get('/health', (req, res) => {
+    res.status(200).json({ ok: true });
+});
+
 
 const PORT = process.env.PORT || 3000;
 const CALENDAR_STATUS_VALUES = {
