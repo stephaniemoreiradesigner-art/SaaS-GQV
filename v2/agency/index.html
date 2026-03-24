@@ -1161,6 +1161,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="/js/v2/shared/constants.js"></script>
+    <script src="/js/v2/shared/status_map.js"></script>
     <script src="/js/v2/core/supabase.js"></script>
     <script src="/js/v2/shared/auth_guard.js"></script>
     <script src="/js/v2/shared/tenantContext.js?v=20260313_3"></script>
@@ -2475,8 +2476,9 @@
 
         window.applySocialPostDrawerStatusBadge = (rawStatus) => {
             const key = String(rawStatus || '').trim().toLowerCase();
-            const label = SOCIAL_STATUS_LABELS[key] || rawStatus || '-';
-            const style = SOCIAL_STATUS_STYLES[key] || 'bg-slate-100 text-slate-500';
+            const meta = window.GQV_STATUS_MAP?.getPostStatusMeta ? window.GQV_STATUS_MAP.getPostStatusMeta(key) : null;
+            const label = meta?.label || SOCIAL_STATUS_LABELS[key] || rawStatus || '-';
+            const style = meta?.color?.pill || SOCIAL_STATUS_STYLES[key] || 'bg-slate-100 text-slate-500';
             const className = `text-xs uppercase ${style} px-3 py-1 rounded-full`;
             [socialPostStatusBadgeTop, document.getElementById('social-post-status-badge')].forEach((el) => {
                 if (!el) return;
@@ -3108,7 +3110,8 @@
                 } else {
                     dayPosts.forEach((post) => {
                         const card = document.createElement('div');
-                        const statusStyle = SOCIAL_STATUS_STYLES[post.status] || 'bg-slate-100 text-slate-500';
+                        const statusMeta = window.GQV_STATUS_MAP?.getPostStatusMeta ? window.GQV_STATUS_MAP.getPostStatusMeta(post.status) : null;
+                        const statusStyle = statusMeta?.color?.pill || SOCIAL_STATUS_STYLES[post.status] || 'bg-slate-100 text-slate-500';
                         const typeKey = String(post.contentType || '').trim().toLowerCase();
                         const typeBorder = (typeKey.includes('carrossel'))
                             ? 'border-l-4 border-l-violet-500'
@@ -3137,7 +3140,7 @@
                             <p class="text-xs font-semibold text-slate-800" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${post.title}</p>
                             <div class="mt-2 flex items-center justify-between gap-2">
                                 <span class="text-[10px] text-slate-500 truncate">${post.platform || '-'}</span>
-                                <span class="text-[10px] uppercase ${statusStyle} px-2 py-0.5 rounded-full">${SOCIAL_STATUS_LABELS[post.status] || post.status}</span>
+                                <span class="text-[10px] uppercase ${statusStyle} px-2 py-0.5 rounded-full">${statusMeta?.label || SOCIAL_STATUS_LABELS[post.status] || post.status}</span>
                             </div>
                         `;
                         card.addEventListener('dragstart', (event) => {

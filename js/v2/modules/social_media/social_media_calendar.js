@@ -129,31 +129,18 @@
             })();
             el.classList.add(...typeBorder.split(' '));
 
-            const statusLabel = global.GQV_CONSTANTS?.getSocialStatusLabelPt
-                ? global.GQV_CONSTANTS.getSocialStatusLabelPt(post.status)
-                : (String(post.status || '').trim() || '-');
-            const statusPill = (() => {
-                const key = global.GQV_CONSTANTS?.getSocialStatusKey
-                    ? global.GQV_CONSTANTS.getSocialStatusKey(post.status)
-                    : String(post.status || '').trim().toLowerCase();
-                const map = {
-                    draft: 'bg-slate-100 text-slate-600',
-                    ready_for_review: 'bg-indigo-100 text-indigo-700',
-                    in_production: 'bg-indigo-100 text-indigo-700',
-                    ready_for_approval: 'bg-amber-100 text-amber-700',
-                    awaiting_approval: 'bg-amber-100 text-amber-700',
-                    approved: 'bg-emerald-100 text-emerald-700',
-                    scheduled: 'bg-emerald-100 text-emerald-700',
-                    changes_requested: 'bg-rose-100 text-rose-700',
-                    published: 'bg-emerald-100 text-emerald-700',
-                    archived: 'bg-slate-200 text-slate-700',
-                    rascunho: 'bg-slate-100 text-slate-600',
-                    pendente_aprovacao: 'bg-amber-100 text-amber-700',
-                    aprovado: 'bg-emerald-100 text-emerald-700',
-                    ajuste_solicitado: 'bg-rose-100 text-rose-700'
-                };
-                return map[key] || 'bg-slate-100 text-slate-600';
+            const statusMeta = (() => {
+                if (!global.GQV_STATUS_MAP) return null;
+                if (isCalendarItem && typeof global.GQV_STATUS_MAP.getCalendarItemStatusMeta === 'function') {
+                    return global.GQV_STATUS_MAP.getCalendarItemStatusMeta(post.status);
+                }
+                if (!isCalendarItem && typeof global.GQV_STATUS_MAP.getPostStatusMeta === 'function') {
+                    return global.GQV_STATUS_MAP.getPostStatusMeta(post.status);
+                }
+                return null;
             })();
+            const statusLabel = statusMeta?.label || (String(post.status || '').trim() || '-');
+            const statusPill = statusMeta?.color?.pill || 'bg-slate-100 text-slate-600';
             const title = post.tema || post.titulo || post.title || post.legenda || 'Sem título';
             const channel = String(post.plataforma || post.platform || post.canal || post.channel || '').trim() || (post.instagram ? 'instagram' : (post.facebook ? 'facebook' : (post.linkedin ? 'linkedin' : (post.tiktok ? 'tiktok' : '-'))));
             const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;

@@ -11,28 +11,13 @@
             const key = global.GQV_CONSTANTS?.getSocialStatusKey
                 ? global.GQV_CONSTANTS.getSocialStatusKey(rawStatus)
                 : String(rawStatus || '').trim().toLowerCase();
-            const base = {
-                cls: 'bg-slate-100 text-slate-700 border border-slate-200'
-            };
-            const map = {
-                ready_for_approval: { cls: 'bg-amber-100 text-amber-700 border border-amber-200' },
-                awaiting_approval: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                aguardando_aprovacao: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                sent_for_approval: { cls: 'bg-yellow-100 text-yellow-700 border border-yellow-200' },
-                draft: { cls: base.cls },
-                rascunho: { cls: base.cls },
-                changes_requested: { cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                needs_changes: { cls: 'bg-sky-100 text-sky-700 border border-sky-200' },
-                ready_for_review: { cls: 'bg-indigo-100 text-indigo-700 border border-indigo-200' },
-                approved: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                aprovado: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                scheduled: { cls: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-                published: { cls: 'bg-slate-900 text-white border border-slate-900' }
-            };
-            const cls = map[key]?.cls || base.cls;
-            const label = global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt && (key === 'sent_for_approval' || key === 'needs_changes')
-                ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(key)
-                : (global.GQV_CONSTANTS?.getSocialStatusLabelPt ? global.GQV_CONSTANTS.getSocialStatusLabelPt(key) : (key ? key.replace(/_/g, ' ') : '-'));
+            const baseCls = 'bg-slate-100 text-slate-700 border border-slate-200';
+            const meta = global.GQV_STATUS_MAP?.getPostStatusMeta ? global.GQV_STATUS_MAP.getPostStatusMeta(key) : null;
+            const cls = meta?.color?.pillBorder || baseCls;
+            const label = meta?.label
+                || (global.GQV_CONSTANTS?.getSocialCalendarStatusLabelPt && (key === 'sent_for_approval' || key === 'needs_changes')
+                    ? global.GQV_CONSTANTS.getSocialCalendarStatusLabelPt(key)
+                    : (global.GQV_CONSTANTS?.getSocialStatusLabelPt ? global.GQV_CONSTANTS.getSocialStatusLabelPt(key) : (key ? key.replace(/_/g, ' ') : '-')));
             return { label, cls };
         },
 
@@ -427,19 +412,8 @@
                 
                 // Status Badge
                 const statusEl = document.getElementById('client-post-modal-status');
-                const statusMap = {
-                    'draft': 'Rascunho',
-                    'ready_for_approval': 'Pendente',
-                    'pendente_aprovacao': 'Pendente',
-                    'pendente_aprovação': 'Pendente',
-                    'aguardando_aprovacao': 'Pendente',
-                    'awaiting_approval': 'Pendente',
-                    'approved': 'Aprovado',
-                    'changes_requested': 'Ajustes Solicitados',
-                    'scheduled': 'Agendado',
-                    'published': 'Publicado'
-                };
-                statusEl.textContent = statusMap[postData.status] || postData.status;
+                const meta = global.GQV_STATUS_MAP?.getPostStatusMeta ? global.GQV_STATUS_MAP.getPostStatusMeta(postData.status) : null;
+                statusEl.textContent = meta?.label || postData.status;
                 
                 // Media
                 const mediaContainer = document.getElementById('client-post-modal-media-container');

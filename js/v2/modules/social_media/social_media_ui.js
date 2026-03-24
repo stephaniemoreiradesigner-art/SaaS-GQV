@@ -238,24 +238,11 @@
             const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
 
             const base = 'text-xs uppercase bg-slate-100 text-slate-500 px-3 py-1 rounded-full';
-            const map = {
-                draft: { label: 'Rascunho', className: base },
-                briefing_sent: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
-                design_in_progress: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
-                in_production: { label: 'Para produção', className: `${base} bg-blue-100 text-blue-700` },
-                producing: { label: 'Em produção', className: `${base} bg-blue-100 text-blue-700` },
-                ready_for_review: { label: 'Pronto para revisão', className: `${base} bg-indigo-100 text-indigo-700` },
-                ready_for_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
-                awaiting_approval: { label: 'Enviado para aprovação', className: `${base} bg-yellow-100 text-yellow-700` },
-                approved: { label: 'Aprovado', className: `${base} bg-green-100 text-green-700` },
-                changes_requested: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
-                rejected: { label: 'Ajustes solicitados', className: `${base} bg-red-100 text-red-700` },
-                scheduled: { label: 'Agendado', className: `${base} bg-indigo-100 text-indigo-700` },
-                published: { label: 'Publicado', className: `${base} bg-emerald-100 text-emerald-700` },
-                archived: { label: 'Arquivado', className: `${base} bg-slate-200 text-slate-700` }
-            };
-
-            if (map[normalized]) return map[normalized];
+            if (global.GQV_STATUS_MAP?.getPostStatusMeta) {
+                const meta = global.GQV_STATUS_MAP.getPostStatusMeta(normalized);
+                const color = meta?.color?.pill || 'bg-slate-100 text-slate-500';
+                return { label: meta?.label || (normalized ? normalized.replace(/_/g, ' ') : '-'), className: `text-xs uppercase ${color} px-3 py-1 rounded-full` };
+            }
             return { label: normalized ? normalized.replace(/_/g, ' ') : '-', className: base };
         },
 
