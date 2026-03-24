@@ -616,6 +616,15 @@
                                 if (global.SocialMediaUI?.renderPostsBoard) {
                                     global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
                                 }
+                                // Auto-criação: detectar itens aprovados e gerar post único
+                                const items = Array.isArray(snap.editorialItems) ? snap.editorialItems : [];
+                                items.forEach((it) => {
+                                    const meta = global.GQV_STATUS_MAP?.getCalendarItemStatusMeta ? global.GQV_STATUS_MAP.getCalendarItemStatusMeta(it.status) : null;
+                                    const isApproved = String(meta?.key || '').trim() === 'approved';
+                                    if (isApproved) {
+                                        this.createPostFromCalendarItem(it, snap.activeCalendarId, snap.clientId);
+                                    }
+                                });
                             }
 
                             const statusEl = document.getElementById('social-calendar-status');
@@ -674,6 +683,34 @@
             if (!global.CalendarStateManager?.goToMonth) return;
             if (!(dateRef instanceof Date) || Number.isNaN(dateRef.getTime())) return;
             await global.CalendarStateManager.goToMonth(dateRef.getFullYear(), dateRef.getMonth() + 1);
+        },
+        
+        createPostFromCalendarItem: async function(calendarItem, calendarId, clientId) {
+            try {
+                if (!calendarItem?.id || !calendarId || !clientId) return;
+                this._autoCreatedFromItems = this._autoCreatedFromItems || new Set();
+                const key = `${calendarId}:${calendarItem.id}`;
+                if (this._autoCreatedFromItems.has(key)) return;
+                // Verifica se já existe post para o item
+                const existing = await global.SocialMediaRepo?.getPostByCalendarItemId?.(calendarItem.id);
+                if (existing?.id) {
+                    this._autoCreatedFromItems.add(key);
+                    return;
+                }
+                await global.SocialMediaRepo?.createPost?.({
+                    calendar_id: calendarId,
+                    calendar_item_id: calendarItem.id,
+                    cliente_id: clientId,
+                    status: 'draft',
+                    data_agendada: String(calendarItem.data || '').slice(0, 10),
+                    tema: calendarItem.tema || null,
+                    formato: calendarItem.tipo_conteudo || 'post_estatico',
+                    plataforma: calendarItem.canal || 'instagram'
+                });
+                this._autoCreatedFromItems.add(key);
+            } catch (err) {
+                console.warn('[AutoCreatePost] falha silenciosa:', err?.message || err);
+            }
         },
 
         handlePostMove: async function(postId, newDate) {

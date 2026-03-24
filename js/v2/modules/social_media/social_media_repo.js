@@ -589,6 +589,29 @@
             }
 
             try {
+                // Caminho direto: criação mínima a partir de item aprovado
+                if (input?.calendar_item_id && input?.calendar_id && normalizedClientId) {
+                    const payload = {
+                        calendar_id: String(input.calendar_id).trim(),
+                        calendar_item_id: input.calendar_item_id,
+                        cliente_id: normalizedClientId,
+                        status: 'draft',
+                        data_agendada: String(input.data_agendada || input.data || '').slice(0, 10) || null,
+                        tema: input.tema || input.title || null,
+                        formato: input.formato || input.tipo_conteudo || 'post_estatico',
+                        plataforma: input.plataforma || input.platform || 'instagram',
+                        legenda: input.legenda || '',
+                        detailed_content: input.detailed_content || ''
+                    };
+                    const { data, error } = await global.supabaseClient
+                        .from('social_posts')
+                        .insert([payload])
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    if (isDebug()) console.log('[SocialMediaRepo] createPost (direct) success:', data);
+                    return data;
+                }
                 const clientId = normalizedClientId;
                 const localToday = global.MonthUtils?.formatLocalDate ? global.MonthUtils.formatLocalDate(new Date()) : '';
                 const postDate = input.data_agendada || input.data || localToday;
@@ -670,6 +693,7 @@
 
                 const dbPayload = {
                     calendar_id: calendarId,
+                    calendar_item_id: input.calendar_item_id || null,
                     data_agendada: postDate,
                     tema: title,
                     formato: formato,
@@ -855,6 +879,22 @@
             } catch (err) {
                 console.error('[SOCIAL] Falha ao atualizar status:', err);
                 return false;
+            }
+        },
+
+        getPostByCalendarItemId: async function(calendarItemId) {
+            if (!global.supabaseClient || !calendarItemId) return null;
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('*')
+                    .eq('calendar_item_id', calendarItemId)
+                    .maybeSingle();
+                if (error) throw error;
+                return data || null;
+            } catch (err) {
+                if (isDebug()) console.error('[SocialMediaRepo] getPostByCalendarItemId error:', err);
+                return null;
             }
         },
 
