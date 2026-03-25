@@ -442,6 +442,13 @@
             const commentKeys = ['comentario_cliente', 'comentario', 'feedback_cliente', 'client_review_comment', 'review_comment'];
             const filterAttempts = normalizedClientId ? [true, false] : [false];
             const calendarAttempts = normalizedCalendarId ? [true, false] : [false];
+            const safeStringify = (value) => {
+                try {
+                    return JSON.stringify(value, null, 2);
+                } catch (err) {
+                    return `<<stringify_failed>> ${String(err?.message || err)}`;
+                }
+            };
 
             for (const useCalendarFilter of calendarAttempts) {
                 for (const useClientFilter of filterAttempts) {
@@ -463,13 +470,22 @@
                                 .select('id,status,calendar_id');
                             if (useCalendarFilter) query = query.eq('calendar_id', normalizedCalendarId);
                             if (useClientFilter) query = query.eq('cliente_id', normalizedClientId);
-                            const { data, error } = await query;
+                            const result = await query;
+                            const data = result?.data;
+                            const error = result?.error;
+                            console.log('[ClientRepo] updateCalendarItemEditorialStatus result', {
+                                table: 'social_calendar_items',
+                                payload: finalPayload,
+                                filters,
+                                data,
+                                error
+                            });
                             if (!error) {
                                 const row = Array.isArray(data) ? data[0] : data;
                                 if (row?.id) return { ok: true, data: row };
                                 return { ok: false, error: { message: 'no_rows_updated', payload, filters: { id: normalizedItemId, calendar_id: useCalendarFilter ? normalizedCalendarId : null, cliente_id: useClientFilter ? normalizedClientId : null } } };
                             }
-                            console.log('[ClientRepo] updateCalendarItemEditorialStatus error detail:', {
+                            console.error('[ClientRepo] updateCalendarItemEditorialStatus error detail:', {
                                 itemId: normalizedItemId,
                                 calendarId: useCalendarFilter ? normalizedCalendarId : null,
                                 clientId: useClientFilter ? normalizedClientId : null,
@@ -479,6 +495,7 @@
                                 details: error?.details || null,
                                 hint: error?.hint || null
                             });
+                            console.error('[ClientRepo] updateCalendarItemEditorialStatus error stringify:', safeStringify(error));
                             if (useCalendarFilter && errorLooksLikeMissingColumn(error, 'calendar_id')) {
                                 continue;
                             }

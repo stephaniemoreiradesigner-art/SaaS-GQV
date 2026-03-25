@@ -862,7 +862,19 @@
                     comment: trimmedComment
                 });
                 if (result?.ok !== true) {
-                    console.error('[ClientCalendar] request changes failed:', { calendarId, itemId, error: result?.error || null });
+                    const err = result?.error || null;
+                    let errJson = null;
+                    try { errJson = JSON.stringify(err, null, 2); } catch { errJson = null; }
+                    console.error('[ClientCalendar] request changes failed:', {
+                        calendarId,
+                        itemId,
+                        error: err,
+                        code: err?.code || null,
+                        message: err?.message || null,
+                        details: err?.details || null,
+                        hint: err?.hint || null,
+                        error_json: errJson
+                    });
                     return false;
                 }
 
