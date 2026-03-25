@@ -829,7 +829,7 @@
             const tema = String(patch?.tema || '').trim();
             const copy = String(patch?.copy || patch?.legenda || '').trim();
 
-            if (!postId && itemId && global.ClientRepo?.updateCalendarItemEditorialStatus) {
+            if (itemId && global.ClientRepo?.updateCalendarItemEditorialStatus) {
                 const scheduledDate = String(entry?.scheduledDate || entry?.date || entry?.data || '').trim();
                 const canal = String(entry?.canal || '').trim();
                 const tipo = String(entry?.tipo || '').trim();
@@ -849,11 +849,7 @@
 
                 const result = await global.ClientRepo.updateCalendarItemEditorialStatus(itemId, clientId, {
                     status: 'needs_changes',
-                    comment: trimmedComment,
-                    tema: payload.tema,
-                    copy: payload.copy,
-                    canal,
-                    tipo_conteudo: tipo
+                    comment: trimmedComment
                 });
                 if (result?.ok !== true) {
                     console.error('[ClientCalendar] request changes failed:', { calendarId, itemId, error: result?.error || null });
@@ -861,28 +857,19 @@
                 }
 
                 console.log('[ClientCalendar] request changes persisted', { calendarId, itemId });
+                this.setEditorialItemReview(itemId, 'needs_changes', trimmedComment);
 
                 if (global.ClientRepo?.updateCalendarStatus) {
                     const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'needs_changes', clientId);
                     if (error) console.error('[ClientCalendar] calendar needs_changes failed:', { calendarId, error });
                 }
                 await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
+                console.log('[ClientCalendar] request changes ui updated', { calendarId, itemId });
                 return true;
             }
 
-            if (postId && global.ClientRepo?.updatePostEditorialStatus) {
-                const result = await global.ClientRepo.updatePostEditorialStatus(postId, clientId, 'draft', trimmedComment, { tema, legenda: copy });
-                if (result?.ok === true) {
-                    if (itemId) this.setEditorialItemReview(itemId, 'needs_changes', trimmedComment);
-                    if (global.ClientRepo?.updateCalendarStatus) {
-                        const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'needs_changes', clientId);
-                        if (error) console.error('[ClientCalendar] calendar needs_changes failed:', { calendarId, error });
-                    }
-                    console.log('[ClientCalendar] request changes persisted', { calendarId, postId, clientId });
-                    await this.openCalendarModal(calendarId, this.activeEditorialMonthKey || '', null);
-                    return true;
-                }
-                console.error('[ClientCalendar] falha ao solicitar ajuste:', { calendarId, postId, clientId, error: result?.error || null });
+            if (postId) {
+                console.error('[ClientCalendar] request changes blocked: missing itemId, postId ignored', { calendarId, postId, clientId });
             }
             return false;
         },
@@ -902,6 +889,7 @@
                 return;
             }
             console.log('[EditorialReview] adjustment text saved:', { calendarId, entryKey: entry?.key || null });
+            global.ClientUI?.setEditorialAdjustFeedback?.('Ajuste solicitado com sucesso.', 'success');
             global.ClientUI?.showEditorialAdjustModal?.(false);
         },
 
