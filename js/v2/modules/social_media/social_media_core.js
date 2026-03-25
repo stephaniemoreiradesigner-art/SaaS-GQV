@@ -694,6 +694,10 @@
                 // Verifica se já existe post para o item
                 const existing = await global.SocialMediaRepo?.getPostByCalendarItemId?.(calendarItem.id);
                 if (existing?.id) {
+                    const currentStatus = String(existing?.status || '').trim().toLowerCase();
+                    if (currentStatus === 'approved') {
+                        await global.SocialMediaRepo?.updatePost?.(existing.id, { status: 'draft' });
+                    }
                     this._autoCreatedFromItems.add(key);
                     return;
                 }

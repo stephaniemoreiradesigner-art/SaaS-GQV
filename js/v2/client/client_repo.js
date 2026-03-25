@@ -401,6 +401,139 @@
             return { ok: true, data: null };
         },
 
+        updateCalendarItemEditorialStatus: async function(itemId, clientId, patch) {
+            const supabase = await this.getClient();
+            if (!supabase || !itemId) return { ok: false, error: { message: 'missing_params' } };
+
+            const normalizedItemId = this.normalizeIdForFilter ? this.normalizeIdForFilter(itemId) : String(itemId || '').trim();
+            const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+
+            const nextStatus = String(patch?.status || '').trim();
+            const comment = String(patch?.comment || '').trim();
+            const tema = String(patch?.tema || '').trim();
+            const copy = String(patch?.copy || patch?.legenda || '').trim();
+            const canal = String(patch?.canal || patch?.plataforma || '').trim();
+            const tipo = String(patch?.tipo_conteudo || patch?.tipo || '').trim();
+            const observacoes = String(patch?.observacoes || '').trim();
+
+            const basePayload = {};
+            if (nextStatus) basePayload.status = nextStatus;
+            if (tema) basePayload.tema = tema;
+            if (copy) basePayload.copy = copy;
+            if (observacoes) basePayload.observacoes = observacoes;
+            if (canal) basePayload.canal = canal;
+            if (tipo) basePayload.tipo_conteudo = tipo;
+
+            const errorLooksLikeMissingColumn = (error, columnName) => {
+                const msg = String(error?.message || '').toLowerCase();
+                const col = String(columnName || '').toLowerCase();
+                return error?.code === '42703' || msg.includes(`column ${col}`) || msg.includes(`"${col}"`) || msg.includes(`'${col}'`);
+            };
+
+            const commentKeys = ['comentario_cliente', 'comentario', 'feedback_cliente', 'client_review_comment', 'review_comment'];
+            const filterAttempts = normalizedClientId ? [true, false] : [false];
+
+            for (const useClientFilter of filterAttempts) {
+                for (const commentKey of commentKeys) {
+                    const payload = { ...basePayload };
+                    if (comment) payload[commentKey] = comment;
+                    try {
+                        let query = supabase
+                            .from('social_calendar_items')
+                            .update(payload)
+                            .eq('id', normalizedItemId)
+                            .select('id,status')
+                            .maybeSingle();
+                        if (useClientFilter) query = query.eq('cliente_id', normalizedClientId);
+                        const { data, error } = await query;
+                        if (!error) return { ok: true, data: data || null };
+                        if (useClientFilter && errorLooksLikeMissingColumn(error, 'cliente_id')) {
+                            continue;
+                        }
+                        if (comment && errorLooksLikeMissingColumn(error, commentKey)) {
+                            continue;
+                        }
+                        return { ok: false, error };
+                    } catch (error) {
+                        return { ok: false, error };
+                    }
+                }
+            }
+
+            return { ok: false, error: { message: 'update_failed' } };
+        },
+
+        ensurePostDraftFromCalendarItem: async function(params) {
+            const supabase = await this.getClient();
+            if (!supabase) return { ok: false, error: { message: 'missing_supabase' } };
+
+            const calendarId = String(params?.calendarId || '').trim();
+            const calendarItemId = params?.calendarItemId ?? params?.itemId ?? null;
+            const clientId = String(params?.clientId || '').trim();
+            if (!calendarId || !calendarItemId || !clientId) return { ok: false, error: { message: 'missing_params' } };
+
+            const scheduledDate = String(params?.scheduledDate || params?.data || '').slice(0, 10);
+            const tema = String(params?.tema || '').trim();
+            const legenda = String(params?.legenda || params?.copy || '').trim();
+            const formato = String(params?.formato || params?.tipo_conteudo || '').trim();
+            const plataforma = String(params?.plataforma || params?.canal || '').trim();
+
+            try {
+                const { data: existing, error: findError } = await supabase
+                    .from('social_posts')
+                    .select('*')
+                    .eq('calendar_id', calendarId)
+                    .eq('calendar_item_id', calendarItemId)
+                    .maybeSingle();
+                if (findError) return { ok: false, error: findError };
+
+                if (existing?.id) {
+                    const currentStatus = String(existing.status || '').trim().toLowerCase();
+                    const shouldForceDraft = currentStatus === 'approved' || currentStatus === '';
+                    const isHardFinal = ['scheduled', 'published'].includes(currentStatus);
+                    const payload = {};
+                    if (!isHardFinal && shouldForceDraft) payload.status = 'draft';
+                    if (scheduledDate) payload.data_agendada = scheduledDate;
+                    if (tema) payload.tema = tema;
+                    if (legenda) payload.legenda = legenda;
+                    if (formato) payload.formato = formato;
+                    if (plataforma) payload.plataforma = plataforma;
+                    if (!Object.keys(payload).length) return { ok: true, data: existing };
+
+                    const { data, error } = await supabase
+                        .from('social_posts')
+                        .update(payload)
+                        .eq('id', existing.id)
+                        .select('*')
+                        .maybeSingle();
+                    if (error) return { ok: false, error };
+                    return { ok: true, data: data || null };
+                }
+
+                const insertPayload = {
+                    calendar_id: calendarId,
+                    calendar_item_id: calendarItemId,
+                    cliente_id: clientId,
+                    status: 'draft',
+                    data_agendada: scheduledDate || null,
+                    tema: tema || null,
+                    formato: formato || 'post_estatico',
+                    plataforma: plataforma || 'instagram',
+                    legenda: legenda || null
+                };
+
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .insert(insertPayload)
+                    .select('*')
+                    .maybeSingle();
+                if (error) return { ok: false, error };
+                return { ok: true, data: data || null };
+            } catch (error) {
+                return { ok: false, error };
+            }
+        },
+
         updateCalendarFeedback: async function(calendarId, clientId, comment) {
             const supabase = await this.getClient();
             if (!supabase || !calendarId) return { ok: false, error: { message: 'missing_params' } };
