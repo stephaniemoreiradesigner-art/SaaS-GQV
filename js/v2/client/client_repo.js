@@ -449,11 +449,18 @@
                         const payload = { ...basePayload };
                         if (comment) payload[commentKey] = comment;
                         try {
+                            const finalPayload = { ...payload };
+                            const filters = {
+                                id: normalizedItemId,
+                                calendar_id: useCalendarFilter ? normalizedCalendarId : null,
+                                cliente_id: useClientFilter ? normalizedClientId : null
+                            };
+                            console.log('[ClientRepo] updateCalendarItemEditorialStatus attempt', { payload: finalPayload, filters });
                             let query = supabase
                                 .from('social_calendar_items')
-                                .update(payload)
+                                .update(finalPayload)
                                 .eq('id', normalizedItemId)
-                                .select('id,status');
+                                .select('id,status,calendar_id');
                             if (useCalendarFilter) query = query.eq('calendar_id', normalizedCalendarId);
                             if (useClientFilter) query = query.eq('cliente_id', normalizedClientId);
                             const { data, error } = await query;

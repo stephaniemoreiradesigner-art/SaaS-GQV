@@ -39,7 +39,9 @@
                 return;
             }
 
-            this._activeEditorialAdjustmentEntry = entry || null;
+            const calId = entry?.calendarId || (global.ClientCore?.activeCalendarId || null);
+            const enriched = { ...(entry || {}), calendarId: calId };
+            this._activeEditorialAdjustmentEntry = enriched;
             const metaEl = document.getElementById('client-editorial-adjust-meta');
             const themeEl = document.getElementById('client-editorial-adjust-theme');
             const copyEl = document.getElementById('client-editorial-adjust-copy');
@@ -47,11 +49,11 @@
             const feedbackEl = document.getElementById('client-editorial-adjust-feedback');
             if (feedbackEl) feedbackEl.classList.add('hidden');
 
-            const date = String(entry?.scheduledDate || '').slice(0, 10);
-            const meta = [date, entry?.canal || null, entry?.tipo || null].filter(Boolean).join(' • ');
+            const date = String(enriched?.scheduledDate || '').slice(0, 10);
+            const meta = [date, enriched?.canal || null, enriched?.tipo || null].filter(Boolean).join(' • ');
             if (metaEl) metaEl.textContent = meta;
-            if (themeEl) themeEl.value = String(entry?.tema || '').trim();
-            if (copyEl) copyEl.value = String(entry?.copy || '').trim();
+            if (themeEl) themeEl.value = String(enriched?.tema || '').trim();
+            if (copyEl) copyEl.value = String(enriched?.copy || '').trim();
             if (textEl) textEl.value = '';
 
             modal.classList.remove('hidden');

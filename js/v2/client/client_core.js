@@ -820,7 +820,7 @@
         },
 
         requestCalendarEntryAdjustment: async function(entry, comment, patch = null) {
-            const calendarId = this.activeCalendarId;
+            let calendarId = this.activeCalendarId;
             if (!calendarId || !entry) return false;
             const clientId = this.getClientId();
             const trimmedComment = String(comment || '').trim();
@@ -828,6 +828,15 @@
             const itemId = String(entry?.itemId || '').trim();
             const tema = String(patch?.tema || '').trim();
             const copy = String(patch?.copy || patch?.legenda || '').trim();
+
+            if (!calendarId && Array.isArray(this._activeEditorialEntries)) {
+                const match = this._activeEditorialEntries.find(e => String(e?.itemId || '') === itemId);
+                if (match?.calendarId) calendarId = String(match.calendarId);
+            }
+            if (!calendarId) {
+                console.error('[ClientCalendar] request changes aborted: calendarId missing', { itemId, clientId });
+                return false;
+            }
 
             if (itemId && global.ClientRepo?.updateCalendarItemEditorialStatus) {
                 const scheduledDate = String(entry?.scheduledDate || entry?.date || entry?.data || '').trim();
