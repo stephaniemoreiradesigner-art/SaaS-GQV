@@ -65,7 +65,7 @@
                 cell.innerHTML = `
                     <div class="flex justify-between items-start mb-1">
                         <span class="text-xs font-semibold ${isToday ? 'text-purple-600 bg-purple-50 px-1.5 rounded' : 'text-slate-400'}">${day}</span>
-                        <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-purple-600 transition-opacity" onclick="document.dispatchEvent(new CustomEvent('v2:calendar-item-add', { detail: { date: '${dateStr}' } }))">
+                        <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-purple-600 transition-opacity" onclick="window.SocialMediaCalendar && window.SocialMediaCalendar.addInlineItem && window.SocialMediaCalendar.addInlineItem('${dateStr}')">
                             <i class="fas fa-plus-circle"></i>
                         </button>
                     </div>
@@ -168,18 +168,99 @@
                 el.classList.remove('opacity-50');
             });
             
-            const openEditor = () => {
-                if (isCalendarItem) {
-                    document.dispatchEvent(new CustomEvent('v2:calendar-item-click', { detail: { itemId: post.calendar_item_id, date: post.data_agendada } }));
+            const openInlineEditor = () => {
+                if (!isCalendarItem) {
+                    document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
                     return;
                 }
-                document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                const existing = el.querySelector('.inline-editor');
+                if (existing) {
+                    existing.remove();
+                }
+                const editor = document.createElement('div');
+                editor.className = 'inline-editor mt-2 p-2 rounded-lg border border-slate-200 bg-slate-50 space-y-2';
+                editor.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-1">Data</label>
+                            <input type="date" class="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs" value="${String(post.data_agendada || '').slice(0,10)}" data-field="date">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-1">Canal</label>
+                            <select class="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs" data-field="canal">
+                                <option value="instagram" ${/instagram/i.test(post.plataforma||post.canal||'instagram') ? 'selected' : ''}>Instagram</option>
+                                <option value="facebook" ${/facebook/i.test(post.plataforma||post.canal||'') ? 'selected' : ''}>Facebook</option>
+                                <option value="linkedin" ${/linkedin/i.test(post.plataforma||post.canal||'') ? 'selected' : ''}>LinkedIn</option>
+                                <option value="tiktok" ${/tiktok/i.test(post.plataforma||post.canal||'') ? 'selected' : ''}>TikTok</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-500 mb-1">Tema</label>
+                        <input type="text" class="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs" value="${(post.tema || '').replace(/"/g, '&quot;')}" data-field="tema">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-1">Tipo</label>
+                            <select class="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs" data-field="tipo">
+                                <option value="post_estatico" ${/estatico|imagem|static/i.test(post.formato||post.tipo||'') ? 'selected' : ''}>Post estático</option>
+                                <option value="carrossel" ${/carrossel/i.test(post.formato||post.tipo||'') ? 'selected' : ''}>Carrossel</option>
+                                <option value="reels" ${/reels|video|vídeo/i.test(post.formato||post.tipo||'') ? 'selected' : ''}>Reels</option>
+                                <option value="story" ${/story|stories/i.test(post.formato||post.tipo||'') ? 'selected' : ''}>Story</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-500 mb-1">Observações</label>
+                            <input type="text" class="w-full rounded-lg border border-slate-200 px-2 py-1 text-xs" value="${(post.observacoes || '').replace(/"/g, '&quot;')}" data-field="observacoes">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-2 pt-1">
+                        <button type="button" class="px-3 py-1 rounded-lg border border-slate-200 text-[11px] text-slate-600 hover:text-slate-800" data-action="cancel">Cancelar</button>
+                        <button type="button" class="px-3 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-medium hover:bg-slate-800" data-action="save">Salvar</button>
+                    </div>
+                `;
+                el.appendChild(editor);
+                const saveBtn = editor.querySelector('[data-action="save"]');
+                const cancelBtn = editor.querySelector('[data-action="cancel"]');
+                if (cancelBtn) cancelBtn.addEventListener('click', () => editor.remove());
+                if (saveBtn) {
+                    saveBtn.addEventListener('click', async () => {
+                        const dateEl = editor.querySelector('[data-field="date"]');
+                        const temaEl = editor.querySelector('[data-field="tema"]');
+                        const tipoEl = editor.querySelector('[data-field="tipo"]');
+                        const canalEl = editor.querySelector('[data-field="canal"]');
+                        const obsEl = editor.querySelector('[data-field="observacoes"]');
+                        const payload = {
+                            id: post.calendar_item_id,
+                            calendar_id: post.calendar_id || (global.SocialMediaCore?.currentCalendarId || ''),
+                            data: String(dateEl?.value || '').slice(0,10),
+                            tema: String(temaEl?.value || '').trim(),
+                            tipo_conteudo: String(tipoEl?.value || 'post_estatico'),
+                            canal: String(canalEl?.value || 'instagram'),
+                            observacoes: String(obsEl?.value || '')
+                        };
+                        if (!payload.data || !payload.tema) return;
+                        const btnHtml = saveBtn.innerHTML;
+                        saveBtn.disabled = true;
+                        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Salvando';
+                        try {
+                            const res = await (global.SocialMediaRepo?.upsertCalendarItem ? global.SocialMediaRepo.upsertCalendarItem(payload) : Promise.resolve(null));
+                            if (res && global.CalendarStateManager?.refreshMonthData) {
+                                await global.CalendarStateManager.refreshMonthData();
+                            }
+                            editor.remove();
+                        } catch {
+                            saveBtn.disabled = false;
+                            saveBtn.innerHTML = btnHtml;
+                        }
+                    });
+                }
             };
             el.addEventListener('click', (e) => {
                 e.stopPropagation(); // Evitar disparar o clique do dia (add post)
                 const actionEl = e.target?.closest?.('[data-action]');
                 if (actionEl) return;
-                openEditor();
+                openInlineEditor();
             });
 
             if (!isCalendarItem) {
@@ -200,7 +281,7 @@
                     editBtn.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        openEditor();
+                        openInlineEditor();
                     });
                 }
                 const duplicateBtn = el.querySelector('[data-action="duplicate"]');
@@ -289,5 +370,26 @@
     };
 
     global.SocialMediaCalendar = SocialMediaCalendar;
+    global.SocialMediaCalendar.addInlineItem = function(dateStr) {
+        const grid = document.getElementById(SocialMediaCalendar.containerId);
+        if (!grid) return;
+        const cell = Array.from(grid.querySelectorAll('[data-date]')).find(d => d.dataset.date === dateStr);
+        if (!cell) return;
+        const zone = cell.querySelector('.drop-zone');
+        if (!zone) return;
+        const newItem = {
+            __fromCalendarItem: true,
+            calendar_item_id: null,
+            calendar_id: (global.SocialMediaCore?.currentCalendarId || ''),
+            data_agendada: dateStr,
+            tema: '',
+            formato: 'post_estatico',
+            plataforma: 'instagram',
+            status: 'draft'
+        };
+        const card = SocialMediaCalendar.createPostCard(newItem);
+        zone.prepend(card);
+        card.click();
+    };
 
 })(window);

@@ -84,12 +84,20 @@
             });
             document.addEventListener('v2:calendar-item-add', (e) => {
                 if (e.detail && e.detail.date) {
+                    if (window.SocialMediaCalendar?.addInlineItem) {
+                        window.SocialMediaCalendar.addInlineItem(e.detail.date);
+                        return;
+                    }
                     this.openPlanning({ date: e.detail.date });
                 }
             });
             document.addEventListener('v2:calendar-item-click', (e) => {
                 const itemId = e?.detail?.itemId ?? null;
                 const date = e?.detail?.date ?? null;
+                if (window.SocialMediaCalendar?.addInlineItem && date) {
+                    window.SocialMediaCalendar.addInlineItem(date);
+                    return;
+                }
                 this.openPlanning({ itemId, date });
             });
             
