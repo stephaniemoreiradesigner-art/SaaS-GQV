@@ -83,6 +83,8 @@
             }
             if (confirmBtn) {
                 confirmBtn.addEventListener('click', async () => {
+                    if (confirmBtn.disabled) return;
+                    if (this._editorialAdjustInflight === true) return;
                     const entry = this._activeEditorialAdjustmentEntry;
                     const themeEl = document.getElementById('client-editorial-adjust-theme');
                     const copyEl = document.getElementById('client-editorial-adjust-copy');
@@ -95,7 +97,17 @@
                         this.setEditorialAdjustFeedback('Descreva o ajuste solicitado para continuar.', 'error');
                         return;
                     }
-                    await global.ClientCore?.submitEditorialAdjustment?.(entry, { tema, copy, adjustmentText });
+                    this._editorialAdjustInflight = true;
+                    const original = confirmBtn.innerHTML;
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+                    try {
+                        await global.ClientCore?.submitEditorialAdjustment?.(entry, { tema, copy, adjustmentText });
+                    } finally {
+                        this._editorialAdjustInflight = false;
+                        confirmBtn.disabled = false;
+                        confirmBtn.innerHTML = original;
+                    }
                 });
             }
         },

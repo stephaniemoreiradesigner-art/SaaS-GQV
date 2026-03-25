@@ -848,6 +848,7 @@
                 console.log('[ClientCalendar] request changes payload', payload);
 
                 const result = await global.ClientRepo.updateCalendarItemEditorialStatus(itemId, clientId, {
+                    calendar_id: calendarId,
                     status: 'needs_changes',
                     comment: trimmedComment
                 });

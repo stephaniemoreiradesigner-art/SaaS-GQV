@@ -407,6 +407,9 @@
 
             const normalizedItemId = this.normalizeIdForFilter ? this.normalizeIdForFilter(itemId) : String(itemId || '').trim();
             const normalizedClientId = this.normalizeIdForFilter ? this.normalizeIdForFilter(clientId) : null;
+            const normalizedCalendarId = this.normalizeIdForFilter
+                ? this.normalizeIdForFilter(patch?.calendar_id ?? patch?.calendarId)
+                : null;
 
             const nextStatus = String(patch?.status || '').trim();
             const comment = String(patch?.comment || '').trim();
@@ -427,35 +430,61 @@
             const errorLooksLikeMissingColumn = (error, columnName) => {
                 const msg = String(error?.message || '').toLowerCase();
                 const col = String(columnName || '').toLowerCase();
-                return error?.code === '42703' || msg.includes(`column ${col}`) || msg.includes(`"${col}"`) || msg.includes(`'${col}'`);
+                return error?.code === '42703'
+                    || error?.code === 'PGRST204'
+                    || msg.includes(`column ${col}`)
+                    || msg.includes(`"${col}"`)
+                    || msg.includes(`'${col}'`)
+                    || msg.includes(`could not find the '${col}' column`)
+                    || msg.includes(`could not find the "${col}" column`);
             };
 
             const commentKeys = ['comentario_cliente', 'comentario', 'feedback_cliente', 'client_review_comment', 'review_comment'];
             const filterAttempts = normalizedClientId ? [true, false] : [false];
+            const calendarAttempts = normalizedCalendarId ? [true, false] : [false];
 
-            for (const useClientFilter of filterAttempts) {
-                for (const commentKey of commentKeys) {
-                    const payload = { ...basePayload };
-                    if (comment) payload[commentKey] = comment;
-                    try {
-                        let query = supabase
-                            .from('social_calendar_items')
-                            .update(payload)
-                            .eq('id', normalizedItemId)
-                            .select('id,status')
-                            .maybeSingle();
-                        if (useClientFilter) query = query.eq('cliente_id', normalizedClientId);
-                        const { data, error } = await query;
-                        if (!error) return { ok: true, data: data || null };
-                        if (useClientFilter && errorLooksLikeMissingColumn(error, 'cliente_id')) {
-                            continue;
+            for (const useCalendarFilter of calendarAttempts) {
+                for (const useClientFilter of filterAttempts) {
+                    for (const commentKey of commentKeys) {
+                        const payload = { ...basePayload };
+                        if (comment) payload[commentKey] = comment;
+                        try {
+                            let query = supabase
+                                .from('social_calendar_items')
+                                .update(payload)
+                                .eq('id', normalizedItemId)
+                                .select('id,status');
+                            if (useCalendarFilter) query = query.eq('calendar_id', normalizedCalendarId);
+                            if (useClientFilter) query = query.eq('cliente_id', normalizedClientId);
+                            const { data, error } = await query;
+                            if (!error) {
+                                const row = Array.isArray(data) ? data[0] : data;
+                                if (row?.id) return { ok: true, data: row };
+                                return { ok: false, error: { message: 'no_rows_updated', payload, filters: { id: normalizedItemId, calendar_id: useCalendarFilter ? normalizedCalendarId : null, cliente_id: useClientFilter ? normalizedClientId : null } } };
+                            }
+                            console.log('[ClientRepo] updateCalendarItemEditorialStatus error detail:', {
+                                itemId: normalizedItemId,
+                                calendarId: useCalendarFilter ? normalizedCalendarId : null,
+                                clientId: useClientFilter ? normalizedClientId : null,
+                                payload,
+                                code: error?.code || null,
+                                message: error?.message || null,
+                                details: error?.details || null,
+                                hint: error?.hint || null
+                            });
+                            if (useCalendarFilter && errorLooksLikeMissingColumn(error, 'calendar_id')) {
+                                continue;
+                            }
+                            if (useClientFilter && errorLooksLikeMissingColumn(error, 'cliente_id')) {
+                                continue;
+                            }
+                            if (comment && errorLooksLikeMissingColumn(error, commentKey)) {
+                                continue;
+                            }
+                            return { ok: false, error };
+                        } catch (error) {
+                            return { ok: false, error };
                         }
-                        if (comment && errorLooksLikeMissingColumn(error, commentKey)) {
-                            continue;
-                        }
-                        return { ok: false, error };
-                    } catch (error) {
-                        return { ok: false, error };
                     }
                 }
             }
