@@ -17,7 +17,6 @@
             this.setupDrawer();
             this.setupTabs();
             this.setupCalendarFab();
-            this.setupPlanningModal();
             this.setupEditorialItemModal();
             this.setupAiCalendarModal();
         },
@@ -1154,68 +1153,21 @@
         },
 
         openPlanningModal: function(input) {
-            const modal = document.getElementById('social-plan-modal');
-            if (!modal) return;
-
             const clientId = String(input?.clientId || '').trim();
             const monthKey = String(input?.monthKey || '').trim();
+            const calendarId = String(input?.calendarId || '').trim();
             const calendarStatusRaw = input?.calendarStatus ?? null;
-            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
-                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(calendarStatusRaw)
-                : String(calendarStatusRaw || '').trim().toLowerCase();
-            const editable = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
-
-            let calendarId = input?.calendarId ?? null;
-            const items = Array.isArray(input?.editorialItems) ? input.editorialItems : [];
-            const date = String(input?.date || '').slice(0, 10);
             const itemId = input?.itemId ?? null;
-
-            this._planningContext = {
+            const date = String(input?.date || '').slice(0, 10);
+            const items = Array.isArray(input?.editorialItems) ? input.editorialItems : [];
+            const selected = itemId ? (items || []).find((it) => String(it?.id) === String(itemId)) : null;
+            this.openEditorialItemModal({
                 clientId,
                 monthKey,
                 calendarId,
                 calendarStatus: calendarStatusRaw,
-                editorialItems: items
-            };
-
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-
-            if (!clientId) {
-                this.setPlanningFeedback('Selecione um cliente primeiro.', 'error');
-                this.setPlanningEditable(false);
-                this.renderPlanningList([], {});
-                return;
-            }
-
-            const ensureCalendar = async () => {
-                if (calendarId) return calendarId;
-                if (global.SocialMediaRepo?.getCalendarByMonth && clientId && monthKey) {
-                    const cal = await global.SocialMediaRepo.getCalendarByMonth(clientId, monthKey);
-                    calendarId = cal?.id || null;
-                    this._planningContext = { ...(this._planningContext || {}), calendarId };
-                }
-                return calendarId;
-            };
-
-            Promise.resolve()
-                .then(async () => {
-                    await ensureCalendar();
-                    const snap = global.CalendarStateManager?.getState ? global.CalendarStateManager.getState() : null;
-                    const liveItems = Array.isArray(snap?.editorialItems) ? snap.editorialItems : items;
-                    this._planningContext = { ...(this._planningContext || {}), editorialItems: liveItems };
-                    const selected = itemId ? (liveItems || []).find((it) => String(it?.id) === String(itemId)) : null;
-                    this.renderPlanningList(liveItems, { selectedId: selected?.id || null });
-                    this.clearPlanningForm();
-                    this.fillPlanningForm(selected, date);
-                    this.setPlanningEditable(editable);
-                    if (!editable && statusKey) {
-                        this.setPlanningFeedback('Edição bloqueada: calendário em aprovação.', 'error');
-                    }
-                })
-                .catch(() => {
-                    this.setPlanningFeedback('Não foi possível abrir o planejamento.', 'error');
-                });
+                item: selected || { id: itemId, data: date, tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
+            });
         },
 
         savePlanningItem: async function() {

@@ -79,7 +79,15 @@
             // Ouvir adição rápida de post no dia
             document.addEventListener('v2:calendar-add', (e) => {
                 if (e.detail && e.detail.date) {
-                    this.openPlanning({ date: e.detail.date });
+                    const snap = this.getCalendarSnap();
+                    if (!global.SocialMediaUI?.openEditorialItemModal) return;
+                    global.SocialMediaUI.openEditorialItemModal({
+                        clientId: snap?.clientId || null,
+                        monthKey: snap?.monthKey || null,
+                        calendarId: snap?.activeCalendarId || null,
+                        calendarStatus: snap?.calendarStatus || null,
+                        item: { data: String(e.detail.date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
+                    });
                 }
             });
             document.addEventListener('v2:calendar-item-add', (e) => {
@@ -94,9 +102,7 @@
                             calendarStatus: snap?.calendarStatus || null,
                             item
                         });
-                        return;
                     }
-                    this.openPlanning({ date: e.detail.date });
                 }
             });
             document.addEventListener('v2:calendar-item-click', (e) => {
@@ -105,17 +111,16 @@
                 const snap = this.getCalendarSnap();
                 const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
                 const selected = itemId ? items.find((it) => String(it?.id) === String(itemId)) : null;
-                if (selected && global.SocialMediaUI?.openEditorialItemModal) {
+                if (global.SocialMediaUI?.openEditorialItemModal) {
                     global.SocialMediaUI.openEditorialItemModal({
                         clientId: snap?.clientId || null,
                         monthKey: snap?.monthKey || null,
                         calendarId: snap?.activeCalendarId || null,
                         calendarStatus: snap?.calendarStatus || null,
-                        item: selected
+                        item: selected || { id: itemId, data: String(date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
                     });
                     return;
                 }
-                this.openPlanning({ itemId, date });
             });
             
             // Ouvir botão Novo Post
@@ -131,7 +136,17 @@
                     const inPlanning = ['draft', 'sent_for_approval', 'needs_changes', 'rascunho', 'aguardando_aprovacao', 'ajuste_solicitado'].includes(normalized);
                     const calendarTabActive = global.SocialMediaUI?.isTabActive ? global.SocialMediaUI.isTabActive('calendar') : false;
                     if (calendarTabActive && inPlanning) {
-                        this.openPlanning({ date: todayStr });
+                        const snap = this.getCalendarSnap();
+                        if (global.SocialMediaUI?.openEditorialItemModal) {
+                            global.SocialMediaUI.openEditorialItemModal({
+                                clientId: snap?.clientId || null,
+                                monthKey: snap?.monthKey || null,
+                                calendarId: snap?.activeCalendarId || null,
+                                calendarStatus: snap?.calendarStatus || null,
+                                item: { data: String(todayStr || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
+                            });
+                            return;
+                        }
                         return;
                     }
                     this.startCreate(todayStr);
@@ -195,18 +210,18 @@
                 this.setAgencyFeedback('Selecione um cliente primeiro.', 'error');
                 return;
             }
-            if (!global.SocialMediaUI?.openPlanningModal) {
-                this.setAgencyFeedback('Planejamento indisponível.', 'error');
+            if (!global.SocialMediaUI?.openEditorialItemModal) {
+                this.setAgencyFeedback('Editor editorial indisponível.', 'error');
                 return;
             }
-            global.SocialMediaUI.openPlanningModal({
+            const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+            const selected = itemId ? items.find((it) => String(it?.id) === String(itemId)) : null;
+            global.SocialMediaUI.openEditorialItemModal({
                 clientId: this.currentClientId,
                 monthKey: snap?.monthKey || '',
                 calendarId: snap?.activeCalendarId || null,
                 calendarStatus: snap?.calendarStatus || null,
-                editorialItems: Array.isArray(snap?.editorialItems) ? snap.editorialItems : [],
-                date,
-                itemId
+                item: selected || { id: itemId, data: String(date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
             });
         },
 
