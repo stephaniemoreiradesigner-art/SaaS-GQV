@@ -18,6 +18,7 @@
             this.setupTabs();
             this.setupCalendarFab();
             this.setupPlanningModal();
+            this.setupEditorialItemModal();
             this.setupAiCalendarModal();
         },
 
@@ -724,6 +725,182 @@
                     await this.savePlanningItem();
                 });
             }
+        },
+
+        setupEditorialItemModal: function() {
+            const modal = document.getElementById('social-editorial-item-modal');
+            if (!modal) return;
+            const closeBtn = document.getElementById('social-editorial-item-close');
+            const cancelBtn = document.getElementById('social-editorial-item-cancel');
+            const saveBtn = document.getElementById('social-editorial-item-save');
+            const close = () => this.showEditorialItemModal(false);
+            if (closeBtn) closeBtn.addEventListener('click', close);
+            if (cancelBtn) cancelBtn.addEventListener('click', close);
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) close();
+            });
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async () => {
+                    await this.saveEditorialItemModal();
+                });
+            }
+        },
+
+        showEditorialItemModal: function(show) {
+            const modal = document.getElementById('social-editorial-item-modal');
+            if (!modal) return;
+            if (!show) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                this._editorialItemContext = null;
+                return;
+            }
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        },
+
+        openEditorialItemModal: function(input) {
+            const modal = document.getElementById('social-editorial-item-modal');
+            if (!modal) return;
+
+            const clientId = String(input?.clientId || '').trim();
+            const monthKey = String(input?.monthKey || '').trim();
+            const calendarId = String(input?.calendarId || '').trim();
+            const calendarStatusRaw = input?.calendarStatus ?? null;
+            const statusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(calendarStatusRaw)
+                : String(calendarStatusRaw || '').trim().toLowerCase();
+            const editable = ['draft', 'needs_changes'].includes(String(statusKey || '').trim());
+
+            const item = input?.item && typeof input.item === 'object' ? input.item : {};
+            const itemId = item?.id ?? null;
+            const date = String(item?.data || item?.data_agendada || input?.date || '').slice(0, 10);
+
+            this._editorialItemContext = {
+                clientId,
+                monthKey,
+                calendarId,
+                calendarStatus: calendarStatusRaw,
+                editable,
+                itemId: itemId ? String(itemId) : ''
+            };
+
+            const idEl = document.getElementById('social-editorial-item-id');
+            const dateEl = document.getElementById('social-editorial-item-date');
+            const themeEl = document.getElementById('social-editorial-item-theme');
+            const typeEl = document.getElementById('social-editorial-item-type');
+            const channelEl = document.getElementById('social-editorial-item-channel');
+            const notesEl = document.getElementById('social-editorial-item-notes');
+            const statusEl = document.getElementById('social-editorial-item-status');
+            const feedbackEl = document.getElementById('social-editorial-item-feedback');
+
+            if (feedbackEl) feedbackEl.classList.add('hidden');
+
+            if (idEl) idEl.value = itemId ? String(itemId) : '';
+            if (dateEl) dateEl.value = date;
+            if (themeEl) themeEl.value = String(item?.tema || '').trim();
+            if (typeEl) typeEl.value = String(item?.tipo_conteudo || 'post_estatico');
+            if (channelEl) channelEl.value = String(item?.canal || 'instagram');
+            if (notesEl) notesEl.value = String(item?.observacoes || '');
+            if (statusEl) {
+                const meta = global.GQV_STATUS_MAP?.getCalendarItemStatusMeta ? global.GQV_STATUS_MAP.getCalendarItemStatusMeta(item?.status || 'draft') : null;
+                statusEl.value = meta?.label || String(item?.status || 'draft');
+            }
+
+            const controls = [dateEl, themeEl, typeEl, channelEl, notesEl, document.getElementById('social-editorial-item-save')];
+            controls.forEach((el) => {
+                if (!el) return;
+                el.disabled = !editable;
+            });
+
+            this.showEditorialItemModal(true);
+        },
+
+        saveEditorialItemModal: async function() {
+            const ctx = this._editorialItemContext || {};
+            const calendarId = String(ctx.calendarId || '').trim();
+            if (!calendarId) return;
+            if (!ctx.editable) return;
+
+            const idEl = document.getElementById('social-editorial-item-id');
+            const dateEl = document.getElementById('social-editorial-item-date');
+            const themeEl = document.getElementById('social-editorial-item-theme');
+            const typeEl = document.getElementById('social-editorial-item-type');
+            const channelEl = document.getElementById('social-editorial-item-channel');
+            const notesEl = document.getElementById('social-editorial-item-notes');
+            const feedbackEl = document.getElementById('social-editorial-item-feedback');
+            const saveBtn = document.getElementById('social-editorial-item-save');
+
+            const idRaw = String(idEl?.value || '').trim();
+            const payload = {
+                id: idRaw ? Number(idRaw) : undefined,
+                calendar_id: calendarId,
+                data: String(dateEl?.value || '').slice(0, 10),
+                tema: String(themeEl?.value || '').trim(),
+                tipo_conteudo: String(typeEl?.value || 'post_estatico'),
+                canal: String(channelEl?.value || 'instagram'),
+                observacoes: String(notesEl?.value || '')
+            };
+            if (!payload.data || !payload.tema) {
+                if (feedbackEl) {
+                    feedbackEl.textContent = 'Informe data e tema.';
+                    feedbackEl.className = 'text-sm rounded-lg px-3 py-2 bg-red-100 text-red-700';
+                    feedbackEl.classList.remove('hidden');
+                }
+                return;
+            }
+            if (!global.SocialMediaRepo?.upsertCalendarItem) return;
+
+            const original = saveBtn ? saveBtn.innerHTML : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
+            }
+            try {
+                const saved = await global.SocialMediaRepo.upsertCalendarItem(payload);
+                if (!saved) {
+                    if (feedbackEl) {
+                        feedbackEl.textContent = 'Não foi possível salvar o item.';
+                        feedbackEl.className = 'text-sm rounded-lg px-3 py-2 bg-red-100 text-red-700';
+                        feedbackEl.classList.remove('hidden');
+                    }
+                    return;
+                }
+                this.applySavedEditorialItemToCalendar(saved);
+                this.showEditorialItemModal(false);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = original;
+                }
+            }
+        },
+
+        applySavedEditorialItemToCalendar: function(saved) {
+            const dateKey = String(saved?.data || saved?.data_agendada || '').slice(0, 10);
+            if (!dateKey || !global.SocialMediaCalendar?.createPostCard) return;
+
+            const mapped = {
+                id: `item_${String(saved?.id || Math.random()).replace(/[^\w-]/g, '')}`,
+                __fromCalendarItem: true,
+                calendar_item_id: saved?.id || null,
+                calendar_id: saved?.calendar_id || null,
+                data_agendada: dateKey,
+                tema: saved?.tema || 'Item do calendário',
+                formato: saved?.tipo_conteudo || 'post_estatico',
+                plataforma: saved?.canal || 'instagram',
+                status: saved?.status || 'draft'
+            };
+
+            const existing = saved?.id ? document.querySelector(`[data-calendar-item-id="${String(saved.id)}"]`) : null;
+            if (existing) existing.remove();
+
+            const grid = document.getElementById(global.SocialMediaCalendar.containerId || 'social-calendar-grid');
+            const targetZone = grid ? grid.querySelector(`[data-date="${dateKey}"] .drop-zone`) : null;
+            if (!targetZone) return;
+
+            const card = global.SocialMediaCalendar.createPostCard(mapped);
+            targetZone.appendChild(card);
         },
 
         setupAiCalendarModal: function() {

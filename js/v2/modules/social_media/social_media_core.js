@@ -84,8 +84,16 @@
             });
             document.addEventListener('v2:calendar-item-add', (e) => {
                 if (e.detail && e.detail.date) {
-                    if (window.SocialMediaCalendar?.addInlineItem) {
-                        window.SocialMediaCalendar.addInlineItem(e.detail.date);
+                    const snap = this.getCalendarSnap();
+                    const item = { data: String(e.detail.date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' };
+                    if (global.SocialMediaUI?.openEditorialItemModal) {
+                        global.SocialMediaUI.openEditorialItemModal({
+                            clientId: snap?.clientId || null,
+                            monthKey: snap?.monthKey || null,
+                            calendarId: snap?.activeCalendarId || null,
+                            calendarStatus: snap?.calendarStatus || null,
+                            item
+                        });
                         return;
                     }
                     this.openPlanning({ date: e.detail.date });
@@ -94,8 +102,17 @@
             document.addEventListener('v2:calendar-item-click', (e) => {
                 const itemId = e?.detail?.itemId ?? null;
                 const date = e?.detail?.date ?? null;
-                if (window.SocialMediaCalendar?.addInlineItem && date) {
-                    window.SocialMediaCalendar.addInlineItem(date);
+                const snap = this.getCalendarSnap();
+                const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+                const selected = itemId ? items.find((it) => String(it?.id) === String(itemId)) : null;
+                if (selected && global.SocialMediaUI?.openEditorialItemModal) {
+                    global.SocialMediaUI.openEditorialItemModal({
+                        clientId: snap?.clientId || null,
+                        monthKey: snap?.monthKey || null,
+                        calendarId: snap?.activeCalendarId || null,
+                        calendarStatus: snap?.calendarStatus || null,
+                        item: selected
+                    });
                     return;
                 }
                 this.openPlanning({ itemId, date });
