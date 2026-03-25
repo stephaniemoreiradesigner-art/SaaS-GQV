@@ -530,6 +530,8 @@
             const legenda = String(params?.legenda || params?.copy || '').trim();
             const formato = String(params?.formato || params?.tipo_conteudo || '').trim();
             const plataforma = String(params?.plataforma || params?.canal || '').trim();
+            const targetStatus = String(params?.targetStatus || 'draft').trim();
+            const comentario = String(params?.comentario_cliente || '').trim();
 
             try {
                 const { data: existing, error: findError } = await supabase
@@ -542,10 +544,18 @@
 
                 if (existing?.id) {
                     const currentStatus = String(existing.status || '').trim().toLowerCase();
-                    const shouldForceDraft = currentStatus === 'approved' || currentStatus === '';
                     const isHardFinal = ['scheduled', 'published'].includes(currentStatus);
                     const payload = {};
-                    if (!isHardFinal && shouldForceDraft) payload.status = 'draft';
+                    if (!isHardFinal) {
+                        if (targetStatus === 'draft') {
+                            // Caminho "approved": só força draft se o post estava approved ou vazio
+                            if (currentStatus === 'approved' || currentStatus === '') payload.status = 'draft';
+                        } else {
+                            // Outros targetStatus (ex: changes_requested): sempre aplica
+                            payload.status = targetStatus;
+                        }
+                    }
+                    if (comentario) payload.comentario_cliente = comentario;
                     if (scheduledDate) payload.data_agendada = scheduledDate;
                     if (tema) payload.tema = tema;
                     if (legenda) payload.legenda = legenda;
@@ -567,12 +577,13 @@
                     calendar_id: calendarId,
                     calendar_item_id: calendarItemId,
                     cliente_id: clientId,
-                    status: 'draft',
+                    status: targetStatus,
                     data_agendada: scheduledDate || null,
                     tema: tema || null,
                     formato: formato || 'post_estatico',
                     plataforma: plataforma || 'instagram',
-                    legenda: legenda || null
+                    legenda: legenda || null,
+                    comentario_cliente: comentario || null
                 };
 
                 const { data, error } = await supabase

@@ -743,6 +743,12 @@
                     await this.saveEditorialItemModal();
                 });
             }
+            const resendBtn = document.getElementById('social-editorial-item-resend');
+            if (resendBtn) {
+                resendBtn.addEventListener('click', async () => {
+                    await this.resendCalendarItemToClient();
+                });
+            }
         },
 
         showEditorialItemModal: function(show) {
@@ -825,6 +831,20 @@
                 el.disabled = !editable;
             });
 
+            // Mostrar botão "Reenviar para cliente" apenas quando item está em needs_changes
+            const resendBtn = document.getElementById('social-editorial-item-resend');
+            if (resendBtn) {
+                const itemStatusRaw = String(item?.status || '').trim().toLowerCase();
+                const itemStatusKey = global.GQV_CONSTANTS?.getSocialCalendarStatusKey
+                    ? global.GQV_CONSTANTS.getSocialCalendarStatusKey(itemStatusRaw)
+                    : itemStatusRaw;
+                if (itemStatusKey === 'needs_changes') {
+                    resendBtn.classList.remove('hidden');
+                } else {
+                    resendBtn.classList.add('hidden');
+                }
+            }
+
             this.showEditorialItemModal(true);
         },
 
@@ -886,6 +906,42 @@
                     saveBtn.innerHTML = original;
                 }
             }
+        },
+
+        resendCalendarItemToClient: async function() {
+            const ctx = this._editorialItemContext || {};
+            const itemId = String(ctx.itemId || '').trim();
+            const calendarId = String(ctx.calendarId || '').trim();
+            if (!itemId || !calendarId) return;
+
+            const feedbackEl = document.getElementById('social-editorial-item-feedback');
+            const resendBtn = document.getElementById('social-editorial-item-resend');
+
+            if (resendBtn) { resendBtn.disabled = true; resendBtn.textContent = 'Reenviando...'; }
+
+            const saved = await global.SocialMediaRepo?.saveCalendarItem?.({
+                id: Number(itemId) || itemId,
+                status: 'sent_for_approval'
+            });
+
+            if (!saved) {
+                if (feedbackEl) {
+                    feedbackEl.textContent = 'Não foi possível reenviar o item.';
+                    feedbackEl.className = 'text-sm rounded-lg px-3 py-2 bg-red-100 text-red-700';
+                    feedbackEl.classList.remove('hidden');
+                }
+                if (resendBtn) { resendBtn.disabled = false; resendBtn.textContent = 'Reenviar para cliente'; }
+                return;
+            }
+
+            if (feedbackEl) {
+                feedbackEl.textContent = 'Item reenviado para o cliente.';
+                feedbackEl.className = 'text-sm rounded-lg px-3 py-2 bg-emerald-50 text-emerald-700';
+                feedbackEl.classList.remove('hidden');
+            }
+
+            console.log('[AgencyCalendar] item reenviado para aprovação do cliente', { itemId, calendarId });
+            setTimeout(() => this.showEditorialItemModal(false), 900);
         },
 
         applySavedEditorialItemToCalendar: function(saved) {

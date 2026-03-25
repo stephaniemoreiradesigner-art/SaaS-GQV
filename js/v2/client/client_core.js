@@ -641,7 +641,7 @@
                         || 'draft'
                     ).trim() || 'draft';
                     const statusKey = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(statusValue) : String(statusValue || '').trim().toLowerCase();
-                    if (statusKey === 'needs_changes' || statusKey === 'sent_for_approval') statusValue = 'draft';
+                    // needs_changes e sent_for_approval preservam seu status real
                     return {
                         key: String(relatedPost?.id || `item_${itemId}`),
                         postId: String(relatedPost?.id || '').trim() || null,
@@ -684,7 +684,7 @@
             const visible = entries.filter((e) => {
                 const raw = String(e?.status || '').trim().toLowerCase();
                 const key = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(raw) : raw;
-                return key !== 'approved' && key !== 'changes_requested';
+                return key !== 'approved' && key !== 'changes_requested' && key !== 'needs_changes';
             });
 
             const uniqueStatuses = Array.from(new Set(entries.map((e) => String(e.status || '').trim().toLowerCase()).filter(Boolean)));
@@ -693,6 +693,17 @@
             console.log('[ClientCalendar] itens renderizados no modal:', { calendarId, clientId, count: visible.length, total: entries.length });
 
             if (global.ClientUI) global.ClientUI.renderCalendarPostsInModal(visible, { source: 'calendar_items', postsByItemId });
+
+            // Auto-close quando todos os itens foram tratados
+            if (!visible.length && entries.length) {
+                const calModal = document.getElementById('client-calendar-modal');
+                if (calModal && !calModal.classList.contains('hidden')) {
+                    calModal.classList.add('hidden');
+                    calModal.classList.remove('flex');
+                    console.log('[ClientCalendar] todos os itens tratados — modal fechado automaticamente');
+                }
+                return;
+            }
 
             // Bind Actions
             this.setupModalActions();
@@ -880,6 +891,21 @@
 
                 console.log('[ClientCalendar] request changes persisted', { calendarId, itemId });
                 this.setEditorialItemReview(itemId, 'needs_changes', trimmedComment);
+
+                // Criar/atualizar post na agência como changes_requested (Revisão interna)
+                if (global.ClientRepo?.ensurePostDraftFromCalendarItem) {
+                    await global.ClientRepo.ensurePostDraftFromCalendarItem({
+                        calendarId,
+                        calendarItemId: itemId,
+                        clientId,
+                        targetStatus: 'changes_requested',
+                        comentario_cliente: trimmedComment,
+                        scheduledDate: String(entry?.scheduledDate || entry?.date || entry?.data || '').trim(),
+                        tema: String(patch?.tema || entry?.tema || '').trim(),
+                        plataforma: String(entry?.canal || '').trim(),
+                        formato: String(entry?.tipo || '').trim()
+                    });
+                }
 
                 if (global.ClientRepo?.updateCalendarStatus) {
                     const { error } = await global.ClientRepo.updateCalendarStatus(calendarId, 'needs_changes', clientId);
