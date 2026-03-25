@@ -806,6 +806,20 @@
                 statusEl.value = meta?.label || String(item?.status || 'draft');
             }
 
+            // Exibe comentário do cliente quando há ajuste solicitado
+            const clientCommentBox = document.getElementById('social-editorial-item-client-comment');
+            const clientCommentText = document.getElementById('social-editorial-item-client-comment-text');
+            const comentario = String(item?.comentario_cliente || '').trim();
+            if (clientCommentBox && clientCommentText) {
+                if (comentario) {
+                    clientCommentText.textContent = comentario;
+                    clientCommentBox.classList.remove('hidden');
+                } else {
+                    clientCommentBox.classList.add('hidden');
+                    clientCommentText.textContent = '';
+                }
+            }
+
             const controls = [dateEl, themeEl, typeEl, channelEl, notesEl, document.getElementById('social-editorial-item-save')];
             controls.forEach((el) => {
                 if (!el) return;
