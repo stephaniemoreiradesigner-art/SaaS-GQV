@@ -440,7 +440,7 @@
             };
 
             const commentKeys = ['comentario_cliente', 'comentario', 'feedback_cliente', 'client_review_comment', 'review_comment'];
-            const filterAttempts = normalizedClientId ? [true, false] : [false];
+            const filterAttempts = [false]; // social_calendar_items nao tem coluna cliente_id
             const calendarAttempts = normalizedCalendarId ? [true, false] : [false];
             const safeStringify = (value) => {
                 try {
