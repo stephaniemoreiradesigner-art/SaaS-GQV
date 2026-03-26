@@ -656,13 +656,15 @@
                                 if (global.SocialMediaUI?.renderPostsBoard) {
                                     global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
                                 }
-                                // Auto-criação: detectar itens aprovados e gerar post único
+                                // Auto-criação/sincronização: aprovados → draft, needs_changes → changes_requested
                                 const items = Array.isArray(snap.editorialItems) ? snap.editorialItems : [];
                                 items.forEach((it) => {
                                     const meta = global.GQV_STATUS_MAP?.getCalendarItemStatusMeta ? global.GQV_STATUS_MAP.getCalendarItemStatusMeta(it.status) : null;
-                                    const isApproved = String(meta?.key || '').trim() === 'approved';
-                                    if (isApproved) {
+                                    const statusKey = String(meta?.key || '').trim();
+                                    if (statusKey === 'approved') {
                                         this.createPostFromCalendarItem(it, snap.activeCalendarId, snap.clientId);
+                                    } else if (statusKey === 'needs_changes') {
+                                        this.syncChangesRequestedPost(it, snap.activeCalendarId, snap.clientId);
                                     }
                                 });
                             }
@@ -754,6 +756,38 @@
                 this._autoCreatedFromItems.add(key);
             } catch (err) {
                 console.warn('[AutoCreatePost] falha silenciosa:', err?.message || err);
+            }
+        },
+
+        syncChangesRequestedPost: async function(calendarItem, calendarId, clientId) {
+            try {
+                if (!calendarItem?.id || !calendarId || !clientId) return;
+                this._syncedChangesRequested = this._syncedChangesRequested || new Set();
+                const key = `${calendarId}:${calendarItem.id}:changes`;
+                if (this._syncedChangesRequested.has(key)) return;
+                this._syncedChangesRequested.add(key);
+                const comment = String(calendarItem?.comentario_cliente || '').trim();
+                const result = await global.SocialMediaRepo?.upsertPostForCalendarItem?.({
+                    calendarId,
+                    calendarItemId: calendarItem.id,
+                    clientId,
+                    status: 'changes_requested',
+                    data_agendada: calendarItem.data,
+                    tema: calendarItem.tema,
+                    formato: calendarItem.tipo_conteudo,
+                    plataforma: calendarItem.canal,
+                    comentario_cliente: comment
+                });
+                if (result?.ok !== true) {
+                    console.warn('[AgencyCalendar] syncChangesRequestedPost failed:', { calendarItemId: calendarItem.id, error: result?.error || null });
+                } else {
+                    console.log('[AgencyCalendar] syncChangesRequestedPost ok:', { calendarItemId: calendarItem.id, postId: result?.data?.id || null });
+                    if (global.CalendarStateManager?.refreshMonthData) {
+                        await global.CalendarStateManager.refreshMonthData();
+                    }
+                }
+            } catch (err) {
+                console.warn('[AgencyCalendar] syncChangesRequestedPost exception:', err?.message || err);
             }
         },
 

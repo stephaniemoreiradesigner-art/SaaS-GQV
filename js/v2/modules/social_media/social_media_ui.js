@@ -919,12 +919,13 @@
 
             if (resendBtn) { resendBtn.disabled = true; resendBtn.textContent = 'Reenviando...'; }
 
-            const saved = await global.SocialMediaRepo?.saveCalendarItem?.({
-                id: Number(itemId) || itemId,
-                status: 'sent_for_approval'
-            });
+            const result = await global.SocialMediaRepo?.updateCalendarItemStatus?.(
+                Number(itemId) || itemId,
+                'sent_for_approval'
+            );
+            console.log('[AgencyCalendar] resend result:', { itemId, calendarId, result });
 
-            if (!saved) {
+            if (!result || result.ok !== true) {
                 if (feedbackEl) {
                     feedbackEl.textContent = 'Não foi possível reenviar o item.';
                     feedbackEl.className = 'text-sm rounded-lg px-3 py-2 bg-red-100 text-red-700';

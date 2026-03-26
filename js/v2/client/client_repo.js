@@ -586,12 +586,17 @@
                     comentario_cliente: comentario || null
                 };
 
+                console.log('[ClientRepo] ensurePostDraftFromCalendarItem insert attempt:', { insertPayload, calendarId, calendarItemId, clientId, targetStatus });
                 const { data, error } = await supabase
                     .from('social_posts')
                     .insert(insertPayload)
                     .select('*')
                     .maybeSingle();
-                if (error) return { ok: false, error };
+                if (error) {
+                    console.error('[ClientRepo] ensurePostDraftFromCalendarItem insert error:', { error, code: error?.code, message: error?.message, insertPayload });
+                    return { ok: false, error };
+                }
+                console.log('[ClientRepo] ensurePostDraftFromCalendarItem insert ok:', { id: data?.id || null, status: data?.status || null });
                 return { ok: true, data: data || null };
             } catch (error) {
                 return { ok: false, error };

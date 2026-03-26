@@ -894,7 +894,7 @@
 
                 // Criar/atualizar post na agência como changes_requested (Revisão interna)
                 if (global.ClientRepo?.ensurePostDraftFromCalendarItem) {
-                    await global.ClientRepo.ensurePostDraftFromCalendarItem({
+                    const postResult = await global.ClientRepo.ensurePostDraftFromCalendarItem({
                         calendarId,
                         calendarItemId: itemId,
                         clientId,
@@ -905,6 +905,11 @@
                         plataforma: String(entry?.canal || '').trim(),
                         formato: String(entry?.tipo || '').trim()
                     });
+                    if (postResult?.ok !== true) {
+                        console.error('[ClientCalendar] ensurePostDraftFromCalendarItem (changes_requested) failed:', { calendarId, itemId, error: postResult?.error || null });
+                    } else {
+                        console.log('[ClientCalendar] ensurePostDraftFromCalendarItem (changes_requested) ok:', { calendarId, itemId, postId: postResult?.data?.id || null });
+                    }
                 }
 
                 if (global.ClientRepo?.updateCalendarStatus) {

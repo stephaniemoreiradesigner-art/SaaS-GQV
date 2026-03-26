@@ -898,6 +898,86 @@
             }
         },
 
+        updateCalendarItemStatus: async function(itemId, status) {
+            if (!global.supabaseClient || !itemId || !status) return { ok: false, error: 'missing_params' };
+            const id = Number(String(itemId).trim()) || String(itemId).trim();
+            if (!id) return { ok: false, error: 'invalid_id' };
+            try {
+                const { data, error } = await global.supabaseClient
+                    .from('social_calendar_items')
+                    .update({ status, updated_at: new Date().toISOString() })
+                    .eq('id', id)
+                    .select('id,status')
+                    .maybeSingle();
+                if (error) throw error;
+                return { ok: true, data: data || null };
+            } catch (err) {
+                console.error('[SocialMediaRepo] updateCalendarItemStatus error:', err);
+                return { ok: false, error: err };
+            }
+        },
+
+        upsertPostForCalendarItem: async function(params) {
+            if (!global.supabaseClient) return { ok: false, error: 'db_not_ready' };
+            const calendarId = String(params?.calendarId || params?.calendar_id || '').trim();
+            const calendarItemId = params?.calendarItemId ?? params?.calendar_item_id ?? null;
+            const clientId = params?.clientId ?? params?.cliente_id ?? null;
+            if (!calendarId || !calendarItemId || !clientId) return { ok: false, error: 'missing_params' };
+            const targetStatus = String(params?.status || 'draft').trim();
+            const comment = String(params?.comentario_cliente || '').trim();
+            try {
+                const { data: existing, error: findErr } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('id,status')
+                    .eq('calendar_id', calendarId)
+                    .eq('calendar_item_id', calendarItemId)
+                    .maybeSingle();
+                if (findErr) return { ok: false, error: findErr };
+                if (existing?.id) {
+                    const updatePayload = { status: targetStatus };
+                    if (comment) updatePayload.comentario_cliente = comment;
+                    const { data, error } = await global.supabaseClient
+                        .from('social_posts')
+                        .update(updatePayload)
+                        .eq('id', existing.id)
+                        .select('id,status')
+                        .maybeSingle();
+                    if (error) return { ok: false, error };
+                    return { ok: true, data: data || null };
+                }
+                const dataAgendada = String(params?.data_agendada || params?.data || '').slice(0, 10);
+                const tema = String(params?.tema || '').trim();
+                if (!dataAgendada || !tema) {
+                    console.error('[SocialMediaRepo] upsertPostForCalendarItem: data_agendada or tema missing', { calendarId, calendarItemId, dataAgendada, tema });
+                    return { ok: false, error: 'missing_required_fields' };
+                }
+                const insertPayload = {
+                    calendar_id: calendarId,
+                    calendar_item_id: calendarItemId,
+                    cliente_id: clientId,
+                    status: targetStatus,
+                    data_agendada: dataAgendada,
+                    tema,
+                    formato: String(params?.formato || 'post_estatico').trim(),
+                    plataforma: String(params?.plataforma || 'instagram').trim()
+                };
+                if (comment) insertPayload.comentario_cliente = comment;
+                const { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .insert(insertPayload)
+                    .select('id,status')
+                    .maybeSingle();
+                if (error) {
+                    console.error('[SocialMediaRepo] upsertPostForCalendarItem insert error:', { error, insertPayload });
+                    return { ok: false, error };
+                }
+                return { ok: true, data: data || null };
+            } catch (err) {
+                console.error('[SocialMediaRepo] upsertPostForCalendarItem error:', err);
+                return { ok: false, error: err };
+            }
+        },
+
         /**
          * Atualiza apenas o feedback/comentário de um post
          * @param {string} postId
