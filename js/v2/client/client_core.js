@@ -687,7 +687,10 @@
             const visible = entries.filter((e) => {
                 const raw = String(e?.status || '').trim().toLowerCase();
                 const key = global.GQV_CONSTANTS?.getSocialStatusKey ? global.GQV_CONSTANTS.getSocialStatusKey(raw) : raw;
-                return key !== 'approved' && key !== 'changes_requested' && key !== 'needs_changes';
+                if (key === 'approved' || key === 'changes_requested' || key === 'needs_changes') return false;
+                // Itens draft com post vinculado já foram aprovados e estão em produção — não mostrar
+                if (key === 'draft' && e?.postId) return false;
+                return true;
             });
 
             const uniqueStatuses = Array.from(new Set(entries.map((e) => String(e.status || '').trim().toLowerCase()).filter(Boolean)));
