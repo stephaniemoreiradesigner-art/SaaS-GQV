@@ -941,6 +941,17 @@
                 feedbackEl.classList.remove('hidden');
             }
 
+            // Remove o social_post de "Revisão interna" vinculado ao item editorial
+            try {
+                const linkedPost = await global.SocialMediaRepo?.getPostByCalendarItemId?.(Number(itemId) || itemId);
+                if (linkedPost?.id) {
+                    await global.SocialMediaRepo?.deletePost?.(linkedPost.id);
+                    console.log('[AgencyCalendar] post changes_requested removido após resend:', { postId: linkedPost.id, itemId });
+                }
+            } catch (e) {
+                console.warn('[AgencyCalendar] falha ao remover post vinculado após resend:', e?.message || e);
+            }
+
             console.log('[AgencyCalendar] item reenviado para aprovação do cliente', { itemId, calendarId });
             setTimeout(() => this.showEditorialItemModal(false), 900);
         },

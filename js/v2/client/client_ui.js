@@ -466,20 +466,58 @@
             }
         },
 
-        renderPendingPostsList: function(posts) {
+        renderPendingPostsList: function(posts, editorialItems) {
             const container = document.getElementById('client-approvals-list');
             const empty = document.getElementById('client-approvals-empty');
             const loading = document.getElementById('posts-loading');
-            
+
             if (loading) loading.classList.add('hidden');
             if (!container) return;
             container.innerHTML = '';
 
-            if (!posts || posts.length === 0) {
+            const editorial = Array.isArray(editorialItems) ? editorialItems : [];
+            const allEmpty = (!posts || posts.length === 0) && editorial.length === 0;
+
+            if (allEmpty) {
                 if (empty) empty.classList.remove('hidden');
                 return;
             }
             if (empty) empty.classList.add('hidden');
+
+            // Itens editoriais revisados pela agência
+            editorial.forEach((item) => {
+                const date = item.data ? new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Sem data';
+                const tema = item.tema || 'Item editorial';
+                const canal = item.canal || '-';
+                const comment = item.comentario_cliente ? `<p class="mt-2 text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><strong>Seu comentário:</strong> ${item.comentario_cliente}</p>` : '';
+
+                const el = document.createElement('div');
+                el.className = 'ui-card p-5 border border-emerald-200 bg-emerald-50 hover:shadow-md transition';
+                el.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs uppercase tracking-widest text-emerald-600 font-semibold">Ajustes realizados — aguardando sua revisão</p>
+                            <h3 class="mt-1 text-base font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</h3>
+                            <p class="mt-1 text-xs text-slate-500">${canal} • ${date}</p>
+                            ${comment}
+                        </div>
+                        <span class="ui-pill bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">Revisado</span>
+                    </div>
+                    <div class="mt-4">
+                        <button type="button" class="ui-btn ui-btn-primary btn-go-to-calendar">Ver no Calendário</button>
+                    </div>
+                `;
+                const calBtn = el.querySelector('.btn-go-to-calendar');
+                if (calBtn) {
+                    calBtn.addEventListener('click', () => {
+                        if (global.ClientUI?.switchView) global.ClientUI.switchView('calendar');
+                        else document.querySelector('[data-view="calendar"]')?.click();
+                    });
+                }
+                container.appendChild(el);
+            });
+
+            if (!posts || posts.length === 0) return;
 
             posts.forEach(post => {
                 const dateRaw = post.data_agendada || null;

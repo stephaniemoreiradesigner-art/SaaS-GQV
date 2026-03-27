@@ -118,6 +118,34 @@
             return data || [];
         },
 
+        getPendingCalendarItems: async function(clientId) {
+            const supabase = await this.getClient();
+            if (!supabase || !clientId) return [];
+            const normalizedClientId = this.normalizeBigIntId(clientId) ?? clientId;
+            try {
+                const { data: calendars, error: calErr } = await supabase
+                    .from('social_calendars')
+                    .select('id')
+                    .eq('cliente_id', normalizedClientId);
+                if (calErr || !calendars?.length) return [];
+                const calendarIds = calendars.map((c) => c.id);
+                const { data, error } = await supabase
+                    .from('social_calendar_items')
+                    .select('id, calendar_id, data, tema, canal, tipo_conteudo, comentario_cliente, status, updated_at')
+                    .in('calendar_id', calendarIds)
+                    .eq('status', 'sent_for_approval')
+                    .order('data', { ascending: true });
+                if (error) {
+                    console.error('[ClientRepo] getPendingCalendarItems error:', error);
+                    return [];
+                }
+                return (data || []).map((it) => ({ ...it, __editorialItem: true }));
+            } catch (err) {
+                console.error('[ClientRepo] getPendingCalendarItems exception:', err);
+                return [];
+            }
+        },
+
         getClientCalendars: async function(clientId) {
             const supabase = await this.getClient();
             if (!supabase || !clientId) return [];

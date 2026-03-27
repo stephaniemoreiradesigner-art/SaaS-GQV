@@ -318,15 +318,18 @@
             const clientId = this.getClientId();
             const loading = document.getElementById('posts-loading');
             if (loading) loading.classList.remove('hidden');
-            
-            const posts = await global.ClientRepo.getPendingPosts(clientId);
-            const filtered = (posts || []).filter((p) => {
+
+            const [posts, editorialItems] = await Promise.all([
+                global.ClientRepo.getPendingPosts(clientId),
+                global.ClientRepo.getPendingCalendarItems ? global.ClientRepo.getPendingCalendarItems(clientId) : Promise.resolve([])
+            ]);
+            const filteredPosts = (posts || []).filter((p) => {
                 const mediaUrl = p?.imagem_url || p?.media_url || p?.mediaUrl || p?.imagemUrl || null;
                 return !!String(mediaUrl || '').trim();
             });
-            
+
             if (global.ClientUI) {
-                global.ClientUI.renderPendingPostsList(filtered);
+                global.ClientUI.renderPendingPostsList(filteredPosts, editorialItems || []);
             }
         },
 
