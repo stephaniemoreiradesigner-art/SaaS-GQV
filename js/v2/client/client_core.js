@@ -770,6 +770,37 @@
             await this.approveCalendarEntry({ itemId: itemId }, comment);
         },
 
+        approveCalendarItemFromApprovals: async function(itemId, calendarId) {
+            const clientId = this.getClientId();
+            if (!itemId || !calendarId || !clientId) return { ok: false };
+            const result = await global.ClientRepo?.updateCalendarItemEditorialStatus?.(
+                String(itemId), clientId, { status: 'approved' }
+            );
+            if (result?.ok === true) {
+                if (global.ClientRepo?.ensurePostDraftFromCalendarItem) {
+                    await global.ClientRepo.ensurePostDraftFromCalendarItem({
+                        calendarId,
+                        calendarItemId: itemId,
+                        clientId
+                    });
+                }
+                await this.loadPendingPosts();
+            }
+            return result || { ok: false };
+        },
+
+        requestCalendarItemAdjustmentFromApprovals: async function(itemId, calendarId, comment) {
+            const clientId = this.getClientId();
+            if (!itemId || !calendarId || !clientId || !String(comment || '').trim()) return { ok: false };
+            const result = await global.ClientRepo?.updateCalendarItemEditorialStatus?.(
+                String(itemId), clientId, { status: 'needs_changes', comment: String(comment).trim() }
+            );
+            if (result?.ok === true) {
+                await this.loadPendingPosts();
+            }
+            return result || { ok: false };
+        },
+
         approveCalendarEntry: async function(entry, comment) {
             const calendarId = this.activeCalendarId;
             if (!calendarId || !entry) return;

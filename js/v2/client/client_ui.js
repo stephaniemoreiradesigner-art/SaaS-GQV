@@ -489,7 +489,9 @@
                 const date = item.data ? new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Sem data';
                 const tema = item.tema || 'Item editorial';
                 const canal = item.canal || '-';
-                const comment = item.comentario_cliente ? `<p class="mt-2 text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><strong>Seu comentário:</strong> ${item.comentario_cliente}</p>` : '';
+                const prevComment = item.comentario_cliente
+                    ? `<p class="mt-2 text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2"><strong>Seu comentário anterior:</strong> ${item.comentario_cliente}</p>`
+                    : '';
 
                 const el = document.createElement('div');
                 el.className = 'ui-card p-5 border border-emerald-200 bg-emerald-50 hover:shadow-md transition';
@@ -499,21 +501,82 @@
                             <p class="text-xs uppercase tracking-widest text-emerald-600 font-semibold">Ajustes realizados — aguardando sua revisão</p>
                             <h3 class="mt-1 text-base font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</h3>
                             <p class="mt-1 text-xs text-slate-500">${canal} • ${date}</p>
-                            ${comment}
+                            ${prevComment}
                         </div>
                         <span class="ui-pill bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">Revisado</span>
                     </div>
-                    <div class="mt-4">
-                        <button type="button" class="ui-btn ui-btn-primary btn-go-to-calendar">Ver no Calendário</button>
+                    <div class="mt-4 flex flex-col sm:flex-row gap-2">
+                        <button type="button" class="ui-btn ui-btn-primary btn-approve-editorial">Aprovar</button>
+                        <button type="button" class="ui-btn ui-btn-secondary btn-request-changes-editorial">Solicitar ajustes</button>
                     </div>
+                    <div class="mt-3 hidden editorial-changes-form">
+                        <textarea class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-fuchsia-400" rows="3" placeholder="Descreva o ajuste necessário..."></textarea>
+                        <div class="mt-2 flex gap-2">
+                            <button type="button" class="ui-btn ui-btn-primary btn-submit-changes">Enviar ajuste</button>
+                            <button type="button" class="ui-btn ui-btn-secondary btn-cancel-changes">Cancelar</button>
+                        </div>
+                        <p class="editorial-feedback mt-2 hidden text-sm rounded-lg px-3 py-2"></p>
+                    </div>
+                    <p class="editorial-feedback mt-2 hidden text-sm rounded-lg px-3 py-2"></p>
                 `;
-                const calBtn = el.querySelector('.btn-go-to-calendar');
-                if (calBtn) {
-                    calBtn.addEventListener('click', () => {
-                        if (global.ClientUI?.switchView) global.ClientUI.switchView('calendar');
-                        else document.querySelector('[data-view="calendar"]')?.click();
+
+                const approveBtn = el.querySelector('.btn-approve-editorial');
+                const requestBtn = el.querySelector('.btn-request-changes-editorial');
+                const changesForm = el.querySelector('.editorial-changes-form');
+                const textarea = el.querySelector('textarea');
+                const submitBtn = el.querySelector('.btn-submit-changes');
+                const cancelBtn = el.querySelector('.btn-cancel-changes');
+                const feedbacks = el.querySelectorAll('.editorial-feedback');
+
+                const showFeedback = (msg, type) => {
+                    feedbacks.forEach((f) => {
+                        f.textContent = msg;
+                        f.className = `editorial-feedback mt-2 text-sm rounded-lg px-3 py-2 ${type === 'error' ? 'bg-red-50 text-red-700' : 'bg-emerald-100 text-emerald-700'}`;
+                    });
+                };
+
+                if (approveBtn) {
+                    approveBtn.addEventListener('click', async () => {
+                        approveBtn.disabled = true;
+                        approveBtn.textContent = 'Aprovando...';
+                        const result = await global.ClientCore?.approveCalendarItemFromApprovals?.(item.id, item.calendar_id);
+                        if (result?.ok !== true) {
+                            showFeedback('Não foi possível aprovar. Tente novamente.', 'error');
+                            approveBtn.disabled = false;
+                            approveBtn.textContent = 'Aprovar';
+                        }
                     });
                 }
+
+                if (requestBtn) {
+                    requestBtn.addEventListener('click', () => {
+                        changesForm?.classList.toggle('hidden');
+                        textarea?.focus();
+                    });
+                }
+
+                if (cancelBtn) {
+                    cancelBtn.addEventListener('click', () => {
+                        changesForm?.classList.add('hidden');
+                        if (textarea) textarea.value = '';
+                    });
+                }
+
+                if (submitBtn) {
+                    submitBtn.addEventListener('click', async () => {
+                        const comment = String(textarea?.value || '').trim();
+                        if (!comment) { textarea?.focus(); return; }
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Enviando...';
+                        const result = await global.ClientCore?.requestCalendarItemAdjustmentFromApprovals?.(item.id, item.calendar_id, comment);
+                        if (result?.ok !== true) {
+                            showFeedback('Não foi possível enviar. Tente novamente.', 'error');
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Enviar ajuste';
+                        }
+                    });
+                }
+
                 container.appendChild(el);
             });
 
