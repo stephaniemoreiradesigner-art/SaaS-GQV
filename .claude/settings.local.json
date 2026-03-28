@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "mcp__claude_ai_Supabase__execute_sql",
-      "mcp__claude_ai_Supabase__apply_migration"
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(grep -rn setSocialPostDrawerTabs*= /c/Users/Stephanie/Documents/trae_projects/SaaS-GQV --include=*.js --include=*.html)"
     ]
   }
 }

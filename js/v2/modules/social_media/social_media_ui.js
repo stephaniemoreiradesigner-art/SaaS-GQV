@@ -176,12 +176,13 @@
             postTabBtns.forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const key = String(btn?.dataset?.postTab || '').trim().toLowerCase();
-                    if (key !== 'history') return;
                     if (typeof global.setSocialPostDrawerTab === 'function') {
-                        global.setSocialPostDrawerTab('history');
+                        global.setSocialPostDrawerTab(key);
                     }
-                    if (!this._activePost?.id) return;
-                    await this.refreshPostAuditPanel(this._activePost);
+                    if (key === 'history') {
+                        if (!this._activePost?.id) return;
+                        await this.refreshPostAuditPanel(this._activePost);
+                    }
                 });
             });
         },
