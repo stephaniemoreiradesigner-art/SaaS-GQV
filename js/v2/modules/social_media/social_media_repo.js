@@ -1119,9 +1119,9 @@
             try {
                 const { data, error } = await global.supabaseClient
                     .from('social_approvals')
-                    .select('post_id,version_id,decision,action_type,decided_by,actor_label,decided_at,created_at,comment')
+                    .select('post_id,version_id,decision,action_type,decided_by,decided_at,created_at,comment')
                     .eq('post_id', postId)
-                    .order('created_at', { ascending: true });
+                    .order('decided_at', { ascending: true });
 
                 if (error) throw error;
 
