@@ -1119,12 +1119,19 @@
             try {
                 const { data, error } = await global.supabaseClient
                     .from('social_approvals')
-                    .select('post_id,version_id,decision,decided_by,decided_at,comment')
+                    .select('post_id,version_id,decision,action_type,decided_by,actor_label,decided_at,created_at,comment')
                     .eq('post_id', postId)
-                    .order('decided_at', { ascending: false });
+                    .order('created_at', { ascending: true });
 
                 if (error) throw error;
-                return data || [];
+
+                // Normalizar: garantir que decided_at e created_at estejam sempre presentes
+                return (data || []).map((ev) => ({
+                    ...ev,
+                    decided_at: ev.decided_at || ev.created_at,
+                    // Unificar: decision tem prioridade, action_type é fallback
+                    decision: ev.decision || ev.action_type || 'status_change'
+                }));
             } catch (err) {
                 console.error('[SOCIAL] Erro ao buscar histórico do post:', err);
                 return [];

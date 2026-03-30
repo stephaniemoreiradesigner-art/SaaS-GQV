@@ -249,12 +249,33 @@
 
         getDecisionLabel: function(decision) {
             const key = String(decision || '').trim().toLowerCase();
-            if (key === 'approved') return 'Aprovado';
+            if (key === 'created') return 'Post criado';
+            if (key === 'approved') return 'Aprovado pelo cliente';
             if (key === 'changes_requested') return 'Ajustes solicitados';
             if (key === 'needs_revision') return 'Ajustes solicitados';
-            if (key === 'rejected') return 'Ajustes solicitados';
+            if (key === 'rejected') return 'Reprovado';
             if (key === 'resubmitted') return 'Reenviado para aprovação';
-            return key || 'Decisão';
+            if (key === 'in_review') return 'Enviado para revisão interna';
+            if (key === 'submitted') return 'Enviado para aprovação do cliente';
+            if (key === 'returned_to_draft') return 'Devolvido para rascunho';
+            if (key === 'scheduled') return 'Agendado para publicação';
+            if (key === 'published') return 'Publicado';
+            if (key === 'status_change') return 'Status alterado';
+            return key || 'Evento';
+        },
+
+        getDecisionColor: function(decision) {
+            const key = String(decision || '').trim().toLowerCase();
+            if (key === 'created') return { dot: 'bg-slate-400', border: 'border-slate-200', text: 'text-slate-600' };
+            if (key === 'approved') return { dot: 'bg-emerald-500', border: 'border-emerald-100', text: 'text-emerald-700' };
+            if (key === 'changes_requested' || key === 'needs_revision') return { dot: 'bg-amber-500', border: 'border-amber-100', text: 'text-amber-700' };
+            if (key === 'rejected') return { dot: 'bg-red-500', border: 'border-red-100', text: 'text-red-700' };
+            if (key === 'resubmitted' || key === 'submitted') return { dot: 'bg-blue-500', border: 'border-blue-100', text: 'text-blue-700' };
+            if (key === 'in_review') return { dot: 'bg-indigo-400', border: 'border-indigo-100', text: 'text-indigo-700' };
+            if (key === 'scheduled') return { dot: 'bg-purple-500', border: 'border-purple-100', text: 'text-purple-700' };
+            if (key === 'published') return { dot: 'bg-teal-500', border: 'border-teal-100', text: 'text-teal-700' };
+            if (key === 'client_adjustment') return { dot: 'bg-orange-400', border: 'border-orange-100', text: 'text-orange-700' };
+            return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
         },
 
         resolveAdjustmentFromPost: function(post) {
@@ -320,41 +341,56 @@
 
             if (!list.length) {
                 const empty = document.createElement('div');
-                empty.className = 'text-sm text-slate-400';
-                empty.textContent = 'Nenhum histórico disponível.';
+                empty.className = 'text-sm text-slate-400 py-4 text-center';
+                empty.textContent = 'Nenhum evento registrado ainda.';
                 historyEl.appendChild(empty);
                 return;
             }
 
-            list.slice(0, 12).forEach((item) => {
+            list.forEach((item, idx) => {
+                const isLast = idx === list.length - 1;
+                const colors = this.getDecisionColor(item?.kind);
+
                 const row = document.createElement('div');
                 row.className = 'flex items-start gap-3';
 
+                // Rail com dot colorido e linha de conexão
                 const rail = document.createElement('div');
-                rail.className = 'flex flex-col items-center';
+                rail.className = 'flex flex-col items-center flex-shrink-0';
                 rail.innerHTML = `
-                    <div class="w-2.5 h-2.5 rounded-full bg-slate-400 mt-1"></div>
-                    <div class="w-px flex-1 bg-slate-200 mt-2"></div>
+                    <div class="w-3 h-3 rounded-full ${colors.dot} ring-2 ring-white mt-0.5 shadow-sm"></div>
+                    ${isLast ? '' : `<div class="w-px flex-1 bg-slate-200 mt-1 min-h-[20px]"></div>`}
                 `;
 
                 const wrap = document.createElement('div');
-                wrap.className = 'flex-1 rounded-lg border border-slate-200 bg-white p-3';
+                wrap.className = `flex-1 rounded-xl border ${colors.border} bg-white p-3 mb-3`;
 
                 const at = String(item?.at || '').trim();
-                const atLabel = at ? new Date(at).toLocaleString('pt-BR') : '';
+                const atLabel = at ? new Date(at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                 const origin = String(item?.origin || '').trim();
                 const action = String(item?.action || '').trim();
-                const meta = document.createElement('div');
-                meta.className = 'text-xs text-slate-400';
-                meta.textContent = `${origin || '-'}${action ? ` • ${action}` : ''}${atLabel ? ` • ${atLabel}` : ''}`;
+
+                const header = document.createElement('div');
+                header.className = 'flex items-center justify-between gap-2 flex-wrap';
+
+                const actionEl = document.createElement('span');
+                actionEl.className = `text-xs font-semibold ${colors.text}`;
+                actionEl.textContent = action || 'Evento';
+
+                const metaEl = document.createElement('span');
+                metaEl.className = 'text-[11px] text-slate-400';
+                metaEl.textContent = [origin, atLabel].filter(Boolean).join(' · ');
+
+                header.appendChild(actionEl);
+                header.appendChild(metaEl);
 
                 const desc = String(item?.description || '').trim();
                 const descEl = document.createElement('div');
-                descEl.className = 'text-sm text-slate-600 mt-2 whitespace-pre-wrap';
+                descEl.className = 'text-sm text-slate-600 mt-1.5 whitespace-pre-wrap';
                 descEl.textContent = desc;
                 if (!desc) descEl.classList.add('hidden');
 
-                wrap.appendChild(meta);
+                wrap.appendChild(header);
                 wrap.appendChild(descEl);
 
                 row.appendChild(rail);
@@ -383,29 +419,54 @@
                 const auditArr = Array.isArray(audit) ? audit : [];
 
                 const normalized = [];
-                if (adjustment.text) {
-                    normalized.push({
-                        kind: 'client_adjustment',
-                        at: String(adjustment.at || new Date().toISOString()),
-                        origin: 'Cliente',
-                        action: 'Solicitou ajustes',
-                        description: adjustment.text
-                    });
-                }
+
+                // Eventos do audit trail (banco de dados — todos os tipos)
                 auditArr.forEach((ev) => {
-                    const at = ev?.decided_at ? String(ev.decided_at) : '';
+                    const decision = String(ev?.decision || ev?.action_type || '').trim().toLowerCase();
+                    const at = ev?.decided_at || ev?.created_at || '';
+                    const actorRaw = String(ev?.decided_by || ev?.actor_label || '').trim();
+
+                    // Definir origem legível
+                    let origin = 'Sistema';
+                    if (decision === 'approved' || decision === 'changes_requested' || decision === 'rejected') {
+                        origin = 'Cliente';
+                    } else if (decision === 'submitted' || decision === 'resubmitted' || decision === 'in_review') {
+                        origin = 'Agência';
+                    } else if (decision === 'created') {
+                        origin = actorRaw || 'Agência';
+                    } else if (decision === 'scheduled' || decision === 'published') {
+                        origin = actorRaw || 'Agência';
+                    } else if (actorRaw) {
+                        origin = actorRaw.slice(0, 20);
+                    }
+
                     normalized.push({
-                        kind: 'approval',
-                        at: at || new Date().toISOString(),
-                        origin: String(ev?.decided_by || '').trim() ? `Aprovação (${String(ev.decided_by).slice(0, 8)})` : 'Aprovação',
-                        action: this.getDecisionLabel(ev?.decision),
+                        kind: decision || 'status_change',
+                        at: at ? String(at) : new Date().toISOString(),
+                        origin,
+                        action: this.getDecisionLabel(decision),
                         description: String(ev?.comment || '').trim()
                     });
                 });
 
+                // Fallback: comentário de ajuste do cliente ainda não registrado como evento
+                const alreadyHasClientAdjustment = normalized.some((e) =>
+                    e.kind === 'changes_requested' || e.kind === 'client_adjustment'
+                );
+                if (!alreadyHasClientAdjustment && adjustment.text) {
+                    normalized.push({
+                        kind: 'client_adjustment',
+                        at: String(adjustment.at || new Date().toISOString()),
+                        origin: 'Cliente',
+                        action: 'Ajustes solicitados',
+                        description: adjustment.text
+                    });
+                }
+
+                // Ordenar cronológico (mais antigo primeiro = timeline de cima pra baixo)
                 const sorted = normalized
                     .filter((e) => e && e.at)
-                    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+                    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
                 console.log('[EditorialHistory] events normalized:', { postId: String(post.id), count: sorted.length });
                 console.log('[EditorialHistory] render count:', { postId: String(post.id), count: sorted.length });
@@ -1378,7 +1439,9 @@
             this.setFieldValue('social-post-cta', post?.cta || '');
             this.setFieldValue('social-post-hashtags', post?.hashtags || '');
             this.setFieldValue('social-post-status', post?.status || 'draft');
-            
+            this.setFieldValue('social-post-content-type', post?.formato || post?.tipo_conteudo || post?.content_type || 'post_estatico');
+            this.setFieldValue('social-post-notes', post?.observacoes || post?.notes || '');
+
             // Plataforma/Canal (assumindo array ou booleans)
             let platform = 'instagram';
             if (post) {
@@ -1501,7 +1564,9 @@
                 hashtags: document.getElementById('social-post-hashtags')?.value,
                 status: document.getElementById('social-post-status')?.value,
                 plataforma: document.getElementById('social-post-channel')?.value,
-                imagem_url: mediaUrl // [FIX] Incluir mídia no payload
+                imagem_url: mediaUrl, // [FIX] Incluir mídia no payload
+                tipo_conteudo: document.getElementById('social-post-content-type')?.value,
+                observacoes: document.getElementById('social-post-notes')?.value || null
             };
         },
 
