@@ -263,6 +263,7 @@
             if (key === 'status_change') return 'Status alterado';
             if (key === 'date_moved') return 'Data reagendada';
             if (key === 'returned_to_draft') return 'Devolvido para rascunho';
+            if (key === 'editorial_approved') return 'Tema editorial aprovado — produção iniciada';
             return key || 'Evento';
         },
 
@@ -277,6 +278,7 @@
             if (key === 'scheduled') return { dot: 'bg-purple-500', border: 'border-purple-100', text: 'text-purple-700' };
             if (key === 'published') return { dot: 'bg-teal-500', border: 'border-teal-100', text: 'text-teal-700' };
             if (key === 'client_adjustment') return { dot: 'bg-orange-400', border: 'border-orange-100', text: 'text-orange-700' };
+            if (key === 'editorial_approved') return { dot: 'bg-emerald-400', border: 'border-emerald-100', text: 'text-emerald-700' };
             if (key === 'date_moved') return { dot: 'bg-sky-400', border: 'border-sky-100', text: 'text-sky-700' };
             if (key === 'returned_to_draft') return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
             if (key === 'status_change') return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
@@ -517,6 +519,7 @@
                 published: 'bg-teal-500',
                 created: 'bg-slate-400',
                 client_adjustment: 'bg-orange-400',
+                editorial_approved: 'bg-emerald-400',
                 date_moved: 'bg-sky-400',
                 returned_to_draft: 'bg-slate-300',
                 status_change: 'bg-slate-300'

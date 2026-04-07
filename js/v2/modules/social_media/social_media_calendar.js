@@ -106,7 +106,8 @@
                 tema: it?.tema || it?.titulo || it?.title || 'Item do calendário',
                 formato: it?.tipo_conteudo || it?.formato || it?.content_type || 'post_estatico',
                 plataforma: it?.canal || it?.plataforma || it?.platform || 'instagram',
-                status: it?.status || 'draft'
+                status: it?.status || 'draft',
+                editorial_approved_at: it?.editorial_approved_at || null
             })).filter((p) => !!p.data_agendada);
 
             const renderList = mappedItems;
@@ -148,6 +149,14 @@
             const channel = String(post.plataforma || post.platform || post.canal || post.channel || '').trim() || (post.instagram ? 'instagram' : (post.facebook ? 'facebook' : (post.linkedin ? 'linkedin' : (post.tiktok ? 'tiktok' : '-'))));
             const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;
             const calContextHint = (() => {
+                // Itens editoriais: mostrar status editorial
+                if (isCalendarItem) {
+                    const s = String(post.status || '').toLowerCase();
+                    if (['approved', 'aprovado'].includes(s)) return 'Tema aprovado \u2713 — em produ\u00e7\u00e3o';
+                    if (['needs_changes', 'needs_revision', 'ajuste_solicitado'].includes(s)) return 'Ajuste editorial solicitado';
+                    return '';
+                }
+                // Posts de produ\u00e7\u00e3o: mostrar status de m\u00eddia
                 const s = String(post.status || '').toLowerCase();
                 if (['changes_requested', 'ajuste_solicitado', 'needs_revision'].includes(s)) return 'Ajuste de m\u00eddia — tema aprovado';
                 if (['approved', 'aprovado'].includes(s)) return 'Aprova\u00e7\u00e3o de m\u00eddia \u2713';

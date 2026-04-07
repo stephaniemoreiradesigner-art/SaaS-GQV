@@ -741,7 +741,7 @@
                     this._autoCreatedFromItems.add(key);
                     return;
                 }
-                await global.SocialMediaRepo?.createPost?.({
+                const newPost = await global.SocialMediaRepo?.createPost?.({
                     calendar_id: calendarId,
                     calendar_item_id: calendarItem.id,
                     cliente_id: clientId,
@@ -749,9 +749,21 @@
                     data_agendada: String(calendarItem.data || '').slice(0, 10),
                     tema: calendarItem.tema || null,
                     formato: calendarItem.tipo_conteudo || 'post_estatico',
-                    plataforma: calendarItem.canal || 'instagram'
+                    plataforma: calendarItem.canal || 'instagram',
+                    editorial_approved_at: new Date().toISOString(),
+                    editorial_item_status: 'approved'
                 });
                 this._autoCreatedFromItems.add(key);
+
+                // Registrar evento: transição editorial → produção
+                const newPostId = newPost?.[0]?.id || newPost?.id || null;
+                if (newPostId && global.SocialMediaRepo?.logPostEvent) {
+                    global.SocialMediaRepo.logPostEvent(newPostId, {
+                        decision: 'editorial_approved',
+                        comment: calendarItem.tema ? `Tema aprovado: ${calendarItem.tema}` : 'Tema editorial aprovado — produção iniciada',
+                        status_novo: 'draft'
+                    }).catch(() => {});
+                }
             } catch (err) {
                 console.warn('[AutoCreatePost] falha silenciosa:', err?.message || err);
             }

@@ -463,6 +463,7 @@
                 scheduled: 'Agendado para publicação',
                 published: 'Publicado',
                 date_moved: 'Data reagendada',
+                editorial_approved: 'Tema aprovado — produção iniciada',
                 status_change: 'Status alterado'
             };
             const dotMap = {
@@ -477,6 +478,7 @@
                 returned_to_draft: 'bg-slate-300',
                 scheduled: 'bg-purple-500',
                 published: 'bg-teal-500',
+                editorial_approved: 'bg-emerald-400',
                 date_moved: 'bg-sky-400',
                 status_change: 'bg-slate-300'
             };

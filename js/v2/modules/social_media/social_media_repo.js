@@ -603,6 +603,9 @@
                         legenda: input.legenda || '',
                         detailed_content: input.detailed_content || ''
                     };
+                    // Preservar aprovação editorial independentemente do status de produção
+                    if (input.editorial_approved_at) payload.editorial_approved_at = input.editorial_approved_at;
+                    if (input.editorial_item_status) payload.editorial_item_status = input.editorial_item_status;
                     const { data, error } = await global.supabaseClient
                         .from('social_posts')
                         .insert([payload])
