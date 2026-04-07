@@ -712,10 +712,11 @@
                     const normalizedStatus = this.normalizeStatus(post?.status);
                     const canSendForApproval = !!post?.id && ['draft', 'ready_for_review', 'changes_requested'].includes(normalizedStatus);
                     const contextHint = (() => {
-                        if (normalizedStatus === 'changes_requested') return 'Ajuste de mídia — tema aprovado';
-                        if (normalizedStatus === 'ready_for_review') return 'Em produção';
-                        if (normalizedStatus === 'approved' || normalizedStatus === 'scheduled') return 'Tema aprovado \u2713';
-                        if (normalizedStatus === 'ready_for_approval') return 'Aguardando aprovação do cliente';
+                        if (normalizedStatus === 'changes_requested') return 'Ajuste de mídia solicitado — tema editorial aprovado';
+                        if (normalizedStatus === 'ready_for_review') return 'Em produção — tema editorial aprovado';
+                        if (normalizedStatus === 'approved') return 'Aprovação de mídia concluída \u2713';
+                        if (normalizedStatus === 'scheduled') return 'Agendado para publicação \u2713';
+                        if (normalizedStatus === 'ready_for_approval') return 'Aguardando aprovação final de mídia';
                         return '';
                     })();
                     const statusBadgeSmallClass = String(statusBadge.className || '')

@@ -149,10 +149,12 @@
             const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;
             const calContextHint = (() => {
                 const s = String(post.status || '').toLowerCase();
-                if (['changes_requested', 'ajuste_solicitado', 'needs_revision'].includes(s)) return 'Ajuste de m\u00eddia';
-                if (['approved', 'aprovado'].includes(s)) return 'Tema aprovado \u2713';
-                if (['ready_for_review', 'in_production', 'em_producao', 'em_produ\u00e7\u00e3o'].includes(s)) return 'Em produ\u00e7\u00e3o';
-                if (['ready_for_approval', 'awaiting_approval'].includes(s)) return 'Aguardando aprova\u00e7\u00e3o';
+                if (['changes_requested', 'ajuste_solicitado', 'needs_revision'].includes(s)) return 'Ajuste de m\u00eddia — tema aprovado';
+                if (['approved', 'aprovado'].includes(s)) return 'Aprova\u00e7\u00e3o de m\u00eddia \u2713';
+                if (['scheduled', 'agendado'].includes(s)) return 'Agendado \u2713';
+                if (['published', 'publicado'].includes(s)) return 'Publicado \u2713';
+                if (['ready_for_review', 'in_production', 'em_producao', 'em_produ\u00e7\u00e3o'].includes(s)) return 'Em produ\u00e7\u00e3o — tema aprovado';
+                if (['ready_for_approval', 'awaiting_approval'].includes(s)) return 'Aguardando aprova\u00e7\u00e3o final de m\u00eddia';
                 return '';
             })();
             

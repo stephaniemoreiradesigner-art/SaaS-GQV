@@ -647,6 +647,18 @@
             }
             if (empty) empty.classList.add('hidden');
 
+            // Seção: Aprovação Editorial (calendário de conteúdo)
+            if (editorial.length > 0) {
+                const editorialHeader = document.createElement('div');
+                editorialHeader.className = 'flex items-center gap-3 mb-3';
+                editorialHeader.innerHTML = `
+                    <span class="text-xs font-semibold uppercase tracking-widest text-emerald-600">Aprovação Editorial</span>
+                    <span class="flex-1 h-px bg-emerald-100"></span>
+                    <span class="text-[10px] text-emerald-500 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5">Planejamento de conteúdo</span>
+                `;
+                container.appendChild(editorialHeader);
+            }
+
             // Itens editoriais revisados pela agência
             editorial.forEach((item) => {
                 const date = item.data ? new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'Sem data';
@@ -746,6 +758,16 @@
             });
 
             if (!posts || posts.length === 0) return;
+
+            // Seção: Aprovação de Mídia (posts de produção)
+            const mediaHeader = document.createElement('div');
+            mediaHeader.className = 'flex items-center gap-3 mb-3 mt-6';
+            mediaHeader.innerHTML = `
+                <span class="text-xs font-semibold uppercase tracking-widest text-indigo-600">Aprovação de Mídia</span>
+                <span class="flex-1 h-px bg-indigo-100"></span>
+                <span class="text-[10px] text-indigo-500 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">Conteúdo produzido — aprovação final</span>
+            `;
+            container.appendChild(mediaHeader);
 
             posts.forEach(post => {
                 const dateRaw = post.data_agendada || null;

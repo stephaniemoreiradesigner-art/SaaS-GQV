@@ -736,10 +736,8 @@
                 // Verifica se já existe post para o item
                 const existing = await global.SocialMediaRepo?.getPostByCalendarItemId?.(calendarItem.id);
                 if (existing?.id) {
-                    const currentStatus = String(existing?.status || '').trim().toLowerCase();
-                    if (currentStatus === 'approved') {
-                        await global.SocialMediaRepo?.updatePost?.(existing.id, { status: 'draft' });
-                    }
+                    // Post já existe — não tocar no status de produção.
+                    // Aprovação editorial e aprovação de mídia são etapas independentes.
                     this._autoCreatedFromItems.add(key);
                     return;
                 }
@@ -767,11 +765,14 @@
                 if (this._syncedChangesRequested.has(key)) return;
                 this._syncedChangesRequested.add(key);
                 const comment = String(calendarItem?.comentario_cliente || '').trim();
+                // Ajuste editorial ≠ ajuste de mídia.
+                // Usar status 'draft' para indicar que o post está em revisão editorial,
+                // sem contaminar o fluxo de aprovação de mídia (changes_requested).
                 const result = await global.SocialMediaRepo?.upsertPostForCalendarItem?.({
                     calendarId,
                     calendarItemId: calendarItem.id,
                     clientId,
-                    status: 'changes_requested',
+                    status: 'draft',
                     data_agendada: calendarItem.data,
                     tema: calendarItem.tema,
                     formato: calendarItem.tipo_conteudo,
