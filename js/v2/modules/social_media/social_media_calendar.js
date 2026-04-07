@@ -147,6 +147,14 @@
             const title = post.tema || post.titulo || post.title || post.legenda || 'Sem título';
             const channel = String(post.plataforma || post.platform || post.canal || post.channel || '').trim() || (post.instagram ? 'instagram' : (post.facebook ? 'facebook' : (post.linkedin ? 'linkedin' : (post.tiktok ? 'tiktok' : '-'))));
             const statusElId = `status_${post.id || Math.random().toString(16).slice(2)}`;
+            const calContextHint = (() => {
+                const s = String(post.status || '').toLowerCase();
+                if (['changes_requested', 'ajuste_solicitado', 'needs_revision'].includes(s)) return 'Ajuste de m\u00eddia';
+                if (['approved', 'aprovado'].includes(s)) return 'Tema aprovado \u2713';
+                if (['ready_for_review', 'in_production', 'em_producao', 'em_produ\u00e7\u00e3o'].includes(s)) return 'Em produ\u00e7\u00e3o';
+                if (['ready_for_approval', 'awaiting_approval'].includes(s)) return 'Aguardando aprova\u00e7\u00e3o';
+                return '';
+            })();
             
             el.innerHTML = `
                 <div class="min-w-0">
@@ -156,6 +164,7 @@
                     <span class="text-[10px] text-slate-500 truncate">${channel}</span>
                     <span id="${statusElId}" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusPill}">${statusLabel}</span>
                 </div>
+                ${calContextHint ? `<p class="mt-1 text-[9px] text-slate-400 italic truncate">${calContextHint}</p>` : ''}
             `;
 
             // Eventos de Drag

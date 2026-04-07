@@ -495,15 +495,17 @@
 
                 const el = document.createElement('div');
                 el.className = 'ui-card p-5 border border-emerald-200 bg-emerald-50 hover:shadow-md transition';
+                const isMediaAdjustment = !!item.comentario_cliente;
                 el.innerHTML = `
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0 flex-1">
-                            <p class="text-xs uppercase tracking-widest text-emerald-600 font-semibold">Ajustes realizados — aguardando sua revisão</p>
+                            <p class="text-xs uppercase tracking-widest text-emerald-600 font-semibold">${isMediaAdjustment ? 'Mídia revisada — tema editorial aprovado mantido' : 'Aguardando aprovação editorial'}</p>
                             <h3 class="mt-1 text-base font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${tema}</h3>
                             <p class="mt-1 text-xs text-slate-500">${canal} • ${date}</p>
+                            ${isMediaAdjustment ? '<p class="mt-1 text-[11px] text-slate-400 italic">Apenas a mídia foi ajustada. O tema aprovado foi mantido.</p>' : ''}
                             ${prevComment}
                         </div>
-                        <span class="ui-pill bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">Revisado</span>
+                        <span class="ui-pill ${isMediaAdjustment ? 'bg-indigo-100 text-indigo-700 border border-indigo-100' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'} shrink-0">${isMediaAdjustment ? 'Mídia revisada' : 'Revisado'}</span>
                     </div>
                     <div class="mt-4 flex flex-col sm:flex-row gap-2">
                         <button type="button" class="ui-btn ui-btn-primary btn-approve-editorial">Aprovar</button>
@@ -598,6 +600,7 @@
                 const title = post.tema || post.titulo || 'Post sem título';
                 const caption = post.legenda || 'Sem legenda';
                 const platform = post.plataforma || post.platform || post.canal || '-';
+                const isResubmission = !!(post.comentario_cliente || post.comentarioCliente || post.feedback_ajuste);
 
                 let mediaHtml = this.getMediaHtml(post, 'w-full md:w-40 h-48 md:h-28');
 
@@ -606,11 +609,12 @@
                         <div class="min-w-0">
                             <div class="flex items-start justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="text-xs uppercase tracking-widest text-slate-400">Aguardando sua aprovação</p>
+                                    <p class="text-xs uppercase tracking-widest ${isResubmission ? 'text-indigo-500' : 'text-slate-400'}">${isResubmission ? 'Mídia ajustada — aguardando sua aprovação' : 'Aguardando sua aprovação'}</p>
                                     <h3 class="mt-1 text-base font-semibold text-slate-900" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${title}</h3>
                                     <p class="mt-1 text-xs text-slate-500 truncate">${platform} • ${date}</p>
+                                    ${isResubmission ? '<p class="mt-1 text-[11px] text-slate-400 italic">O tema foi mantido. Apenas a mídia foi revisada.</p>' : ''}
                                 </div>
-                                <span class="ui-pill bg-amber-100 text-amber-700 border border-amber-100">Pendente</span>
+                                <span class="ui-pill ${isResubmission ? 'bg-indigo-100 text-indigo-700 border border-indigo-100' : 'bg-amber-100 text-amber-700 border border-amber-100'}">${isResubmission ? 'Mídia revisada' : 'Pendente'}</span>
                             </div>
                             <p class="mt-3 text-sm text-slate-600" style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${caption}</p>
                             <div class="mt-4 flex flex-col sm:flex-row gap-2">

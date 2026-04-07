@@ -624,6 +624,13 @@
                     const statusBadge = this.getStatusBadgeInfo(post?.status);
                     const normalizedStatus = this.normalizeStatus(post?.status);
                     const canSendForApproval = !!post?.id && ['draft', 'ready_for_review', 'changes_requested'].includes(normalizedStatus);
+                    const contextHint = (() => {
+                        if (normalizedStatus === 'changes_requested') return 'Ajuste de mídia — tema aprovado';
+                        if (normalizedStatus === 'ready_for_review') return 'Em produção';
+                        if (normalizedStatus === 'approved' || normalizedStatus === 'scheduled') return 'Tema aprovado \u2713';
+                        if (normalizedStatus === 'ready_for_approval') return 'Aguardando aprovação do cliente';
+                        return '';
+                    })();
                     const statusBadgeSmallClass = String(statusBadge.className || '')
                         .replace(/\btext-xs\b/g, 'text-[10px]')
                         .replace(/\bpx-3\b/g, 'px-2')
@@ -652,6 +659,7 @@
                         <div class="mt-3 flex items-center justify-between gap-3">
                             <span class="${statusBadgeSmallClass}">${statusBadge.label}</span>
                         </div>
+                        ${contextHint ? `<p class="mt-1 text-[10px] text-slate-400 italic truncate">${contextHint}</p>` : ''}
                     `;
                     const openEditor = () => {
                         document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
