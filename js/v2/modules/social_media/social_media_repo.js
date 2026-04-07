@@ -1119,22 +1119,49 @@
             try {
                 const { data, error } = await global.supabaseClient
                     .from('social_approvals')
-                    .select('post_id,version_id,decision,action_type,decided_by,decided_at,created_at,comment')
+                    .select('post_id,version_id,decision,action_type,decided_by,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
                     .eq('post_id', postId)
-                    .order('decided_at', { ascending: true });
+                    .order('decided_at', { ascending: true, nullsFirst: false });
 
                 if (error) throw error;
 
-                // Normalizar: garantir que decided_at e created_at estejam sempre presentes
                 return (data || []).map((ev) => ({
                     ...ev,
                     decided_at: ev.decided_at || ev.created_at,
-                    // Unificar: decision tem prioridade, action_type é fallback
-                    decision: ev.decision || ev.action_type || 'status_change'
+                    decision: ev.decision || ev.action_type || 'status_change',
+                    actor_label: ev.actor_label || null
                 }));
             } catch (err) {
                 console.error('[SOCIAL] Erro ao buscar histórico do post:', err);
                 return [];
+            }
+        },
+
+        /**
+         * Registra manualmente um evento de histórico (ex: mudança de data)
+         * @param {string} postId
+         * @param {{ decision: string, comment?: string, actor_label?: string, status_anterior?: string, status_novo?: string }} eventData
+         */
+        logPostEvent: async function(postId, eventData) {
+            if (!global.supabaseClient || !postId) return false;
+            try {
+                const payload = {
+                    post_id: postId,
+                    decision: String(eventData?.decision || 'status_change'),
+                    decided_at: new Date().toISOString(),
+                    comment: eventData?.comment ? String(eventData.comment) : null,
+                    actor_label: eventData?.actor_label ? String(eventData.actor_label) : null,
+                    status_anterior: eventData?.status_anterior ? String(eventData.status_anterior) : null,
+                    status_novo: eventData?.status_novo ? String(eventData.status_novo) : null
+                };
+                const { error } = await global.supabaseClient
+                    .from('social_approvals')
+                    .insert(payload);
+                if (error) throw error;
+                return true;
+            } catch (err) {
+                console.error('[SOCIAL] logPostEvent error:', err);
+                return false;
             }
         }
     };

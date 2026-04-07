@@ -509,6 +509,33 @@
             }
         },
 
+        /**
+         * Busca eventos de histórico do post para o portal do cliente
+         * @param {string} postId
+         * @returns {Promise<Array>}
+         */
+        getPostAuditEvents: async function(postId) {
+            if (!postId) return [];
+            try {
+                const supabase = global.ClientRepo?.getClient ? await global.ClientRepo.getClient() : global.supabaseClient;
+                if (!supabase) return [];
+                const { data, error } = await supabase
+                    .from('social_approvals')
+                    .select('decision,action_type,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
+                    .eq('post_id', postId)
+                    .order('decided_at', { ascending: true, nullsFirst: false });
+                if (error) throw error;
+                return (data || []).map((ev) => ({
+                    ...ev,
+                    decided_at: ev.decided_at || ev.created_at,
+                    decision: ev.decision || ev.action_type || 'status_change'
+                }));
+            } catch (err) {
+                console.error('[ClientCore] getPostAuditEvents error:', err);
+                return [];
+            }
+        },
+
         openCalendarModal: async function(calendarId, monthKey, status = null) {
             this.activeCalendarId = calendarId;
             this.activeEditorialMonthKey = global.MonthUtils?.isValidMonthKey?.(monthKey) ? monthKey : null;

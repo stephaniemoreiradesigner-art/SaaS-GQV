@@ -793,10 +793,18 @@
 
         handlePostMove: async function(postId, newDate) {
             console.log(`[SOCIAL] Movendo post ${postId} para ${newDate}`);
-            
+
             const success = await global.SocialMediaRepo.updatePostDate(postId, newDate);
-            
+
             if (success) {
+                // Registrar evento de mudança de data no histórico
+                global.SocialMediaRepo?.logPostEvent?.(postId, {
+                    decision: 'date_moved',
+                    comment: newDate,
+                    status_anterior: null,
+                    status_novo: null
+                }).catch(() => {});
+
                 if (global.CalendarStateManager?.refreshMonthData) {
                     await global.CalendarStateManager.refreshMonthData();
                 } else {

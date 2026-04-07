@@ -445,7 +445,64 @@
             return events;
         },
 
-        renderClientPostTimeline: function(post) {
+        /**
+         * Converte evento de social_approvals para formato de exibição
+         */
+        _normalizeAuditEventForTimeline: function(ev) {
+            const decision = String(ev?.decision || ev?.action_type || '').toLowerCase();
+            const labelMap = {
+                created: 'Post criado',
+                resubmitted: 'Reenviado para aprovação',
+                submitted: 'Enviado para aprovação',
+                approved: 'Aprovado',
+                changes_requested: 'Ajuste solicitado',
+                needs_revision: 'Ajuste solicitado',
+                rejected: 'Reprovado',
+                in_review: 'Em produção',
+                returned_to_draft: 'Devolvido para rascunho',
+                scheduled: 'Agendado para publicação',
+                published: 'Publicado',
+                date_moved: 'Data reagendada',
+                status_change: 'Status alterado'
+            };
+            const dotMap = {
+                created: 'bg-slate-400',
+                resubmitted: 'bg-blue-400',
+                submitted: 'bg-blue-400',
+                approved: 'bg-emerald-500',
+                changes_requested: 'bg-amber-500',
+                needs_revision: 'bg-amber-500',
+                rejected: 'bg-red-500',
+                in_review: 'bg-indigo-400',
+                returned_to_draft: 'bg-slate-300',
+                scheduled: 'bg-purple-500',
+                published: 'bg-teal-500',
+                date_moved: 'bg-sky-400',
+                status_change: 'bg-slate-300'
+            };
+            return {
+                action: labelMap[decision] || decision || 'Evento',
+                dot: dotMap[decision] || 'bg-slate-300',
+                description: String(ev?.comment || '').trim()
+            };
+        },
+
+        /**
+         * Busca eventos reais e re-renderiza a timeline (fire-and-forget)
+         */
+        _refreshTimelineFromDB: async function(post) {
+            if (!post?.id) return;
+            try {
+                const events = await global.ClientCore?.getPostAuditEvents?.(post.id);
+                if (!Array.isArray(events) || !events.length) return;
+                const mapped = events.map((ev) => this._normalizeAuditEventForTimeline(ev));
+                this.renderClientPostTimeline(post, mapped);
+            } catch (err) {
+                console.warn('[ClientUI] _refreshTimelineFromDB error:', err);
+            }
+        },
+
+        renderClientPostTimeline: function(post, events) {
             const modal = document.getElementById('client-post-modal');
             if (!modal) return;
 
@@ -459,8 +516,10 @@
                 }
             }
 
-            const events = this.buildDerivedTimeline(post);
-            if (!events.length) { timelineEl.className = 'hidden'; return; }
+            const derivedEvents = this.buildDerivedTimeline(post);
+            const resolvedEvents = (Array.isArray(events) && events.length) ? events : derivedEvents;
+            if (!resolvedEvents.length) { timelineEl.className = 'hidden'; return; }
+            const eventsToRender = resolvedEvents;
 
             timelineEl.className = 'space-y-2';
 
@@ -471,8 +530,8 @@
             const inner = document.createElement('div');
             inner.className = 'space-y-1 bg-slate-50 rounded-lg border border-slate-100 p-3';
 
-            events.forEach((ev, idx) => {
-                const isLast = idx === events.length - 1;
+            eventsToRender.forEach((ev, idx) => {
+                const isLast = idx === eventsToRender.length - 1;
                 const row = document.createElement('div');
                 row.className = 'flex items-start gap-2';
 
@@ -559,6 +618,8 @@
                 if (rejectBtn) rejectBtn.disabled = !canApprove;
 
                 this.renderClientPostTimeline(postData);
+                // Fire-and-forget: atualiza com dados reais do banco após renderização inicial
+                this._refreshTimelineFromDB(postData);
 
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
