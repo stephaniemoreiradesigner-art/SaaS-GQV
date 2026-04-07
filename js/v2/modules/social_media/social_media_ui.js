@@ -249,14 +249,16 @@
 
         getDecisionLabel: function(decision) {
             const key = String(decision || '').trim().toLowerCase();
-            if (key === 'created') return 'Post criado';
-            if (key === 'approved') return 'Aprovado pelo cliente';
-            if (key === 'changes_requested') return 'Ajustes solicitados';
+            if (key === 'created') return 'Card criado';
+            if (key === 'approved') return 'Aprovado';
+            if (key === 'changes_requested') return 'Solicitação de ajustes';
             if (key === 'needs_revision') return 'Ajustes solicitados';
-            if (key === 'rejected') return 'Reprovado';
+            if (key === 'needs_changes') return 'Solicitação de ajustes';
+            if (key === 'rejected') return 'Retorno do cliente';
             if (key === 'resubmitted') return 'Reenviado para aprovação';
             if (key === 'in_review') return 'Enviado para revisão interna';
-            if (key === 'submitted') return 'Enviado para aprovação do cliente';
+            if (key === 'submitted') return 'Enviado para aprovação';
+            if (key === 'sent_for_approval') return 'Enviado para aprovação';
             if (key === 'returned_to_draft') return 'Devolvido para rascunho';
             if (key === 'scheduled') return 'Agendado para publicação';
             if (key === 'published') return 'Publicado';
@@ -305,13 +307,81 @@
             return { text, source, at };
         },
 
+        getPostHistoryContainer: function() {
+            return document.getElementById('social-post-history-items') || document.getElementById('social-post-history');
+        },
+
+        getStatusTimelineLabel: function(status) {
+            const key = String(status || '').trim().toLowerCase();
+            if (!key) return '';
+            if (['sent_for_approval', 'ready_for_approval', 'awaiting_approval', 'pending'].includes(key)) return 'Enviado para aprovação';
+            if (['needs_changes', 'changes_requested', 'needs_revision', 'rejected'].includes(key)) return 'Solicitação de ajustes';
+            if (['approved'].includes(key)) return 'Aprovado';
+            if (['scheduled'].includes(key)) return 'Agendado para publicação';
+            if (['published'].includes(key)) return 'Publicado';
+            if (['draft', 'returned_to_draft'].includes(key)) return 'Devolvido para rascunho';
+            return '';
+        },
+
+        getAuditEventOrigin: function(kind, actorLabel) {
+            const key = String(kind || '').trim().toLowerCase();
+            const actor = String(actorLabel || '').trim();
+            if (['approved', 'changes_requested', 'needs_revision', 'needs_changes', 'rejected', 'returned_to_draft'].includes(key)) {
+                return 'Cliente';
+            }
+            if (['submitted', 'resubmitted', 'sent_for_approval', 'in_review', 'scheduled', 'published', 'editorial_approved', 'date_moved'].includes(key)) {
+                return actor || 'Agência';
+            }
+            if (key === 'created') {
+                return actor || 'Agência';
+            }
+            return actor || 'Sistema';
+        },
+
+        buildAuditEventDescription: function(ev) {
+            const comment = String(ev?.comment || '').trim();
+            if (comment) return comment;
+            const previousLabel = this.getStatusTimelineLabel(ev?.status_anterior);
+            const nextLabel = this.getStatusTimelineLabel(ev?.status_novo);
+            if (previousLabel && nextLabel && previousLabel !== nextLabel) {
+                return `${previousLabel} → ${nextLabel}`;
+            }
+            if (nextLabel) return nextLabel;
+            return '';
+        },
+
+        normalizeAuditEventForTimeline: function(ev) {
+            const decisionRaw = String(ev?.decision || ev?.action_type || '').trim().toLowerCase();
+            const previousStatus = String(ev?.status_anterior || '').trim().toLowerCase();
+            const nextStatus = String(ev?.status_novo || '').trim().toLowerCase();
+            let kind = decisionRaw || 'status_change';
+
+            if (kind === 'status_change') {
+                if (['published'].includes(nextStatus)) kind = 'published';
+                else if (['scheduled'].includes(nextStatus)) kind = 'scheduled';
+                else if (['approved'].includes(nextStatus)) kind = 'approved';
+                else if (['sent_for_approval', 'ready_for_approval', 'awaiting_approval', 'pending'].includes(nextStatus)) kind = 'submitted';
+                else if (['needs_changes', 'changes_requested', 'needs_revision'].includes(nextStatus)) kind = 'changes_requested';
+                else if (['draft'].includes(nextStatus) && ['sent_for_approval', 'ready_for_approval', 'awaiting_approval', 'pending'].includes(previousStatus)) kind = 'returned_to_draft';
+            }
+
+            const actorRaw = String(ev?.decided_by || ev?.actor_label || '').trim();
+            return {
+                kind,
+                at: ev?.decided_at || ev?.created_at || '',
+                origin: this.getAuditEventOrigin(kind, actorRaw),
+                action: this.getDecisionLabel(kind),
+                description: this.buildAuditEventDescription(ev)
+            };
+        },
+
         renderPostAuditPanel: function(post, events) {
             const panel = document.getElementById('social-post-audit-panel');
             if (!panel) return;
 
             const badgeEl = document.getElementById('social-post-status-badge');
             const badgeTopEl = document.getElementById('social-post-status-badge-top');
-            const historyEl = document.getElementById('social-post-history');
+            const historyEl = this.getPostHistoryContainer();
             const lastDecisionEl = document.getElementById('social-post-last-decision');
 
             const isEdit = !!(post && post.id);
@@ -329,7 +399,9 @@
             }
 
             const list = Array.isArray(events) ? events : [];
-            const lastDecisionEvent = list.find((e) => String(e?.kind || '').trim() === 'approval') || null;
+            const lastDecisionEvent = [...list].reverse().find((e) =>
+                ['approved', 'changes_requested', 'needs_changes', 'rejected', 'returned_to_draft', 'client_adjustment'].includes(String(e?.kind || '').trim())
+            ) || null;
             const fallbackComment = String(post?.comentario_cliente || '').trim();
             const lastComment = String(lastDecisionEvent?.description || '').trim() || fallbackComment;
 
@@ -409,7 +481,7 @@
         refreshPostAuditPanel: async function(post) {
             if (!post || !post.id) return;
             console.log('[EditorialHistory] load requested:', { postId: String(post.id), status: String(post?.status || '').trim() || null });
-            const historyEl = document.getElementById('social-post-history');
+            const historyEl = this.getPostHistoryContainer();
             if (historyEl) {
                 historyEl.innerHTML = '';
                 const loading = document.createElement('div');
@@ -427,38 +499,23 @@
 
                 const normalized = [];
 
-                // Eventos do audit trail (banco de dados — todos os tipos)
                 auditArr.forEach((ev) => {
-                    const decision = String(ev?.decision || ev?.action_type || '').trim().toLowerCase();
-                    const at = ev?.decided_at || ev?.created_at || '';
-                    const actorRaw = String(ev?.decided_by || ev?.actor_label || '').trim();
-
-                    // Definir origem legível
-                    let origin = 'Sistema';
-                    if (decision === 'approved' || decision === 'changes_requested' || decision === 'rejected') {
-                        origin = 'Cliente';
-                    } else if (decision === 'submitted' || decision === 'resubmitted' || decision === 'in_review') {
-                        origin = 'Agência';
-                    } else if (decision === 'created') {
-                        origin = actorRaw || 'Agência';
-                    } else if (decision === 'scheduled' || decision === 'published') {
-                        origin = actorRaw || 'Agência';
-                    } else if (actorRaw) {
-                        origin = actorRaw.slice(0, 20);
-                    }
-
-                    normalized.push({
-                        kind: decision || 'status_change',
-                        at: at ? String(at) : new Date().toISOString(),
-                        origin,
-                        action: this.getDecisionLabel(decision),
-                        description: String(ev?.comment || '').trim()
-                    });
+                    normalized.push(this.normalizeAuditEventForTimeline(ev));
                 });
 
-                // Fallback: comentário de ajuste do cliente ainda não registrado como evento
+                const hasCreatedEvent = normalized.some((e) => String(e?.kind || '').trim() === 'created');
+                if (!hasCreatedEvent && post?.created_at) {
+                    normalized.push({
+                        kind: 'created',
+                        at: String(post.created_at),
+                        origin: 'Sistema',
+                        action: this.getDecisionLabel('created'),
+                        description: ''
+                    });
+                }
+
                 const alreadyHasClientAdjustment = normalized.some((e) =>
-                    e.kind === 'changes_requested' || e.kind === 'client_adjustment'
+                    ['changes_requested', 'needs_changes', 'client_adjustment', 'rejected', 'returned_to_draft'].includes(String(e?.kind || '').trim())
                 );
                 if (!alreadyHasClientAdjustment && adjustment.text) {
                     normalized.push({
@@ -470,15 +527,13 @@
                     });
                 }
 
-                // Ordenar cronológico (mais antigo primeiro = timeline de cima pra baixo)
                 const sorted = normalized
-                    .filter((e) => e && e.at)
-                    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+                    .filter((e) => e)
+                    .sort((a, b) => String(a?.at || '').localeCompare(String(b?.at || '')));
 
                 console.log('[EditorialHistory] events normalized:', { postId: String(post.id), count: sorted.length });
                 console.log('[EditorialHistory] render count:', { postId: String(post.id), count: sorted.length });
                 this.renderPostAuditPanel(post, sorted);
-                this.renderMiniTimeline(sorted);
             } catch (err) {
                 if (historyEl) {
                     historyEl.innerHTML = '';
@@ -490,86 +545,8 @@
             }
         },
 
-        renderMiniTimeline: function(events) {
-            const wrap = document.getElementById('social-post-mini-timeline');
-            const list = document.getElementById('social-post-mini-timeline-items');
-            const moreBtn = document.getElementById('social-post-mini-timeline-more');
-            if (!wrap || !list) return;
-
-            const items = Array.isArray(events) ? events : [];
-            if (!items.length) {
-                wrap.classList.add('hidden');
-                return;
-            }
-
-            wrap.classList.remove('hidden');
-            list.innerHTML = '';
-
-            // Show last 3 events (most recent first in mini view)
-            const preview = items.slice(-3);
-            const colors = {
-                approved: 'bg-emerald-500',
-                changes_requested: 'bg-amber-500',
-                needs_revision: 'bg-amber-500',
-                rejected: 'bg-red-500',
-                submitted: 'bg-blue-500',
-                resubmitted: 'bg-blue-500',
-                in_review: 'bg-indigo-400',
-                scheduled: 'bg-purple-500',
-                published: 'bg-teal-500',
-                created: 'bg-slate-400',
-                client_adjustment: 'bg-orange-400',
-                editorial_approved: 'bg-emerald-400',
-                date_moved: 'bg-sky-400',
-                returned_to_draft: 'bg-slate-300',
-                status_change: 'bg-slate-300'
-            };
-
-            preview.forEach((ev, idx) => {
-                const isLast = idx === preview.length - 1;
-                const dotColor = colors[String(ev?.kind || '').toLowerCase()] || 'bg-slate-300';
-
-                const row = document.createElement('div');
-                row.className = 'flex items-start gap-2';
-
-                const rail = document.createElement('div');
-                rail.className = 'flex flex-col items-center flex-shrink-0';
-                const dot = document.createElement('div');
-                dot.className = `w-2 h-2 rounded-full ${dotColor} mt-1.5`;
-                rail.appendChild(dot);
-                if (!isLast) {
-                    const line = document.createElement('div');
-                    line.className = 'w-px flex-1 bg-slate-200 mt-0.5 min-h-[14px]';
-                    rail.appendChild(line);
-                }
-
-                const content = document.createElement('div');
-                content.className = 'pb-1 min-w-0';
-                const label = document.createElement('p');
-                label.className = 'text-[11px] font-semibold text-slate-700 truncate';
-                label.textContent = String(ev?.action || ev?.kind || '').trim() || 'Evento';
-                content.appendChild(label);
-
-                const desc = String(ev?.description || '').trim();
-                if (desc) {
-                    const descEl = document.createElement('p');
-                    descEl.className = 'text-[10px] text-slate-400 italic truncate';
-                    descEl.textContent = desc;
-                    content.appendChild(descEl);
-                }
-
-                row.appendChild(rail);
-                row.appendChild(content);
-                list.appendChild(row);
-            });
-
-            if (moreBtn) {
-                moreBtn.onclick = () => {
-                    if (typeof global.setSocialPostDrawerTab === 'function') {
-                        global.setSocialPostDrawerTab('history');
-                    }
-                };
-            }
+        renderMiniTimeline: function() {
+            return;
         },
 
         getFormatInfo: function(post) {
@@ -1521,9 +1498,7 @@
             }
 
             this.renderPostAuditPanel(post, []);
-            this.renderMiniTimeline([]);
             if (isEdit) {
-                this.refreshPostAuditPanel(post);
                 if (typeof window.setSocialActivePost === 'function') {
                     window.setSocialActivePost(post);
                 }

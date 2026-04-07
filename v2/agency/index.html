@@ -644,13 +644,6 @@
                             <div id="social-post-preview-structure" class="text-sm text-slate-600"></div>
                         </div>
                     </div>
-                    <div id="social-post-mini-timeline" class="hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                        <div class="flex items-center justify-between gap-2">
-                            <p class="text-xs uppercase tracking-widest text-slate-400">Trajeto do conteúdo</p>
-                            <button type="button" id="social-post-mini-timeline-more" class="text-[10px] text-purple-600 hover:underline">Ver histórico completo</button>
-                        </div>
-                        <div id="social-post-mini-timeline-items" class="space-y-1"></div>
-                    </div>
                 </div>
 
                 <div id="social-post-tab-settings" class="space-y-6 hidden" data-social-post-tab-panel="settings">
@@ -2465,9 +2458,6 @@
                 btn.classList.toggle('text-slate-900', active);
                 btn.classList.toggle('text-slate-600', !active);
             });
-            if (key === 'history') {
-                window.loadAndRenderSocialPostHistory?.();
-            }
         };
 
         window.applySocialPostDrawerStatusBadge = (rawStatus) => {
@@ -3360,7 +3350,6 @@
             if (window.setSocialPostDrawerTab) {
                 window.setSocialPostDrawerTab('content');
             }
-            window.loadAndRenderSocialPostHistory?.();
             if (window.applySocialPostDrawerStatusBadge) {
                 window.applySocialPostDrawerStatusBadge(dbStatus);
             }
@@ -3555,30 +3544,9 @@
         };
 
         window.loadAndRenderSocialPostHistory = async () => {
-            const post = socialState.activePost;
-            const feedbackText = [
-                post.comentario_cliente, post.comentarioCliente,
-                post.feedback_ajuste, post.feedback_cliente,
-                post.motivo_ajuste, post.observacoes, post.legenda_ajustada
-            ].map(v => String(v || '').trim()).find(v => v.length > 0);
-
-            const historyContainer = document.getElementById('social-post-history-items');
-            if (historyContainer) {
-                if (feedbackText) {
-                    historyContainer.innerHTML = `
-                        <div class="p-4 bg-amber-50 border-l-4 border-amber-400 rounded-r-xl mb-4">
-                            <p class="text-[10px] font-bold text-amber-700 uppercase mb-1">Ajuste Solicitado pelo Cliente</p>
-                            <p class="text-sm text-slate-800 italic">"${feedbackText}"</p>
-                        </div>
-                        <div class="p-4 bg-slate-50 border-l-4 border-slate-300 rounded-r-xl">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">Sistema</p>
-                            <p class="text-sm text-slate-600">Post criado e enviado para aprovação editorial.</p>
-                        </div>
-                    `;
-                } else {
-                    historyContainer.innerHTML = '<p class="text-sm text-slate-400 text-center py-8 italic">Iniciando histórico de revisões...</p>';
-                }
-            }
+            const post = window.SocialMediaUI?._activePost || socialState.activePost || null;
+            if (!post?.id || !window.SocialMediaUI?.refreshPostAuditPanel) return;
+            await window.SocialMediaUI.refreshPostAuditPanel(post);
         };
 
         const normalizeSocialPostStatusToDb = (status) => {
