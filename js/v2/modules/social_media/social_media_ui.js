@@ -471,6 +471,7 @@
                 console.log('[EditorialHistory] events normalized:', { postId: String(post.id), count: sorted.length });
                 console.log('[EditorialHistory] render count:', { postId: String(post.id), count: sorted.length });
                 this.renderPostAuditPanel(post, sorted);
+                this.renderMiniTimeline(sorted);
             } catch (err) {
                 if (historyEl) {
                     historyEl.innerHTML = '';
@@ -479,6 +480,84 @@
                     msg.textContent = 'Não foi possível carregar o histórico.';
                     historyEl.appendChild(msg);
                 }
+            }
+        },
+
+        renderMiniTimeline: function(events) {
+            const wrap = document.getElementById('social-post-mini-timeline');
+            const list = document.getElementById('social-post-mini-timeline-items');
+            const moreBtn = document.getElementById('social-post-mini-timeline-more');
+            if (!wrap || !list) return;
+
+            const items = Array.isArray(events) ? events : [];
+            if (!items.length) {
+                wrap.classList.add('hidden');
+                return;
+            }
+
+            wrap.classList.remove('hidden');
+            list.innerHTML = '';
+
+            // Show last 3 events (most recent first in mini view)
+            const preview = items.slice(-3);
+            const colors = {
+                approved: 'bg-emerald-500',
+                changes_requested: 'bg-amber-500',
+                needs_revision: 'bg-amber-500',
+                rejected: 'bg-red-500',
+                submitted: 'bg-blue-500',
+                resubmitted: 'bg-blue-500',
+                in_review: 'bg-indigo-400',
+                scheduled: 'bg-purple-500',
+                published: 'bg-teal-500',
+                created: 'bg-slate-400',
+                client_adjustment: 'bg-orange-400'
+            };
+
+            preview.forEach((ev, idx) => {
+                const isLast = idx === preview.length - 1;
+                const dotColor = colors[String(ev?.kind || '').toLowerCase()] || 'bg-slate-300';
+
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-2';
+
+                const rail = document.createElement('div');
+                rail.className = 'flex flex-col items-center flex-shrink-0';
+                const dot = document.createElement('div');
+                dot.className = `w-2 h-2 rounded-full ${dotColor} mt-1.5`;
+                rail.appendChild(dot);
+                if (!isLast) {
+                    const line = document.createElement('div');
+                    line.className = 'w-px flex-1 bg-slate-200 mt-0.5 min-h-[14px]';
+                    rail.appendChild(line);
+                }
+
+                const content = document.createElement('div');
+                content.className = 'pb-1 min-w-0';
+                const label = document.createElement('p');
+                label.className = 'text-[11px] font-semibold text-slate-700 truncate';
+                label.textContent = String(ev?.action || ev?.kind || '').trim() || 'Evento';
+                content.appendChild(label);
+
+                const desc = String(ev?.description || '').trim();
+                if (desc) {
+                    const descEl = document.createElement('p');
+                    descEl.className = 'text-[10px] text-slate-400 italic truncate';
+                    descEl.textContent = desc;
+                    content.appendChild(descEl);
+                }
+
+                row.appendChild(rail);
+                row.appendChild(content);
+                list.appendChild(row);
+            });
+
+            if (moreBtn) {
+                moreBtn.onclick = () => {
+                    if (typeof global.setSocialPostDrawerTab === 'function') {
+                        global.setSocialPostDrawerTab('history');
+                    }
+                };
             }
         },
 
@@ -1430,6 +1509,7 @@
             }
 
             this.renderPostAuditPanel(post, []);
+            this.renderMiniTimeline([]);
             if (isEdit) {
                 this.refreshPostAuditPanel(post);
                 if (typeof window.setSocialActivePost === 'function') {

@@ -410,6 +410,106 @@
             });
         },
 
+        buildDerivedTimeline: function(post) {
+            const events = [];
+            const status = String(post?.status || '').trim().toLowerCase();
+            const comment = String(
+                post?.comentario_cliente || post?.comentarioCliente ||
+                post?.feedback_ajuste || post?.feedbackAjuste || ''
+            ).trim();
+
+            events.push({ action: 'Post criado', dot: 'bg-slate-400', description: '' });
+
+            const wasResubmitted = !!(comment && ['ready_for_approval', 'awaiting_approval'].includes(status));
+            if (wasResubmitted) {
+                events.push({ action: 'Enviado para aprova\u00e7\u00e3o', dot: 'bg-blue-400', description: '' });
+                events.push({ action: 'Ajuste solicitado pelo cliente', dot: 'bg-amber-500', description: comment });
+                events.push({ action: 'M\u00eddia revisada e reenviada', dot: 'bg-indigo-500', description: '' });
+            } else if (comment) {
+                events.push({ action: 'Enviado para aprova\u00e7\u00e3o', dot: 'bg-blue-400', description: '' });
+                events.push({ action: 'Ajuste solicitado pelo cliente', dot: 'bg-amber-500', description: comment });
+            } else {
+                events.push({ action: 'Enviado para aprova\u00e7\u00e3o', dot: 'bg-blue-400', description: '' });
+            }
+
+            if (['approved', 'aprovado'].includes(status)) {
+                events.push({ action: 'Aprovado', dot: 'bg-emerald-500', description: '' });
+            } else if (['scheduled', 'agendado'].includes(status)) {
+                events.push({ action: 'Aprovado', dot: 'bg-emerald-500', description: '' });
+                events.push({ action: 'Agendado para publica\u00e7\u00e3o', dot: 'bg-purple-500', description: '' });
+            } else if (['published', 'publicado'].includes(status)) {
+                events.push({ action: 'Aprovado', dot: 'bg-emerald-500', description: '' });
+                events.push({ action: 'Publicado', dot: 'bg-teal-500', description: '' });
+            }
+
+            return events;
+        },
+
+        renderClientPostTimeline: function(post) {
+            const modal = document.getElementById('client-post-modal');
+            if (!modal) return;
+
+            let timelineEl = document.getElementById('client-post-modal-timeline');
+            if (!timelineEl) {
+                timelineEl = document.createElement('div');
+                timelineEl.id = 'client-post-modal-timeline';
+                const feedbackArea = document.getElementById('client-post-modal-feedback-area');
+                if (feedbackArea && feedbackArea.parentNode) {
+                    feedbackArea.parentNode.insertBefore(timelineEl, feedbackArea);
+                }
+            }
+
+            const events = this.buildDerivedTimeline(post);
+            if (!events.length) { timelineEl.className = 'hidden'; return; }
+
+            timelineEl.className = 'space-y-2';
+
+            const heading = document.createElement('label');
+            heading.className = 'block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2';
+            heading.textContent = 'Trajeto do conte\u00fado';
+
+            const inner = document.createElement('div');
+            inner.className = 'space-y-1 bg-slate-50 rounded-lg border border-slate-100 p-3';
+
+            events.forEach((ev, idx) => {
+                const isLast = idx === events.length - 1;
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-2';
+
+                const rail = document.createElement('div');
+                rail.className = 'flex flex-col items-center flex-shrink-0';
+                const dot = document.createElement('div');
+                dot.className = `w-2 h-2 rounded-full ${ev.dot} mt-1.5`;
+                rail.appendChild(dot);
+                if (!isLast) {
+                    const line = document.createElement('div');
+                    line.className = 'w-px flex-1 bg-slate-200 mt-0.5 min-h-[14px]';
+                    rail.appendChild(line);
+                }
+
+                const content = document.createElement('div');
+                content.className = 'pb-1';
+                const label = document.createElement('p');
+                label.className = `text-xs font-semibold ${isLast ? 'text-slate-800' : 'text-slate-500'}`;
+                label.textContent = ev.action;
+                content.appendChild(label);
+                if (ev.description) {
+                    const desc = document.createElement('p');
+                    desc.className = 'text-[11px] text-slate-400 italic mt-0.5';
+                    desc.textContent = '\u201c' + ev.description + '\u201d';
+                    content.appendChild(desc);
+                }
+
+                row.appendChild(rail);
+                row.appendChild(content);
+                inner.appendChild(row);
+            });
+
+            timelineEl.innerHTML = '';
+            timelineEl.appendChild(heading);
+            timelineEl.appendChild(inner);
+        },
+
         showPostModal: function(show, postData = null, options = null) {
             const modal = document.getElementById('client-post-modal');
             if (!modal) return;
@@ -457,6 +557,8 @@
                 if (actions) actions.classList.toggle('hidden', !canApprove);
                 if (approveBtn) approveBtn.disabled = !canApprove;
                 if (rejectBtn) rejectBtn.disabled = !canApprove;
+
+                this.renderClientPostTimeline(postData);
 
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
