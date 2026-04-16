@@ -3,7 +3,13 @@
     "allow": [
       "mcp__claude_ai_Supabase__execute_sql",
       "mcp__claude_ai_Supabase__apply_migration",
-      "Bash(grep -rn setSocialPostDrawerTabs*= /c/Users/Stephanie/Documents/trae_projects/SaaS-GQV --include=*.js --include=*.html)"
+      "Bash(grep -rn setSocialPostDrawerTabs*= /c/Users/Stephanie/Documents/trae_projects/SaaS-GQV --include=*.js --include=*.html)",
+      "Bash(npx create-next-app@latest frontend --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack)",
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest add card input label toast sidebar navigation-menu dropdown-menu avatar badge separator sheet)",
+      "Bash(npx shadcn@latest add card input label sonner sidebar navigation-menu dropdown-menu avatar badge separator sheet)",
+      "Bash(npm run:*)"
     ]
   }
 }
