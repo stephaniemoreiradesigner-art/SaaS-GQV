@@ -682,6 +682,141 @@
             return { error: null, data };
         },
 
+        getPostHistoryEventMeta: function(eventCode) {
+            const key = String(eventCode || '').trim().toLowerCase();
+            const map = {
+                content_created_calendar: { label: 'Conteúdo criado no calendário', scope: 'content' },
+                content_sent_for_approval: { label: 'Conteúdo enviado para aprovação', scope: 'content' },
+                content_approved: { label: 'Conteúdo aprovado', scope: 'content' },
+                content_changes_requested: { label: 'Cliente solicitou ajustes no conteúdo', scope: 'content' },
+                media_card_created: { label: 'Card de mídia criado', scope: 'media' },
+                media_inserted: { label: 'Mídia inserida', scope: 'media' },
+                media_sent_for_approval: { label: 'Mídia enviada para aprovação', scope: 'media' },
+                media_in_review: { label: 'Mídia para revisão (cliente solicitou ajustes)', scope: 'media' },
+                media_adjusted_waiting_approval: { label: 'Mídia ajustada aguardando aprovação', scope: 'media' },
+                post_client_approved: { label: 'Postagem aprovada pelo cliente', scope: 'media' },
+                post_scheduled: { label: 'Post agendado', scope: 'system' },
+                post_published: { label: 'Publicado', scope: 'system' },
+                created: { label: 'Card criado', scope: 'system' }
+            };
+            return map[key] || { label: key || 'Evento', scope: 'system' };
+        },
+
+        resolvePostHistoryContext: async function(postId) {
+            const supabase = await this.getClient();
+            if (!supabase || !postId) return null;
+            try {
+                const { data, error } = await supabase
+                    .from('social_posts')
+                    .select('id,calendar_id,calendar_item_id,created_at,social_calendars!left(tenant_id)')
+                    .eq('id', postId)
+                    .maybeSingle();
+                if (error || !data) {
+                    const { data: fallback, error: fallbackError } = await supabase
+                        .from('social_posts')
+                        .select('id,calendar_id,calendar_item_id,created_at')
+                        .eq('id', postId)
+                        .maybeSingle();
+                    if (fallbackError || !fallback) return null;
+                    let tenantId = null;
+                    if (fallback.calendar_id) {
+                        const { data: cal } = await supabase
+                            .from('social_calendars')
+                            .select('tenant_id')
+                            .eq('id', fallback.calendar_id)
+                            .maybeSingle();
+                        tenantId = cal?.tenant_id || null;
+                    }
+                    return {
+                        postId: String(fallback?.id || postId),
+                        calendarItemId: fallback?.calendar_item_id || null,
+                        tenantId: tenantId || null,
+                        createdAt: fallback?.created_at || null
+                    };
+                }
+                return {
+                    postId: String(data?.id || postId),
+                    calendarItemId: data?.calendar_item_id || null,
+                    tenantId: data?.social_calendars?.tenant_id || null,
+                    createdAt: data?.created_at || null
+                };
+            } catch {
+                return null;
+            }
+        },
+
+        appendPostHistoryEvent: async function(params) {
+            const supabase = await this.getClient();
+            if (!supabase) return { ok: false, error: { message: 'missing_supabase' } };
+            const postId = String(params?.postId || '').trim();
+            const eventCode = String(params?.eventCode || '').trim().toLowerCase();
+            if (!postId || !eventCode) return { ok: false, error: { message: 'missing_params' } };
+
+            const context = await this.resolvePostHistoryContext(postId);
+            const tenantId = String(params?.tenantId || context?.tenantId || '').trim();
+            if (!tenantId) return { ok: false, error: { message: 'missing_tenant' } };
+
+            const metaInfo = this.getPostHistoryEventMeta(eventCode);
+            const payload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                calendar_item_id: params?.calendarItemId || context?.calendarItemId || null,
+                event_code: eventCode,
+                event_label: String(params?.eventLabel || metaInfo.label || '').trim() || metaInfo.label,
+                event_scope: String(params?.eventScope || metaInfo.scope || 'system').trim(),
+                actor_type: String(params?.actorType || 'client').trim(),
+                actor_id: params?.actorId || null,
+                metadata: (params?.metadata && typeof params.metadata === 'object') ? params.metadata : {}
+            };
+
+            const { error } = await supabase.from('social_post_history').insert(payload);
+            if (error) return { ok: false, error };
+            return { ok: true };
+        },
+
+        ensurePostHistoryBaseEvent: async function(postId) {
+            const supabase = await this.getClient();
+            if (!supabase || !postId) return;
+            const { count, error } = await supabase
+                .from('social_post_history')
+                .select('id', { head: true, count: 'exact' })
+                .eq('post_id', postId);
+            if (error || Number(count || 0) > 0) return;
+            const context = await this.resolvePostHistoryContext(postId);
+            const baseCode = context?.calendarItemId ? 'content_created_calendar' : 'created';
+            await this.appendPostHistoryEvent({
+                postId,
+                tenantId: context?.tenantId || null,
+                calendarItemId: context?.calendarItemId || null,
+                eventCode: baseCode,
+                actorType: 'system',
+                metadata: { backfill: true, source: 'client_base_event' }
+            });
+        },
+
+        getPostHistoryEvents: async function(postId) {
+            const supabase = await this.getClient();
+            if (!supabase || !postId) return [];
+            await this.ensurePostHistoryBaseEvent(postId);
+            const { data, error } = await supabase
+                .from('social_post_history')
+                .select('post_id,event_code,event_label,event_scope,actor_type,metadata,created_at')
+                .eq('post_id', postId)
+                .order('created_at', { ascending: true, nullsFirst: false });
+            if (error) {
+                console.error('[ClientRepo] getPostHistoryEvents error:', error);
+                return [];
+            }
+            return (data || []).map((ev) => ({
+                ...ev,
+                decision: ev?.event_code || 'status_change',
+                decided_at: ev?.created_at || null,
+                comment: (ev?.metadata && typeof ev.metadata === 'object' && ev.metadata.comment)
+                    ? String(ev.metadata.comment)
+                    : null
+            }));
+        },
+
         /**
          * Busca todos os posts pendentes de aprovação (independente do calendário)
          * @param {string} clientId
@@ -861,6 +996,16 @@
                 });
                 return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
             }
+            await this.appendPostHistoryEvent({
+                postId: normalizedPostId,
+                eventCode: 'post_client_approved',
+                actorType: 'client',
+                metadata: {
+                    comment: trimmedComment || null,
+                    status_anterior: null,
+                    status_novo: approvedStatus
+                }
+            });
             return { ok: true, data: data[0] };
         },
 
@@ -922,6 +1067,16 @@
                 });
                 return { ok: false, error: { message: 'Nenhuma linha atualizada (RLS/filtro).' }, postId, payload };
             }
+            await this.appendPostHistoryEvent({
+                postId: normalizedPostId,
+                eventCode: 'media_in_review',
+                actorType: 'client',
+                metadata: {
+                    comment: String(comment || '').trim() || null,
+                    status_anterior: null,
+                    status_novo: changesStatus
+                }
+            });
             return { ok: true, data: data[0] };
         },
 

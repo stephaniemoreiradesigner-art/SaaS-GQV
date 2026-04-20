@@ -843,7 +843,8 @@
                 decision,
                 comment: comment || null,
                 status_anterior: extra?.statusAnterior || null,
-                status_novo: extra?.statusNovo || null
+                status_novo: extra?.statusNovo || null,
+                actor_type: extra?.actorType || 'agency_user'
             });
         },
 
@@ -902,7 +903,8 @@
                     if (ok) {
                         await this.logLifecycleEvent(postId, 'post_published', 'Publicado', {
                             statusAnterior: post?.status || 'scheduled',
-                            statusNovo: 'published'
+                            statusNovo: 'published',
+                            actorType: 'system'
                         });
                     }
                 } catch (err) {
@@ -1038,12 +1040,25 @@
                         isCreate: mode !== 'edit',
                         source
                     });
+                    const beforeStatus = this.normalizePostStatusKey(beforePost?.status);
+                    const afterStatus = this.normalizePostStatusKey(savedPost?.status);
+                    const beforeDate = String(beforePost?.data_agendada || '').slice(0, 16);
+                    const afterDate = String(savedPost?.data_agendada || '').slice(0, 16);
+                    const beforeTime = String(beforePost?.hora_agendada || '').slice(0, 5);
+                    const afterTime = String(savedPost?.hora_agendada || '').slice(0, 5);
+                    if (afterStatus === 'scheduled' && beforeStatus === 'scheduled' && (beforeDate !== afterDate || beforeTime !== afterTime)) {
+                        await this.logLifecycleEvent(savedPost.id, 'post_scheduled', 'Post agendado', {
+                            statusAnterior: beforePost?.status || 'scheduled',
+                            statusNovo: savedPost?.status || 'scheduled'
+                        });
+                    }
                     if (this.isPostDueToPublish(savedPost)) {
                         const promoted = await global.SocialMediaRepo?.updatePostStatus?.(savedPost.id, 'published');
                         if (promoted) {
                             await this.logLifecycleEvent(savedPost.id, 'post_published', 'Publicado', {
                                 statusAnterior: savedPost?.status || 'scheduled',
-                                statusNovo: 'published'
+                                statusNovo: 'published',
+                                actorType: 'system'
                             });
                         }
                     }

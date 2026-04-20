@@ -418,11 +418,12 @@
             }
 
             const actorRaw = String(ev?.decided_by || ev?.actor_label || '').trim();
+            const explicitLabel = String(ev?.event_label || '').trim();
             return {
                 kind,
                 at: ev?.decided_at || ev?.created_at || '',
                 origin: this.getAuditEventOrigin(kind, actorRaw),
-                action: this.getDecisionLabel(kind),
+                action: explicitLabel || this.getDecisionLabel(kind),
                 description: this.buildAuditEventDescription(ev)
             };
         },
@@ -892,6 +893,15 @@
                                 this.showFeedback('Não foi possível enviar para aprovação.', 'error');
                                 return;
                             }
+                            const decision = normalizedStatus === 'changes_requested'
+                                ? 'media_adjusted_waiting_approval'
+                                : (this.hasMediaAttached(post) ? 'media_sent_for_approval' : 'content_sent_for_approval');
+                            await global.SocialMediaRepo?.logPostEvent?.(post.id, {
+                                decision,
+                                status_anterior: post?.status || null,
+                                status_novo: 'ready_for_approval',
+                                actor_type: 'agency_user'
+                            });
                             this.showFeedback('Enviado para aprovação.');
                             if (this.refreshPostsBoardFromRepo) {
                                 await this.refreshPostsBoardFromRepo();

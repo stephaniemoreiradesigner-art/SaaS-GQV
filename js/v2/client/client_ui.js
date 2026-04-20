@@ -450,6 +450,7 @@
          */
         _normalizeAuditEventForTimeline: function(ev) {
             const decision = String(ev?.decision || ev?.action_type || '').toLowerCase();
+            const explicitLabel = String(ev?.event_label || '').trim();
             const labelMap = {
                 created: 'Post criado',
                 resubmitted: 'Reenviado para aprovação',
@@ -483,7 +484,7 @@
                 status_change: 'bg-slate-300'
             };
             return {
-                action: labelMap[decision] || decision || 'Evento',
+                action: explicitLabel || labelMap[decision] || decision || 'Evento',
                 dot: dotMap[decision] || 'bg-slate-300',
                 description: String(ev?.comment || '').trim()
             };
@@ -518,10 +519,12 @@
                 }
             }
 
-            const derivedEvents = this.buildDerivedTimeline(post);
-            const resolvedEvents = (Array.isArray(events) && events.length) ? events : derivedEvents;
-            if (!resolvedEvents.length) { timelineEl.className = 'hidden'; return; }
-            const eventsToRender = resolvedEvents;
+            const eventsToRender = Array.isArray(events) ? events : [];
+            if (!eventsToRender.length) {
+                timelineEl.className = 'space-y-2';
+                timelineEl.innerHTML = '<div class="text-xs text-slate-400">Sem histórico registrado ainda.</div>';
+                return;
+            }
 
             timelineEl.className = 'space-y-2';
 

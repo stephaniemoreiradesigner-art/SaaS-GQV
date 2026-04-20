@@ -1128,12 +1128,142 @@
             }
         },
 
+        getPostHistoryEventMeta: function(eventCode) {
+            const key = String(eventCode || '').trim().toLowerCase();
+            const map = {
+                content_created_calendar: { label: 'Conteúdo criado no calendário', scope: 'content' },
+                content_sent_for_approval: { label: 'Conteúdo enviado para aprovação', scope: 'content' },
+                content_approved: { label: 'Conteúdo aprovado', scope: 'content' },
+                content_changes_requested: { label: 'Cliente solicitou ajustes no conteúdo', scope: 'content' },
+                media_card_created: { label: 'Card de mídia criado', scope: 'media' },
+                media_inserted: { label: 'Mídia inserida', scope: 'media' },
+                media_sent_for_approval: { label: 'Mídia enviada para aprovação', scope: 'media' },
+                media_in_review: { label: 'Mídia para revisão (cliente solicitou ajustes)', scope: 'media' },
+                media_adjusted_waiting_approval: { label: 'Mídia ajustada aguardando aprovação', scope: 'media' },
+                post_client_approved: { label: 'Postagem aprovada pelo cliente', scope: 'media' },
+                post_scheduled: { label: 'Post agendado', scope: 'system' },
+                post_published: { label: 'Publicado', scope: 'system' },
+                created: { label: 'Card criado', scope: 'system' },
+                status_change: { label: 'Status alterado', scope: 'system' },
+                date_moved: { label: 'Data reagendada', scope: 'system' }
+            };
+            return map[key] || { label: key || 'Evento', scope: 'system' };
+        },
+
+        resolvePostHistoryContext: async function(postId) {
+            if (!global.supabaseClient || !postId) return null;
+            try {
+                let { data, error } = await global.supabaseClient
+                    .from('social_posts')
+                    .select('id,calendar_id,calendar_item_id,created_at,social_calendars!left(tenant_id)')
+                    .eq('id', postId)
+                    .maybeSingle();
+
+                if (error) {
+                    const { data: fallback, error: fallbackError } = await global.supabaseClient
+                        .from('social_posts')
+                        .select('id,calendar_id,calendar_item_id,created_at')
+                        .eq('id', postId)
+                        .maybeSingle();
+                    if (fallbackError || !fallback) return null;
+                    let tenantId = null;
+                    if (fallback.calendar_id) {
+                        const { data: cal } = await global.supabaseClient
+                            .from('social_calendars')
+                            .select('tenant_id')
+                            .eq('id', fallback.calendar_id)
+                            .maybeSingle();
+                        tenantId = cal?.tenant_id || null;
+                    }
+                    return {
+                        postId: String(fallback.id || postId),
+                        calendarItemId: fallback?.calendar_item_id || null,
+                        tenantId: tenantId || null,
+                        createdAt: fallback?.created_at || null
+                    };
+                }
+
+                const tenantId = data?.social_calendars?.tenant_id || null;
+                return {
+                    postId: String(data?.id || postId),
+                    calendarItemId: data?.calendar_item_id || null,
+                    tenantId: tenantId || null,
+                    createdAt: data?.created_at || null
+                };
+            } catch {
+                return null;
+            }
+        },
+
+        appendPostHistoryEvent: async function(params) {
+            if (!global.supabaseClient) return { ok: false, error: 'missing_supabase' };
+            const postId = String(params?.postId || '').trim();
+            const eventCode = String(params?.eventCode || '').trim().toLowerCase();
+            if (!postId || !eventCode) return { ok: false, error: 'missing_params' };
+
+            const context = await this.resolvePostHistoryContext(postId);
+            const tenantId = String(params?.tenantId || context?.tenantId || '').trim();
+            if (!tenantId) return { ok: false, error: 'missing_tenant' };
+
+            const metaInfo = this.getPostHistoryEventMeta(eventCode);
+            const payload = {
+                tenant_id: tenantId,
+                post_id: postId,
+                calendar_item_id: params?.calendarItemId || context?.calendarItemId || null,
+                event_code: eventCode,
+                event_label: String(params?.eventLabel || metaInfo.label || '').trim() || metaInfo.label,
+                event_scope: String(params?.eventScope || metaInfo.scope || 'system').trim(),
+                actor_type: String(params?.actorType || 'system').trim(),
+                actor_id: params?.actorId || null,
+                metadata: (params?.metadata && typeof params.metadata === 'object') ? params.metadata : {}
+            };
+
+            try {
+                const { error } = await global.supabaseClient
+                    .from('social_post_history')
+                    .insert(payload);
+                if (error) throw error;
+                return { ok: true };
+            } catch (err) {
+                console.error('[SOCIAL] appendPostHistoryEvent error:', err);
+                return { ok: false, error: err };
+            }
+        },
+
+        ensurePostHistoryBaseEvent: async function(postId, preferredEventCode = 'created') {
+            if (!global.supabaseClient || !postId) return;
+            try {
+                const { count, error } = await global.supabaseClient
+                    .from('social_post_history')
+                    .select('id', { head: true, count: 'exact' })
+                    .eq('post_id', postId);
+                if (error) return;
+                if (Number(count || 0) > 0) return;
+
+                const context = await this.resolvePostHistoryContext(postId);
+                const createdAt = context?.createdAt || new Date().toISOString();
+                const baseCode = context?.calendarItemId ? 'content_created_calendar' : preferredEventCode;
+                const baseMeta = this.getPostHistoryEventMeta(baseCode);
+                await this.appendPostHistoryEvent({
+                    postId,
+                    tenantId: context?.tenantId || null,
+                    calendarItemId: context?.calendarItemId || null,
+                    eventCode: baseCode,
+                    eventLabel: baseMeta.label,
+                    eventScope: baseMeta.scope,
+                    actorType: 'system',
+                    metadata: { backfill: true, source: 'base_event', created_at_ref: createdAt }
+                });
+            } catch {}
+        },
+
         getPostAuditEvents: async function(postId) {
             if (!global.supabaseClient || !postId) return [];
             try {
+                await this.ensurePostHistoryBaseEvent(postId, 'created');
                 const { data, error } = await global.supabaseClient
-                    .from('social_approvals')
-                    .select('post_id,decision,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
+                    .from('social_post_history')
+                    .select('post_id,event_code,event_label,event_scope,actor_type,actor_id,metadata,created_at')
                     .eq('post_id', postId)
                     .order('created_at', { ascending: true, nullsFirst: false });
 
@@ -1148,12 +1278,17 @@
 
                 const events = (data || []).map((ev) => ({
                     ...ev,
-                    decided_at: ev?.decided_at || ev?.created_at || null,
-                    decision: ev?.decision || 'status_change',
-                    actor_label: ev?.actor_label || null,
-                    decided_by: ev?.actor_label || null,
-                    status_anterior: ev?.status_anterior || null,
-                    status_novo: ev?.status_novo || null
+                    decided_at: ev?.created_at || null,
+                    decision: ev?.event_code || 'status_change',
+                    event_label: ev?.event_label || null,
+                    event_scope: ev?.event_scope || 'system',
+                    actor_label: ev?.actor_type || null,
+                    decided_by: ev?.actor_type || null,
+                    comment: (ev?.metadata && typeof ev.metadata === 'object' && ev.metadata.comment)
+                        ? String(ev.metadata.comment)
+                        : null,
+                    status_anterior: (ev?.metadata && typeof ev.metadata === 'object') ? (ev.metadata.status_anterior || null) : null,
+                    status_novo: (ev?.metadata && typeof ev.metadata === 'object') ? (ev.metadata.status_novo || null) : null
                 }));
 
                 console.log('[History] getPostAuditEvents ok:', { postId: String(postId), count: events.length });
@@ -1176,20 +1311,22 @@
         logPostEvent: async function(postId, eventData) {
             if (!global.supabaseClient || !postId) return false;
             try {
-                const payload = {
-                    post_id: postId,
-                    decision: String(eventData?.decision || 'status_change'),
-                    decided_at: new Date().toISOString(),
-                    comment: eventData?.comment ? String(eventData.comment) : null,
-                    actor_label: eventData?.actor_label ? String(eventData.actor_label) : null,
-                    status_anterior: eventData?.status_anterior ? String(eventData.status_anterior) : null,
-                    status_novo: eventData?.status_novo ? String(eventData.status_novo) : null
-                };
-                const { error } = await global.supabaseClient
-                    .from('social_approvals')
-                    .insert(payload);
-                if (error) throw error;
-                return true;
+                const decision = String(eventData?.decision || 'status_change').trim().toLowerCase();
+                const metaInfo = this.getPostHistoryEventMeta(decision);
+                const result = await this.appendPostHistoryEvent({
+                    postId,
+                    eventCode: decision,
+                    eventLabel: metaInfo.label,
+                    eventScope: metaInfo.scope,
+                    actorType: String(eventData?.actor_type || 'agency_user'),
+                    actorId: eventData?.actor_id || null,
+                    metadata: {
+                        comment: eventData?.comment ? String(eventData.comment) : null,
+                        status_anterior: eventData?.status_anterior ? String(eventData.status_anterior) : null,
+                        status_novo: eventData?.status_novo ? String(eventData.status_novo) : null
+                    }
+                });
+                return result?.ok === true;
             } catch (err) {
                 console.error('[SOCIAL] logPostEvent error:', err);
                 return false;

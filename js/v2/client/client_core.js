@@ -517,19 +517,8 @@
         getPostAuditEvents: async function(postId) {
             if (!postId) return [];
             try {
-                const supabase = global.ClientRepo?.getClient ? await global.ClientRepo.getClient() : global.supabaseClient;
-                if (!supabase) return [];
-                const { data, error } = await supabase
-                    .from('social_approvals')
-                    .select('decision,action_type,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
-                    .eq('post_id', postId)
-                    .order('decided_at', { ascending: true, nullsFirst: false });
-                if (error) throw error;
-                return (data || []).map((ev) => ({
-                    ...ev,
-                    decided_at: ev.decided_at || ev.created_at,
-                    decision: ev.decision || ev.action_type || 'status_change'
-                }));
+                if (!global.ClientRepo?.getPostHistoryEvents) return [];
+                return await global.ClientRepo.getPostHistoryEvents(postId);
             } catch (err) {
                 console.error('[ClientCore] getPostAuditEvents error:', err);
                 return [];
@@ -807,11 +796,21 @@
                 String(itemId), clientId, { status: 'approved' }
             );
             if (result?.ok === true) {
+                let ensuredPost = null;
                 if (global.ClientRepo?.ensurePostDraftFromCalendarItem) {
-                    await global.ClientRepo.ensurePostDraftFromCalendarItem({
+                    ensuredPost = await global.ClientRepo.ensurePostDraftFromCalendarItem({
                         calendarId,
                         calendarItemId: itemId,
                         clientId
+                    });
+                }
+                const postId = ensuredPost?.data?.id || null;
+                if (postId && global.ClientRepo?.appendPostHistoryEvent) {
+                    await global.ClientRepo.appendPostHistoryEvent({
+                        postId: String(postId),
+                        eventCode: 'content_approved',
+                        actorType: 'client',
+                        metadata: { source: 'client_editorial_approval' }
                     });
                 }
                 await this.loadPendingPosts();
@@ -826,6 +825,28 @@
                 String(itemId), clientId, { status: 'needs_changes', comment: String(comment).trim() }
             );
             if (result?.ok === true) {
+                let ensuredPost = null;
+                if (global.ClientRepo?.ensurePostDraftFromCalendarItem) {
+                    ensuredPost = await global.ClientRepo.ensurePostDraftFromCalendarItem({
+                        calendarId,
+                        calendarItemId: itemId,
+                        clientId,
+                        targetStatus: 'draft',
+                        comentario_cliente: String(comment || '').trim()
+                    });
+                }
+                const postId = ensuredPost?.data?.id || null;
+                if (postId && global.ClientRepo?.appendPostHistoryEvent) {
+                    await global.ClientRepo.appendPostHistoryEvent({
+                        postId: String(postId),
+                        eventCode: 'content_changes_requested',
+                        actorType: 'client',
+                        metadata: {
+                            source: 'client_editorial_changes_requested',
+                            comment: String(comment || '').trim()
+                        }
+                    });
+                }
                 await this.loadPendingPosts();
             }
             return result || { ok: false };
