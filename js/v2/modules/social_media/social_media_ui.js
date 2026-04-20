@@ -176,9 +176,20 @@
             postTabBtns.forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const key = String(btn?.dataset?.postTab || '').trim().toLowerCase();
-                    if (typeof global.setSocialPostDrawerTab === 'function') {
-                        global.setSocialPostDrawerTab(key);
-                    }
+
+                    // Alternar painéis diretamente (não depende de função global)
+                    document.querySelectorAll('[data-social-post-tab-panel]').forEach((panel) => {
+                        const panelKey = String(panel.dataset?.socialPostTabPanel || '').trim().toLowerCase();
+                        panel.classList.toggle('hidden', panelKey !== key);
+                    });
+                    postTabBtns.forEach((b) => {
+                        const active = String(b.dataset?.postTab || '').trim().toLowerCase() === key;
+                        b.classList.toggle('bg-white', active);
+                        b.classList.toggle('shadow-sm', active);
+                        b.classList.toggle('text-slate-900', active);
+                        b.classList.toggle('text-slate-600', !active);
+                    });
+
                     if (key === 'history') {
                         if (!this._activePost?.id) return;
                         await this.refreshPostAuditPanel(this._activePost);
@@ -938,6 +949,33 @@
                     await this.resendCalendarItemToClient();
                 });
             }
+
+            // Ligar tabs Editar / Histórico
+            modal.querySelectorAll('[data-editorial-tab]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const tab = btn.dataset.editorialTab;
+                    const isHistory = tab === 'history';
+                    const ep = document.getElementById('social-editorial-item-panel-edit');
+                    const hp = document.getElementById('social-editorial-item-panel-history');
+                    const sb = document.getElementById('social-editorial-item-save');
+                    const rb = document.getElementById('social-editorial-item-resend');
+                    if (ep) ep.classList.toggle('hidden', isHistory);
+                    if (hp) hp.classList.toggle('hidden', !isHistory);
+                    if (sb) sb.classList.toggle('hidden', isHistory);
+                    if (rb) rb.classList.toggle('hidden', isHistory ? true : (this._editorialItemContext?._resendShouldBeHidden !== false));
+                    modal.querySelectorAll('[data-editorial-tab]').forEach((b) => {
+                        const active = b.dataset.editorialTab === tab;
+                        b.className = active
+                            ? 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg bg-white border border-b-0 border-slate-200 text-slate-900'
+                            : 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg text-slate-500 hover:text-slate-800';
+                    });
+                    if (isHistory) {
+                        const itemId = this._editorialItemContext?.itemId || '';
+                        if (itemId) this.refreshEditorialItemHistory(itemId);
+                        else this.renderTimelineEvents(document.getElementById('social-editorial-item-history-items'), []);
+                    }
+                });
+            });
         },
 
         showEditorialItemModal: function(show) {
@@ -1034,41 +1072,12 @@
                 }
             }
 
-            // Resetar para aba Editar e ligar tabs
-            const tabBtns = modal.querySelectorAll('[data-editorial-tab]');
-            if (!modal._editorialTabsWired) {
-                modal._editorialTabsWired = true;
-                tabBtns.forEach((btn) => {
-                    btn.addEventListener('click', () => {
-                        const tab = btn.dataset.editorialTab;
-                        const isHistory = tab === 'history';
-                        const ep = document.getElementById('social-editorial-item-panel-edit');
-                        const hp = document.getElementById('social-editorial-item-panel-history');
-                        const sb = document.getElementById('social-editorial-item-save');
-                        const rb = document.getElementById('social-editorial-item-resend');
-                        if (ep) ep.classList.toggle('hidden', isHistory);
-                        if (hp) hp.classList.toggle('hidden', !isHistory);
-                        if (sb) sb.classList.toggle('hidden', isHistory);
-                        if (rb) rb.classList.toggle('hidden', isHistory || (this._editorialItemContext?._resendShouldBeHidden !== false));
-                        modal.querySelectorAll('[data-editorial-tab]').forEach((b) => {
-                            const active = b.dataset.editorialTab === tab;
-                            b.className = active
-                                ? 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg bg-white border border-b-0 border-slate-200 text-slate-900'
-                                : 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg text-slate-500 hover:text-slate-800';
-                        });
-                        if (isHistory) {
-                            const currentItemId = this._editorialItemContext?.itemId || '';
-                            if (currentItemId) this.refreshEditorialItemHistory(currentItemId);
-                            else this.renderTimelineEvents(document.getElementById('social-editorial-item-history-items'), []);
-                        }
-                    });
-                });
-            }
-            // Armazenar se resend deve aparecer para restaurar ao voltar para edit
+            // Armazenar se resend deve aparecer para restaurar ao voltar para aba Editar
             if (this._editorialItemContext) {
                 this._editorialItemContext._resendShouldBeHidden = resendBtn ? resendBtn.classList.contains('hidden') : true;
             }
-            // Ativar aba Editar
+            // Resetar sempre para aba Editar ao abrir
+            const tabBtns = modal.querySelectorAll('[data-editorial-tab]');
             const editPanel = document.getElementById('social-editorial-item-panel-edit');
             const historyPanel = document.getElementById('social-editorial-item-panel-history');
             const saveBtnEl = document.getElementById('social-editorial-item-save');
