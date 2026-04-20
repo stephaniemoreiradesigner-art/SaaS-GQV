@@ -591,12 +591,16 @@
             try {
                 // Caminho direto: criação mínima a partir de item aprovado
                 if (input?.calendar_item_id && input?.calendar_id && normalizedClientId) {
+                    const rawDateTime = String(input.data_agendada || input.data || '').trim();
+                    const baseDate = rawDateTime ? rawDateTime.slice(0, 10) : null;
+                    const baseTime = String(input.hora_agendada || input.hora_agendamento || (rawDateTime.includes('T') ? rawDateTime.slice(11, 16) : '') || '').trim() || null;
                     const payload = {
                         calendar_id: String(input.calendar_id).trim(),
                         calendar_item_id: input.calendar_item_id,
                         cliente_id: normalizedClientId,
                         status: 'draft',
-                        data_agendada: String(input.data_agendada || input.data || '').slice(0, 10) || null,
+                        data_agendada: baseDate,
+                        hora_agendada: baseTime,
                         tema: input.tema || input.title || null,
                         formato: input.formato || input.tipo_conteudo || 'post_estatico',
                         plataforma: input.plataforma || input.platform || 'instagram',
@@ -617,7 +621,9 @@
                 }
                 const clientId = normalizedClientId;
                 const localToday = global.MonthUtils?.formatLocalDate ? global.MonthUtils.formatLocalDate(new Date()) : '';
-                const postDate = input.data_agendada || input.data || localToday;
+                const rawDateTime = String(input.data_agendada || input.data || localToday).trim();
+                const postDate = rawDateTime ? rawDateTime.slice(0, 10) : localToday;
+                const postTime = String(input.hora_agendada || input.hora_agendamento || (rawDateTime.includes('T') ? rawDateTime.slice(11, 16) : '') || '').trim() || null;
                 const title = input.titulo || input.tema || input.title || 'Post';
                 const content = input.content || input.detailed_content || input.legenda || '';
                 
@@ -698,6 +704,7 @@
                     calendar_id: calendarId,
                     calendar_item_id: input.calendar_item_id || null,
                     data_agendada: postDate,
+                    hora_agendada: postTime,
                     tema: title,
                     formato: formato,
                     legenda: content,
@@ -755,7 +762,12 @@
                 dbPayload.sugestao_criativo = input.sugestao_criativo || input.criativo || input.creative;
             }
             if (input.data_agendada !== undefined || input.data !== undefined) {
-                dbPayload.data_agendada = input.data_agendada || input.data;
+                const rawDateTime = String(input.data_agendada || input.data || '').trim();
+                dbPayload.data_agendada = rawDateTime ? rawDateTime.slice(0, 10) : null;
+                if (rawDateTime.includes('T')) dbPayload.hora_agendada = rawDateTime.slice(11, 16);
+            }
+            if (input.hora_agendada !== undefined || input.hora_agendamento !== undefined) {
+                dbPayload.hora_agendada = String(input.hora_agendada || input.hora_agendamento || '').trim() || null;
             }
             if (input.status !== undefined) {
                 let status = input.status;

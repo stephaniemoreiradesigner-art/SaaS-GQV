@@ -196,10 +196,10 @@
                 const actionEl = e.target?.closest?.('[data-action]');
                 if (actionEl) return;
                 if (isCalendarItem) {
-                    document.dispatchEvent(new CustomEvent('v2:calendar-item-click', { detail: { itemId: post.calendar_item_id, date: post.data_agendada } }));
+                    document.dispatchEvent(new CustomEvent('v2:calendar-item-click', { detail: { itemId: post.calendar_item_id, date: post.data_agendada, source: 'calendar' } }));
                     return;
                 }
-                document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, source: 'calendar' } }));
             });
 
             if (!isCalendarItem) {
@@ -220,7 +220,7 @@
                     editBtn.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, source: 'calendar' } }));
                     });
                 }
                 const duplicateBtn = el.querySelector('[data-action="duplicate"]');
@@ -232,7 +232,7 @@
                         delete duplicated.id;
                         delete duplicated.post_id;
                         if (global.SocialMediaUI?.renderCreateForm) {
-                            global.SocialMediaUI.renderCreateForm(duplicated);
+                            global.SocialMediaUI.renderCreateForm(duplicated, null, 'calendar');
                         } else {
                             document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post: duplicated } }));
                         }

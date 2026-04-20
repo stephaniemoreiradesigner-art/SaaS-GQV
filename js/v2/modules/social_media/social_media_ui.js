@@ -245,6 +245,16 @@
             return !['ready_for_approval', 'approved', 'scheduled', 'published'].includes(normalized);
         },
 
+        hasMediaAttached: function(post) {
+            return !!String(this.getPostMediaUrl(post) || '').trim();
+        },
+
+        shouldLockContentFields: function(post) {
+            const status = this.normalizeStatus(post?.status);
+            if (this.hasMediaAttached(post)) return true;
+            return ['ready_for_approval', 'approved', 'scheduled', 'published'].includes(status);
+        },
+
         getStatusBadgeInfo: function(raw) {
             const rawStatus = String(raw || '').trim().toLowerCase();
             const normalized = global.GQV_CONSTANTS?.SOCIAL_STATUS_MAP?.[rawStatus] || rawStatus;
@@ -260,6 +270,18 @@
 
         getDecisionLabel: function(decision) {
             const key = String(decision || '').trim().toLowerCase();
+            if (key === 'content_created_calendar') return 'Conteúdo criado no calendário';
+            if (key === 'content_sent_for_approval') return 'Conteúdo enviado para aprovação';
+            if (key === 'content_approved') return 'Conteúdo aprovado';
+            if (key === 'content_changes_requested') return 'Cliente solicitou ajustes no conteúdo';
+            if (key === 'media_card_created') return 'Card de mídia criado';
+            if (key === 'media_inserted') return 'Mídia inserida';
+            if (key === 'media_sent_for_approval') return 'Mídia enviada para aprovação';
+            if (key === 'media_in_review') return 'Mídia para revisão (cliente solicitou ajustes)';
+            if (key === 'media_adjusted_waiting_approval') return 'Mídia ajustada aguardando aprovação';
+            if (key === 'post_client_approved') return 'Postagem aprovada pelo cliente';
+            if (key === 'post_scheduled') return 'Post agendado';
+            if (key === 'post_published') return 'Publicado';
             if (key === 'created') return 'Card criado';
             if (key === 'approved') return 'Aprovado';
             if (key === 'changes_requested') return 'Solicitação de ajustes';
@@ -289,6 +311,13 @@
 
         getDecisionColor: function(decision) {
             const key = String(decision || '').trim().toLowerCase();
+            if (['content_created_calendar', 'media_card_created'].includes(key)) return { dot: 'bg-slate-400', border: 'border-slate-200', text: 'text-slate-600' };
+            if (['content_sent_for_approval', 'media_sent_for_approval', 'media_adjusted_waiting_approval'].includes(key)) return { dot: 'bg-blue-500', border: 'border-blue-100', text: 'text-blue-700' };
+            if (['content_approved', 'post_client_approved'].includes(key)) return { dot: 'bg-emerald-500', border: 'border-emerald-100', text: 'text-emerald-700' };
+            if (['content_changes_requested', 'media_in_review'].includes(key)) return { dot: 'bg-amber-500', border: 'border-amber-100', text: 'text-amber-700' };
+            if (key === 'media_inserted') return { dot: 'bg-violet-500', border: 'border-violet-100', text: 'text-violet-700' };
+            if (key === 'post_scheduled') return { dot: 'bg-purple-500', border: 'border-purple-100', text: 'text-purple-700' };
+            if (key === 'post_published') return { dot: 'bg-teal-500', border: 'border-teal-100', text: 'text-teal-700' };
             if (key === 'created') return { dot: 'bg-slate-400', border: 'border-slate-200', text: 'text-slate-600' };
             if (key === 'approved') return { dot: 'bg-emerald-500', border: 'border-emerald-100', text: 'text-emerald-700' };
             if (key === 'changes_requested' || key === 'needs_revision') return { dot: 'bg-amber-500', border: 'border-amber-100', text: 'text-amber-700' };
@@ -783,7 +812,7 @@
                         ${contextHint ? `<p class="mt-1 text-[10px] text-slate-400 italic truncate">${contextHint}</p>` : ''}
                     `;
                     const openEditor = () => {
-                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post } }));
+                        document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, source: 'pipeline' } }));
                     };
                     card.addEventListener('click', (event) => {
                         const actionEl = event.target?.closest?.('[data-card-action]');
@@ -835,7 +864,7 @@
                             event.preventDefault();
                             event.stopPropagation();
                             closeAllMenus();
-                            document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, initialTab: 'history' } }));
+                            document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, initialTab: 'history', source: 'pipeline' } }));
                         });
                     }
                     const duplicateBtn = card.querySelector('[data-card-action="duplicate"]');
@@ -847,7 +876,7 @@
                             const duplicated = { ...post, status: 'draft' };
                             delete duplicated.id;
                             delete duplicated.post_id;
-                            this.renderCreateForm(duplicated);
+                            this.renderCreateForm(duplicated, null, 'pipeline');
                         });
                     }
                     const sendBtn = card.querySelector('[data-card-action="send"]');
@@ -1580,7 +1609,7 @@
          * Abre o drawer preenchido para criar ou editar
          * @param {Object} post - Dados do post (opcional)
          */
-        renderCreateForm: function(post = null, initialTab = null) {
+        renderCreateForm: function(post = null, initialTab = null, openSource = null) {
             const drawer = document.getElementById(this.drawerId);
             if (!drawer) return;
 
@@ -1591,6 +1620,7 @@
 
             drawer.dataset.mode = isEdit ? 'edit' : 'create';
             drawer.dataset.postId = postId;
+            drawer.dataset.openSource = String(openSource || post?.__openSource || 'pipeline').trim() || 'pipeline';
             
             console.log(`[SOCIAL UI] renderCreateForm. IsEdit: ${isEdit}, ID: ${postId}`);
 
@@ -1623,6 +1653,7 @@
             this.setFieldValue('social-post-title-input', post?.titulo || post?.tema || ''); // DB field: legenda/tema
             this.setFieldValue('social-post-caption-full', post?.legenda || post?.conteudo || ''); // DB field: detailed_content
             this.setFieldValue('social-post-date', post?.data_agendada?.split('T')[0] || post?.data_postagem?.split('T')[0] || '');
+            this.setFieldValue('social-post-time', post?.hora_agendada || (post?.data_agendada && String(post.data_agendada).includes('T') ? String(post.data_agendada).slice(11, 16) : ''));
             this.setFieldValue('social-post-cta', post?.cta || '');
             this.setFieldValue('social-post-hashtags', post?.hashtags || '');
             this.setFieldValue('social-post-status', post?.status || 'draft');
@@ -1694,6 +1725,7 @@
             const editable = !isEdit || this.isPostEditable(post?.status);
             [
                 document.getElementById('social-post-date'),
+                document.getElementById('social-post-time'),
                 document.getElementById('social-post-content-type'),
                 document.getElementById('social-post-title-input'),
                 document.getElementById('social-post-caption-full'),
@@ -1715,6 +1747,16 @@
                 document.getElementById('social-post-delete')
             ].forEach((el) => {
                 if (el) el.disabled = !editable;
+            });
+
+            const contentLocked = this.shouldLockContentFields(post);
+            [
+                document.getElementById('social-post-caption-full'),
+                document.getElementById('social-post-cta'),
+                document.getElementById('social-post-hashtags')
+            ].forEach((el) => {
+                if (!el) return;
+                el.disabled = !editable || contentLocked;
             });
 
             // Exibir drawer
@@ -1743,10 +1785,20 @@
                 mediaUrl = videoPreview.src;
             }
 
+            const dateValue = document.getElementById('social-post-date')?.value;
+            const timeValue = document.getElementById('social-post-time')?.value;
+            const scheduledDateTime = dateValue
+                ? `${dateValue}${timeValue ? `T${timeValue}:00` : ''}`
+                : null;
+
             return {
                 titulo: document.getElementById('social-post-title-input')?.value,
                 legenda: document.getElementById('social-post-caption-full')?.value, 
-                data_postagem: document.getElementById('social-post-date')?.value,
+                data_postagem: dateValue,
+                data_agendada: scheduledDateTime,
+                data_agendamento: dateValue || null,
+                hora_agendada: timeValue || null,
+                hora_agendamento: timeValue || null,
                 cta: document.getElementById('social-post-cta')?.value,
                 hashtags: document.getElementById('social-post-hashtags')?.value,
                 status: document.getElementById('social-post-status')?.value,

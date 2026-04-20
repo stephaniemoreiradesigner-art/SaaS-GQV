@@ -65,7 +65,7 @@
             // Ouvir clique no card para edição (disparado pelo Calendar ou Feed)
             document.addEventListener('v2:post-click', (e) => {
                 if (e.detail && e.detail.post) {
-                    this.startEdit(e.detail.post, e.detail.initialTab || null);
+                    this.startEdit(e.detail.post, e.detail.initialTab || null, e.detail.source || 'pipeline');
                 }
             });
 
@@ -79,48 +79,16 @@
             // Ouvir adição rápida de post no dia
             document.addEventListener('v2:calendar-add', (e) => {
                 if (e.detail && e.detail.date) {
-                    const snap = this.getCalendarSnap();
-                    if (!global.SocialMediaUI?.openEditorialItemModal) return;
-                    global.SocialMediaUI.openEditorialItemModal({
-                        clientId: snap?.clientId || null,
-                        monthKey: snap?.monthKey || null,
-                        calendarId: snap?.activeCalendarId || null,
-                        calendarStatus: snap?.calendarStatus || null,
-                        item: { data: String(e.detail.date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
-                    });
+                    this.startCreate(String(e.detail.date || '').slice(0, 10), 'calendar');
                 }
             });
             document.addEventListener('v2:calendar-item-add', (e) => {
                 if (e.detail && e.detail.date) {
-                    const snap = this.getCalendarSnap();
-                    const item = { data: String(e.detail.date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' };
-                    if (global.SocialMediaUI?.openEditorialItemModal) {
-                        global.SocialMediaUI.openEditorialItemModal({
-                            clientId: snap?.clientId || null,
-                            monthKey: snap?.monthKey || null,
-                            calendarId: snap?.activeCalendarId || null,
-                            calendarStatus: snap?.calendarStatus || null,
-                            item
-                        });
-                    }
+                    this.startCreate(String(e.detail.date || '').slice(0, 10), 'calendar');
                 }
             });
-            document.addEventListener('v2:calendar-item-click', (e) => {
-                const itemId = e?.detail?.itemId ?? null;
-                const date = e?.detail?.date ?? null;
-                const snap = this.getCalendarSnap();
-                const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
-                const selected = itemId ? items.find((it) => String(it?.id) === String(itemId)) : null;
-                if (global.SocialMediaUI?.openEditorialItemModal) {
-                    global.SocialMediaUI.openEditorialItemModal({
-                        clientId: snap?.clientId || null,
-                        monthKey: snap?.monthKey || null,
-                        calendarId: snap?.activeCalendarId || null,
-                        calendarStatus: snap?.calendarStatus || null,
-                        item: selected || { id: itemId, data: String(date || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
-                    });
-                    return;
-                }
+            document.addEventListener('v2:calendar-item-click', async (e) => {
+                await this.handleCalendarItemClick(e?.detail || {});
             });
             
             // Ouvir botão Novo Post
@@ -136,20 +104,10 @@
                     const inPlanning = ['draft', 'sent_for_approval', 'needs_changes', 'rascunho', 'aguardando_aprovacao', 'ajuste_solicitado'].includes(normalized);
                     const calendarTabActive = global.SocialMediaUI?.isTabActive ? global.SocialMediaUI.isTabActive('calendar') : false;
                     if (calendarTabActive && inPlanning) {
-                        const snap = this.getCalendarSnap();
-                        if (global.SocialMediaUI?.openEditorialItemModal) {
-                            global.SocialMediaUI.openEditorialItemModal({
-                                clientId: snap?.clientId || null,
-                                monthKey: snap?.monthKey || null,
-                                calendarId: snap?.activeCalendarId || null,
-                                calendarStatus: snap?.calendarStatus || null,
-                                item: { data: String(todayStr || '').slice(0, 10), tema: '', tipo_conteudo: 'post_estatico', canal: 'instagram', observacoes: '' }
-                            });
-                            return;
-                        }
+                        this.startCreate(todayStr, 'calendar');
                         return;
                     }
-                    this.startCreate(todayStr);
+                    this.startCreate(todayStr, 'pipeline');
                 };
             }
 
@@ -656,6 +614,7 @@
                                 if (global.SocialMediaUI?.renderPostsBoard) {
                                     global.SocialMediaUI.renderPostsBoard(this.currentPosts, monthKey);
                                 }
+                                this.processAutoPublishPosts(this.currentPosts);
                                 // Auto-criação/sincronização: aprovados → draft, needs_changes → changes_requested
                                 const items = Array.isArray(snap.editorialItems) ? snap.editorialItems : [];
                                 items.forEach((it) => {
@@ -839,17 +798,163 @@
             }
         },
 
-        startCreate: function(date) {
+        startCreate: function(date, source = 'pipeline') {
             console.log('[SOCIAL] Iniciando criação para data:', date);
             if (global.SocialMediaUI) {
-                global.SocialMediaUI.renderCreateForm({ data_agendada: date, status: 'rascunho' });
+                global.SocialMediaUI.renderCreateForm({ data_agendada: date, status: 'rascunho' }, null, source || 'pipeline');
             }
         },
 
-        startEdit: function(post, initialTab) {
+        startEdit: function(post, initialTab, source = 'pipeline') {
             console.log('[SOCIAL] Iniciando edição do post:', post.id);
             if (global.SocialMediaUI) {
-                global.SocialMediaUI.renderCreateForm(post, initialTab || null);
+                global.SocialMediaUI.renderCreateForm(post, initialTab || null, source || 'pipeline');
+            }
+        },
+
+        normalizePostStatusKey: function(raw) {
+            const key = String(raw || '').trim().toLowerCase();
+            if (!key) return 'draft';
+            if (global.GQV_CONSTANTS?.getSocialStatusKey) return global.GQV_CONSTANTS.getSocialStatusKey(key);
+            return key;
+        },
+
+        getPostScheduleDateTimeMs: function(post) {
+            const rawDate = String(post?.data_agendada || post?.data_postagem || '').trim();
+            const rawTime = String(post?.hora_agendada || post?.hora_agendamento || '').trim();
+            if (!rawDate) return NaN;
+            const hasTimeInDate = rawDate.includes('T');
+            const combined = hasTimeInDate ? rawDate : `${rawDate.slice(0, 10)}T${rawTime || '10:00'}:00`;
+            const ms = new Date(combined).getTime();
+            return Number.isFinite(ms) ? ms : NaN;
+        },
+
+        isPostDueToPublish: function(post) {
+            const status = this.normalizePostStatusKey(post?.status);
+            if (status !== 'scheduled') return false;
+            const scheduledMs = this.getPostScheduleDateTimeMs(post);
+            if (!Number.isFinite(scheduledMs)) return false;
+            return scheduledMs <= Date.now();
+        },
+
+        logLifecycleEvent: async function(postId, decision, comment, extra = {}) {
+            if (!postId || !global.SocialMediaRepo?.logPostEvent) return;
+            await global.SocialMediaRepo.logPostEvent(postId, {
+                decision,
+                comment: comment || null,
+                status_anterior: extra?.statusAnterior || null,
+                status_novo: extra?.statusNovo || null
+            });
+        },
+
+        ensurePostFromCalendarItem: async function(item, fallbackDate) {
+            const itemId = item?.id || null;
+            if (!itemId || !this.currentClientId) return null;
+            const existing = await global.SocialMediaRepo?.getPostByCalendarItemId?.(itemId);
+            if (existing?.id) return existing;
+
+            const snap = this.getCalendarSnap();
+            const created = await global.SocialMediaRepo?.createPost?.({
+                calendar_id: snap?.activeCalendarId || null,
+                calendar_item_id: itemId,
+                cliente_id: this.currentClientId,
+                status: 'draft',
+                data_agendada: String(item?.data || fallbackDate || '').slice(0, 10),
+                tema: item?.tema || 'Conteúdo',
+                formato: item?.tipo_conteudo || 'post_estatico',
+                plataforma: item?.canal || 'instagram'
+            });
+            const post = Array.isArray(created) ? created[0] : created;
+            if (post?.id) {
+                await this.logLifecycleEvent(post.id, 'content_created_calendar', 'Conteúdo criado no calendário', { statusNovo: 'draft' });
+            }
+            return post || null;
+        },
+
+        handleCalendarItemClick: async function(detail) {
+            const itemId = detail?.itemId ?? null;
+            const date = String(detail?.date || '').slice(0, 10);
+            const snap = this.getCalendarSnap();
+            const items = Array.isArray(snap?.editorialItems) ? snap.editorialItems : [];
+            const selected = itemId ? items.find((it) => String(it?.id) === String(itemId)) : null;
+
+            if (selected) {
+                const post = await this.ensurePostFromCalendarItem(selected, date);
+                if (post?.id) {
+                    this.startEdit(post, null, 'calendar');
+                    return;
+                }
+            }
+            this.startCreate(date, 'calendar');
+        },
+
+        processAutoPublishPosts: async function(posts) {
+            const list = Array.isArray(posts) ? posts : [];
+            if (!list.length) return;
+            this._autoPublishInFlight = this._autoPublishInFlight || new Set();
+            for (const post of list) {
+                const postId = post?.id;
+                if (!postId || !this.isPostDueToPublish(post)) continue;
+                if (this._autoPublishInFlight.has(postId)) continue;
+                this._autoPublishInFlight.add(postId);
+                try {
+                    const ok = await global.SocialMediaRepo?.updatePostStatus?.(postId, 'published');
+                    if (ok) {
+                        await this.logLifecycleEvent(postId, 'post_published', 'Publicado', {
+                            statusAnterior: post?.status || 'scheduled',
+                            statusNovo: 'published'
+                        });
+                    }
+                } catch (err) {
+                    console.warn('[SOCIAL] falha auto-publicação:', err?.message || err);
+                } finally {
+                    this._autoPublishInFlight.delete(postId);
+                }
+            }
+        },
+
+        processLifecycleEvents: async function(postId, beforePost, afterPost, context = {}) {
+            if (!postId) return;
+            const prevStatus = this.normalizePostStatusKey(beforePost?.status);
+            const nextStatus = this.normalizePostStatusKey(afterPost?.status);
+            const hadMediaBefore = !!String(beforePost?.imagem_url || '').trim();
+            const hasMediaNow = !!String(afterPost?.imagem_url || '').trim();
+
+            if (context?.isCreate && context?.source === 'calendar') {
+                await this.logLifecycleEvent(postId, 'content_created_calendar', 'Conteúdo criado no calendário', { statusNovo: nextStatus || 'draft' });
+            }
+
+            if (!hadMediaBefore && hasMediaNow) {
+                await this.logLifecycleEvent(postId, 'media_card_created', 'Card de mídia criado', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                await this.logLifecycleEvent(postId, 'media_inserted', 'Mídia inserida', { statusAnterior: prevStatus, statusNovo: nextStatus });
+            }
+
+            if (prevStatus !== nextStatus) {
+                if (nextStatus === 'ready_for_approval') {
+                    if (prevStatus === 'changes_requested') {
+                        await this.logLifecycleEvent(postId, 'media_adjusted_waiting_approval', 'Mídia ajustada aguardando aprovação', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    } else if (hasMediaNow || hadMediaBefore) {
+                        await this.logLifecycleEvent(postId, 'media_sent_for_approval', 'Mídia enviada para aprovação', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    } else {
+                        await this.logLifecycleEvent(postId, 'content_sent_for_approval', 'Conteúdo enviado para aprovação', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    }
+                } else if (nextStatus === 'approved') {
+                    if (hasMediaNow || hadMediaBefore) {
+                        await this.logLifecycleEvent(postId, 'post_client_approved', 'Postagem aprovada pelo cliente', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    } else {
+                        await this.logLifecycleEvent(postId, 'content_approved', 'Conteúdo aprovado', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    }
+                } else if (nextStatus === 'changes_requested') {
+                    if (hasMediaNow || hadMediaBefore) {
+                        await this.logLifecycleEvent(postId, 'media_in_review', 'Mídia para revisão (cliente solicitou ajustes)', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    } else {
+                        await this.logLifecycleEvent(postId, 'content_changes_requested', 'Cliente solicitou ajustes no conteúdo', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                    }
+                } else if (nextStatus === 'scheduled') {
+                    await this.logLifecycleEvent(postId, 'post_scheduled', 'Post agendado', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                } else if (nextStatus === 'published') {
+                    await this.logLifecycleEvent(postId, 'post_published', 'Publicado', { statusAnterior: prevStatus, statusNovo: nextStatus });
+                }
             }
         },
 
@@ -873,6 +978,20 @@
                 ...formData
             };
 
+            const saveStatusKey = this.normalizePostStatusKey(input?.status);
+            if (saveStatusKey === 'scheduled') {
+                const hasDate = !!String(input?.data_agendamento || input?.data_postagem || '').trim();
+                const hasTime = !!String(input?.hora_agendada || input?.hora_agendamento || '').trim();
+                if (!hasDate || !hasTime) {
+                    if (global.SocialMediaUI?.showFeedback) {
+                        global.SocialMediaUI.showFeedback('Para agendar, informe data e hora.', 'error');
+                    } else {
+                        alert('Para agendar, informe data e hora.');
+                    }
+                    return;
+                }
+            }
+
             if (this.isDebug()) console.log('[SocialMediaV2] handleSavePost payload:', input);
 
             const saveBtn = document.getElementById('social-post-save');
@@ -883,16 +1002,21 @@
             }
 
             try {
+                const source = String(drawer?.dataset?.openSource || 'pipeline').trim() || 'pipeline';
+                let beforePost = null;
+                let savedPost = null;
                 if (mode === 'edit' && postId && postId !== 'undefined' && postId !== '') {
                     if (this.isDebug()) console.log('[SocialMediaV2] Updating existing post...', postId);
+                    beforePost = global.SocialMediaUI?._activePost || null;
                     const updated = await global.SocialMediaRepo.updatePost(postId, input);
                     if (updated) {
+                         savedPost = Array.isArray(updated) ? updated[0] : updated;
                          if (this.isDebug()) console.log('[SocialMediaV2] Post updated successfully:', updated);
                          if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado com sucesso!', 'success');
                          global.SocialMediaRepo?.logPostEvent?.(postId, {
                              decision: 'agency_updated_content',
-                             status_anterior: updated?.status || null,
-                             status_novo: updated?.status || null
+                             status_anterior: beforePost?.status || null,
+                             status_novo: savedPost?.status || null
                          });
                     } else {
                          throw new Error('Falha ao atualizar (retorno vazio).');
@@ -901,10 +1025,27 @@
                     if (this.isDebug()) console.log('[SocialMediaV2] Creating new post...', input);
                     const created = await global.SocialMediaRepo.createPost(input);
                     if (created) {
+                         savedPost = Array.isArray(created) ? created[0] : created;
                          if (this.isDebug()) console.log('[SocialMediaV2] Post created successfully:', created);
                          if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Post criado com sucesso!', 'success');
                     } else {
                          throw new Error('Falha ao criar post (retorno vazio).');
+                    }
+                }
+
+                if (savedPost?.id) {
+                    await this.processLifecycleEvents(savedPost.id, beforePost, savedPost, {
+                        isCreate: mode !== 'edit',
+                        source
+                    });
+                    if (this.isPostDueToPublish(savedPost)) {
+                        const promoted = await global.SocialMediaRepo?.updatePostStatus?.(savedPost.id, 'published');
+                        if (promoted) {
+                            await this.logLifecycleEvent(savedPost.id, 'post_published', 'Publicado', {
+                                statusAnterior: savedPost?.status || 'scheduled',
+                                statusNovo: 'published'
+                            });
+                        }
                     }
                 }
                 
