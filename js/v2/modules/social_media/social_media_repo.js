@@ -1123,7 +1123,7 @@
                     .from('social_approvals')
                     .select('post_id,decision,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
                     .eq('post_id', postId)
-                    .order('decided_at', { ascending: true, nullsFirst: false });
+                    .order('created_at', { ascending: true, nullsFirst: false });
 
                 if (error) {
                     console.warn('[History] getPostAuditEvents error:', {

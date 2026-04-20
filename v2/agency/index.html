@@ -757,7 +757,11 @@
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="p-6 space-y-4">
+            <div class="flex gap-1 px-6 pt-4 border-b border-slate-100">
+                <button type="button" data-editorial-tab="edit" class="editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg bg-white border border-b-0 border-slate-200 text-slate-900">Editar</button>
+                <button type="button" data-editorial-tab="history" class="editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg text-slate-500 hover:text-slate-800">Histórico</button>
+            </div>
+            <div id="social-editorial-item-panel-edit" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                 <input id="social-editorial-item-id" type="hidden">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -802,6 +806,9 @@
                     <p id="social-editorial-item-client-comment" class="text-sm text-amber-900 whitespace-pre-line"></p>
                 </div>
                 <div id="social-editorial-item-feedback" class="hidden text-sm rounded-lg px-3 py-2"></div>
+            </div>
+            <div id="social-editorial-item-panel-history" class="hidden p-6 max-h-[70vh] overflow-y-auto">
+                <div id="social-editorial-item-history-items" class="space-y-2"></div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3">
                 <button id="social-editorial-item-cancel" class="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:text-slate-800">Cancelar</button>

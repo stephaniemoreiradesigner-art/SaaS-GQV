@@ -428,13 +428,19 @@
             }
 
             if (!historyEl) return;
-            historyEl.innerHTML = '';
+            this.renderTimelineEvents(historyEl, list);
+        },
+
+        renderTimelineEvents: function(containerEl, events) {
+            if (!containerEl) return;
+            containerEl.innerHTML = '';
+            const list = Array.isArray(events) ? events : [];
 
             if (!list.length) {
                 const empty = document.createElement('div');
                 empty.className = 'text-sm text-slate-400 py-4 text-center';
                 empty.textContent = 'Sem histórico ainda';
-                historyEl.appendChild(empty);
+                containerEl.appendChild(empty);
                 return;
             }
 
@@ -445,7 +451,6 @@
                 const row = document.createElement('div');
                 row.className = 'flex items-start gap-3';
 
-                // Rail com dot colorido e linha de conexão
                 const rail = document.createElement('div');
                 rail.className = 'flex flex-col items-center flex-shrink-0';
                 rail.innerHTML = `
@@ -486,7 +491,7 @@
 
                 row.appendChild(rail);
                 row.appendChild(wrap);
-                historyEl.appendChild(row);
+                containerEl.appendChild(row);
             });
         },
 
@@ -554,6 +559,30 @@
                     msg.textContent = 'Não foi possível carregar o histórico.';
                     historyEl.appendChild(msg);
                 }
+            }
+        },
+
+        refreshEditorialItemHistory: async function(itemId) {
+            const containerEl = document.getElementById('social-editorial-item-history-items');
+            if (!containerEl) return;
+            containerEl.innerHTML = '<div class="text-sm text-slate-400 py-4 text-center">Carregando histórico...</div>';
+            try {
+                const post = await global.SocialMediaRepo?.getPostByCalendarItemId?.(String(itemId));
+                if (!post?.id) {
+                    this.renderTimelineEvents(containerEl, []);
+                    return;
+                }
+                const audit = await global.SocialMediaRepo?.getPostAuditEvents?.(String(post.id));
+                const auditArr = Array.isArray(audit) ? audit : [];
+                const normalized = auditArr.map((ev) => this.normalizeAuditEventForTimeline(ev));
+                const hasCreated = normalized.some((e) => String(e?.kind || '') === 'created');
+                if (!hasCreated && post?.created_at) {
+                    normalized.unshift({ kind: 'created', at: String(post.created_at), origin: 'Sistema', action: this.getDecisionLabel('created'), description: '' });
+                }
+                const sorted = normalized.filter(Boolean).sort((a, b) => String(a?.at || '').localeCompare(String(b?.at || '')));
+                this.renderTimelineEvents(containerEl, sorted);
+            } catch (err) {
+                containerEl.innerHTML = '<div class="text-sm text-slate-400 py-4 text-center">Não foi possível carregar o histórico.</div>';
             }
         },
 
@@ -1004,6 +1033,54 @@
                     resendBtn.classList.add('hidden');
                 }
             }
+
+            // Resetar para aba Editar e ligar tabs
+            const tabBtns = modal.querySelectorAll('[data-editorial-tab]');
+            if (!modal._editorialTabsWired) {
+                modal._editorialTabsWired = true;
+                tabBtns.forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const tab = btn.dataset.editorialTab;
+                        const isHistory = tab === 'history';
+                        const ep = document.getElementById('social-editorial-item-panel-edit');
+                        const hp = document.getElementById('social-editorial-item-panel-history');
+                        const sb = document.getElementById('social-editorial-item-save');
+                        const rb = document.getElementById('social-editorial-item-resend');
+                        if (ep) ep.classList.toggle('hidden', isHistory);
+                        if (hp) hp.classList.toggle('hidden', !isHistory);
+                        if (sb) sb.classList.toggle('hidden', isHistory);
+                        if (rb) rb.classList.toggle('hidden', isHistory || (this._editorialItemContext?._resendShouldBeHidden !== false));
+                        modal.querySelectorAll('[data-editorial-tab]').forEach((b) => {
+                            const active = b.dataset.editorialTab === tab;
+                            b.className = active
+                                ? 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg bg-white border border-b-0 border-slate-200 text-slate-900'
+                                : 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg text-slate-500 hover:text-slate-800';
+                        });
+                        if (isHistory) {
+                            const currentItemId = this._editorialItemContext?.itemId || '';
+                            if (currentItemId) this.refreshEditorialItemHistory(currentItemId);
+                            else this.renderTimelineEvents(document.getElementById('social-editorial-item-history-items'), []);
+                        }
+                    });
+                });
+            }
+            // Armazenar se resend deve aparecer para restaurar ao voltar para edit
+            if (this._editorialItemContext) {
+                this._editorialItemContext._resendShouldBeHidden = resendBtn ? resendBtn.classList.contains('hidden') : true;
+            }
+            // Ativar aba Editar
+            const editPanel = document.getElementById('social-editorial-item-panel-edit');
+            const historyPanel = document.getElementById('social-editorial-item-panel-history');
+            const saveBtnEl = document.getElementById('social-editorial-item-save');
+            if (editPanel) editPanel.classList.remove('hidden');
+            if (historyPanel) historyPanel.classList.add('hidden');
+            if (saveBtnEl) saveBtnEl.classList.remove('hidden');
+            tabBtns.forEach((b) => {
+                const active = b.dataset.editorialTab === 'edit';
+                b.className = active
+                    ? 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg bg-white border border-b-0 border-slate-200 text-slate-900'
+                    : 'editorial-tab-btn px-4 py-2 text-xs font-semibold rounded-t-lg text-slate-500 hover:text-slate-800';
+            });
 
             this.showEditorialItemModal(true);
         },
