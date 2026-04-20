@@ -9,7 +9,8 @@
       "Bash(npm install:*)",
       "Bash(npx shadcn@latest add card input label toast sidebar navigation-menu dropdown-menu avatar badge separator sheet)",
       "Bash(npx shadcn@latest add card input label sonner sidebar navigation-menu dropdown-menu avatar badge separator sheet)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(xargs grep *)"
     ]
   }
 }

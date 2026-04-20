@@ -1118,73 +1118,39 @@
 
         getPostAuditEvents: async function(postId) {
             if (!global.supabaseClient || !postId) return [];
-
-            const attempts = [
-                {
-                    label: 'full',
-                    select: 'post_id,version_id,decision,action_type,decided_by,decided_at,created_at,comment,status_anterior,status_novo,actor_label',
-                    orderBy: 'decided_at'
-                },
-                {
-                    label: 'standard',
-                    select: 'post_id,decision,decided_at,created_at,comment,status_anterior,status_novo,actor_label',
-                    orderBy: 'decided_at'
-                },
-                {
-                    label: 'legacy',
-                    select: 'post_id,decision,created_at,comment',
-                    orderBy: 'created_at'
-                }
-            ];
-
             try {
-                for (const attempt of attempts) {
-                    const query = global.supabaseClient
-                        .from('social_approvals')
-                        .select(attempt.select)
-                        .eq('post_id', postId)
-                        .order(attempt.orderBy, { ascending: true, nullsFirst: false });
+                const { data, error } = await global.supabaseClient
+                    .from('social_approvals')
+                    .select('post_id,decision,decided_at,created_at,comment,status_anterior,status_novo,actor_label')
+                    .eq('post_id', postId)
+                    .order('decided_at', { ascending: true, nullsFirst: false });
 
-                    const { data, error } = await query;
-
-                    if (error) {
-                        console.warn('[History] getPostAuditEvents fallback:', {
-                            postId: String(postId),
-                            attempt: attempt.label,
-                            code: error?.code || null,
-                            message: error?.message || null
-                        });
-                        continue;
-                    }
-
-                    const events = (data || []).map((ev) => ({
-                        ...ev,
-                        decided_at: ev?.decided_at || ev?.created_at || null,
-                        decision: ev?.decision || ev?.action_type || 'status_change',
-                        actor_label: ev?.actor_label || ev?.decided_by || null,
-                        decided_by: ev?.decided_by || ev?.actor_label || null,
-                        status_anterior: ev?.status_anterior || null,
-                        status_novo: ev?.status_novo || null
-                    }));
-
-                    console.log('[History] getPostAuditEvents ok:', {
+                if (error) {
+                    console.warn('[History] getPostAuditEvents error:', {
                         postId: String(postId),
-                        attempt: attempt.label,
-                        count: events.length
+                        code: error?.code || null,
+                        message: error?.message || null
                     });
-
-                    return events;
+                    return [];
                 }
 
-                console.warn('[History] getPostAuditEvents empty after fallback:', { postId: String(postId) });
-                return [];
+                const events = (data || []).map((ev) => ({
+                    ...ev,
+                    decided_at: ev?.decided_at || ev?.created_at || null,
+                    decision: ev?.decision || 'status_change',
+                    actor_label: ev?.actor_label || null,
+                    decided_by: ev?.actor_label || null,
+                    status_anterior: ev?.status_anterior || null,
+                    status_novo: ev?.status_novo || null
+                }));
+
+                console.log('[History] getPostAuditEvents ok:', { postId: String(postId), count: events.length });
+                return events;
             } catch (err) {
                 console.error('[History] getPostAuditEvents error:', {
                     postId: String(postId),
                     code: err?.code || null,
-                    message: err?.message || null,
-                    details: err?.details || null,
-                    hint: err?.hint || null
+                    message: err?.message || null
                 });
                 return [];
             }

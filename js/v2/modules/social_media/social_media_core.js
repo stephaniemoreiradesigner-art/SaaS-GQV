@@ -65,7 +65,7 @@
             // Ouvir clique no card para edição (disparado pelo Calendar ou Feed)
             document.addEventListener('v2:post-click', (e) => {
                 if (e.detail && e.detail.post) {
-                    this.startEdit(e.detail.post);
+                    this.startEdit(e.detail.post, e.detail.initialTab || null);
                 }
             });
 
@@ -846,10 +846,10 @@
             }
         },
 
-        startEdit: function(post) {
+        startEdit: function(post, initialTab) {
             console.log('[SOCIAL] Iniciando edição do post:', post.id);
             if (global.SocialMediaUI) {
-                global.SocialMediaUI.renderCreateForm(post);
+                global.SocialMediaUI.renderCreateForm(post, initialTab || null);
             }
         },
 
@@ -889,6 +889,11 @@
                     if (updated) {
                          if (this.isDebug()) console.log('[SocialMediaV2] Post updated successfully:', updated);
                          if (global.SocialMediaUI.showFeedback) global.SocialMediaUI.showFeedback('Atualizado com sucesso!', 'success');
+                         global.SocialMediaRepo?.logPostEvent?.(postId, {
+                             decision: 'agency_updated_content',
+                             status_anterior: updated?.status || null,
+                             status_novo: updated?.status || null
+                         });
                     } else {
                          throw new Error('Falha ao atualizar (retorno vazio).');
                     }

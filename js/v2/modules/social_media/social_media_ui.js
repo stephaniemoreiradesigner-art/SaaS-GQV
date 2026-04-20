@@ -266,6 +266,13 @@
             if (key === 'date_moved') return 'Data reagendada';
             if (key === 'returned_to_draft') return 'Devolvido para rascunho';
             if (key === 'editorial_approved') return 'Tema editorial aprovado — produção iniciada';
+            if (key === 'agency_updated_content') return 'Conteúdo atualizado pela agência';
+            if (key === 'agency_updated_media') return 'Mídia atualizada pela agência';
+            if (key === 'resent_for_approval') return 'Reenviado para aprovação';
+            if (key === 'client_approved') return 'Aprovado pelo cliente';
+            if (key === 'client_requested_changes') return 'Ajustes solicitados pelo cliente';
+            if (key === 'sent_for_approval') return 'Enviado para aprovação';
+            if (key === 'post_created') return 'Post criado';
             return key || 'Evento';
         },
 
@@ -284,6 +291,11 @@
             if (key === 'date_moved') return { dot: 'bg-sky-400', border: 'border-sky-100', text: 'text-sky-700' };
             if (key === 'returned_to_draft') return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
             if (key === 'status_change') return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
+            if (key === 'agency_updated_content' || key === 'agency_updated_media') return { dot: 'bg-violet-400', border: 'border-violet-100', text: 'text-violet-700' };
+            if (key === 'resent_for_approval' || key === 'sent_for_approval') return { dot: 'bg-blue-500', border: 'border-blue-100', text: 'text-blue-700' };
+            if (key === 'client_approved') return { dot: 'bg-emerald-500', border: 'border-emerald-100', text: 'text-emerald-700' };
+            if (key === 'client_requested_changes') return { dot: 'bg-amber-500', border: 'border-amber-100', text: 'text-amber-700' };
+            if (key === 'post_created') return { dot: 'bg-slate-400', border: 'border-slate-200', text: 'text-slate-600' };
             return { dot: 'bg-slate-300', border: 'border-slate-200', text: 'text-slate-500' };
         },
 
@@ -326,10 +338,10 @@
         getAuditEventOrigin: function(kind, actorLabel) {
             const key = String(kind || '').trim().toLowerCase();
             const actor = String(actorLabel || '').trim();
-            if (['approved', 'changes_requested', 'needs_revision', 'needs_changes', 'rejected', 'returned_to_draft'].includes(key)) {
+            if (['approved', 'changes_requested', 'needs_revision', 'needs_changes', 'rejected', 'returned_to_draft', 'client_approved', 'client_requested_changes'].includes(key)) {
                 return 'Cliente';
             }
-            if (['submitted', 'resubmitted', 'sent_for_approval', 'in_review', 'scheduled', 'published', 'editorial_approved', 'date_moved'].includes(key)) {
+            if (['submitted', 'resubmitted', 'sent_for_approval', 'resent_for_approval', 'in_review', 'scheduled', 'published', 'editorial_approved', 'date_moved', 'agency_updated_content', 'agency_updated_media'].includes(key)) {
                 return actor || 'Agência';
             }
             if (key === 'created') {
@@ -421,7 +433,7 @@
             if (!list.length) {
                 const empty = document.createElement('div');
                 empty.className = 'text-sm text-slate-400 py-4 text-center';
-                empty.textContent = 'Nenhum evento registrado ainda.';
+                empty.textContent = 'Sem histórico ainda';
                 historyEl.appendChild(empty);
                 return;
             }
@@ -718,6 +730,7 @@
                                 </button>
                                 <div id="${menuId}" data-card-menu class="hidden absolute top-0 right-[-180px] w-40 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden z-50" role="menu">
                                     <button type="button" data-card-action="edit" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Editar</button>
+                                    <button type="button" data-card-action="history" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Histórico</button>
                                     <button type="button" data-card-action="duplicate" class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Duplicar</button>
                                     <button type="button" data-card-action="send" class="w-full text-left px-3 py-2 text-sm ${canSendForApproval ? 'text-slate-700 hover:bg-slate-50' : 'text-slate-300 cursor-not-allowed'}" role="menuitem" ${canSendForApproval ? '' : 'disabled'}>Enviar para aprovação</button>
                                 </div>
@@ -774,6 +787,15 @@
                             event.stopPropagation();
                             closeAllMenus();
                             openEditor();
+                        });
+                    }
+                    const historyBtn = card.querySelector('[data-card-action="history"]');
+                    if (historyBtn) {
+                        historyBtn.addEventListener('click', (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            closeAllMenus();
+                            document.dispatchEvent(new CustomEvent('v2:post-click', { detail: { post, initialTab: 'history' } }));
                         });
                     }
                     const duplicateBtn = card.querySelector('[data-card-action="duplicate"]');
@@ -1472,7 +1494,7 @@
          * Abre o drawer preenchido para criar ou editar
          * @param {Object} post - Dados do post (opcional)
          */
-        renderCreateForm: function(post = null) {
+        renderCreateForm: function(post = null, initialTab = null) {
             const drawer = document.getElementById(this.drawerId);
             if (!drawer) return;
 
@@ -1480,7 +1502,7 @@
             const isEdit = !!(post && post.id);
             // [FIX] Garantir que o ID do post seja sempre string ou vazio, nunca undefined
             const postId = isEdit ? String(post.id) : '';
-            
+
             drawer.dataset.mode = isEdit ? 'edit' : 'create';
             drawer.dataset.postId = postId;
             
@@ -1503,8 +1525,12 @@
                     window.setSocialActivePost(post);
                 }
             }
+            const activeTab = String(initialTab || 'content').trim().toLowerCase();
             if (typeof global.setSocialPostDrawerTab === 'function') {
-                global.setSocialPostDrawerTab('content');
+                global.setSocialPostDrawerTab(activeTab);
+            }
+            if (activeTab === 'history' && isEdit) {
+                this.refreshPostAuditPanel(post);
             }
 
             // Preencher campos
